@@ -2,7 +2,7 @@
   "name": "hwallo",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo dev --ui tui",
     "build": "turbo build",
     "lint": "turbo lint",
     "clean": "turbo clean",
