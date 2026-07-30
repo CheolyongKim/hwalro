@@ -1,0 +1,72 @@
+name: Lint & Format
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: lint-format-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-format:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.sender.login != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Frontend: ESLint + Prettier ──
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend (ESLint)
+        continue-on-error: true
+        run: pnpm --filter @hwallo/frontend run lint
+
+      - name: Format frontend (Prettier)
+        continue-on-error: true
+        run: pnpm --filter @hwallo/frontend run format
+
+      # ── Backend: Spotless ──
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Grant execute permission for Gradle
+        run: chmod +x apps/backend/gradlew
+
+      - name: Format backend (Spotless)
+        continue-on-error: true
+        working-directory: apps/backend
+        run: ./gradlew spotlessApply
+
+      # ── Commit all formatting fixes ──
+      - name: Commit formatting changes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: 'style: apply lint & format fixes'
+          branch: ${{ github.head_ref }}

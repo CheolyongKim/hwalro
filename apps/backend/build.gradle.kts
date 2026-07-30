@@ -2,6 +2,7 @@ plugins {
     id("java")
     id("org.springframework.boot") version "3.4.4"
     id("io.spring.dependency-management") version "1.1.7"
+    id("com.diffplug.spotless") version "7.0.2"
 }
 
 group = "com.hwallo"
@@ -38,6 +39,16 @@ dependencies {
 dependencyManagement {
     imports {
         mavenBom("org.springframework.ai:spring-ai-bom:1.0.0-M5")
+    }
+}
+
+spotless {
+    java {
+        target("src/**/*.java")
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+        palantirJavaFormat()
     }
 }
 
