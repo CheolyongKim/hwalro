@@ -1,0 +1,9 @@
+{
+  "name": "@hwallo/backend",
+  "private": true,
+  "scripts": {
+    "dev": "./gradlew bootRun",
+    "build": "./gradlew compileJava -q",
+    "clean": "./gradlew clean -q"
+  }
+}

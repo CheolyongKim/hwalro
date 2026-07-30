@@ -1,2 +1,54 @@
-.gemini/
-gha-creds-*.json
+# Node
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+.turbo/
+out/
+
+# Java
+target/
+*.class
+*.jar
+*.war
+*.log
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Spring Boot
+**/application-local.yml
+
+# Logs
+logs/
+*.log
+
+.omo/
+
+.classpath
+.factorypath
+.mvn/
+.gradle
+build
+
