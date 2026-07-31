@@ -26,6 +26,8 @@ target/
 *.swp
 *.swo
 *~
+apps/*/.settings/
+apps/*/bin/
 
 # OS
 .DS_Store
