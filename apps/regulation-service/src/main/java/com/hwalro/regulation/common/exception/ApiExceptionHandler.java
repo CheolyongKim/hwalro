@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
 @RestControllerAdvice
@@ -31,6 +32,12 @@ public class ApiExceptionHandler {
     /** 로컬 환경에 인증값이 없을 때 외부 연동 불가 상태를 반환한다. */
     public Map<String, String> handleConfiguration(LawApiConfigurationException exception) {
         return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(ResourceAccessException.class)
+    @ResponseStatus(HttpStatus.GATEWAY_TIMEOUT)
+    public Map<String, String> handleLawApiTimeout(ResourceAccessException exception) {
+        return Map.of("message", "Regulation service timed out.");
     }
 
     @ExceptionHandler(RestClientException.class)

@@ -16,7 +16,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,13 +27,24 @@ import org.springframework.util.StringUtils;
 /** 외부 법령 응답의 한글 필드를 프론트엔드 전용 응답으로 변환한다. */
 public class RegulationService {
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_PAGE = 100_000;
 
     private final LawApiClient lawApiClient;
     private final LawApiProperties properties;
+    private final Executor lawApiExecutor;
 
-    public RegulationService(LawApiClient lawApiClient, LawApiProperties properties) {
+    @Autowired
+    public RegulationService(
+            LawApiClient lawApiClient,
+            LawApiProperties properties,
+            @Qualifier("lawApiExecutor") Executor lawApiExecutor) {
         this.lawApiClient = lawApiClient;
         this.properties = properties;
+        this.lawApiExecutor = lawApiExecutor;
+    }
+
+    RegulationService(LawApiClient lawApiClient, LawApiProperties properties) {
+        this(lawApiClient, properties, Runnable::run);
     }
 
     /** 검색어가 있으면 단일 검색 결과를, 없으면 안전 분야 기본 목록을 반환한다. */
@@ -106,7 +120,7 @@ public class RegulationService {
         Map<String, RegulationSummary> uniqueLaws = new LinkedHashMap<>();
         // ponytail: 기본 키워드만 병렬 조회한다. 응답량 또는 호출 수가 커지면 캐시를 추가한다.
         List<CompletableFuture<List<RegulationSummary>>> searches = properties.defaultKeywords().stream()
-                .map(keyword -> CompletableFuture.supplyAsync(() -> searchSummaries(keyword)))
+                .map(keyword -> CompletableFuture.supplyAsync(() -> searchSummaries(keyword), lawApiExecutor))
                 .toList();
         for (CompletableFuture<List<RegulationSummary>> search : searches) {
             for (RegulationSummary summary : search.join()) {
@@ -213,8 +227,8 @@ public class RegulationService {
 
     /** 외부 API의 최대 목록 개수(100)를 넘는 요청을 서비스 경계에서 차단한다. */
     private void validatePage(int page, int size) {
-        if (page < 1 || size < 1 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("page must be at least 1 and size must be between 1 and 100.");
+        if (page < 1 || page > MAX_PAGE || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("page must be between 1 and 100000 and size must be between 1 and 100.");
         }
     }
 }

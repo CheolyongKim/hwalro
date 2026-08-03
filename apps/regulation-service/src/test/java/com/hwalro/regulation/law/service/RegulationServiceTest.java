@@ -32,7 +32,7 @@ class RegulationServiceTest {
     @BeforeEach
     void setUp() {
         LawApiProperties properties = new LawApiProperties("https://www.law.go.kr", "test", List.of("소방", "피난"));
-        regulationService = new RegulationService(lawApiClient, properties);
+        regulationService = new RegulationService(lawApiClient, properties, Runnable::run);
     }
 
     @Test
@@ -99,7 +99,7 @@ class RegulationServiceTest {
         RegulationSearchResponse response = regulationService.search(null, 1, 20);
 
         assertThat(response.totalCount()).isEqualTo(2);
-        assertThat(response.items()).extracting(RegulationSummary::serialNumber).containsExactly("2", "1");
+        assertThat(response.items()).extracting(RegulationSummary::serialNumber).containsExactly("1", "2");
     }
 
     @Test

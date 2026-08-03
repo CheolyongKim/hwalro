@@ -2,6 +2,8 @@ package com.hwalro.regulation.law.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hwalro.regulation.law.exception.LawApiConfigurationException;
+import java.time.Duration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -9,12 +11,20 @@ import org.springframework.web.client.RestClient;
 @Component
 /** 국가법령정보센터 호출에 필요한 인증·URL·파라미터를 한곳에 모은 어댑터이다. */
 public class LawApiClient {
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
     private final LawApiProperties properties;
     private final RestClient restClient;
 
     public LawApiClient(LawApiProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
-        this.restClient = restClientBuilder.baseUrl(properties.baseUrl()).build();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
+        requestFactory.setReadTimeout(READ_TIMEOUT);
+        this.restClient = restClientBuilder
+                .baseUrl(properties.baseUrl())
+                .requestFactory(requestFactory)
+                .build();
     }
 
     /**
