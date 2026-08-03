@@ -42,13 +42,11 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as
       (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
-    const url = original?.url ?? '';
     if (
       original &&
       error.response?.status === 401 &&
       !original._retry &&
-      !url.includes('/api/auth/login') &&
-      !url.includes('/api/auth/refresh')
+      !isAuthEndpoint(original.url)
     ) {
       original._retry = true;
       try {
@@ -64,6 +62,16 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+function isAuthEndpoint(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const pathname = new URL(url, window.location.origin).pathname;
+    return pathname === '/api/auth/login' || pathname === '/api/auth/refresh';
+  } catch {
+    return false;
+  }
+}
 
 async function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {

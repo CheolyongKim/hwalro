@@ -22,7 +22,7 @@ public class CookieManager {
     public CookieManager(
             JwtTokenProvider jwtTokenProvider,
             @Value("${cookie.same-site:Lax}") String sameSite,
-            @Value("${cookie.secure:false}") boolean secure) {
+            @Value("${cookie.secure:true}") boolean secure) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.sameSite = sameSite;
         this.secure = secure;

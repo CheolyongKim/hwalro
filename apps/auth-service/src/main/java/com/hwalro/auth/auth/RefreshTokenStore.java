@@ -31,8 +31,8 @@ public class RefreshTokenStore {
         }
     }
 
-    public RefreshTokenData findByJti(String jti) {
-        String raw = redisTemplate.opsForValue().get(key(jti));
+    public RefreshTokenData consume(String jti) {
+        String raw = redisTemplate.opsForValue().getAndDelete(key(jti));
         if (raw == null) {
             return null;
         }

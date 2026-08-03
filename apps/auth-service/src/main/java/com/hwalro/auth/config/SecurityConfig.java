@@ -2,6 +2,7 @@ package com.hwalro.auth.config;
 
 import com.hwalro.auth.security.JwtAuthenticationFilter;
 import com.hwalro.auth.security.RestAuthenticationEntryPoint;
+import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -41,7 +42,10 @@ public class SecurityConfig {
             @Value("${cors.allowed-origins:http://localhost:3000}") String allowedOriginsCsv) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.restAuthenticationEntryPoint = restAuthenticationEntryPoint;
-        this.allowedOrigins = List.of(allowedOriginsCsv.split(","));
+        this.allowedOrigins = Arrays.stream(allowedOriginsCsv.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList();
     }
 
     @Bean

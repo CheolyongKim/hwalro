@@ -5,11 +5,11 @@ spring:
   application:
     name: auth-service
 
-  # Datasource (MySQL)
+  # Datasource (MySQL) - auth-service 전용 DB/계정
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/hwalro_auth?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:password}
+    url: ${AUTH_DB_URL:jdbc:mysql://localhost:3306/hwalro_auth?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${AUTH_DB_USERNAME:hwalro_auth}
+    password: ${AUTH_DB_PASSWORD:hwalro_auth}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   # 스키마 자동 초기화 (개발용. idempotent: CREATE IF NOT EXISTS + INSERT IGNORE)
@@ -41,9 +41,11 @@ jwt:
   issuer: ${JWT_ISSUER:hwalro-auth-service}
 
 # Cookie Configuration
+# 보안 요구사항: /api/auth/refresh와 /api/auth/logout은 REFRESH_TOKEN 쿠키에 의존하므로
+# SameSite=Lax(기본값)를 유지해야 한다. SameSite=None으로 변경하면 CSRF 위험이 생긴다.
 cookie:
   same-site: ${COOKIE_SAME_SITE:Lax}
-  secure: ${COOKIE_SECURE:false}
+  secure: ${COOKIE_SECURE:true}
 
 # CORS Configuration
 cors:

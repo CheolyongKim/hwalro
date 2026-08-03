@@ -6,8 +6,9 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-hwalro_auth}
-      MYSQL_USER: ${MYSQL_USER:-hwalro}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-hwalro}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-hwalro_auth}
+      SIMULATION_DB_PASSWORD: ${SIMULATION_DB_PASSWORD:-hwalro_simulation}
+      REGULATION_DB_PASSWORD: ${REGULATION_DB_PASSWORD:-hwalro_regulation}
       TZ: Asia/Seoul
     ports:
       - "${MYSQL_PORT:-3307}:3306"
@@ -16,7 +17,7 @@ services:
       - ./apps/auth-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-auth-schema.sql:ro
       - ./apps/simulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/02-simulation-schema.sql:ro
       - ./apps/regulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/03-regulation-schema.sql:ro
-      - ./db/grants.sql:/docker-entrypoint-initdb.d/04-grants.sql:ro
+      - ./db/grants.sh:/docker-entrypoint-initdb.d/04-grants.sh:ro
       - ./apps/auth-service/src/main/resources/db/dml.sql:/docker-entrypoint-initdb.d/05-auth-dml.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -28,12 +29,13 @@ services:
     image: redis:8-alpine
     container_name: hwalro-redis
     restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-hwalro-dev-redis}"]
     ports:
-      - "${REDIS_PORT:-6380}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD:-hwalro-dev-redis}\" ping | grep PONG"]
       interval: 5s
       timeout: 3s
       retries: 10

@@ -9,7 +9,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "infra": "docker compose up -d",
     "infra:down": "docker compose down",
-    "infra:reset": "docker compose down -v"
+    "infra:reset": "docker compose down -v",
+    "infra:migrate:auth-roles": "./scripts/migrate-auth-roles.sh"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",

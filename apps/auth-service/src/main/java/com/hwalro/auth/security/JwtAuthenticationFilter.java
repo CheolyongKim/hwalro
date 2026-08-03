@@ -39,16 +39,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 Long userId = claims.get(JwtTokenProvider.CLAIM_USER_ID, Long.class);
                 String loginId = claims.getSubject();
-                List<String> roles = claims.get(JwtTokenProvider.CLAIM_USER_ROLES, List.class);
-
-                AuthenticatedUser principal = new AuthenticatedUser(userId, loginId, roles);
-                List<SimpleGrantedAuthority> authorities = roles.stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                        .toList();
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                List<?> rawRoles = claims.get(JwtTokenProvider.CLAIM_USER_ROLES, List.class);
+                if (userId == null || loginId == null || rawRoles == null) {
+                    SecurityContextHolder.clearContext();
+                } else {
+                    List<String> roles = rawRoles.stream().map(String::valueOf).toList();
+                    AuthenticatedUser principal = new AuthenticatedUser(userId, loginId, roles);
+                    List<SimpleGrantedAuthority> authorities = roles.stream()
+                            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                            .toList();
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             } catch (InvalidTokenException | ClassCastException e) {
                 SecurityContextHolder.clearContext();
             }

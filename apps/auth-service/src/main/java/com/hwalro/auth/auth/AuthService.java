@@ -6,6 +6,8 @@ import com.hwalro.auth.jwt.IssuedRefreshToken;
 import com.hwalro.auth.jwt.JwtTokenProvider;
 import com.hwalro.auth.mapper.UserMapper;
 import io.jsonwebtoken.Claims;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,6 +15,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
@@ -49,7 +53,7 @@ public class AuthService {
         Long userId = claims.get(JwtTokenProvider.CLAIM_USER_ID, Long.class);
         String jti = claims.getId();
 
-        RefreshTokenData stored = refreshTokenStore.findByJti(jti);
+        RefreshTokenData stored = refreshTokenStore.consume(jti);
         if (stored == null) {
             refreshTokenStore.deleteAllByUserId(userId);
             throw new InvalidTokenException("이미 사용된 리프레시 토큰입니다. 모든 세션이 해제됩니다.");
@@ -58,7 +62,6 @@ public class AuthService {
             throw new InvalidTokenException("리프레시 토큰의 사용자 정보가 일치하지 않습니다.");
         }
 
-        refreshTokenStore.delete(jti);
         User user = userMapper.findByLoginId(claims.getSubject());
         if (user == null) {
             throw new BadCredentialsException("존재하지 않는 사용자입니다.");
@@ -76,7 +79,7 @@ public class AuthService {
             jwtTokenProvider.requireType(claims, JwtTokenProvider.TOKEN_TYPE_REFRESH);
             refreshTokenStore.delete(claims.getId());
         } catch (InvalidTokenException e) {
-            // 이미 무효화된 토큰은 로그아웃 처리만 수행한다.
+            log.debug("이미 무효화된 리프레시 토큰으로 로그아웃 요청이 들어왔습니다.", e);
         }
     }
 
