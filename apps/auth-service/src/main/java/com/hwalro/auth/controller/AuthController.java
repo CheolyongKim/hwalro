@@ -7,7 +7,6 @@ import com.hwalro.auth.controller.dto.LoginRequest;
 import com.hwalro.auth.controller.dto.UserResponse;
 import com.hwalro.auth.domain.User;
 import com.hwalro.auth.jwt.InvalidTokenException;
-import com.hwalro.auth.mapper.UserMapper;
 import com.hwalro.auth.security.AuthenticatedUser;
 import com.hwalro.auth.security.CookieManager;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,12 +32,10 @@ public class AuthController {
 
     private final AuthService authService;
     private final CookieManager cookieManager;
-    private final UserMapper userMapper;
 
-    public AuthController(AuthService authService, CookieManager cookieManager, UserMapper userMapper) {
+    public AuthController(AuthService authService, CookieManager cookieManager) {
         this.authService = authService;
         this.cookieManager = cookieManager;
-        this.userMapper = userMapper;
     }
 
     @Operation(summary = "로그인", description = "아이디/비밀번호로 로그인한다. 응답 바디로 액세스 토큰을 반환하고, 리프레시 토큰은 HttpOnly 쿠키로 설정한다.")
@@ -88,11 +85,11 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser principal) {
-        User user = userMapper.findByLoginId(principal.loginId());
+        User user = authService.findUserWithRoles(principal.loginId());
         return ResponseEntity.ok(toUserResponse(user));
     }
 
     private UserResponse toUserResponse(User user) {
-        return new UserResponse(user.getId(), user.getLoginId(), user.getName(), user.getRole());
+        return new UserResponse(user.getUserId(), user.getLoginId(), user.getName(), user.getRoles());
     }
 }

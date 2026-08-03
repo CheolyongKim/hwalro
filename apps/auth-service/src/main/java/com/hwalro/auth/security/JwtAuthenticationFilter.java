@@ -39,11 +39,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 Long userId = claims.get(JwtTokenProvider.CLAIM_USER_ID, Long.class);
                 String loginId = claims.getSubject();
-                String role = claims.get(JwtTokenProvider.CLAIM_USER_ROLE, String.class);
+                List<String> roles = claims.get(JwtTokenProvider.CLAIM_USER_ROLES, List.class);
 
-                AuthenticatedUser principal = new AuthenticatedUser(userId, loginId, role);
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                AuthenticatedUser principal = new AuthenticatedUser(userId, loginId, roles);
+                List<SimpleGrantedAuthority> authorities = roles.stream()
+                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .toList();
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (InvalidTokenException | ClassCastException e) {

@@ -1,37 +1,7 @@
-import { useMutation } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../features/auth/context/AuthContext';
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof AxiosError) {
-    const message = (error.response?.data as { message?: string } | undefined)?.message;
-    if (message) {
-      return message;
-    }
-    if (error.response?.status === 401) {
-      return '아이디 또는 비밀번호가 일치하지 않습니다.';
-    }
-  }
-  return '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
-}
+import { useLoginForm } from '../features/auth/hooks/useLoginForm';
 
 function LoginPage() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [loginId, setLoginId] = useState('');
-  const [password, setPassword] = useState('');
-
-  const loginMutation = useMutation({
-    mutationFn: () => login(loginId, password),
-    onSuccess: () => navigate('/', { replace: true }),
-  });
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    loginMutation.mutate();
-  };
+  const { loginId, setLoginId, password, setPassword, isPending, errorMessage, handleSubmit } = useLoginForm();
 
   return (
     <main className="flex min-h-[100dvh] bg-background">
@@ -94,18 +64,18 @@ function LoginPage() {
             로그인 상태 유지
           </label>
 
-          {loginMutation.isError && (
+          {errorMessage && (
             <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
-              {getErrorMessage(loginMutation.error)}
+              {errorMessage}
             </p>
           )}
 
           <button
             type="submit"
-            disabled={loginMutation.isPending || !loginId || !password}
+            disabled={isPending || !loginId || !password}
             className="mt-11 w-full rounded-2xl bg-ink px-5 py-4 text-base font-black text-white transition hover:bg-ink/85 active:bg-ink/70 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loginMutation.isPending ? '로그인 중...' : '로그인'}
+            {isPending ? '로그인 중...' : '로그인'}
           </button>
 
           <div className="mt-12 border-t border-ink/10" />

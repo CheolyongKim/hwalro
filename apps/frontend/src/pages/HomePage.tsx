@@ -15,7 +15,7 @@ function HomePage() {
       <h1 className="text-3xl font-black text-ink">Hwalro</h1>
       {user && (
         <p className="text-sm text-ink/70">
-          {user.name} ({user.loginId}) 님, 환영합니다. 권한: {user.role}
+          {user.name} ({user.loginId}) 님, 환영합니다. 권한: {user.roles.join(', ')}
         </p>
       )}
       <button

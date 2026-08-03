@@ -1,3 +1,5 @@
 package com.hwalro.auth.security;
 
-public record AuthenticatedUser(Long userId, String loginId, String role) {}
+import java.util.List;
+
+public record AuthenticatedUser(Long userId, String loginId, List<String> roles) {}

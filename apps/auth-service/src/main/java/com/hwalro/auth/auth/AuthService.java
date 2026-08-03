@@ -7,6 +7,7 @@ import com.hwalro.auth.jwt.JwtTokenProvider;
 import com.hwalro.auth.mapper.UserMapper;
 import io.jsonwebtoken.Claims;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +35,10 @@ public class AuthService {
         if (user == null || !passwordEncoder.matches(rawPassword, user.getPassword())) {
             throw new BadCredentialsException("아이디 또는 비밀번호가 일치하지 않습니다.");
         }
+        if (!user.isEnabled()) {
+            throw new DisabledException("비활성화된 계정입니다.");
+        }
+        loadRoles(user);
         return new AuthResult(issueTokenPair(user), user);
     }
 
@@ -58,6 +63,7 @@ public class AuthService {
         if (user == null) {
             throw new BadCredentialsException("존재하지 않는 사용자입니다.");
         }
+        loadRoles(user);
         return new AuthResult(issueTokenPair(user), user);
     }
 
@@ -74,12 +80,24 @@ public class AuthService {
         }
     }
 
+    public User findUserWithRoles(String loginId) {
+        User user = userMapper.findByLoginId(loginId);
+        if (user != null) {
+            loadRoles(user);
+        }
+        return user;
+    }
+
+    private void loadRoles(User user) {
+        user.setRoles(userMapper.findRoleNamesByLoginId(user.getLoginId()));
+    }
+
     private TokenPair issueTokenPair(User user) {
         String accessToken = jwtTokenProvider.createAccessToken(user);
         IssuedRefreshToken refreshToken = jwtTokenProvider.createRefreshToken(user);
         refreshTokenStore.save(
                 refreshToken.jti(),
-                new RefreshTokenData(user.getId(), user.getLoginId()),
+                new RefreshTokenData(user.getUserId(), user.getLoginId()),
                 jwtTokenProvider.getRefreshTokenTtlSeconds());
         return new TokenPair(accessToken, refreshToken.token(), refreshToken.jti());
     }

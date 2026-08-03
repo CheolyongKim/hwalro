@@ -2,7 +2,7 @@ export interface User {
   id: number;
   loginId: string;
   name: string;
-  role: string;
+  roles: string[];
 }
 
 export interface LoginRequest {

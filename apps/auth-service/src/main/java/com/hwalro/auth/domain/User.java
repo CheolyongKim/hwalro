@@ -1,41 +1,25 @@
 package com.hwalro.auth.domain;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class User {
-    private Long id;
+    private Long userId;
     private String loginId;
     private String password;
     private String name;
-    private String role;
+    private boolean enabled;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private List<String> roles;
 
     public User() {}
 
-    public User(
-            Long id,
-            String loginId,
-            String password,
-            String name,
-            String role,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt) {
-        this.id = id;
-        this.loginId = loginId;
-        this.password = password;
-        this.name = name;
-        this.role = role;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
+    public Long getUserId() {
+        return userId;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public String getLoginId() {
@@ -62,12 +46,12 @@ public class User {
         this.name = name;
     }
 
-    public String getRole() {
-        return role;
+    public boolean isEnabled() {
+        return enabled;
     }
 
-    public void setRole(String role) {
-        this.role = role;
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -78,11 +62,11 @@ public class User {
         this.createdAt = createdAt;
     }
 
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
+    public List<String> getRoles() {
+        return roles;
     }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setRoles(List<String> roles) {
+        this.roles = roles;
     }
 }

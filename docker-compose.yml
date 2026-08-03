@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-hwalro}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-hwalro_auth}
       MYSQL_USER: ${MYSQL_USER:-hwalro}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-hwalro}
       TZ: Asia/Seoul
@@ -13,7 +13,10 @@ services:
       - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./apps/auth-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./apps/auth-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-auth-schema.sql:ro
+      - ./apps/simulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/02-simulation-schema.sql:ro
+      - ./apps/regulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/03-regulation-schema.sql:ro
+      - ./db/grants.sql:/docker-entrypoint-initdb.d/04-grants.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s

@@ -19,7 +19,7 @@ public class JwtTokenProvider {
     public static final String TOKEN_TYPE_REFRESH = "refresh";
     public static final String CLAIM_TYPE = "type";
     public static final String CLAIM_USER_ID = "uid";
-    public static final String CLAIM_USER_ROLE = "role";
+    public static final String CLAIM_USER_ROLES = "roles";
 
     private final JwtProperties properties;
     private final SecretKey signingKey;
@@ -40,8 +40,8 @@ public class JwtTokenProvider {
                 .issuer(properties.issuer())
                 .subject(user.getLoginId())
                 .claim(CLAIM_TYPE, TOKEN_TYPE_ACCESS)
-                .claim(CLAIM_USER_ID, user.getId())
-                .claim(CLAIM_USER_ROLE, user.getRole())
+                .claim(CLAIM_USER_ID, user.getUserId())
+                .claim(CLAIM_USER_ROLES, user.getRoles())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .signWith(signingKey)
@@ -56,8 +56,8 @@ public class JwtTokenProvider {
                 .issuer(properties.issuer())
                 .subject(user.getLoginId())
                 .claim(CLAIM_TYPE, TOKEN_TYPE_REFRESH)
-                .claim(CLAIM_USER_ID, user.getId())
-                .claim(CLAIM_USER_ROLE, user.getRole())
+                .claim(CLAIM_USER_ID, user.getUserId())
+                .claim(CLAIM_USER_ROLES, user.getRoles())
                 .id(jti)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
