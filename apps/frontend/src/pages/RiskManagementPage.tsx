@@ -100,7 +100,9 @@ function RiskItemTable({
 }) {
   return (
     <div>
-      <div className={`grid ${TABLE_COLUMNS} items-center gap-x-6 rounded-lg bg-surface px-5 py-3.5`}>
+      <div
+        className={`grid ${TABLE_COLUMNS} items-center gap-x-6 rounded-lg bg-surface px-5 py-3.5`}
+      >
         {TABLE_HEADERS.map((header) => (
           <span key={header} className="text-sm font-bold text-text-muted">
             {header}
