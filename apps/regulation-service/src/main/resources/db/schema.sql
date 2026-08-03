@@ -78,8 +78,13 @@ CREATE TABLE IF NOT EXISTS reports (
     title VARCHAR(200) NOT NULL,
     content LONGTEXT NULL,
     ai_summary LONGTEXT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT '초안',
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_reports PRIMARY KEY (id),
+    CONSTRAINT chk_reports_status
+        CHECK (status IN ('초안', '작성 중', '완료')),
     INDEX idx_reports_author_id (author_id)
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
