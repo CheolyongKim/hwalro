@@ -17,6 +17,7 @@ services:
       - ./apps/simulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/02-simulation-schema.sql:ro
       - ./apps/regulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/03-regulation-schema.sql:ro
       - ./db/grants.sql:/docker-entrypoint-initdb.d/04-grants.sql:ro
+      - ./apps/auth-service/src/main/resources/db/dml.sql:/docker-entrypoint-initdb.d/05-auth-dml.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
