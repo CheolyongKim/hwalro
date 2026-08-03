@@ -173,156 +173,158 @@ function RegulationsPage() {
   // P2: 위험 항목과 법령 조문을 연결하는 '활로 업무 연결' 영역은 후속 작업에서 구현한다.
   return (
     <main className="regulations-page">
-      <header className="regulations-page__heading">
-        <p className="regulations-page__eyebrow">안전 운영</p>
-        <h1>안전 법령</h1>
-        <p>활로 공간 안전 검토에 필요한 법령을 검색합니다.</p>
-      </header>
-      <form className="regulations-search" onSubmit={handleSubmit}>
-        <label className="regulations-page__sr-only" htmlFor="law-search">
-          법령 검색어
-        </label>
-        <input
-          id="law-search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="예: 피난, 통로, 다중이용업소"
-        />
-        <button type="submit">검색</button>
-      </form>
-      <section className="regulations-workspace" aria-label="법령 조회">
-        <aside className="regulations-panel">
-          <div className="regulations-panel__heading">
-            <h2>검색 결과</h2>
-            <span>{totalCount}건</span>
-          </div>
-          <div className="regulations-result-list" onScroll={handleResultScroll}>
-            {listError && (
-              <p className="regulations-status regulations-status--error">{listError}</p>
-            )}
-            {!listLoading && !listError && items.length === 0 && (
-              <p className="regulations-status">검색 결과가 없습니다.</p>
-            )}
-            {items.map((item) => (
-              <button
-                className={`regulations-result-item ${selectedSerialNumber === item.serialNumber ? 'is-selected' : ''}`}
-                key={item.serialNumber}
-                onClick={() => selectLaw(item.serialNumber)}
-                type="button"
-              >
-                <strong>{item.name}</strong>
-                <span>
-                  {item.lawType} · 시행 {formatDate(item.effectiveDate)}
-                </span>
-              </button>
-            ))}
-            {listLoading && <p className="regulations-status">법령 목록을 불러오는 중입니다.</p>}
-          </div>
-        </aside>
-        <section className="regulations-panel regulations-detail" aria-live="polite">
-          {detailLoading && <p className="regulations-status">법령 상세를 불러오는 중입니다.</p>}
-          {detailError && (
-            <p className="regulations-status regulations-status--error">{detailError}</p>
-          )}
-          {!detailLoading && !detailError && !detail && (
-            <p className="regulations-status">좌측 목록에서 법령을 선택하세요.</p>
-          )}
-          {detail && !detailLoading && (
-            <div className="regulations-detail__scroll">
-              <div className="regulations-detail__intro">
-                <p className="regulations-page__eyebrow">법령 상세</p>
-                <h2>{detail.name}</h2>
-                <p>
-                  {detail.lawType} · {detail.competentAuthority} · 시행{' '}
-                  {formatDate(detail.effectiveDate)}
-                </p>
-              </div>
-              {featuredArticle && (
-                <article className="regulations-featured-article">
-                  <p className="regulations-page__eyebrow">대표 조문</p>
-                  <h3>
-                    제{featuredArticle.number}조{' '}
-                    {featuredArticle.title && `(${featuredArticle.title})`}
-                  </h3>
-                  <p>{featuredArticle.content}</p>
-                </article>
-              )}
-              <section className="regulations-related-section">
-                <div className="regulations-section-heading">
-                  <h3>관련 법령</h3>
-                  {relatedLoading && <span>불러오는 중</span>}
-                </div>
-                {relatedLaws.length > 0 ? (
-                  <div className="regulations-related-list">
-                    {relatedLaws.map((law) => (
-                      <button
-                        key={law.lawId}
-                        onClick={() => selectLawById(law.lawId)}
-                        type="button"
-                      >
-                        <strong>{law.name}</strong>
-                        <span>{law.relationship}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  !relatedLoading && (
-                    <p className="regulations-subtle-message">연결된 관련 법령이 없습니다.</p>
-                  )
-                )}
-              </section>
-              {keyArticles.length > 0 && (
-                <section className="regulations-key-articles">
-                  <h3>주요 조문</h3>
-                  <div>
-                    {keyArticles.map(({ article, index }) => (
-                      <button
-                        key={`${article.number}-${article.title}`}
-                        onClick={() =>
-                          articleRefs.current[index]?.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start',
-                          })
-                        }
-                        type="button"
-                      >
-                        제{article.number}조 {article.title}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-              <section className="regulations-all-articles">
-                <h3>전체 조문</h3>
-                {detail.articles.map((article, index) => (
-                  <article
-                    className={
-                      article.section
-                        ? 'regulations-article-section'
-                        : 'regulations-article-content'
-                    }
-                    key={`${article.number}-${article.title}-${index}`}
-                    ref={(element) => {
-                      articleRefs.current[index] = element;
-                    }}
-                  >
-                    {article.section ? (
-                      <h4>{article.content}</h4>
-                    ) : (
-                      <>
-                        <h4>
-                          제{article.number}조 {article.title && `(${article.title})`}
-                        </h4>
-                        <p>{article.content}</p>
-                      </>
-                    )}
-                  </article>
-                ))}
-              </section>
+      <div className="regulations-page__content">
+        <header className="regulations-page__heading">
+          <p className="regulations-page__eyebrow">안전 운영</p>
+          <h1>안전 법령</h1>
+          <p>활로 공간 안전 검토에 필요한 법령을 검색합니다.</p>
+        </header>
+        <form className="regulations-search" onSubmit={handleSubmit}>
+          <label className="regulations-page__sr-only" htmlFor="law-search">
+            법령 검색어
+          </label>
+          <input
+            id="law-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="예: 피난, 통로, 다중이용업소"
+          />
+          <button type="submit">검색</button>
+        </form>
+        <section className="regulations-workspace" aria-label="법령 조회">
+          <aside className="regulations-panel">
+            <div className="regulations-panel__heading">
+              <h2>검색 결과</h2>
+              <span>{totalCount}건</span>
             </div>
-          )}
+            <div className="regulations-result-list" onScroll={handleResultScroll}>
+              {listError && (
+                <p className="regulations-status regulations-status--error">{listError}</p>
+              )}
+              {!listLoading && !listError && items.length === 0 && (
+                <p className="regulations-status">검색 결과가 없습니다.</p>
+              )}
+              {items.map((item) => (
+                <button
+                  className={`regulations-result-item ${selectedSerialNumber === item.serialNumber ? 'is-selected' : ''}`}
+                  key={item.serialNumber}
+                  onClick={() => selectLaw(item.serialNumber)}
+                  type="button"
+                >
+                  <strong>{item.name}</strong>
+                  <span>
+                    {item.lawType} · 시행 {formatDate(item.effectiveDate)}
+                  </span>
+                </button>
+              ))}
+              {listLoading && <p className="regulations-status">법령 목록을 불러오는 중입니다.</p>}
+            </div>
+          </aside>
+          <section className="regulations-panel regulations-detail" aria-live="polite">
+            {detailLoading && <p className="regulations-status">법령 상세를 불러오는 중입니다.</p>}
+            {detailError && (
+              <p className="regulations-status regulations-status--error">{detailError}</p>
+            )}
+            {!detailLoading && !detailError && !detail && (
+              <p className="regulations-status">좌측 목록에서 법령을 선택하세요.</p>
+            )}
+            {detail && !detailLoading && (
+              <div className="regulations-detail__scroll">
+                <div className="regulations-detail__intro">
+                  <p className="regulations-page__eyebrow">법령 상세</p>
+                  <h2>{detail.name}</h2>
+                  <p>
+                    {detail.lawType} · {detail.competentAuthority} · 시행{' '}
+                    {formatDate(detail.effectiveDate)}
+                  </p>
+                </div>
+                {featuredArticle && (
+                  <article className="regulations-featured-article">
+                    <p className="regulations-page__eyebrow">대표 조문</p>
+                    <h3>
+                      제{featuredArticle.number}조{' '}
+                      {featuredArticle.title && `(${featuredArticle.title})`}
+                    </h3>
+                    <p>{featuredArticle.content}</p>
+                  </article>
+                )}
+                <section className="regulations-related-section">
+                  <div className="regulations-section-heading">
+                    <h3>관련 법령</h3>
+                    {relatedLoading && <span>불러오는 중</span>}
+                  </div>
+                  {relatedLaws.length > 0 ? (
+                    <div className="regulations-related-list">
+                      {relatedLaws.map((law) => (
+                        <button
+                          key={law.lawId}
+                          onClick={() => selectLawById(law.lawId)}
+                          type="button"
+                        >
+                          <strong>{law.name}</strong>
+                          <span>{law.relationship}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    !relatedLoading && (
+                      <p className="regulations-subtle-message">연결된 관련 법령이 없습니다.</p>
+                    )
+                  )}
+                </section>
+                {keyArticles.length > 0 && (
+                  <section className="regulations-key-articles">
+                    <h3>주요 조문</h3>
+                    <div>
+                      {keyArticles.map(({ article, index }) => (
+                        <button
+                          key={`${article.number}-${article.title}`}
+                          onClick={() =>
+                            articleRefs.current[index]?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'start',
+                            })
+                          }
+                          type="button"
+                        >
+                          제{article.number}조 {article.title}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                <section className="regulations-all-articles">
+                  <h3>전체 조문</h3>
+                  {detail.articles.map((article, index) => (
+                    <article
+                      className={
+                        article.section
+                          ? 'regulations-article-section'
+                          : 'regulations-article-content'
+                      }
+                      key={`${article.number}-${article.title}-${index}`}
+                      ref={(element) => {
+                        articleRefs.current[index] = element;
+                      }}
+                    >
+                      {article.section ? (
+                        <h4>{article.content}</h4>
+                      ) : (
+                        <>
+                          <h4>
+                            제{article.number}조 {article.title && `(${article.title})`}
+                          </h4>
+                          <p>{article.content}</p>
+                        </>
+                      )}
+                    </article>
+                  ))}
+                </section>
+              </div>
+            )}
+          </section>
         </section>
-      </section>
+      </div>
     </main>
   );
 }

@@ -1,8 +1,22 @@
 .regulations-page {
-  max-width: 1240px;
+  width: 100%;
+  min-height: 100vh;
+  background: #f3f6f4;
+  color: #17463e;
+  font-family:
+    'Happiness Sans Print',
+    -apple-system,
+    'Apple SD Gothic Neo',
+    'Noto Sans KR',
+    'Malgun Gothic',
+    sans-serif;
+}
+
+.regulations-page__content {
+  max-width: 1136px;
   min-height: 100vh;
   margin: 0 auto;
-  padding: 72px 32px 40px;
+  padding: 64px 0 40px;
 }
 
 .regulations-page__heading {
@@ -23,12 +37,13 @@
 }
 
 .regulations-page__heading h1 {
-  font-size: 36px;
+  font-size: 32px;
+  line-height: 1.25;
 }
 
 .regulations-page__heading > p:last-child,
 .regulations-detail__intro > p {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: #6a807c;
 }
 
@@ -36,7 +51,7 @@
   display: flex;
   gap: 16px;
   margin-bottom: 24px;
-  padding: 20px 24px;
+  padding: 18px 22px;
   border: 1px solid #d4e2df;
   border-radius: 16px;
   background: #fff;
@@ -65,8 +80,8 @@
   display: grid;
   grid-template-columns: minmax(280px, 0.38fr) minmax(0, 1fr);
   gap: 16px;
-  height: min(720px, calc(100vh - 250px));
-  min-height: 520px;
+  height: min(660px, calc(100vh - 290px));
+  min-height: 500px;
 }
 
 .regulations-panel {
@@ -74,6 +89,7 @@
   border: 1px solid #d4e2df;
   border-radius: 16px;
   background: #fff;
+  box-shadow: 0 1px 1px rgb(20 70 62 / 2%);
 }
 
 .regulations-panel__heading,
@@ -118,7 +134,7 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 10px;
-  padding: 17px;
+  padding: 16px;
   border: 1px solid #d7e4e1;
   border-radius: 12px;
   background: #fbfdfc;
@@ -260,7 +276,7 @@
 }
 
 @media (max-width: 800px) {
-  .regulations-page {
+  .regulations-page__content {
     padding: 36px 16px;
   }
 
