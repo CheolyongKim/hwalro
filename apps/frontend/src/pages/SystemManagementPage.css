@@ -1,0 +1,232 @@
+.system-management-page {
+  min-height: 100vh;
+  padding: 66px 27px 50px;
+  color: #163b37;
+  background: #f2f7f6;
+}
+
+.system-management-content {
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+.system-management-page button {
+  border: 0;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.system-management-page .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 21px;
+}
+
+.system-management-page .page-header h1 {
+  margin: 0 0 6px;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.system-management-page .page-header p {
+  margin: 0;
+  color: #829793;
+  font-size: 9px;
+}
+
+.system-management-page .account-control {
+  margin-top: 6px;
+}
+
+.system-management-page .account-control button {
+  width: 108px;
+  height: 27px;
+  border-radius: 6px;
+  color: #fff;
+  background: #0e8b7d;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.system-management-page .management-card {
+  width: 488px;
+  min-height: 517px;
+  padding: 12px 15px 20px;
+  border: 1px solid #d0dfdc;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.system-management-page .card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.system-management-page .card-heading h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.system-management-page .card-heading button {
+  min-width: 98px;
+  height: 22px;
+  border-radius: 999px;
+  color: #4d6763;
+  background: #edf2f1;
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.system-management-page .table-wrap {
+  overflow-x: auto;
+}
+
+.system-management-page table {
+  width: 100%;
+  border-spacing: 0;
+  border: 1px solid #d7e2e0;
+  border-radius: 8px 8px 0 0;
+  color: #264a45;
+  font-size: 8px;
+}
+
+.system-management-page th,
+.system-management-page td {
+  height: 41px;
+  padding: 0 10px;
+  border-bottom: 1px solid #d7e2e0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.system-management-page thead th {
+  height: 29px;
+  color: #67817d;
+  background: #f5f8f7;
+  font-weight: 400;
+}
+
+.system-management-page tbody th {
+  font-weight: 700;
+}
+
+.system-management-page tbody tr:last-child th,
+.system-management-page tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.system-management-page tbody tr.selected {
+  background: #dff2ef;
+}
+
+.system-management-page .status {
+  display: inline-grid;
+  min-width: 38px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  color: #078f80;
+  background: #e3f4f1;
+  font-weight: 700;
+}
+
+.system-management-page .status.stopped {
+  color: #899895;
+  background: #edf2f1;
+}
+
+.system-management-page .role-section {
+  margin-top: 19px;
+  padding-top: 17px;
+  border-top: 1px solid #dce6e4;
+}
+
+.system-management-page .role-section h3 {
+  margin: 0 0 12px;
+  font-size: 11px;
+}
+
+.system-management-page .role-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.system-management-page .role-card {
+  position: relative;
+  min-height: 82px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid #cddfdb;
+  border-radius: 8px;
+}
+
+.system-management-page .role-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: currentcolor;
+  content: '';
+}
+
+.system-management-page .role-card h4 {
+  margin: 0 0 7px;
+  color: #264a45;
+  font-size: 10px;
+}
+
+.system-management-page .role-card p {
+  margin: 0;
+  color: #718985;
+  font-size: 8px;
+}
+
+.system-management-page .role-card.operator {
+  color: #0c9e91;
+  background: #e5f5f2;
+}
+
+.system-management-page .role-card.reviewer {
+  color: #7655c9;
+  background: #f0ecfa;
+}
+
+.system-management-page .role-card.admin {
+  color: #ec8117;
+  background: #fff1e3;
+}
+
+.system-management-page .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .system-management-page {
+    padding: 32px 20px;
+  }
+
+  .system-management-page .management-card {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .system-management-page .page-header {
+    gap: 32px;
+  }
+
+  .system-management-page .role-list {
+    grid-template-columns: 1fr;
+  }
+}
