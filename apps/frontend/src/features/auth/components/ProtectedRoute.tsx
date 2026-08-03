@@ -6,7 +6,11 @@ function ProtectedRoute() {
   const location = useLocation();
 
   if (isInitializing) {
-    return <div className="flex min-h-[100dvh] items-center justify-center text-sm text-ink/50">불러오는 중...</div>;
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center text-sm text-ink/50">
+        불러오는 중...
+      </div>
+    );
   }
 
   if (!user) {

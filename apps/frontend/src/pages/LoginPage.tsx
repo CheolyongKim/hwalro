@@ -1,8 +1,17 @@
 import { useLoginForm } from '../features/auth/hooks/useLoginForm';
 
 function LoginPage() {
-  const { loginId, setLoginId, password, setPassword, rememberMe, setRememberMe, isPending, errorMessage, handleSubmit } =
-    useLoginForm();
+  const {
+    loginId,
+    setLoginId,
+    password,
+    setPassword,
+    rememberMe,
+    setRememberMe,
+    isPending,
+    errorMessage,
+    handleSubmit,
+  } = useLoginForm();
 
   return (
     <main className="flex min-h-[100dvh] bg-background">
