@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom';
 import App from '../App';
+import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 import WorkspaceLayout from '../layouts/WorkspaceLayout';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
@@ -11,15 +12,20 @@ export const router = createBrowserRouter([
     path: '/',
     element: <App />,
     children: [
-      { path: 'login', element: <LoginPage /> },
       {
-        element: <WorkspaceLayout />,
+        element: <ProtectedRoute />,
         children: [
-          { index: true, element: <HomePage /> },
-          { path: 'regulations', element: <RegulationsPage /> },
+          {
+            element: <WorkspaceLayout />,
+            children: [
+              { index: true, element: <HomePage /> },
+              { path: 'regulations', element: <RegulationsPage /> },
+            ],
+          },
+          { path: 'risk-management', element: <RiskManagementPage /> },
         ],
       },
-      { path: 'risk-management', element: <RiskManagementPage /> },
+      { path: 'login', element: <LoginPage /> },
     ],
   },
 ]);
