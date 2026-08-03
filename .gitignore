@@ -56,3 +56,6 @@ logs/
 build
 .project
 
+# Local documentation
+docs/
+
