@@ -39,6 +39,8 @@ dependencies {
     // Spring AI
     implementation 'org.springframework.ai:spring-ai-spring-boot-autoconfigure'
     implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
 dependencyManagement {
