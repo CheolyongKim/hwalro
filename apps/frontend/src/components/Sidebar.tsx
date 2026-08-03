@@ -170,7 +170,11 @@ function Sidebar() {
               to={item.to}
               end
               aria-label={item.label}
-              className={({ isActive }) => (isActive ? activeItemClassName : inactiveItemClassName)}
+              className={({ isActive }) =>
+                isActive
+                  ? activeItemClassName
+                  : `${inactiveItemClassName} transition-colors hover:bg-white/5 hover:text-white/80`
+              }
             >
               <SidebarIcon name={item.icon} />
               <span className="hidden truncate lg:block">{item.label}</span>
