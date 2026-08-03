@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import type { AuthResponse } from '../types/auth';
+import type { AuthResponse } from '../features/auth/types/auth';
 
 let accessToken: string | null = null;
 let refreshPromise: Promise<string> | null = null;

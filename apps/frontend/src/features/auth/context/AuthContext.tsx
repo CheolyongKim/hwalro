@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { authApi } from '../api/auth';
-import { setSessionExpiredHandler, tokenStore } from '../api/client';
+import { authApi } from '../api/authApi';
+import { setSessionExpiredHandler, tokenStore } from '../../../api/client';
 import type { User } from '../types/auth';
 
 interface AuthContextValue {
