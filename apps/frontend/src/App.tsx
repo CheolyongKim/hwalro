@@ -26,18 +26,20 @@ type SearchResponse = {
 type RelatedRegulation = { lawId: string; name: string; relationship: string };
 
 const PAGE_SIZE = 20;
+const REGULATIONS_PATH = '/regulations';
 
 function formatDate(value: string) {
   return value.length === 8 ? `${value.slice(0, 4)}.${value.slice(4, 6)}.${value.slice(6)}` : value;
 }
 
 async function request<T>(path: string): Promise<T> {
+  // 모든 법령 API 호출은 이 함수로 모아, HTTP 실패를 화면 상태로 일관되게 전달한다.
   const response = await fetch(path);
   if (!response.ok) throw new Error('법령 정보를 불러오지 못했습니다.');
   return response.json() as Promise<T>;
 }
 
-function App() {
+function RegulationsPage() {
   const [query, setQuery] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
   const [items, setItems] = useState<RegulationSummary[]>([]);
@@ -59,6 +61,7 @@ function App() {
     try {
       setRelatedLaws(await request<RelatedRegulation[]>(`/api/regulations/${lawId}/related-laws`));
     } catch {
+      // 관련 법령 권한이 아직 승인되지 않은 경우에도 선택한 법령 상세는 계속 표시한다.
       setRelatedLaws([]);
     } finally {
       setRelatedLoading(false);
@@ -72,6 +75,7 @@ function App() {
     try {
       const nextDetail = await request<RegulationDetail>(path);
       setDetail(nextDetail);
+      // 관련 법령은 상세 응답의 lawId를 기준으로 조회한다. 목록의 serialNumber(MST)와 다르다.
       void loadRelatedLaws(nextDetail.lawId);
     } catch (error) {
       setDetail(null);
@@ -125,8 +129,10 @@ function App() {
 
   function handleResultScroll(event: React.UIEvent<HTMLDivElement>) {
     const { scrollTop, clientHeight, scrollHeight } = event.currentTarget;
-    if (scrollTop + clientHeight >= scrollHeight - 40 && hasNext && !listLoading)
+    // 목록 하단 40px 전부터 다음 페이지를 요청해 스크롤 흐름을 끊지 않는다.
+    if (scrollTop + clientHeight >= scrollHeight - 40 && hasNext && !listLoading) {
       void loadRegulations(page + 1, false, activeQuery);
+    }
   }
 
   const normalArticles = detail?.articles.filter((article) => !article.section) ?? [];
@@ -283,6 +289,20 @@ function App() {
           )}
         </section>
       </section>
+    </main>
+  );
+}
+
+function App() {
+  // 공통 사이드바가 완성되면 이 경로를 '안전 법령' 메뉴의 링크 대상으로 사용한다.
+  if (window.location.pathname === REGULATIONS_PATH) {
+    return <RegulationsPage />;
+  }
+
+  return (
+    <main className="route-placeholder">
+      <h1>활로</h1>
+      <p>안전 법령은 공통 사이드바의 ‘안전 법령’ 메뉴에서 확인합니다.</p>
     </main>
   );
 }

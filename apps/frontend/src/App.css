@@ -1,6 +1,22 @@
 #root {
   min-height: 100vh;
 }
+.route-placeholder {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  padding: 32px;
+  color: #17463e;
+  text-align: center;
+}
+.route-placeholder h1,
+.route-placeholder p {
+  margin: 0;
+}
+.route-placeholder p {
+  margin-top: 10px;
+  color: #6a807c;
+}
 .law-page {
   max-width: 1240px;
   min-height: 100vh;
