@@ -51,9 +51,9 @@ public class RegulationService {
         return new RegulationDetail(
                 serialNumber,
                 text(basicInfo, "법령ID"),
-                text(basicInfo, "법령명한글"),
-                text(basicInfo, "법령구분명", "법령종류"),
-                text(basicInfo.path("소관부처"), "소관부처명"),
+                text(basicInfo, "법령명_한글"),
+                text(basicInfo, "법종구분"),
+                text(basicInfo, "소관부처"),
                 text(basicInfo, "공포일자"),
                 text(basicInfo, "시행일자"),
                 articles(law.path("조문").path("조문단위")));

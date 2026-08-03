@@ -106,9 +106,9 @@ class RegulationServiceTest {
                                   "법령": {
                                     "기본정보": {
                                       "법령ID": "014189",
-                                      "법령명한글": "화재의 예방 및 안전관리에 관한 법률",
-                                      "법령구분명": "법률",
-                                      "소관부처": { "소관부처명": "소방청" },
+                                      "법령명_한글": "화재의 예방 및 안전관리에 관한 법률",
+                                      "법종구분": "법률",
+                                      "소관부처": "소방청",
                                       "공포일자": "20260227",
                                       "시행일자": "20260227"
                                     },
@@ -140,6 +140,8 @@ class RegulationServiceTest {
         RegulationDetail response = regulationService.getDetail("283705");
 
         assertThat(response.name()).isEqualTo("화재의 예방 및 안전관리에 관한 법률");
+        assertThat(response.lawType()).isEqualTo("법률");
+        assertThat(response.competentAuthority()).isEqualTo("소방청");
         assertThat(response.articles()).hasSize(2);
         assertThat(response.articles().get(0))
                 .extracting(RegulationArticle::section, RegulationArticle::content)
