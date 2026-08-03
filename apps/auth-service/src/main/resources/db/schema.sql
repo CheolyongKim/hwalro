@@ -1,27 +1,45 @@
--- =====================================================================
--- hwalro auth-service: users 테이블 DDL
--- ERD 기준으로 정의 (login_id / password / name / role / timestamps)
--- 비밀번호는 BCrypt 해시(60자)로 저장한다.
--- =====================================================================
+CREATE DATABASE IF NOT EXISTS hwalro_auth
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_0900_ai_ci;
+
+USE hwalro_auth;
 
 CREATE TABLE IF NOT EXISTS users (
-    id         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '사용자 PK',
-    login_id   VARCHAR(50)  NOT NULL COMMENT '로그인 아이디',
-    password   VARCHAR(100) NOT NULL COMMENT 'BCrypt 해시된 비밀번호',
-    name       VARCHAR(50)  NOT NULL COMMENT '사용자 이름',
-    role       VARCHAR(20)  NOT NULL DEFAULT 'USER' COMMENT '권한 (USER, ADMIN)',
-    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시각',
-    updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시각',
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_users_login_id (login_id)
+    user_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    login_id VARCHAR(100) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_users PRIMARY KEY (user_id),
+    CONSTRAINT uk_users_login_id UNIQUE (login_id)
 ) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_unicode_ci COMMENT ='사용자';
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
 
--- =====================================================================
--- 개발용 시드 데이터 (운영에는 별도 관리)
--- 비밀번호: admin1234 / user1234 (BCrypt 해시)
--- =====================================================================
-INSERT IGNORE INTO users (login_id, password, name, role)
-VALUES ('admin', '$2y$10$17Ca2fDVrSuHJSZtCABBjuPsiZqpEQ3EB8pkvBjTCp42J2cZ92o1m', '관리자', 'ADMIN'),
-       ('user', '$2y$10$1GpKoxsXKmHfw9u5.repG.f3rLUW4PNz9m2eiZrVS6RLLE6QJ6y76', '일반사용자', 'USER');
+CREATE TABLE IF NOT EXISTS roles (
+    role_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    role_name VARCHAR(50) NOT NULL,
+    description VARCHAR(500) NULL,
+    CONSTRAINT pk_roles PRIMARY KEY (role_id),
+    CONSTRAINT uk_roles_role_name UNIQUE (role_name)
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id BIGINT UNSIGNED NOT NULL,
+    role_id BIGINT UNSIGNED NOT NULL,
+    assigned_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_user_roles PRIMARY KEY (user_id, role_id),
+    CONSTRAINT fk_user_roles_user
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_user_roles_role
+        FOREIGN KEY (role_id) REFERENCES roles (role_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
