@@ -66,6 +66,7 @@ function RegulationsPage() {
   const [relatedLoading, setRelatedLoading] = useState(false);
   const articleRefs = useRef<Record<number, HTMLElement | null>>({});
   const hasLoadedInitialList = useRef(false);
+  const latestListRequestId = useRef(0);
 
   async function loadRelatedLaws(lawId: string) {
     setRelatedLoading(true);
@@ -106,6 +107,7 @@ function RegulationsPage() {
   }
 
   async function loadRegulations(nextPage: number, replace: boolean, searchQuery: string) {
+    const requestId = ++latestListRequestId.current;
     setListLoading(true);
     setListError('');
     try {
@@ -115,6 +117,10 @@ function RegulationsPage() {
       }
 
       const result = await request<SearchResponse>(`/api/regulations?${params}`);
+      if (requestId !== latestListRequestId.current) {
+        return;
+      }
+
       setItems((current) => (replace ? result.items : [...current, ...result.items]));
       setPage(result.page);
       setTotalCount(result.totalCount);
@@ -124,13 +130,19 @@ function RegulationsPage() {
         selectLaw(result.items[0].serialNumber);
       }
     } catch (error) {
+      if (requestId !== latestListRequestId.current) {
+        return;
+      }
+
       setListError(error instanceof Error ? error.message : '법령 목록을 불러오지 못했습니다.');
       if (replace) {
         setItems([]);
         setDetail(null);
       }
     } finally {
-      setListLoading(false);
+      if (requestId === latestListRequestId.current) {
+        setListLoading(false);
+      }
     }
   }
 

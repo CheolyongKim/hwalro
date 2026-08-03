@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -95,13 +96,14 @@ public class RegulationService {
     /** 검색 전 화면에 보여줄 안전 관련 법령 후보를 키워드별 결과에서 만든다. */
     private RegulationSearchResponse searchDefaultSafetyLaws(int page, int size) {
         Map<String, RegulationSummary> uniqueLaws = new LinkedHashMap<>();
-        // ponytail: 키워드 수가 적어 동기 호출로 유지한다. 초기 목록 지연이 문제되면 캐시를 추가한다.
-        for (String keyword : properties.defaultKeywords()) {
-            JsonNode response = lawApiClient.searchCurrentLaws(keyword, 1, MAX_PAGE_SIZE);
-            forEachLaw(response.path("LawSearch").path("law"), law -> {
-                RegulationSummary summary = toSummary(law);
+        // ponytail: 기본 키워드만 병렬 조회한다. 응답량 또는 호출 수가 커지면 캐시를 추가한다.
+        List<CompletableFuture<List<RegulationSummary>>> searches = properties.defaultKeywords().stream()
+                .map(keyword -> CompletableFuture.supplyAsync(() -> searchSummaries(keyword)))
+                .toList();
+        for (CompletableFuture<List<RegulationSummary>> search : searches) {
+            for (RegulationSummary summary : search.join()) {
                 uniqueLaws.putIfAbsent(summary.serialNumber(), summary);
-            });
+            }
         }
 
         List<RegulationSummary> laws = new ArrayList<>(uniqueLaws.values());
@@ -109,6 +111,13 @@ public class RegulationService {
         int start = Math.min((page - 1) * size, laws.size());
         int end = Math.min(start + size, laws.size());
         return new RegulationSearchResponse(laws.size(), page, size, end < laws.size(), laws.subList(start, end));
+    }
+
+    private List<RegulationSummary> searchSummaries(String keyword) {
+        JsonNode response = lawApiClient.searchCurrentLaws(keyword, 1, MAX_PAGE_SIZE);
+        List<RegulationSummary> summaries = new ArrayList<>();
+        forEachLaw(response.path("LawSearch").path("law"), law -> summaries.add(toSummary(law)));
+        return summaries;
     }
 
     /** 국가법령정보센터의 목록 응답을 서비스 목록 DTO로 축소한다. */
