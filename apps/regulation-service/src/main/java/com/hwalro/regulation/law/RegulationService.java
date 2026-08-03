@@ -56,6 +56,8 @@ public class RegulationService {
                 articles(law.path("조문").path("조문단위")));
     }
 
+    // P2: 위험 항목과 법령 조문을 연결하는 기능은 별도 API와 데이터 모델로 구현한다.
+
     private RegulationSearchResponse searchDefaultSafetyLaws(int page, int size) {
         Map<String, RegulationSummary> uniqueLaws = new LinkedHashMap<>();
         for (String keyword : properties.defaultKeywords()) {
