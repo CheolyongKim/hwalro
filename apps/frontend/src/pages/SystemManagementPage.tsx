@@ -1,91 +1,379 @@
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import './SystemManagementPage.css';
 
-type UserStatus = '활성' | '중지';
-
-interface User {
+interface UserSummary {
+  userId: number;
+  loginId: string;
   name: string;
-  role: string;
-  branch: string;
-  lastLogin: string;
-  status: UserStatus;
+  enabled: boolean;
+  createdAt: string;
+  roles: string[];
 }
 
-const users: User[] = [
-  { name: '김안전', role: '안전 검토자', branch: '전체 지점', lastLogin: '오늘 14:28', status: '활성' },
-  { name: '박운영', role: '운영 담당자', branch: '서울·판교', lastLogin: '오늘 13:02', status: '활성' },
-  { name: '이검토', role: '안전 검토자', branch: '서울', lastLogin: '어제 17:44', status: '활성' },
-  { name: '최담당', role: '운영 담당자', branch: '대구·울산', lastLogin: '07.28', status: '활성' },
-  { name: '시스템 관리자', role: '관리자', branch: '전체 지점', lastLogin: '07.27', status: '활성' },
-  { name: '테스트 계정', role: '운영 담당자', branch: '테스트', lastLogin: '07.20', status: '중지' },
-];
+interface RoleSummary {
+  roleId: number;
+  roleName: string;
+  description: string | null;
+}
 
-const roles = [
-  { name: '운영 담당자', permissions: '도면·조건·실행', tone: 'operator' },
-  { name: '안전 검토자', permissions: '결과·위험·보고서', tone: 'reviewer' },
-  { name: '관리자', permissions: '계정·기준·실행 이력', tone: 'admin' },
-];
+interface SystemManagementData {
+  users: UserSummary[];
+  roles: RoleSummary[];
+}
+
+interface InviteForm {
+  loginId: string;
+  password: string;
+  name: string;
+  roleIds: number[];
+}
+
+const emptyInviteForm: InviteForm = {
+  loginId: '',
+  password: '',
+  name: '',
+  roleIds: [],
+};
+
+function roleTone(roleName: string) {
+  if (roleName === '안전 검토자') return 'reviewer';
+  if (roleName === '관리자') return 'admin';
+  return 'operator';
+}
+
+function formatCreatedAt(createdAt: string) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(createdAt));
+}
 
 function SystemManagementPage() {
+  const [data, setData] = useState<SystemManagementData>({ users: [], roles: [] });
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState<InviteForm>(emptyInviteForm);
+  const [inviteError, setInviteError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
+  const [statusError, setStatusError] = useState('');
+
+  const loadSystemManagementData = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError('');
+
+    try {
+      const response = await fetch('/api/admin/system-management');
+      if (!response.ok) throw new Error('사용자 정보를 불러오지 못했습니다.');
+      setData((await response.json()) as SystemManagementData);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : '사용자 정보를 불러오지 못했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSystemManagementData();
+  }, [loadSystemManagementData]);
+
+  useEffect(() => {
+    if (!isInviteOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSubmitting) setIsInviteOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isInviteOpen, isSubmitting]);
+
+  const closeInviteModal = () => {
+    if (isSubmitting) return;
+    setIsInviteOpen(false);
+    setInviteForm(emptyInviteForm);
+    setInviteError('');
+  };
+
+  const toggleRole = (roleId: number) => {
+    setInviteForm((current) => ({
+      ...current,
+      roleIds: current.roleIds.includes(roleId)
+        ? current.roleIds.filter((id) => id !== roleId)
+        : [...current.roleIds, roleId],
+    }));
+  };
+
+  const submitInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setInviteError('');
+
+    if (inviteForm.roleIds.length === 0) {
+      setInviteError('역할을 하나 이상 선택해 주세요.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/admin/system-management/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inviteForm),
+      });
+
+      if (!response.ok) {
+        if (response.status === 409) throw new Error('이미 사용 중인 로그인 ID입니다.');
+        if (response.status === 400) throw new Error('입력한 사용자 정보를 확인해 주세요.');
+        throw new Error('사용자를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      }
+
+      setIsInviteOpen(false);
+      setInviteForm(emptyInviteForm);
+      setInviteError('');
+      await loadSystemManagementData();
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : '사용자를 만들지 못했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const changeUserEnabled = async (user: UserSummary) => {
+    const nextEnabled = !user.enabled;
+    setStatusError('');
+    setUpdatingUserId(user.userId);
+
+    try {
+      const response = await fetch(`/api/admin/system-management/users/${user.userId}/enabled`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextEnabled }),
+      });
+
+      if (!response.ok) throw new Error('사용자 상태를 변경하지 못했습니다.');
+
+      setData((current) => ({
+        ...current,
+        users: current.users.map((currentUser) =>
+          currentUser.userId === user.userId
+            ? { ...currentUser, enabled: nextEnabled }
+            : currentUser,
+        ),
+      }));
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : '사용자 상태를 변경하지 못했습니다.');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   return (
     <main className="system-management-page">
       <div className="system-management-content">
         <header className="page-header">
           <div>
             <h1>시스템 관리</h1>
-            <p>사용자 권한, 공통 기준과 백그라운드 작업 상태를 관리합니다.</p>
+            <p>사용자와 역할을 관리합니다.</p>
           </div>
           <div className="account-control">
-            <button type="button">사용자 초대</button>
+            <button
+              type="button"
+              onClick={() => setIsInviteOpen(true)}
+              disabled={isLoading || data.roles.length === 0}
+            >
+              사용자 초대
+            </button>
           </div>
         </header>
 
         <section className="management-card" aria-labelledby="users-heading">
           <div className="card-heading">
             <h2 id="users-heading">사용자·권한</h2>
-            <button type="button">전체 역할</button>
+            <span>{`전체 역할 ${data.roles.length}개`}</span>
           </div>
 
-          <div className="table-wrap">
-            <table>
-              <caption className="sr-only">사용자별 역할과 상태</caption>
-              <thead>
-                <tr>
-                  <th scope="col">사용자</th>
-                  <th scope="col">역할</th>
-                  <th scope="col">점포 지점</th>
-                  <th scope="col">최근 로그인</th>
-                  <th scope="col">상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user, index) => (
-                  <tr className={index === 0 ? 'selected' : ''} key={user.name}>
-                    <th scope="row">{user.name}</th>
-                    <td>{user.role}</td>
-                    <td>{user.branch}</td>
-                    <td>{user.lastLogin}</td>
-                    <td>
-                      <span className={`status ${user.status === '중지' ? 'stopped' : ''}`}>{user.status}</span>
-                    </td>
+          {isLoading && <p className="notice-state">사용자 정보를 불러오는 중입니다.</p>}
+          {!isLoading && loadError && (
+            <div className="notice-state error-state" role="alert">
+              <p>{loadError}</p>
+              <button type="button" onClick={() => void loadSystemManagementData()}>
+                다시 시도
+              </button>
+            </div>
+          )}
+          {statusError && (
+            <p className="status-error" role="alert">
+              {statusError}
+            </p>
+          )}
+          {!isLoading && !loadError && (
+            <div className="table-wrap">
+              <table>
+                <caption className="sr-only">사용자별 역할과 계정 상태</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">사용자</th>
+                    <th scope="col">역할</th>
+                    <th scope="col">생성일</th>
+                    <th scope="col">상태</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.users.map((user) => (
+                    <tr key={user.userId}>
+                      <th scope="row">
+                        <span className="user-identity">
+                          {user.name}
+                          <small>{user.loginId}</small>
+                        </span>
+                      </th>
+                      <td>{user.roles.join(', ') || '역할 없음'}</td>
+                      <td>{formatCreatedAt(user.createdAt)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`status ${user.enabled ? '' : 'stopped'}`}
+                          aria-label={`${user.name} 계정 ${user.enabled ? '비활성화' : '활성화'}`}
+                          aria-pressed={user.enabled}
+                          disabled={updatingUserId === user.userId}
+                          onClick={() => void changeUserEnabled(user)}
+                        >
+                          {updatingUserId === user.userId
+                            ? '변경 중'
+                            : user.enabled
+                              ? '활성'
+                              : '중지'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {data.users.length === 0 && (
+                    <tr>
+                      <td className="empty-row" colSpan={4}>
+                        등록된 사용자가 없습니다.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="role-section">
             <h3>역할별 주요 권한</h3>
             <div className="role-list">
-              {roles.map((role) => (
-                <article className={`role-card ${role.tone}`} key={role.name}>
-                  <h4>{role.name}</h4>
-                  <p>{role.permissions}</p>
+              {data.roles.map((role) => (
+                <article className={`role-card ${roleTone(role.roleName)}`} key={role.roleId}>
+                  <h4>{role.roleName}</h4>
+                  <p>{role.description || '설명 없음'}</p>
                 </article>
               ))}
             </div>
           </div>
         </section>
       </div>
+
+      {isInviteOpen && (
+        <div className="modal-backdrop" onMouseDown={closeInviteModal}>
+          <section
+            className="invite-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-heading">
+              <div>
+                <h2 id="invite-title">사용자 초대</h2>
+                <p>사용자가 로그인할 계정과 역할을 지정합니다.</p>
+              </div>
+              <button
+                type="button"
+                className="close-button"
+                aria-label="닫기"
+                onClick={closeInviteModal}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={submitInvite}>
+              <label>
+                이름
+                <input
+                  required
+                  maxLength={100}
+                  autoFocus
+                  value={inviteForm.name}
+                  onChange={(event) => setInviteForm({ ...inviteForm, name: event.target.value })}
+                />
+              </label>
+              <label>
+                로그인 ID
+                <input
+                  required
+                  maxLength={100}
+                  autoComplete="username"
+                  value={inviteForm.loginId}
+                  onChange={(event) =>
+                    setInviteForm({ ...inviteForm, loginId: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                임시 비밀번호
+                <input
+                  required
+                  type="password"
+                  minLength={8}
+                  maxLength={72}
+                  autoComplete="new-password"
+                  value={inviteForm.password}
+                  onChange={(event) =>
+                    setInviteForm({ ...inviteForm, password: event.target.value })
+                  }
+                />
+                <small>8자 이상 입력해 주세요.</small>
+              </label>
+
+              <fieldset>
+                <legend>역할</legend>
+                <div className="role-options">
+                  {data.roles.map((role) => (
+                    <label key={role.roleId}>
+                      <input
+                        type="checkbox"
+                        checked={inviteForm.roleIds.includes(role.roleId)}
+                        onChange={() => toggleRole(role.roleId)}
+                      />
+                      <span>
+                        {role.roleName}
+                        <small>{role.description || '설명 없음'}</small>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              {inviteError && (
+                <p className="form-error" role="alert">
+                  {inviteError}
+                </p>
+              )}
+
+              <div className="modal-actions">
+                <button type="button" className="secondary-button" onClick={closeInviteModal}>
+                  취소
+                </button>
+                <button type="submit" className="primary-button" disabled={isSubmitting}>
+                  {isSubmitting ? '생성 중...' : '사용자 생성'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
