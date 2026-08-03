@@ -46,6 +46,31 @@ public class LawApiClient {
      * <p>상세 조회에는 목록 전용 파라미터인 {@code nw}를 보내지 않는다.
      */
     public JsonNode getCurrentLaw(String serialNumber) {
+        return getCurrentLaw("MST", serialNumber);
+    }
+
+    /** 국가법령정보센터의 법령 ID로 현행 법령 본문을 조회한다. */
+    public JsonNode getCurrentLawById(String lawId) {
+        return getCurrentLaw("ID", lawId);
+    }
+
+    /** 선택 법령과 국가법령정보센터가 공식적으로 연결한 법령 목록을 조회한다. */
+    public JsonNode searchRelatedLaws(String lawId) {
+        requireAuthenticationValue();
+        return restClient
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/DRF/lawSearch.do")
+                        .queryParam("OC", properties.oc())
+                        .queryParam("target", "lsRlt")
+                        .queryParam("ID", lawId)
+                        .queryParam("type", "JSON")
+                        .build())
+                .retrieve()
+                .body(JsonNode.class);
+    }
+
+    private JsonNode getCurrentLaw(String identifierName, String identifier) {
         requireAuthenticationValue();
         return restClient
                 .get()
@@ -53,7 +78,7 @@ public class LawApiClient {
                         .path("/DRF/lawService.do")
                         .queryParam("OC", properties.oc())
                         .queryParam("target", "eflaw")
-                        .queryParam("MST", serialNumber)
+                        .queryParam(identifierName, identifier)
                         .queryParam("type", "JSON")
                         .build())
                 .retrieve()

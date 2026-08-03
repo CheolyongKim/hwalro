@@ -3,6 +3,8 @@ package com.hwalro.regulation.controller;
 import com.hwalro.regulation.law.RegulationDetail;
 import com.hwalro.regulation.law.RegulationSearchResponse;
 import com.hwalro.regulation.law.RegulationService;
+import com.hwalro.regulation.law.RelatedRegulation;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +28,18 @@ public class RegulationController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         return regulationService.search(query, page, size);
+    }
+
+    @GetMapping("/by-law-id/{lawId}")
+    /** 관련 법령 카드의 법령 ID로 상세 정보를 반환한다. */
+    public RegulationDetail detailByLawId(@PathVariable String lawId) {
+        return regulationService.getDetailByLawId(lawId);
+    }
+
+    @GetMapping("/{lawId}/related-laws")
+    /** 선택 법령의 공식 관련 법령 목록을 반환한다. */
+    public List<RelatedRegulation> relatedLaws(@PathVariable String lawId) {
+        return regulationService.getRelatedLaws(lawId);
     }
 
     @GetMapping("/{serialNumber}")

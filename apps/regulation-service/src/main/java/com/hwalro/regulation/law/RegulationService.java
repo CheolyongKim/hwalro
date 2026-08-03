@@ -42,7 +42,38 @@ public class RegulationService {
             throw new IllegalArgumentException("serialNumber must not be blank.");
         }
 
-        JsonNode law = lawApiClient.getCurrentLaw(serialNumber).path("법령");
+        return toDetail(lawApiClient.getCurrentLaw(serialNumber), serialNumber);
+    }
+
+    /** 관련 법령 카드가 가진 법령 ID로 같은 상세 화면을 다시 연다. */
+    public RegulationDetail getDetailByLawId(String lawId) {
+        if (!StringUtils.hasText(lawId)) {
+            throw new IllegalArgumentException("lawId must not be blank.");
+        }
+
+        return toDetail(lawApiClient.getCurrentLawById(lawId), "");
+    }
+
+    /** 국가법령정보센터의 공식 법령 간 관계를 카드 표시용 데이터로 변환한다. */
+    public List<RelatedRegulation> getRelatedLaws(String lawId) {
+        if (!StringUtils.hasText(lawId)) {
+            throw new IllegalArgumentException("lawId must not be blank.");
+        }
+
+        List<RelatedRegulation> relatedLaws = new ArrayList<>();
+        JsonNode response = lawApiClient.searchRelatedLaws(lawId);
+        forEachLaw(
+                response.path("lsRltSearch").path("법령").path("관련법령"),
+                relatedLaw -> relatedLaws.add(new RelatedRegulation(
+                        text(relatedLaw, "관련법령ID"),
+                        text(relatedLaw, "관련법령명"),
+                        text(relatedLaw, "법령간관계"),
+                        text(relatedLaw, "관련법령본문조회"))));
+        return relatedLaws;
+    }
+
+    private RegulationDetail toDetail(JsonNode response, String serialNumber) {
+        JsonNode law = response.path("법령");
         if (law.isMissingNode() || law.isEmpty()) {
             throw new RegulationNotFoundException(serialNumber);
         }
@@ -108,7 +139,7 @@ public class RegulationService {
             String title = text(article, "조문제목");
             String content = collectContent(article);
             articles.add(new RegulationArticle(
-                    number, title, content, text(article, "조문시행일자"), !StringUtils.hasText(title)));
+                    number, title, content, text(article, "조문시행일자"), !StringUtils.hasText(number)));
         });
         return articles;
     }
@@ -116,22 +147,30 @@ public class RegulationService {
     /** 조문 아래의 항·호·목 텍스트를 화면에서 읽을 수 있도록 하나의 문자열로 합친다. */
     private String collectContent(JsonNode node) {
         List<String> values = new ArrayList<>();
-        collectContent(node, values);
+        String articleContent = text(node, "조문내용");
+        if (StringUtils.hasText(articleContent)) {
+            values.add(articleContent);
+        }
+        node.fields().forEachRemaining(field -> {
+            if (!field.getKey().equals("조문내용")) {
+                collectNestedContent(field.getValue(), values);
+            }
+        });
         return String.join("\n", values);
     }
 
-    /** 한글 키가 달라질 수 있어 `내용`으로 끝나는 텍스트 필드를 재귀적으로 수집한다. */
-    private void collectContent(JsonNode node, List<String> values) {
+    /** 항·호·목의 원래 중첩 순서를 유지하며 `내용` 텍스트만 뒤에 추가한다. */
+    private void collectNestedContent(JsonNode node, List<String> values) {
         if (node.isObject()) {
             node.fields().forEachRemaining(field -> {
                 if (field.getKey().endsWith("내용") && field.getValue().isTextual()) {
                     values.add(field.getValue().asText());
                 } else {
-                    collectContent(field.getValue(), values);
+                    collectNestedContent(field.getValue(), values);
                 }
             });
         } else if (node.isArray()) {
-            node.forEach(child -> collectContent(child, values));
+            node.forEach(child -> collectNestedContent(child, values));
         }
     }
 
