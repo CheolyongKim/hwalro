@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/regulations")
+/** 법령 목록과 상세 조회를 프론트엔드에 제공하는 HTTP 진입점이다. */
 public class RegulationController {
     private final RegulationService regulationService;
 
@@ -19,6 +20,7 @@ public class RegulationController {
     }
 
     @GetMapping
+    /** 검색어가 없으면 안전 관련 기본 목록을, 있으면 해당 검색 결과를 반환한다. */
     public RegulationSearchResponse search(
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "1") int page,
@@ -27,6 +29,7 @@ public class RegulationController {
     }
 
     @GetMapping("/{serialNumber}")
+    /** 목록 응답의 법령일련번호(MST)로 선택 법령의 조문을 반환한다. */
     public RegulationDetail detail(@PathVariable String serialNumber) {
         return regulationService.getDetail(serialNumber);
     }

@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+/** 외부 API 호출 없이 법령 응답 변환과 기본 목록 병합 규칙을 확인한다. */
 class RegulationServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 

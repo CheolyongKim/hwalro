@@ -2,8 +2,11 @@ server:
   port: ${REGULATION_SERVICE_PORT:8082}
 
 law-api:
+  # 국가법령정보센터의 공식 API 주소. 호출 대상이 바뀔 때만 수정한다.
   base-url: https://www.law.go.kr
+  # 인증값은 로컬 .env 또는 배포 환경 변수에서만 주입하며 Git에 기록하지 않는다.
   oc: ${LAW_API_OC:}
+  # 검색 전 좌측 목록을 구성하는 대피·공간 안전 관련 기본 키워드다.
   default-keywords:
     - 소방
     - 피난

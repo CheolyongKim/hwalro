@@ -1,5 +1,6 @@
 package com.hwalro.regulation.law;
 
+/** 좌측 검색 결과 목록에 표시하는 법령의 최소 정보다. */
 public record RegulationSummary(
         String serialNumber,
         String lawId,
