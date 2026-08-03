@@ -112,9 +112,10 @@ function Sidebar() {
       <nav aria-label="주요 메뉴" className="flex flex-col gap-2">
         {navigationItems.map((item) =>
           item.children ? (
-            <div key={item.label}>
+            <div key={item.label} className="relative">
               <button
                 type="button"
+                aria-label={item.label}
                 aria-expanded={isSimulationMenuOpen}
                 aria-controls="simulation-review-submenu"
                 onClick={() => setIsSimulationMenuOpen((isOpen) => !isOpen)}
@@ -140,26 +141,28 @@ function Sidebar() {
                 </svg>
               </button>
 
-              {isSimulationMenuOpen && (
-                <ul id="simulation-review-submenu" className="mt-1 hidden space-y-1 lg:block">
-                  {item.children.map((child) => (
-                    <li key={child}>
-                      <button
-                        type="button"
-                        disabled
-                        aria-label={`${child} (준비 중)`}
-                        className="flex h-9 w-full items-center gap-3 rounded-lg pl-12 pr-3 text-left text-xs font-medium text-white/35"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="h-1 w-1 shrink-0 rounded-full bg-white/30"
-                        />
-                        <span className="truncate">{child}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ul
+                id="simulation-review-submenu"
+                hidden={!isSimulationMenuOpen}
+                className="absolute left-full top-12 z-10 ml-2 w-44 space-y-1 rounded-xl bg-ink-deep p-2 shadow-xl shadow-ink/25 lg:static lg:mt-1 lg:ml-0 lg:w-auto lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none"
+              >
+                {item.children.map((child) => (
+                  <li key={child}>
+                    <button
+                      type="button"
+                      disabled
+                      aria-label={`${child} (준비 중)`}
+                      className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/35 lg:pl-12"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-1 w-1 shrink-0 rounded-full bg-white/30"
+                      />
+                      <span className="truncate">{child}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : item.to ? (
             <NavLink
