@@ -2,6 +2,7 @@ package com.hwalro.regulation.common.exception;
 
 import com.hwalro.regulation.law.exception.LawApiConfigurationException;
 import com.hwalro.regulation.law.exception.RegulationNotFoundException;
+import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +25,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     /** 선택한 법령이 없을 때 404를 반환한다. */
     public Map<String, String> handleNotFound(RegulationNotFoundException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(RiskNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleRiskNotFound(RiskNotFoundException exception) {
         return Map.of("message", exception.getMessage());
     }
 

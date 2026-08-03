@@ -205,40 +205,38 @@ function RiskManagementPage() {
   const selectedItem = RISK_ITEMS.find((item) => item.id === selectedId) ?? RISK_ITEMS[0];
 
   return (
-    <main className="min-h-[100dvh] bg-background">
-      <div className="mx-auto w-full max-w-[1392px] px-10 pb-10 pt-20 lg:px-12">
-        <header className="flex items-start justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight text-ink">위험 예상 항목 관리</h1>
-            <p className="mt-3 text-sm text-text-muted">
-              시뮬레이션과 현장 점검에서 발견한 위험을 담당자와 기한으로 관리합니다.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary/85"
-          >
-            위험 예상 항목 등록
-          </button>
-        </header>
-
-        <div className="mt-11 grid grid-cols-1 gap-11 lg:grid-cols-[722fr_342fr]">
-          <section className="rounded-lg border border-line bg-white px-5 pb-5 pt-11">
-            <h2 className="px-2 text-2xl font-bold text-ink">위험 예상 목록</h2>
-            <div className="mt-6">
-              <RiskItemTable items={RISK_ITEMS} selectedId={selectedId} onSelect={setSelectedId} />
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-line bg-white px-7 pb-7 pt-9">
-            <h2 className="text-2xl font-bold text-ink">위험 상세</h2>
-            <div className="mt-12">
-              <RiskDetailPanel item={selectedItem} />
-            </div>
-          </section>
+    <div className="mx-auto w-full max-w-[1392px] pb-10">
+      <header className="flex items-start justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-ink">위험 예상 항목 관리</h1>
+          <p className="mt-3 text-sm text-text-muted">
+            시뮬레이션과 현장 점검에서 발견한 위험을 담당자와 기한으로 관리합니다.
+          </p>
         </div>
+        <button
+          type="button"
+          className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary/85"
+        >
+          위험 예상 항목 등록
+        </button>
+      </header>
+
+      <div className="mt-11 grid grid-cols-1 gap-11 lg:grid-cols-[722fr_342fr]">
+        <section className="rounded-lg border border-line bg-white px-5 pb-5 pt-11">
+          <h2 className="px-2 text-2xl font-bold text-ink">위험 예상 목록</h2>
+          <div className="mt-6">
+            <RiskItemTable items={RISK_ITEMS} selectedId={selectedId} onSelect={setSelectedId} />
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-line bg-white px-7 pb-7 pt-9">
+          <h2 className="text-2xl font-bold text-ink">위험 상세</h2>
+          <div className="mt-12">
+            <RiskDetailPanel item={selectedItem} />
+          </div>
+        </section>
       </div>
-    </main>
+    </div>
   );
 }
 
