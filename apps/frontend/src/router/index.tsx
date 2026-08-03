@@ -3,13 +3,26 @@ import App from '../App';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
 import SystemManagementPage from '../pages/SystemManagementPage';
+import ProtectedRoute from '../features/auth/components/ProtectedRoute';
+import RegulationsPage from '../pages/RegulationsPage';
+import RiskManagementPage from '../pages/RiskManagementPage';
 
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <App />,
     children: [
-      { index: true, element: <HomePage /> },
+      {
+        element: <ProtectedRoute />,
+        children: [
+          {
+            index: true,
+            element: <HomePage />,
+          },
+          { path: 'risk-management', element: <RiskManagementPage /> },
+          { path: 'regulations', element: <RegulationsPage /> },
+        ],
+      },
       { path: 'login', element: <LoginPage /> },
       { path: 'system-management', element: <SystemManagementPage /> },
     ],

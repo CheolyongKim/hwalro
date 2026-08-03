@@ -107,14 +107,3 @@ CREATE TABLE IF NOT EXISTS manuals (
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS regulations (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    law_name VARCHAR(200) NOT NULL,
-    article VARCHAR(200) NOT NULL,
-    summary TEXT NOT NULL,
-    source_url VARCHAR(2048) NULL,
-    CONSTRAINT pk_regulations PRIMARY KEY (id)
-) ENGINE = InnoDB
-  DEFAULT CHARACTER SET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
