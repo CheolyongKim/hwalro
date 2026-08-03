@@ -1,5 +1,7 @@
 package com.hwalro.regulation.risk.service;
 
+import com.hwalro.regulation.common.jwt.ForbiddenException;
+import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.risk.domain.Risk;
 import com.hwalro.regulation.risk.dto.RiskCreateRequest;
 import com.hwalro.regulation.risk.dto.RiskListResponse;
@@ -8,6 +10,7 @@ import com.hwalro.regulation.risk.dto.RiskUpdateRequest;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import com.hwalro.regulation.risk.mapper.RiskMapper;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -18,6 +21,8 @@ public class RiskService {
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_SEVERITY_LENGTH = 30;
     private static final int MAX_STATUS_LENGTH = 30;
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_OPERATOR = "OPERATOR";
 
     private final RiskMapper riskMapper;
 
@@ -25,16 +30,19 @@ public class RiskService {
         this.riskMapper = riskMapper;
     }
 
-    public RiskListResponse list(int page, int size) {
+    public RiskListResponse list(int page, int size, JwtUser user) {
         validatePage(page, size);
-        long totalCount = riskMapper.count();
-        List<Risk> risks = riskMapper.findPage((page - 1) * size, size);
+        Long assigneeFilter = canManageAll(user.roles()) ? null : user.userId();
+        long totalCount = riskMapper.count(assigneeFilter);
+        List<Risk> risks = riskMapper.findPage((page - 1) * size, size, assigneeFilter);
         List<RiskResponse> items = risks.stream().map(this::toResponse).toList();
         return new RiskListResponse((int) totalCount, page, size, page * size < totalCount, items);
     }
 
-    public RiskResponse get(Long id) {
-        return toResponse(findByIdOrThrow(id));
+    public RiskResponse get(Long id, JwtUser user) {
+        Risk risk = findByIdOrThrow(id);
+        requireAccessible(risk, user);
+        return toResponse(risk);
     }
 
     public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
@@ -49,10 +57,11 @@ public class RiskService {
         return toResponse(findByIdOrThrow(risk.getId()));
     }
 
-    public RiskResponse update(Long id, RiskUpdateRequest request, Long assigneeId) {
+    public RiskResponse update(Long id, RiskUpdateRequest request, JwtUser user) {
         validateFields(request.title(), request.severity(), request.status());
         Risk risk = findByIdOrThrow(id);
-        risk.setAssigneeId(assigneeId);
+        requireAccessible(risk, user);
+        risk.setAssigneeId(user.userId());
         risk.setTitle(request.title().trim());
         risk.setDescription(request.description());
         risk.setSeverity(request.severity().trim());
@@ -61,9 +70,20 @@ public class RiskService {
         return toResponse(risk);
     }
 
-    public void delete(Long id) {
-        findByIdOrThrow(id);
+    public void delete(Long id, JwtUser user) {
+        Risk risk = findByIdOrThrow(id);
+        requireAccessible(risk, user);
         riskMapper.deleteById(id);
+    }
+
+    private boolean canManageAll(Set<String> roles) {
+        return roles.contains(ROLE_ADMIN) || roles.contains(ROLE_OPERATOR);
+    }
+
+    private void requireAccessible(Risk risk, JwtUser user) {
+        if (!canManageAll(user.roles()) && !user.userId().equals(risk.getAssigneeId())) {
+            throw new ForbiddenException("접근 권한이 없습니다.");
+        }
     }
 
     private Risk findByIdOrThrow(Long id) {

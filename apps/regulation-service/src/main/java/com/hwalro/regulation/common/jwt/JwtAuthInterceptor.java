@@ -11,7 +11,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class JwtAuthInterceptor implements HandlerInterceptor {
 
-    public static final String REQUEST_ATTRIBUTE_USER_ID = "userId";
+    public static final String REQUEST_ATTRIBUTE_USER = "jwtUser";
 
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -26,7 +26,7 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
             throw new InvalidTokenException("인증 토큰이 없습니다.");
         }
         JwtUser user = jwtTokenProvider.extractUser(authorization.substring("Bearer ".length()));
-        request.setAttribute(REQUEST_ATTRIBUTE_USER_ID, user.userId());
+        request.setAttribute(REQUEST_ATTRIBUTE_USER, user);
         requireRoles(handler, user.roles());
         return true;
     }

@@ -1,6 +1,7 @@
 package com.hwalro.regulation.risk.controller;
 
 import com.hwalro.regulation.common.jwt.JwtAuthInterceptor;
+import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.common.jwt.RequireRole;
 import com.hwalro.regulation.risk.dto.RiskCreateRequest;
 import com.hwalro.regulation.risk.dto.RiskListResponse;
@@ -32,34 +33,38 @@ public class RiskController {
 
     @GetMapping
     public RiskListResponse list(
-            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
-        return riskService.list(page, size);
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return riskService.list(page, size, user);
     }
 
     @GetMapping("/{id}")
-    public RiskResponse get(@PathVariable Long id) {
-        return riskService.get(id);
+    public RiskResponse get(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return riskService.get(id, user);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public RiskResponse create(
             @RequestBody RiskCreateRequest request,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER_ID) Long userId) {
-        return riskService.create(request, userId);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return riskService.create(request, user.userId());
     }
 
     @PutMapping("/{id}")
     public RiskResponse update(
             @PathVariable Long id,
             @RequestBody RiskUpdateRequest request,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER_ID) Long userId) {
-        return riskService.update(id, request, userId);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return riskService.update(id, request, user);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        riskService.delete(id);
+    public void delete(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        riskService.delete(id, user);
     }
 }

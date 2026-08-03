@@ -26,6 +26,9 @@
                status,
                created_at
         FROM risks
+        <where>
+            <if test="assigneeId != null">assignee_id = #{assigneeId}</if>
+        </where>
         ORDER BY id DESC
         LIMIT #{offset}, #{size}
     </select>
@@ -33,6 +36,9 @@
     <select id="count" resultType="long">
         SELECT COUNT(*)
         FROM risks
+        <where>
+            <if test="assigneeId != null">assignee_id = #{assigneeId}</if>
+        </where>
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
