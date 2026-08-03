@@ -12,20 +12,18 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiConfig {
 
-    private static final String ACCESS_TOKEN_COOKIE = "ACCESS_TOKEN";
+    private static final String BEARER_SCHEME = "bearerAuth";
 
     @Bean
     public OpenAPI openAPI() {
-        SecurityScheme cookieScheme = new SecurityScheme()
-                .type(Type.APIKEY)
-                .in(SecurityScheme.In.COOKIE)
-                .name(ACCESS_TOKEN_COOKIE);
+        SecurityScheme bearerScheme =
+                new SecurityScheme().type(Type.HTTP).scheme("bearer").bearerFormat("JWT");
         return new OpenAPI()
                 .info(new Info()
                         .title("HWALRO Auth Service API")
-                        .description("JWT 액세스/리프레시 토큰 기반 인증 API. 토큰은 HttpOnly 쿠키로 전달된다.")
+                        .description("JWT 액세스 토큰(Authorization: Bearer 헤더) 기반 인증 API. 리프레시 토큰은 HttpOnly 쿠키로 관리된다.")
                         .version("v1.0.0"))
-                .components(new Components().addSecuritySchemes(ACCESS_TOKEN_COOKIE, cookieScheme))
-                .addSecurityItem(new SecurityRequirement().addList(ACCESS_TOKEN_COOKIE));
+                .components(new Components().addSecuritySchemes(BEARER_SCHEME, bearerScheme))
+                .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME));
     }
 }

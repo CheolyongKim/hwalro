@@ -1,4 +1,38 @@
+import { useMutation } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof AxiosError) {
+    const message = (error.response?.data as { message?: string } | undefined)?.message;
+    if (message) {
+      return message;
+    }
+    if (error.response?.status === 401) {
+      return '아이디 또는 비밀번호가 일치하지 않습니다.';
+    }
+  }
+  return '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+}
+
 function LoginPage() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+
+  const loginMutation = useMutation({
+    mutationFn: () => login(loginId, password),
+    onSuccess: () => navigate('/', { replace: true }),
+  });
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    loginMutation.mutate();
+  };
+
   return (
     <main className="flex min-h-[100dvh] bg-background">
       <section className="hidden w-[38%] shrink-0 flex-col bg-ink px-16 py-14 text-white lg:flex">
@@ -22,7 +56,7 @@ function LoginPage() {
       </section>
 
       <section className="flex flex-1 items-center justify-center px-6 py-16">
-        <form className="w-full max-w-[420px]" onSubmit={(event) => event.preventDefault()}>
+        <form className="w-full max-w-[420px]" onSubmit={handleSubmit}>
           <p className="text-sm font-bold tracking-tight text-ink lg:hidden">HWALRO</p>
 
           <h2 className="mt-6 text-2xl font-black text-ink lg:mt-0">환영합니다</h2>
@@ -35,6 +69,8 @@ function LoginPage() {
             id="username"
             name="username"
             autoComplete="username"
+            value={loginId}
+            onChange={(event) => setLoginId(event.target.value)}
             placeholder="safety manager1234"
             className="mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink"
           />
@@ -47,6 +83,8 @@ function LoginPage() {
             name="password"
             type="password"
             autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
             placeholder="password"
             className="mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink"
           />
@@ -56,11 +94,18 @@ function LoginPage() {
             로그인 상태 유지
           </label>
 
+          {loginMutation.isError && (
+            <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
+              {getErrorMessage(loginMutation.error)}
+            </p>
+          )}
+
           <button
             type="submit"
-            className="mt-11 w-full rounded-2xl bg-ink px-5 py-4 text-base font-black text-white transition hover:bg-ink/85 active:bg-ink/70"
+            disabled={loginMutation.isPending || !loginId || !password}
+            className="mt-11 w-full rounded-2xl bg-ink px-5 py-4 text-base font-black text-white transition hover:bg-ink/85 active:bg-ink/70 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            로그인
+            {loginMutation.isPending ? '로그인 중...' : '로그인'}
           </button>
 
           <div className="mt-12 border-t border-ink/10" />

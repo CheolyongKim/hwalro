@@ -1,6 +1,5 @@
 package com.hwalro.auth.security;
 
-import com.hwalro.auth.auth.TokenPair;
 import com.hwalro.auth.jwt.JwtTokenProvider;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,10 +11,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class CookieManager {
 
-    public static final String ACCESS_TOKEN_COOKIE = "ACCESS_TOKEN";
     public static final String REFRESH_TOKEN_COOKIE = "REFRESH_TOKEN";
 
-    private static final String COOKIE_PATH_ROOT = "/";
     private static final String COOKIE_PATH_AUTH = "/api/auth";
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -31,20 +28,10 @@ public class CookieManager {
         this.secure = secure;
     }
 
-    public void setTokens(HttpServletResponse response, TokenPair tokenPair) {
+    public void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         response.addHeader(
                 "Set-Cookie",
-                ResponseCookie.from(ACCESS_TOKEN_COOKIE, tokenPair.accessToken())
-                        .httpOnly(true)
-                        .secure(secure)
-                        .path(COOKIE_PATH_ROOT)
-                        .maxAge(jwtTokenProvider.getAccessTokenTtlSeconds())
-                        .sameSite(sameSite)
-                        .build()
-                        .toString());
-        response.addHeader(
-                "Set-Cookie",
-                ResponseCookie.from(REFRESH_TOKEN_COOKIE, tokenPair.refreshToken())
+                ResponseCookie.from(REFRESH_TOKEN_COOKIE, refreshToken)
                         .httpOnly(true)
                         .secure(secure)
                         .path(COOKIE_PATH_AUTH)
@@ -57,16 +44,6 @@ public class CookieManager {
     public void clearTokens(HttpServletResponse response) {
         response.addHeader(
                 "Set-Cookie",
-                ResponseCookie.from(ACCESS_TOKEN_COOKIE, "")
-                        .httpOnly(true)
-                        .secure(secure)
-                        .path(COOKIE_PATH_ROOT)
-                        .maxAge(0)
-                        .sameSite(sameSite)
-                        .build()
-                        .toString());
-        response.addHeader(
-                "Set-Cookie",
                 ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
                         .httpOnly(true)
                         .secure(secure)
@@ -75,10 +52,6 @@ public class CookieManager {
                         .sameSite(sameSite)
                         .build()
                         .toString());
-    }
-
-    public String getAccessToken(HttpServletRequest request) {
-        return getCookieValue(request, ACCESS_TOKEN_COOKIE);
     }
 
     public String getRefreshToken(HttpServletRequest request) {
