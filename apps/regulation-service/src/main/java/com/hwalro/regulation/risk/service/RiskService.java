@@ -21,6 +21,7 @@ public class RiskService {
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_SEVERITY_LENGTH = 30;
     private static final int MAX_STATUS_LENGTH = 30;
+    private static final int MAX_DESCRIPTION_LENGTH = 10_000;
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_OPERATOR = "OPERATOR";
 
@@ -46,7 +47,7 @@ public class RiskService {
     }
 
     public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
-        validateFields(request.title(), request.severity(), request.status());
+        validateFields(request.title(), request.severity(), request.status(), request.description());
         Risk risk = new Risk();
         risk.setAssigneeId(assigneeId);
         risk.setTitle(request.title().trim());
@@ -58,10 +59,9 @@ public class RiskService {
     }
 
     public RiskResponse update(Long id, RiskUpdateRequest request, JwtUser user) {
-        validateFields(request.title(), request.severity(), request.status());
+        validateFields(request.title(), request.severity(), request.status(), request.description());
         Risk risk = findByIdOrThrow(id);
         requireAccessible(risk, user);
-        risk.setAssigneeId(user.userId());
         risk.setTitle(request.title().trim());
         risk.setDescription(request.description());
         risk.setSeverity(request.severity().trim());
@@ -108,28 +108,31 @@ public class RiskService {
 
     private void validatePage(int page, int size) {
         if (page < 1 || page > MAX_PAGE || size < 1 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("page must be between 1 and 100000 and size must be between 1 and 100.");
+            throw new IllegalArgumentException("page는 1 이상 100000 이하, size는 1 이상 100 이하여야 합니다.");
         }
     }
 
-    private void validateFields(String title, String severity, String status) {
+    private void validateFields(String title, String severity, String status, String description) {
         if (!StringUtils.hasText(title)) {
-            throw new IllegalArgumentException("title must not be blank.");
+            throw new IllegalArgumentException("위험 항목명을 입력해 주세요.");
         }
         if (title.length() > MAX_TITLE_LENGTH) {
-            throw new IllegalArgumentException("title must not exceed 200 characters.");
+            throw new IllegalArgumentException("위험 항목명은 200자 이하여야 합니다.");
         }
         if (!StringUtils.hasText(severity)) {
-            throw new IllegalArgumentException("severity must not be blank.");
+            throw new IllegalArgumentException("위험도를 선택해 주세요.");
         }
         if (severity.length() > MAX_SEVERITY_LENGTH) {
-            throw new IllegalArgumentException("severity must not exceed 30 characters.");
+            throw new IllegalArgumentException("위험도는 30자 이하여야 합니다.");
         }
         if (!StringUtils.hasText(status)) {
-            throw new IllegalArgumentException("status must not be blank.");
+            throw new IllegalArgumentException("상태를 선택해 주세요.");
         }
         if (status.length() > MAX_STATUS_LENGTH) {
-            throw new IllegalArgumentException("status must not exceed 30 characters.");
+            throw new IllegalArgumentException("상태는 30자 이하여야 합니다.");
+        }
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException("설명은 10000자 이하여야 합니다.");
         }
     }
 }

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type { ReactNode } from 'react';
 import { authApi } from '../api/authApi';
 import { setSessionExpiredHandler, tokenStore } from '../../../api/client';
-import type { User } from '../types/auth';
+import type { AuthResponse, User } from '../types/auth';
 
 interface AuthContextValue {
   user: User | null;
@@ -13,14 +13,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+let bootRefreshPromise: Promise<AuthResponse> | null = null;
+
+function refreshSession(): Promise<AuthResponse> {
+  bootRefreshPromise ??= authApi.refresh().finally(() => {
+    bootRefreshPromise = null;
+  });
+  return bootRefreshPromise;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     let active = true;
-    authApi
-      .refresh()
+    refreshSession()
       .then((response) => {
         if (!active) return;
         tokenStore.set(response.accessToken);

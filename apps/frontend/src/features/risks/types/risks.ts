@@ -1,6 +1,6 @@
 export interface Risk {
   id: number;
-  simulationResultId: number;
+  simulationResultId: number | null;
   assigneeId: number | null;
   title: string;
   description: string | null;

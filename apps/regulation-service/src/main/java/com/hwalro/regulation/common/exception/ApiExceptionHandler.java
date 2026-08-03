@@ -7,11 +7,13 @@ import com.hwalro.regulation.law.exception.RegulationNotFoundException;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 /** 서비스 입력 오류와 외부 법령 API 오류를 프론트엔드가 구분할 수 있는 HTTP 상태로 변환한다. */
@@ -21,6 +23,24 @@ public class ApiExceptionHandler {
     /** 페이지·크기·식별자 같은 클라이언트 입력값 오류를 반환한다. */
     public Map<String, String> handleBadRequest(IllegalArgumentException exception) {
         return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
+        return Map.of("message", "잘못된 요청 값입니다.");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleUnreadableBody(HttpMessageNotReadableException exception) {
+        return Map.of("message", "요청 본문을 읽을 수 없습니다.");
+    }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, String> handleUnexpected(Exception exception) {
+        return Map.of("message", "서버 오류가 발생했습니다.");
     }
 
     @ExceptionHandler(RegulationNotFoundException.class)

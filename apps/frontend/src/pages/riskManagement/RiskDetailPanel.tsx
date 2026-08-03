@@ -42,7 +42,9 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   };
 
   const handleDelete = () => {
-    deleteMutation.mutate(risk.id);
+    if (window.confirm('삭제하시겠습니까?')) {
+      deleteMutation.mutate(risk.id);
+    }
   };
 
   return (

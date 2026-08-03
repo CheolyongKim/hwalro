@@ -30,13 +30,17 @@ function RiskCreateDialog({ onClose }: { onClose: () => void }) {
   const errorMessage = createMutation.isError ? getRiskErrorMessage(createMutation.error) : null;
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
   }, [onClose]);
 
   const handleSubmit = () => {
@@ -75,6 +79,7 @@ function RiskCreateDialog({ onClose }: { onClose: () => void }) {
         <input
           id="risk-create-name"
           required
+          autoFocus
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="예: 중앙 통로 밀집도 초과"
