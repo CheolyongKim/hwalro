@@ -11,7 +11,7 @@ function HomePage() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-6">
+    <div className="flex flex-col items-center justify-center gap-6">
       <h1 className="text-3xl font-black text-ink">Hwalro</h1>
       {user && (
         <p className="text-sm text-ink/70">
