@@ -13,9 +13,11 @@
     "clean": "rm -rf .turbo dist node_modules"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.18.2"
+    "react-router-dom": "^7.18.2",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@types/react": "^19.0.8",
