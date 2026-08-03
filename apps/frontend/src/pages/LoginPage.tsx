@@ -36,7 +36,7 @@ function LoginPage() {
             name="username"
             autoComplete="username"
             placeholder="safety manager1234"
-            className="mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus:border-lime focus:ring-4 focus:ring-lime/30"
+            className="mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink"
           />
 
           <label className="mt-9 block text-sm font-bold text-ink" htmlFor="password">
@@ -48,7 +48,7 @@ function LoginPage() {
             type="password"
             autoComplete="current-password"
             placeholder="password"
-            className="mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus:border-lime focus:ring-4 focus:ring-lime/30"
+            className="mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink"
           />
 
           <label className="mt-7 flex w-fit cursor-pointer items-center gap-2 text-sm text-ink/70">
