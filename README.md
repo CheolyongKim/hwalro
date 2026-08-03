@@ -135,6 +135,10 @@ Turborepo가 프론트엔드와 각 백엔드 서비스의 `dev` 스크립트를
 pnpm --filter @hwalro/frontend dev
 ```
 
+안전 법령 화면은 공통 사이드바의 **안전 법령** 메뉴가 연결할 경로인
+`http://localhost:3000/regulations`에서 확인합니다. 루트 경로(`/`)는 법령 화면을
+직접 렌더링하지 않습니다.
+
 ### 백엔드 서비스 개별 실행
 
 Windows:
