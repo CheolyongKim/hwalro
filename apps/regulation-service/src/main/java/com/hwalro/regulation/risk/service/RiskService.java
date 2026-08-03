@@ -37,12 +37,10 @@ public class RiskService {
         return toResponse(findByIdOrThrow(id));
     }
 
-    public RiskResponse create(RiskCreateRequest request) {
-        validateSimulationResultId(request.simulationResultId());
-        validateFields(request.title(), request.severity(), request.status(), request.assigneeId());
+    public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
+        validateFields(request.title(), request.severity(), request.status());
         Risk risk = new Risk();
-        risk.setSimulationResultId(request.simulationResultId());
-        risk.setAssigneeId(request.assigneeId());
+        risk.setAssigneeId(assigneeId);
         risk.setTitle(request.title().trim());
         risk.setDescription(request.description());
         risk.setSeverity(request.severity().trim());
@@ -51,10 +49,10 @@ public class RiskService {
         return toResponse(findByIdOrThrow(risk.getId()));
     }
 
-    public RiskResponse update(Long id, RiskUpdateRequest request) {
-        validateFields(request.title(), request.severity(), request.status(), request.assigneeId());
+    public RiskResponse update(Long id, RiskUpdateRequest request, Long assigneeId) {
+        validateFields(request.title(), request.severity(), request.status());
         Risk risk = findByIdOrThrow(id);
-        risk.setAssigneeId(request.assigneeId());
+        risk.setAssigneeId(assigneeId);
         risk.setTitle(request.title().trim());
         risk.setDescription(request.description());
         risk.setSeverity(request.severity().trim());
@@ -94,13 +92,7 @@ public class RiskService {
         }
     }
 
-    private void validateSimulationResultId(Long simulationResultId) {
-        if (simulationResultId == null || simulationResultId <= 0) {
-            throw new IllegalArgumentException("simulationResultId must be a positive number.");
-        }
-    }
-
-    private void validateFields(String title, String severity, String status, Long assigneeId) {
+    private void validateFields(String title, String severity, String status) {
         if (!StringUtils.hasText(title)) {
             throw new IllegalArgumentException("title must not be blank.");
         }
@@ -118,9 +110,6 @@ public class RiskService {
         }
         if (status.length() > MAX_STATUS_LENGTH) {
             throw new IllegalArgumentException("status must not exceed 30 characters.");
-        }
-        if (assigneeId != null && assigneeId <= 0) {
-            throw new IllegalArgumentException("assigneeId must be a positive number.");
         }
     }
 }

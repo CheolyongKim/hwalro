@@ -1,5 +1,7 @@
 package com.hwalro.regulation.risk.controller;
 
+import com.hwalro.regulation.common.jwt.JwtAuthInterceptor;
+import com.hwalro.regulation.common.jwt.RequireRole;
 import com.hwalro.regulation.risk.dto.RiskCreateRequest;
 import com.hwalro.regulation.risk.dto.RiskListResponse;
 import com.hwalro.regulation.risk.dto.RiskResponse;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/risks")
+@RequireRole({"ADMIN", "OPERATOR", "SAFETY_REVIEWER"})
 public class RiskController {
     private final RiskService riskService;
 
@@ -39,13 +43,18 @@ public class RiskController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public RiskResponse create(@RequestBody RiskCreateRequest request) {
-        return riskService.create(request);
+    public RiskResponse create(
+            @RequestBody RiskCreateRequest request,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER_ID) Long userId) {
+        return riskService.create(request, userId);
     }
 
     @PutMapping("/{id}")
-    public RiskResponse update(@PathVariable Long id, @RequestBody RiskUpdateRequest request) {
-        return riskService.update(id, request);
+    public RiskResponse update(
+            @PathVariable Long id,
+            @RequestBody RiskUpdateRequest request,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER_ID) Long userId) {
+        return riskService.update(id, request, userId);
     }
 
     @DeleteMapping("/{id}")

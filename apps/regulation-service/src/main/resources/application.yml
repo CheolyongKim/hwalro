@@ -25,9 +25,9 @@ spring:
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
 
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/hwalro_regulation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:password}
+    url: ${REGULATION_DB_URL:jdbc:mysql://localhost:3307/hwalro_regulation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${REGULATION_DB_USERNAME:hwalro_regulation}
+    password: ${REGULATION_DB_PASSWORD:hwalro_regulation}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   sql:
@@ -41,6 +41,10 @@ mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
+
+jwt:
+  secret: ${JWT_SECRET:}
+  issuer: ${JWT_ISSUER:hwalro-auth-service}
 
   # Spring AI Configuration
   # ai:

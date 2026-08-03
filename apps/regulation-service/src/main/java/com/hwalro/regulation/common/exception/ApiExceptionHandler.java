@@ -1,5 +1,7 @@
 package com.hwalro.regulation.common.exception;
 
+import com.hwalro.regulation.common.jwt.ForbiddenException;
+import com.hwalro.regulation.common.jwt.InvalidTokenException;
 import com.hwalro.regulation.law.exception.LawApiConfigurationException;
 import com.hwalro.regulation.law.exception.RegulationNotFoundException;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
@@ -31,6 +33,18 @@ public class ApiExceptionHandler {
     @ExceptionHandler(RiskNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, String> handleRiskNotFound(RiskNotFoundException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Map<String, String> handleForbidden(ForbiddenException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidTokenException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public Map<String, String> handleInvalidToken(InvalidTokenException exception) {
         return Map.of("message", exception.getMessage());
     }
 

@@ -36,8 +36,8 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO risks (simulation_result_id, assignee_id, title, description, severity, status)
-        VALUES (#{simulationResultId}, #{assigneeId}, #{title}, #{description}, #{severity}, #{status})
+        INSERT INTO risks (assignee_id, title, description, severity, status)
+        VALUES (#{assigneeId}, #{title}, #{description}, #{severity}, #{status})
     </insert>
 
     <update id="update">
