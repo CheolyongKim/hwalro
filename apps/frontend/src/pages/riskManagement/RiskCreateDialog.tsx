@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../features/risks/constants/riskOptions';
 import { useRiskForm } from '../../features/risks/hooks/useRiskForm';
 import { useCreateRisk } from '../../features/risks/hooks/useRiskMutations';
@@ -29,11 +29,35 @@ function RiskCreateDialog({ onClose }: { onClose: () => void }) {
 
   const errorMessage = createMutation.isError ? getRiskErrorMessage(createMutation.error) : null;
 
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
+        return;
+      }
+      if (event.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusable.length === 0) {
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (!panelRef.current.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        } else if (event.shiftKey && active === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && active === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -59,7 +83,10 @@ function RiskCreateDialog({ onClose }: { onClose: () => void }) {
         }
       }}
     >
-      <div className="relative w-full max-w-[520px] rounded-2xl bg-white p-8 shadow-xl">
+      <div
+        ref={panelRef}
+        className="relative w-full max-w-[520px] rounded-2xl bg-white p-8 shadow-xl"
+      >
         <button
           type="button"
           aria-label="닫기"

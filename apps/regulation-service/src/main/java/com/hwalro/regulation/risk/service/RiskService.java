@@ -19,11 +19,12 @@ public class RiskService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_PAGE = 100_000;
     private static final int MAX_TITLE_LENGTH = 200;
-    private static final int MAX_SEVERITY_LENGTH = 30;
-    private static final int MAX_STATUS_LENGTH = 30;
     private static final int MAX_DESCRIPTION_LENGTH = 10_000;
+    private static final Set<String> ALLOWED_SEVERITIES = Set.of("높음", "보통", "낮음");
+    private static final Set<String> ALLOWED_STATUSES = Set.of("임시저장", "조치 중", "완료");
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_OPERATOR = "OPERATOR";
+    private static final String ROLE_REVIEWER = "SAFETY_REVIEWER";
 
     private final RiskMapper riskMapper;
 
@@ -33,7 +34,7 @@ public class RiskService {
 
     public RiskListResponse list(int page, int size, JwtUser user) {
         validatePage(page, size);
-        Long assigneeFilter = canManageAll(user.roles()) ? null : user.userId();
+        Long assigneeFilter = resolveAssigneeFilter(user);
         long totalCount = riskMapper.count(assigneeFilter);
         List<Risk> risks = riskMapper.findPage((page - 1) * size, size, assigneeFilter);
         List<RiskResponse> items = risks.stream().map(this::toResponse).toList();
@@ -80,10 +81,24 @@ public class RiskService {
         return roles.contains(ROLE_ADMIN) || roles.contains(ROLE_OPERATOR);
     }
 
-    private void requireAccessible(Risk risk, JwtUser user) {
-        if (!canManageAll(user.roles()) && !user.userId().equals(risk.getAssigneeId())) {
-            throw new ForbiddenException("접근 권한이 없습니다.");
+    private Long resolveAssigneeFilter(JwtUser user) {
+        if (canManageAll(user.roles())) {
+            return null;
         }
+        if (user.roles().contains(ROLE_REVIEWER)) {
+            return user.userId();
+        }
+        throw new ForbiddenException("접근 권한이 없습니다.");
+    }
+
+    private void requireAccessible(Risk risk, JwtUser user) {
+        if (canManageAll(user.roles())) {
+            return;
+        }
+        if (user.roles().contains(ROLE_REVIEWER) && user.userId().equals(risk.getAssigneeId())) {
+            return;
+        }
+        throw new ForbiddenException("접근 권한이 없습니다.");
     }
 
     private Risk findByIdOrThrow(Long id) {
@@ -119,17 +134,11 @@ public class RiskService {
         if (title.length() > MAX_TITLE_LENGTH) {
             throw new IllegalArgumentException("위험 항목명은 200자 이하여야 합니다.");
         }
-        if (!StringUtils.hasText(severity)) {
-            throw new IllegalArgumentException("위험도를 선택해 주세요.");
+        if (!StringUtils.hasText(severity) || !ALLOWED_SEVERITIES.contains(severity.trim())) {
+            throw new IllegalArgumentException("위험도는 높음, 보통, 낮음 중 하나여야 합니다.");
         }
-        if (severity.length() > MAX_SEVERITY_LENGTH) {
-            throw new IllegalArgumentException("위험도는 30자 이하여야 합니다.");
-        }
-        if (!StringUtils.hasText(status)) {
-            throw new IllegalArgumentException("상태를 선택해 주세요.");
-        }
-        if (status.length() > MAX_STATUS_LENGTH) {
-            throw new IllegalArgumentException("상태는 30자 이하여야 합니다.");
+        if (!StringUtils.hasText(status) || !ALLOWED_STATUSES.contains(status.trim())) {
+            throw new IllegalArgumentException("상태는 임시저장, 조치 중, 완료 중 하나여야 합니다.");
         }
         if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("설명은 10000자 이하여야 합니다.");
