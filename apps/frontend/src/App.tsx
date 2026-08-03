@@ -55,6 +55,7 @@ function RegulationsPage() {
   const [relatedLaws, setRelatedLaws] = useState<RelatedRegulation[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const articleRefs = useRef<Record<number, HTMLElement | null>>({});
+  const hasLoadedInitialList = useRef(false);
 
   async function loadRelatedLaws(lawId: string) {
     setRelatedLoading(true);
@@ -117,6 +118,12 @@ function RegulationsPage() {
   }
 
   useEffect(() => {
+    // StrictMode 개발 환경에서는 Effect를 두 번 실행하므로, 외부 법령 API의 초기 요청은 한 번만 보낸다.
+    if (hasLoadedInitialList.current) {
+      return;
+    }
+
+    hasLoadedInitialList.current = true;
     void loadRegulations(1, true, '');
   }, []);
 
