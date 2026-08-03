@@ -1,6 +1,7 @@
-package com.hwalro.regulation.law;
+package com.hwalro.regulation.law.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.hwalro.regulation.law.exception.LawApiConfigurationException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;

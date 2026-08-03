@@ -1,9 +1,9 @@
-package com.hwalro.regulation.controller;
+package com.hwalro.regulation.law.controller;
 
-import com.hwalro.regulation.law.RegulationDetail;
-import com.hwalro.regulation.law.RegulationSearchResponse;
-import com.hwalro.regulation.law.RegulationService;
-import com.hwalro.regulation.law.RelatedRegulation;
+import com.hwalro.regulation.law.dto.RegulationDetail;
+import com.hwalro.regulation.law.dto.RegulationSearchResponse;
+import com.hwalro.regulation.law.dto.RelatedRegulation;
+import com.hwalro.regulation.law.service.RegulationService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

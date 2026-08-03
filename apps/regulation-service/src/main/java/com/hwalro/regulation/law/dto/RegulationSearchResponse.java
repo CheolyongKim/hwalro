@@ -1,4 +1,4 @@
-package com.hwalro.regulation.law;
+package com.hwalro.regulation.law.dto;
 
 import java.util.List;
 

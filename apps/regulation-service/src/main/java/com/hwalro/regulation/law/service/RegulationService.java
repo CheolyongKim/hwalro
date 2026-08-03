@@ -1,7 +1,15 @@
-package com.hwalro.regulation.law;
+package com.hwalro.regulation.law.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.hwalro.regulation.law.api.LawApiClient;
+import com.hwalro.regulation.law.api.LawApiProperties;
+import com.hwalro.regulation.law.dto.RegulationArticle;
+import com.hwalro.regulation.law.dto.RegulationDetail;
+import com.hwalro.regulation.law.dto.RegulationSearchResponse;
+import com.hwalro.regulation.law.dto.RegulationSummary;
+import com.hwalro.regulation.law.dto.RelatedRegulation;
+import com.hwalro.regulation.law.exception.RegulationNotFoundException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;

@@ -1,9 +1,12 @@
-package com.hwalro.regulation.law;
+package com.hwalro.regulation.law.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.regulation.law.api.LawApiClient;
+import com.hwalro.regulation.law.api.LawApiProperties;
+import com.hwalro.regulation.law.dto.RelatedRegulation;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,6 +1,6 @@
 package com.hwalro.regulation;
 
-import com.hwalro.regulation.law.LawApiProperties;
+import com.hwalro.regulation.law.api.LawApiProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

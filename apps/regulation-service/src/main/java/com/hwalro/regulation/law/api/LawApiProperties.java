@@ -1,4 +1,4 @@
-package com.hwalro.regulation.law;
+package com.hwalro.regulation.law.api;
 
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;

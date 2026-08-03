@@ -1,7 +1,7 @@
-package com.hwalro.regulation.controller;
+package com.hwalro.regulation.common.exception;
 
-import com.hwalro.regulation.law.LawApiConfigurationException;
-import com.hwalro.regulation.law.RegulationNotFoundException;
+import com.hwalro.regulation.law.exception.LawApiConfigurationException;
+import com.hwalro.regulation.law.exception.RegulationNotFoundException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
