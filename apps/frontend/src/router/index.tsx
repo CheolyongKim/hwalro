@@ -12,11 +12,12 @@ export const router = createBrowserRouter([
     element: <App />,
     children: [
       { path: 'login', element: <LoginPage /> },
-      // 공통 사이드바의 '안전 법령' 메뉴가 연결할 독립 화면 경로다.
-      { path: 'regulations', element: <RegulationsPage /> },
       {
         element: <WorkspaceLayout />,
-        children: [{ index: true, element: <HomePage /> }],
+        children: [
+          { index: true, element: <HomePage /> },
+          { path: 'regulations', element: <RegulationsPage /> },
+        ],
       },
       { path: 'risk-management', element: <RiskManagementPage /> },
     ],

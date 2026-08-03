@@ -16,7 +16,7 @@ const navigationItems: NavigationItem[] = [
   { label: '보고서 관리', icon: 'report' },
   { label: '위험 예상 항목 관리', icon: 'risk' },
   { label: '안전 체크리스트', icon: 'checklist' },
-  { label: '안전 법령', icon: 'regulation' },
+  { label: '안전 법령', icon: 'regulation', to: '/regulations' },
 ];
 
 const iconPaths: Record<SidebarIconName, React.ReactNode> = {
