@@ -1,7 +1,8 @@
 import { useLoginForm } from '../features/auth/hooks/useLoginForm';
 
 function LoginPage() {
-  const { loginId, setLoginId, password, setPassword, isPending, errorMessage, handleSubmit } = useLoginForm();
+  const { loginId, setLoginId, password, setPassword, rememberMe, setRememberMe, isPending, errorMessage, handleSubmit } =
+    useLoginForm();
 
   return (
     <main className="flex min-h-[100dvh] bg-background">
@@ -60,7 +61,12 @@ function LoginPage() {
           />
 
           <label className="mt-7 flex w-fit cursor-pointer items-center gap-2 text-sm text-ink/70">
-            <input type="checkbox" className="h-4 w-4 shrink-0 cursor-pointer accent-lime" />
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(event) => setRememberMe(event.target.checked)}
+              className="h-4 w-4 shrink-0 cursor-pointer accent-lime"
+            />
             로그인 상태 유지
           </label>
 

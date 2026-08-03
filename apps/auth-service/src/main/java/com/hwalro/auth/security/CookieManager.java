@@ -28,17 +28,16 @@ public class CookieManager {
         this.secure = secure;
     }
 
-    public void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-        response.addHeader(
-                "Set-Cookie",
-                ResponseCookie.from(REFRESH_TOKEN_COOKIE, refreshToken)
-                        .httpOnly(true)
-                        .secure(secure)
-                        .path(COOKIE_PATH_AUTH)
-                        .maxAge(jwtTokenProvider.getRefreshTokenTtlSeconds())
-                        .sameSite(sameSite)
-                        .build()
-                        .toString());
+    public void setRefreshTokenCookie(HttpServletResponse response, String refreshToken, boolean rememberMe) {
+        ResponseCookie.ResponseCookieBuilder cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE, refreshToken)
+                .httpOnly(true)
+                .secure(secure)
+                .path(COOKIE_PATH_AUTH)
+                .sameSite(sameSite);
+        if (rememberMe) {
+            cookie.maxAge(jwtTokenProvider.getRefreshTokenTtlSeconds());
+        }
+        response.addHeader("Set-Cookie", cookie.build().toString());
     }
 
     public void clearTokens(HttpServletResponse response) {

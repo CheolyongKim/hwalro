@@ -30,7 +30,7 @@ public class AuthService {
         this.refreshTokenStore = refreshTokenStore;
     }
 
-    public AuthResult login(String loginId, String rawPassword) {
+    public AuthResult login(String loginId, String rawPassword, boolean rememberMe) {
         User user = userMapper.findByLoginId(loginId);
         if (user == null || !passwordEncoder.matches(rawPassword, user.getPassword())) {
             throw new BadCredentialsException("아이디 또는 비밀번호가 일치하지 않습니다.");
@@ -39,7 +39,7 @@ public class AuthService {
             throw new DisabledException("비활성화된 계정입니다.");
         }
         loadRoles(user);
-        return new AuthResult(issueTokenPair(user), user);
+        return new AuthResult(issueTokenPair(user, rememberMe), user, rememberMe);
     }
 
     public AuthResult refresh(String refreshToken) {
@@ -64,7 +64,7 @@ public class AuthService {
             throw new BadCredentialsException("존재하지 않는 사용자입니다.");
         }
         loadRoles(user);
-        return new AuthResult(issueTokenPair(user), user);
+        return new AuthResult(issueTokenPair(user, stored.rememberMe()), user, stored.rememberMe());
     }
 
     public void logout(String refreshToken) {
@@ -92,12 +92,12 @@ public class AuthService {
         user.setRoles(userMapper.findRoleNamesByLoginId(user.getLoginId()));
     }
 
-    private TokenPair issueTokenPair(User user) {
+    private TokenPair issueTokenPair(User user, boolean rememberMe) {
         String accessToken = jwtTokenProvider.createAccessToken(user);
         IssuedRefreshToken refreshToken = jwtTokenProvider.createRefreshToken(user);
         refreshTokenStore.save(
                 refreshToken.jti(),
-                new RefreshTokenData(user.getUserId(), user.getLoginId()),
+                new RefreshTokenData(user.getUserId(), user.getLoginId(), rememberMe),
                 jwtTokenProvider.getRefreshTokenTtlSeconds());
         return new TokenPair(accessToken, refreshToken.token(), refreshToken.jti());
     }

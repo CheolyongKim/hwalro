@@ -45,8 +45,8 @@ public class AuthController {
     })
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
-        AuthResult result = authService.login(request.loginId(), request.password());
-        cookieManager.setRefreshTokenCookie(response, result.tokenPair().refreshToken());
+        AuthResult result = authService.login(request.loginId(), request.password(), request.rememberMe());
+        cookieManager.setRefreshTokenCookie(response, result.tokenPair().refreshToken(), result.rememberMe());
         return ResponseEntity.ok(new AuthResponse(result.tokenPair().accessToken(), toUserResponse(result.user())));
     }
 
@@ -65,7 +65,7 @@ public class AuthController {
             throw new InvalidTokenException("리프레시 토큰이 존재하지 않습니다.");
         }
         AuthResult result = authService.refresh(refreshToken);
-        cookieManager.setRefreshTokenCookie(response, result.tokenPair().refreshToken());
+        cookieManager.setRefreshTokenCookie(response, result.tokenPair().refreshToken(), result.rememberMe());
         return ResponseEntity.ok(new AuthResponse(result.tokenPair().accessToken(), toUserResponse(result.user())));
     }
 

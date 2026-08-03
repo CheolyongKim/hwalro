@@ -7,7 +7,7 @@ import type { User } from '../types/auth';
 interface AuthContextValue {
   user: User | null;
   isInitializing: boolean;
-  login: (loginId: string, password: string) => Promise<void>;
+  login: (loginId: string, password: string, rememberMe: boolean) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -47,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setSessionExpiredHandler(null);
   }, []);
 
-  const login = useCallback(async (loginId: string, password: string) => {
-    const response = await authApi.login({ loginId, password });
+  const login = useCallback(async (loginId: string, password: string, rememberMe: boolean) => {
+    const response = await authApi.login({ loginId, password, rememberMe });
     tokenStore.set(response.accessToken);
     setUser(response.user);
   }, []);

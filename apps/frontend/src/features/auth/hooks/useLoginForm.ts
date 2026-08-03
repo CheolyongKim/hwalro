@@ -10,9 +10,10 @@ export function useLoginForm() {
   const navigate = useNavigate();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
   const loginMutation = useMutation({
-    mutationFn: () => login(loginId, password),
+    mutationFn: () => login(loginId, password, rememberMe),
     onSuccess: () => navigate('/', { replace: true }),
   });
 
@@ -26,6 +27,8 @@ export function useLoginForm() {
     setLoginId,
     password,
     setPassword,
+    rememberMe,
+    setRememberMe,
     isPending: loginMutation.isPending,
     errorMessage: loginMutation.isError ? getErrorMessage(loginMutation.error) : null,
     handleSubmit,
