@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hwalro.regulation.risk.mapper.RiskMapper">
+
+    <select id="findById" resultType="com.hwalro.regulation.risk.domain.Risk">
+        SELECT id,
+               simulation_result_id,
+               assignee_id,
+               title,
+               description,
+               severity,
+               status,
+               created_at
+        FROM risks
+        WHERE id = #{id}
+    </select>
+
+    <select id="findPage" resultType="com.hwalro.regulation.risk.domain.Risk">
+        SELECT id,
+               simulation_result_id,
+               assignee_id,
+               title,
+               description,
+               severity,
+               status,
+               created_at
+        FROM risks
+        <where>
+            <if test="assigneeId != null">assignee_id = #{assigneeId}</if>
+        </where>
+        ORDER BY id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        FROM risks
+        <where>
+            <if test="assigneeId != null">assignee_id = #{assigneeId}</if>
+        </where>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO risks (assignee_id, title, description, severity, status)
+        VALUES (#{assigneeId}, #{title}, #{description}, #{severity}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE risks
+        SET assignee_id = #{assigneeId},
+            title = #{title},
+            description = #{description},
+            severity = #{severity},
+            status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM risks
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

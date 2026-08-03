@@ -19,10 +19,10 @@ export const router = createBrowserRouter([
             element: <WorkspaceLayout />,
             children: [
               { index: true, element: <HomePage /> },
+              { path: 'risk-management', element: <RiskManagementPage /> },
               { path: 'regulations', element: <RegulationsPage /> },
             ],
           },
-          { path: 'risk-management', element: <RiskManagementPage /> },
         ],
       },
       { path: 'login', element: <LoginPage /> },

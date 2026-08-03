@@ -19,24 +19,32 @@ spring:
   application:
     name: regulation-service
 
-  # 개발 환경에서는 DB/OpenAI 없이 실행 (아래 exclude 제거 후 각각 설정)
+  # 개발 환경에서는 OpenAI 없이 실행 (아래 exclude 제거 후 설정)
   autoconfigure:
     exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
 
-  # Datasource Configuration (아래 exclude 제거 후 활성화)
-  # datasource:
-  #   url: ${DB_URL:jdbc:mysql://localhost:3306/hwalro?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-  #   username: ${DB_USERNAME:root}
-  #   password: ${DB_PASSWORD:password}
-  #   driver-class-name: com.mysql.cj.jdbc.Driver
+  datasource:
+    url: ${REGULATION_DB_URL:jdbc:mysql://localhost:3307/hwalro_regulation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${REGULATION_DB_USERNAME:hwalro_regulation}
+    password: ${REGULATION_DB_PASSWORD:hwalro_regulation}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  sql:
+    init:
+      mode: ${DB_INIT_MODE:never}
+      schema-locations: classpath:db/schema.sql
+      continue-on-error: false
 
 # MyBatis Configuration
-# mybatis:
-#   mapper-locations: classpath:mapper/**/*.xml
-#   configuration:
-#     map-underscore-to-camel-case: true
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+jwt:
+  secret: ${JWT_SECRET:}
+  issuer: ${JWT_ISSUER:hwalro-auth-service}
 
   # Spring AI Configuration
   # ai:
