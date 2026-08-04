@@ -166,13 +166,16 @@ function ReportListPage() {
                       className="group transition-colors hover:bg-primary-soft/35"
                     >
                       <td className="px-7 py-4">
-                        <Link to={`/reports/${report.id}`} className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                        <span className="block text-sm font-bold text-ink group-hover:text-primary">
-                          {report.title}
-                        </span>
-                        <span className="mt-1 block text-xs text-text-muted">
-                          보고서 #{report.id}
-                        </span>
+                        <Link
+                          to={`/reports/${report.id}`}
+                          className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <span className="block text-sm font-bold text-ink group-hover:text-primary">
+                            {report.title}
+                          </span>
+                          <span className="mt-1 block text-xs text-text-muted">
+                            보고서 #{report.id}
+                          </span>
                         </Link>
                       </td>
                       {canViewAllReports && (
