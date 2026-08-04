@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { AxiosError } from 'axios';
 import { Link } from 'react-router-dom';
-import { apiClient } from '../api/client';
-import { useAuth } from '../features/auth/context/AuthContext';
+import { useAuth } from '../../auth/context/AuthContext';
+import { reportApi } from '../api/reportApi';
+import type { ReportListResponse, ReportListStatusFilter, ReportStatus } from '../types/report';
+import { getReportErrorMessage } from '../utils/getReportErrorMessage';
 
-type ReportStatus = '초안' | '작성 중' | '완료';
-type StatusFilter = '전체' | ReportStatus;
+type StatusFilter = ReportListStatusFilter;
 
 const PAGE_SIZE = 5;
 const PAGE_BUTTON_COUNT = 5;
@@ -15,36 +15,13 @@ const STATUS_STYLES: Record<ReportStatus, string> = {
   완료: 'bg-lime/40 text-ink',
 };
 
-interface ReportItem {
-  id: number;
-  authorId: number;
-  authorName: string | null;
-  title: string;
-  status: ReportStatus;
-  updatedAt: string;
-}
-
-interface ReportListResponse {
-  totalCount: number;
-  page: number;
-  size: number;
-  hasNext: boolean;
-  items: ReportItem[];
-}
-
 function formatUpdatedAt(value: string): string {
   const [date, time = ''] = value.split('T');
   return `${date.split('-').join('. ')}. ${time.slice(0, 5)}`;
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof AxiosError) {
-    return (
-      (error.response?.data as { message?: string } | undefined)?.message ??
-      '보고서 목록을 불러오지 못했습니다.'
-    );
-  }
-  return '보고서 목록을 불러오지 못했습니다.';
+  return getReportErrorMessage(error, '보고서 목록을 불러오지 못했습니다.');
 }
 
 function ReportListPage() {
@@ -61,17 +38,15 @@ function ReportListPage() {
     let active = true;
     setIsLoading(true);
     setError(null);
-    void apiClient
-      .get<ReportListResponse>('/api/reports', {
-        params: {
-          query: query.trim() || undefined,
-          status: status === '전체' ? undefined : status,
-          page,
-          size: PAGE_SIZE,
-        },
+    void reportApi
+      .list({
+        query: query.trim() || undefined,
+        status: status === '전체' ? undefined : status,
+        page,
+        size: PAGE_SIZE,
       })
       .then((response) => {
-        if (active) setData(response.data);
+        if (active) setData(response);
       })
       .catch((requestError: unknown) => {
         if (active) setError(getErrorMessage(requestError));

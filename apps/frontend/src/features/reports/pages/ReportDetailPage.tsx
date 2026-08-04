@@ -1,24 +1,13 @@
 import { useEffect, useState } from 'react';
-import { AxiosError } from 'axios';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { apiClient } from '../api/client';
+import { reportApi } from '../api/reportApi';
+import type { ReportDetailResponse } from '../types/report';
+import { getReportErrorMessage } from '../utils/getReportErrorMessage';
 
-type EditableReportStatus = '작성 중' | '완료';
-
-interface ReportDetailResponse {
-  id: number;
-  title: string;
-  content: { overview: string; analysis: string; improvements: string };
-  status: EditableReportStatus;
-  createdAt: string;
-  simulationResultIds: number[];
-}
+type EditableReportStatus = ReportDetailResponse['status'];
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof AxiosError) {
-    return (error.response?.data as { message?: string } | undefined)?.message ?? '보고서를 불러오지 못했습니다.';
-  }
-  return '보고서를 불러오지 못했습니다.';
+  return getReportErrorMessage(error, '보고서를 불러오지 못했습니다.');
 }
 
 function formatDate(value: string): string {
@@ -56,8 +45,8 @@ function ReportDetailPage() {
     let active = true;
     setIsLoading(true);
     setError(null);
-    void apiClient.get<ReportDetailResponse>(`/api/reports/${reportId}`).then((response) => {
-      if (active) applyReport(response.data);
+    void reportApi.get(reportId).then((response) => {
+      if (active) applyReport(response);
     }).catch((requestError: unknown) => {
       if (active) setError(getErrorMessage(requestError));
     }).finally(() => {
@@ -71,12 +60,12 @@ function ReportDetailPage() {
     setIsSaving(true);
     setError(null);
     try {
-      const response = await apiClient.put<ReportDetailResponse>(`/api/reports/${reportId}`, {
+      const response = await reportApi.update(reportId, {
         title,
         content: { overview: summary, analysis, improvements },
         status,
       });
-      applyReport(response.data);
+      applyReport(response);
       setIsSaved(true);
       navigate('/reports');
     } catch (requestError) {
