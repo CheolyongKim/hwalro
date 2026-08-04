@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { apiClient } from '../api/client';
 import './SystemManagementPage.css';
@@ -37,6 +37,15 @@ const emptyInviteForm: InviteForm = {
   roleIds: [],
 };
 
+const focusableElementSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
 function roleTone(roleName: string) {
   if (roleName === '안전 검토자') return 'reviewer';
   if (roleName === '관리자') return 'admin';
@@ -61,6 +70,9 @@ function SystemManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
   const [statusError, setStatusError] = useState('');
+  const inviteButtonRef = useRef<HTMLButtonElement>(null);
+  const inviteModalRef = useRef<HTMLElement>(null);
+  const firstInviteFieldRef = useRef<HTMLInputElement>(null);
 
   const loadSystemManagementData = useCallback(async () => {
     setIsLoading(true);
@@ -80,22 +92,61 @@ function SystemManagementPage() {
     void loadSystemManagementData();
   }, [loadSystemManagementData]);
 
-  useEffect(() => {
-    if (!isInviteOpen) return;
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isSubmitting) setIsInviteOpen(false);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isInviteOpen, isSubmitting]);
-
-  const closeInviteModal = () => {
-    if (isSubmitting) return;
+  const resetInviteModal = useCallback(() => {
     setIsInviteOpen(false);
     setInviteForm(emptyInviteForm);
     setInviteError('');
-  };
+    window.requestAnimationFrame(() => inviteButtonRef.current?.focus());
+  }, []);
+
+  const closeInviteModal = useCallback(() => {
+    if (isSubmitting) return;
+    resetInviteModal();
+  }, [isSubmitting, resetInviteModal]);
+
+  useEffect(() => {
+    if (isInviteOpen) firstInviteFieldRef.current?.focus();
+  }, [isInviteOpen]);
+
+  useEffect(() => {
+    if (!isInviteOpen) return;
+
+    const manageModalKeyboard = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeInviteModal();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !inviteModalRef.current) return;
+
+      const focusableElements = Array.from(
+        inviteModalRef.current.querySelectorAll<HTMLElement>(focusableElementSelector),
+      );
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        inviteModalRef.current.focus();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (!inviteModalRef.current.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+      } else if (event.shiftKey && activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+    window.addEventListener('keydown', manageModalKeyboard);
+    return () => window.removeEventListener('keydown', manageModalKeyboard);
+  }, [closeInviteModal, isInviteOpen]);
 
   const toggleRole = (roleId: number) => {
     setInviteForm((current) => ({
@@ -119,9 +170,7 @@ function SystemManagementPage() {
     try {
       await apiClient.post('/api/admin/system-management/users', inviteForm);
 
-      setIsInviteOpen(false);
-      setInviteForm(emptyInviteForm);
-      setInviteError('');
+      resetInviteModal();
       await loadSystemManagementData();
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {
@@ -137,6 +186,8 @@ function SystemManagementPage() {
   };
 
   const changeUserEnabled = async (user: UserSummary) => {
+    if (updatingUserId !== null) return;
+
     const nextEnabled = !user.enabled;
     setStatusError('');
     setUpdatingUserId(user.userId);
@@ -171,6 +222,7 @@ function SystemManagementPage() {
           </div>
           <div className="account-control">
             <button
+              ref={inviteButtonRef}
               type="button"
               onClick={() => setIsInviteOpen(true)}
               disabled={isLoading || data.roles.length === 0}
@@ -229,7 +281,7 @@ function SystemManagementPage() {
                           className={`status ${user.enabled ? '' : 'stopped'}`}
                           aria-label={`${user.name} 계정 ${user.enabled ? '비활성화' : '활성화'}`}
                           aria-pressed={user.enabled}
-                          disabled={updatingUserId === user.userId}
+                          disabled={updatingUserId !== null}
                           onClick={() => void changeUserEnabled(user)}
                         >
                           {updatingUserId === user.userId
@@ -255,14 +307,21 @@ function SystemManagementPage() {
 
           <div className="role-section">
             <h3>역할별 주요 권한</h3>
-            <div className="role-list">
-              {data.roles.map((role) => (
-                <article className={`role-card ${roleTone(role.roleName)}`} key={role.roleId}>
-                  <h4>{role.roleName}</h4>
-                  <p>{role.description || '설명 없음'}</p>
-                </article>
+            {!isLoading && !loadError &&
+              (data.roles.length === 0 ? (
+                <p className="role-empty-state">
+                  등록된 역할이 없습니다. 사용자 초대 전에 역할을 등록해 주세요.
+                </p>
+              ) : (
+                <div className="role-list">
+                  {data.roles.map((role) => (
+                    <article className={`role-card ${roleTone(role.roleName)}`} key={role.roleId}>
+                      <h4>{role.roleName}</h4>
+                      <p>{role.description || '설명 없음'}</p>
+                    </article>
+                  ))}
+                </div>
               ))}
-            </div>
           </div>
         </section>
       </div>
@@ -270,10 +329,12 @@ function SystemManagementPage() {
       {isInviteOpen && (
         <div className="modal-backdrop" onMouseDown={closeInviteModal}>
           <section
+            ref={inviteModalRef}
             className="invite-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="invite-title"
+            tabIndex={-1}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-heading">
@@ -295,9 +356,9 @@ function SystemManagementPage() {
               <label>
                 이름
                 <input
+                  ref={firstInviteFieldRef}
                   required
                   maxLength={100}
-                  autoFocus
                   value={inviteForm.name}
                   onChange={(event) => setInviteForm({ ...inviteForm, name: event.target.value })}
                 />

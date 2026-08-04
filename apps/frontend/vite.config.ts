@@ -20,6 +20,14 @@ export default defineConfig({
         target: 'http://localhost:8082',
         changeOrigin: true,
       },
+      '/api/reports': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/api/risks': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
     },
   },
 });

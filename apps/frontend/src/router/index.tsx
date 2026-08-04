@@ -4,6 +4,7 @@ import WorkspaceLayout from '../layouts/WorkspaceLayout';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
 import SystemManagementPage from '../pages/SystemManagementPage';
+import AdminRoute from '../features/auth/components/AdminRoute';
 import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 import RegulationsPage from '../pages/RegulationsPage';
 import RiskManagementPage from '../pages/RiskManagementPage';
@@ -27,7 +28,10 @@ export const router = createBrowserRouter([
               { path: 'risk-management', element: <RiskManagementPage /> },
               { path: 'reports', element: <ReportListPage /> },
               { path: 'regulations', element: <RegulationsPage /> },
-              { path: 'system-management', element: <SystemManagementPage /> },
+              {
+                element: <AdminRoute />,
+                children: [{ path: 'system-management', element: <SystemManagementPage /> }],
+              },
             ],
           },
         ],

@@ -6,7 +6,9 @@ import com.hwalro.auth.dto.SystemManagementResponse.UserSummary;
 import com.hwalro.auth.dto.UpdateUserEnabledRequest;
 import com.hwalro.auth.service.SystemManagementService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/system-management")
+@PreAuthorize("hasAuthority('ROLE_관리자')")
 public class SystemManagementController {
     private final SystemManagementService service;
 
@@ -38,7 +41,8 @@ public class SystemManagementController {
 
     @PatchMapping("/users/{userId}/enabled")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateUserEnabled(@PathVariable Long userId, @Valid @RequestBody UpdateUserEnabledRequest request) {
+    public void updateUserEnabled(
+            @Positive @PathVariable Long userId, @Valid @RequestBody UpdateUserEnabledRequest request) {
         service.updateUserEnabled(userId, request.enabled());
     }
 }
