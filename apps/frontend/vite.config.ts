@@ -5,8 +5,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    // 개발 서버에서는 regulation-service로 API 요청을 전달해 CORS 설정을 추가하지 않는다.
+    // 개발 서버에서는 서비스별 프록시를 통해 브라우저의 교차 출처 요청을 피한다.
     proxy: {
+      '/api/auth': 'http://localhost:8080',
       '/api': 'http://localhost:8082',
     },
   },
