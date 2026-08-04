@@ -8,7 +8,7 @@ USE hwalro_regulation;
 
 CREATE TABLE IF NOT EXISTS risks (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    simulation_result_id BIGINT UNSIGNED NOT NULL,
+    simulation_result_id BIGINT UNSIGNED NULL,
     assignee_id BIGINT UNSIGNED NULL,
     title VARCHAR(200) NOT NULL,
     description TEXT NULL,

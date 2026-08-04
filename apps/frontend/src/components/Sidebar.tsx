@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../features/auth/context/AuthContext';
 
 type SidebarIconName = 'home' | 'review' | 'risk' | 'checklist' | 'report' | 'regulation';
 
@@ -14,9 +15,9 @@ const navigationItems: NavigationItem[] = [
   { label: '홈', icon: 'home', to: '/' },
   { label: '시뮬레이션 검토', icon: 'review', children: ['도면 목록', '시뮬레이션 목록'] },
   { label: '보고서 관리', icon: 'report', to: '/reports' },
-  { label: '위험 예상 항목 관리', icon: 'risk' },
+  { label: '위험 예상 항목 관리', icon: 'risk', to: '/risk-management' },
   { label: '안전 체크리스트', icon: 'checklist' },
-  { label: '안전 법령', icon: 'regulation' },
+  { label: '안전 법령', icon: 'regulation', to: '/regulations' },
 ];
 
 const iconPaths: Record<SidebarIconName, React.ReactNode> = {
@@ -82,8 +83,21 @@ const activeItemClassName =
 const inactiveItemClassName =
   'flex h-12 w-full items-center gap-4 rounded-xl px-3 text-left text-sm font-medium text-white/45';
 
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: '관리자',
+  OPERATOR: '운영 담당자',
+  SAFETY_REVIEWER: '안전 검토자',
+};
+
 function Sidebar() {
   const [isSimulationMenuOpen, setIsSimulationMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <aside className="sticky top-0 flex h-[100dvh] w-20 shrink-0 flex-col rounded-r-3xl bg-linear-to-br from-ink via-ink to-ink-deep px-5 py-7 text-white shadow-xl shadow-ink/15 lg:w-60">
@@ -170,7 +184,11 @@ function Sidebar() {
               to={item.to}
               end
               aria-label={item.label}
-              className={({ isActive }) => (isActive ? activeItemClassName : inactiveItemClassName)}
+              className={({ isActive }) =>
+                isActive
+                  ? activeItemClassName
+                  : `${inactiveItemClassName} transition-colors hover:bg-white/5 hover:text-white/80`
+              }
             >
               <SidebarIcon name={item.icon} />
               <span className="hidden truncate lg:block">{item.label}</span>
@@ -191,15 +209,22 @@ function Sidebar() {
       </nav>
 
       <div className="mt-auto rounded-2xl bg-white/5 p-2 lg:p-3">
-        <div className="flex items-center justify-center gap-3 lg:justify-start">
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          aria-label="로그아웃"
+          className="flex w-full items-center justify-center gap-3 rounded-xl transition-colors hover:bg-white/10 lg:justify-start"
+        >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-lime text-xs font-black text-ink">
-            관
+            {user?.name.charAt(0) ?? '활'}
           </div>
-          <div className="hidden min-w-0 lg:block">
-            <p className="truncate text-xs font-bold text-white">관리자</p>
-            <p className="mt-1 truncate text-[10px] text-white/45">안전 검토자</p>
+          <div className="hidden min-w-0 text-left lg:block">
+            <p className="truncate text-xs font-bold text-white">{user?.name ?? '사용자'}</p>
+            <p className="mt-1 truncate text-[10px] text-white/45">
+              {user?.roles.map((role) => ROLE_LABELS[role] ?? role).join(', ')}
+            </p>
           </div>
-        </div>
+        </button>
       </div>
     </aside>
   );

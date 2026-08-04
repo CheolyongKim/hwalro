@@ -19,9 +19,10 @@ spring:
   application:
     name: regulation-service
 
-  # OpenAI 연동은 아직 활성화하지 않는다.
+  # 개발 환경에서는 OpenAI 없이 실행 (아래 exclude 제거 후 설정)
   autoconfigure:
     exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
 
   datasource:
@@ -29,6 +30,12 @@ spring:
     username: ${REGULATION_DB_USERNAME:hwalro_regulation}
     password: ${REGULATION_DB_PASSWORD:hwalro_regulation}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+  sql:
+    init:
+      mode: ${DB_INIT_MODE:never}
+      schema-locations: classpath:db/schema.sql
+      continue-on-error: false
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml

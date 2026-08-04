@@ -1,6 +1,6 @@
 .regulations-page {
   width: 100%;
-  min-height: 100vh;
+  min-height: 0;
   --regulation-border: color-mix(in srgb, var(--color-ink) 14%, var(--color-white));
   --regulation-muted: color-mix(in srgb, var(--color-ink) 58%, var(--color-white));
   --regulation-accent-surface: color-mix(in srgb, var(--color-lime) 24%, var(--color-white));
@@ -17,20 +17,13 @@
 
 .regulations-page__content {
   max-width: 1136px;
-  min-height: 100vh;
+  min-height: 0;
   margin: 0 auto;
-  padding: 96px 24px 40px;
+  padding: 0;
 }
 
 .regulations-page__heading {
-  margin-bottom: 30px;
-}
-
-.regulations-page__eyebrow {
-  margin: 0 0 8px;
-  color: var(--color-ink);
-  font-size: 14px;
-  font-weight: 700;
+  margin-bottom: 24px;
 }
 
 .regulations-page__heading h1,
@@ -83,8 +76,8 @@
   display: grid;
   grid-template-columns: 372px minmax(0, 1fr);
   gap: 14px;
-  height: min(660px, calc(100vh - 300px));
-  min-height: 500px;
+  height: calc(100dvh - 260px);
+  min-height: 0;
 }
 
 .regulations-panel {

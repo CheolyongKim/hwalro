@@ -1,12 +1,12 @@
 import { createBrowserRouter } from 'react-router-dom';
 import App from '../App';
+import ProtectedRoute from '../features/auth/components/ProtectedRoute';
+import WorkspaceLayout from '../layouts/WorkspaceLayout';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
-import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 import RegulationsPage from '../pages/RegulationsPage';
 import RiskManagementPage from '../pages/RiskManagementPage';
 import ReportListPage from '../pages/ReportListPage';
-import WorkspaceLayout from '../layouts/WorkspaceLayout';
 
 export const router = createBrowserRouter([
   {
