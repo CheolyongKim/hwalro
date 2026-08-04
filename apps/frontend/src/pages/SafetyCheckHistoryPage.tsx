@@ -106,7 +106,7 @@ function SafetyCheckHistoryPage() {
                   key={inspection.id}
                   type="button"
                   onClick={() => navigate(`/safety-checklists/inspections/${inspection.id}`)}
-                  className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-primary-soft/30 md:grid-cols-[1.4fr_1fr_1fr_auto] md:items-center"
+                  className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-primary-soft/30 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
                 >
                   <div>
                     <p className="font-black text-ink">{formatInspectionDate(inspection.createdAt)}</p>
