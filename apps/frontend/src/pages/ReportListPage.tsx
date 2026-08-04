@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuth } from '../features/auth/context/AuthContext';
 
@@ -112,12 +113,6 @@ function ReportListPage() {
               시뮬레이션 결과를 바탕으로 작성된 안전 검토 보고서를 확인합니다.
             </p>
           </div>
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-bold text-white transition hover:bg-primary/85"
-          >
-            보고서 작성
-          </button>
         </header>
         <section
           className="mt-5 max-w-[1360px] rounded-xl border border-line bg-white p-4 shadow-sm shadow-ink/5 sm:p-5"
@@ -195,12 +190,14 @@ function ReportListPage() {
                       className="group transition-colors hover:bg-primary-soft/35"
                     >
                       <td className="px-7 py-4">
+                        <Link to={`/reports/${report.id}`} className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-primary">
                         <span className="block text-sm font-bold text-ink group-hover:text-primary">
                           {report.title}
                         </span>
                         <span className="mt-1 block text-xs text-text-muted">
                           보고서 #{report.id}
                         </span>
+                        </Link>
                       </td>
                       {isSafetyReviewer && (
                         <td className="px-5 py-4 text-sm font-medium text-text-strong">
