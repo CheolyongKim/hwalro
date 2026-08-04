@@ -7,6 +7,7 @@ import SystemManagementPage from '../pages/SystemManagementPage';
 import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 import RegulationsPage from '../pages/RegulationsPage';
 import RiskManagementPage from '../pages/RiskManagementPage';
+import ReportListPage from '../pages/ReportListPage';
 
 export const router = createBrowserRouter([
   {
@@ -19,8 +20,12 @@ export const router = createBrowserRouter([
           {
             element: <WorkspaceLayout />,
             children: [
-              { index: true, element: <HomePage /> },
+              {
+                index: true,
+                element: <HomePage />,
+              },
               { path: 'risk-management', element: <RiskManagementPage /> },
+              { path: 'reports', element: <ReportListPage /> },
               { path: 'regulations', element: <RegulationsPage /> },
               { path: 'system-management', element: <SystemManagementPage /> },
             ],

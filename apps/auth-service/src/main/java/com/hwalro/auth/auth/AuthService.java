@@ -6,6 +6,7 @@ import com.hwalro.auth.jwt.IssuedRefreshToken;
 import com.hwalro.auth.jwt.JwtTokenProvider;
 import com.hwalro.auth.mapper.UserMapper;
 import io.jsonwebtoken.Claims;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -89,6 +90,10 @@ public class AuthService {
             loadRoles(user);
         }
         return user;
+    }
+
+    public List<User> findUsersByIds(List<Long> userIds) {
+        return userIds.isEmpty() ? List.of() : userMapper.findByUserIds(userIds);
     }
 
     private void loadRoles(User user) {

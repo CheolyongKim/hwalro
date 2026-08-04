@@ -49,11 +49,12 @@ jwt:
 # SameSite=Lax(기본값)를 유지해야 한다. SameSite=None으로 변경하면 CSRF 위험이 생긴다.
 cookie:
   same-site: ${COOKIE_SAME_SITE:Lax}
-  secure: ${COOKIE_SECURE:true}
+  # 로컬 HTTP 개발 서버에서는 Secure 쿠키를 사용할 수 없다. 운영 환경은 COOKIE_SECURE=true로 설정한다.
+  secure: ${COOKIE_SECURE:false}
 
 # CORS Configuration
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4173}
 
 # Swagger / OpenAPI
 springdoc:

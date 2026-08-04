@@ -9,5 +9,7 @@ import org.apache.ibatis.annotations.Param;
 public interface UserMapper {
     User findByLoginId(@Param("loginId") String loginId);
 
+    List<User> findByUserIds(@Param("userIds") List<Long> userIds);
+
     List<String> findRoleNamesByLoginId(@Param("loginId") String loginId);
 }
