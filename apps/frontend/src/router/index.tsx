@@ -8,11 +8,12 @@ import AdminRoute from '../features/auth/components/AdminRoute';
 import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 import RegulationsPage from '../pages/RegulationsPage';
 import RiskManagementPage from '../pages/RiskManagementPage';
-import ReportListPage from '../pages/ReportListPage';
 import SafetyCheckAreasPage from '../pages/SafetyCheckAreasPage';
 import SafetyCheckHistoryPage from '../pages/SafetyCheckHistoryPage';
 import SafetyCheckDetailPage from '../pages/SafetyCheckDetailPage';
 import SafetyCheckTemplatePage from '../pages/SafetyCheckTemplatePage';
+import ReportListPage from '../features/reports/pages/ReportListPage';
+import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 
 export const router = createBrowserRouter([
   {
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
                 path: 'safety-checklists/areas/:areaId/template',
                 element: <SafetyCheckTemplatePage />,
               },
+              { path: 'reports/:reportId', element: <ReportDetailPage /> },
               { path: 'regulations', element: <RegulationsPage /> },
               {
                 element: <AdminRoute />,

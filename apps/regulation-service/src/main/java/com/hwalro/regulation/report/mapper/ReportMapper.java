@@ -1,5 +1,6 @@
 package com.hwalro.regulation.report.mapper;
 
+import com.hwalro.regulation.report.dto.ReportDetailRow;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
@@ -15,4 +16,16 @@ public interface ReportMapper {
             @Param("authorId") Long authorId,
             @Param("limit") int limit,
             @Param("offset") long offset);
+
+    ReportDetailRow findDetailById(@Param("id") Long id);
+
+    List<Long> findSimulationResultIds(@Param("reportId") Long reportId);
+
+    int updateReport(
+            @Param("id") Long id,
+            @Param("title") String title,
+            @Param("content") String content,
+            @Param("status") String status);
+
+    int startEditing(@Param("id") Long id);
 }

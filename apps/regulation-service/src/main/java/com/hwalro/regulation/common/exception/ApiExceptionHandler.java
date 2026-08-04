@@ -4,6 +4,7 @@ import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.InvalidTokenException;
 import com.hwalro.regulation.law.exception.LawApiConfigurationException;
 import com.hwalro.regulation.law.exception.RegulationNotFoundException;
+import com.hwalro.regulation.report.exception.ReportNotFoundException;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import com.hwalro.regulation.safetycheck.exception.InspectionAreaNotFoundException;
 import com.hwalro.regulation.safetycheck.exception.SafetyInspectionNotFoundException;
@@ -61,6 +62,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler({InspectionAreaNotFoundException.class, SafetyInspectionNotFoundException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, String> handleSafetyCheckNotFound(RuntimeException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+  
+    @ExceptionHandler(ReportNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleReportNotFound(ReportNotFoundException exception) {
         return Map.of("message", exception.getMessage());
     }
 

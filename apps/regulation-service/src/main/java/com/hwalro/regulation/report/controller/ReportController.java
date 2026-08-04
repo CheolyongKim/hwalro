@@ -3,7 +3,9 @@ package com.hwalro.regulation.report.controller;
 import com.hwalro.regulation.common.jwt.JwtAuthInterceptor;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.common.jwt.RequireRole;
+import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportListResponse;
+import com.hwalro.regulation.report.dto.ReportUpdateRequest;
 import com.hwalro.regulation.report.service.ReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,7 +14,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/reports")
 @Tag(name = "Reports", description = "안전 검토 보고서 관리 API")
-@RequireRole({"OPERATOR", "SAFETY_REVIEWER"})
+@RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
 /** 보고서 목록 조회를 프론트엔드에 제공한다. */
 public class ReportController {
     private final ReportService reportService;
@@ -44,5 +49,22 @@ public class ReportController {
             @Parameter(description = "1부터 시작하는 페이지 번호") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "페이지당 조회 건수") @RequestParam(defaultValue = "5") int size) {
         return reportService.getReports(user, authorization, query, status, page, size);
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "보고서 상세 조회", description = "초안 보고서는 첫 상세 조회 시 작성 중 상태로 전환됩니다.")
+    public ReportDetailResponse getReport(
+            @PathVariable Long id,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return reportService.getReport(user, id);
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "보고서 저장", description = "보고서 제목, 구역별 본문 및 상태를 저장합니다.")
+    public ReportDetailResponse updateReport(
+            @PathVariable Long id,
+            @RequestBody ReportUpdateRequest request,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return reportService.updateReport(user, id, request);
     }
 }
