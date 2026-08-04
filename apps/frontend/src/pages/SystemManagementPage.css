@@ -1,13 +1,11 @@
 .system-management-page {
-  min-height: 100vh;
-  padding: 66px 27px 50px;
+  width: 100%;
+  min-height: calc(100dvh - 80px);
   color: #163b37;
-  background: #f2f7f6;
 }
 
 .system-management-content {
-  max-width: 768px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .system-management-page button {
@@ -20,19 +18,19 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 21px;
+  margin-bottom: 24px;
 }
 
 .system-management-page .page-header h1 {
-  margin: 0 0 6px;
-  font-size: 21px;
+  margin: 0 0 8px;
+  font-size: 28px;
   line-height: 1.2;
 }
 
 .system-management-page .page-header p {
   margin: 0;
   color: #829793;
-  font-size: 9px;
+  font-size: 13px;
 }
 
 .system-management-page .account-control {
@@ -40,12 +38,13 @@
 }
 
 .system-management-page .account-control button {
-  width: 108px;
-  height: 27px;
-  border-radius: 6px;
+  min-width: 128px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
   color: #fff;
   background: #0e8b7d;
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -56,11 +55,11 @@
 }
 
 .system-management-page .management-card {
-  width: 488px;
-  min-height: 517px;
-  padding: 12px 15px 20px;
+  width: 100%;
+  min-height: 560px;
+  padding: 20px 22px 28px;
   border: 1px solid #d0dfdc;
-  border-radius: 10px;
+  border-radius: 14px;
   background: #fff;
 }
 
@@ -68,23 +67,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 
 .system-management-page .card-heading h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .system-management-page .card-heading span {
   display: inline-grid;
-  min-width: 98px;
-  height: 22px;
+  min-width: 108px;
+  height: 28px;
   place-items: center;
   border-radius: 999px;
   color: #4d6763;
   background: #edf2f1;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .system-management-page .table-wrap {
@@ -97,20 +96,20 @@
   border: 1px solid #d7e2e0;
   border-radius: 8px 8px 0 0;
   color: #264a45;
-  font-size: 8px;
+  font-size: 12px;
 }
 
 .system-management-page th,
 .system-management-page td {
-  height: 41px;
-  padding: 0 10px;
+  height: 52px;
+  padding: 0 16px;
   border-bottom: 1px solid #d7e2e0;
   text-align: left;
   white-space: nowrap;
 }
 
 .system-management-page thead th {
-  height: 29px;
+  height: 38px;
   color: #67817d;
   background: #f5f8f7;
   font-weight: 400;
@@ -127,7 +126,7 @@
 
 .system-management-page .user-identity small {
   color: #718985;
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 400;
 }
 
@@ -142,14 +141,14 @@
 
 .system-management-page .status {
   display: inline-grid;
-  min-width: 42px;
-  height: 22px;
-  padding: 0 8px;
+  min-width: 52px;
+  height: 28px;
+  padding: 0 10px;
   place-items: center;
   border-radius: 999px;
   color: #078f80;
   background: #e3f4f1;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -212,26 +211,26 @@
 }
 
 .system-management-page .role-section {
-  margin-top: 19px;
-  padding-top: 17px;
+  margin-top: 24px;
+  padding-top: 22px;
   border-top: 1px solid #dce6e4;
 }
 
 .system-management-page .role-section h3 {
-  margin: 0 0 12px;
-  font-size: 11px;
+  margin: 0 0 16px;
+  font-size: 14px;
 }
 
 .system-management-page .role-list {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 14px;
 }
 
 .system-management-page .role-card {
   position: relative;
-  min-height: 82px;
-  padding: 12px;
+  min-height: 100px;
+  padding: 16px;
   overflow: hidden;
   border: 1px solid #cddfdb;
   border-radius: 8px;
@@ -248,13 +247,13 @@
 .system-management-page .role-card h4 {
   margin: 0 0 7px;
   color: #264a45;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .system-management-page .role-card p {
   margin: 0;
   color: #718985;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .system-management-page .role-card.operator {
@@ -462,12 +461,9 @@
 }
 
 @media (max-width: 720px) {
-  .system-management-page {
-    padding: 32px 20px;
-  }
-
   .system-management-page .management-card {
     width: 100%;
+    padding: 16px;
   }
 }
 

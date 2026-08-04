@@ -1,4 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
+import { apiClient } from '../api/client';
 import './SystemManagementPage.css';
 
 interface UserSummary {
@@ -65,9 +67,8 @@ function SystemManagementPage() {
     setLoadError('');
 
     try {
-      const response = await fetch('/api/admin/system-management');
-      if (!response.ok) throw new Error('사용자 정보를 불러오지 못했습니다.');
-      setData((await response.json()) as SystemManagementData);
+      const response = await apiClient.get<SystemManagementData>('/api/admin/system-management');
+      setData(response.data);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : '사용자 정보를 불러오지 못했습니다.');
     } finally {
@@ -116,24 +117,20 @@ function SystemManagementPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/admin/system-management/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(inviteForm),
-      });
-
-      if (!response.ok) {
-        if (response.status === 409) throw new Error('이미 사용 중인 로그인 ID입니다.');
-        if (response.status === 400) throw new Error('입력한 사용자 정보를 확인해 주세요.');
-        throw new Error('사용자를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
-      }
+      await apiClient.post('/api/admin/system-management/users', inviteForm);
 
       setIsInviteOpen(false);
       setInviteForm(emptyInviteForm);
       setInviteError('');
       await loadSystemManagementData();
     } catch (error) {
-      setInviteError(error instanceof Error ? error.message : '사용자를 만들지 못했습니다.');
+      if (isAxiosError(error) && error.response?.status === 409) {
+        setInviteError('이미 사용 중인 로그인 ID입니다.');
+      } else if (isAxiosError(error) && error.response?.status === 400) {
+        setInviteError('입력한 사용자 정보를 확인해 주세요.');
+      } else {
+        setInviteError('사용자를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -145,13 +142,9 @@ function SystemManagementPage() {
     setUpdatingUserId(user.userId);
 
     try {
-      const response = await fetch(`/api/admin/system-management/users/${user.userId}/enabled`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: nextEnabled }),
+      await apiClient.patch(`/api/admin/system-management/users/${user.userId}/enabled`, {
+        enabled: nextEnabled,
       });
-
-      if (!response.ok) throw new Error('사용자 상태를 변경하지 못했습니다.');
 
       setData((current) => ({
         ...current,
