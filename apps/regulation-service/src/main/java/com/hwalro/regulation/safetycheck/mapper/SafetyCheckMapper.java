@@ -1,6 +1,8 @@
 package com.hwalro.regulation.safetycheck.mapper;
 
+import com.hwalro.regulation.safetycheck.domain.ChecklistTemplate;
 import com.hwalro.regulation.safetycheck.domain.SafetyInspection;
+import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateItemResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionDetailHeader;
 import com.hwalro.regulation.safetycheck.dto.InspectionHistoryResponse;
@@ -24,6 +26,23 @@ public interface SafetyCheckMapper {
 
     Long findActiveTemplateId(@Param("areaId") Long areaId);
 
+    Integer findTemplateVersion(@Param("templateId") Long templateId);
+
+    List<ChecklistTemplateItemResponse> findTemplateItems(@Param("templateId") Long templateId);
+
+    int findNextTemplateVersion(@Param("areaId") Long areaId);
+
+    int retireActiveTemplates(@Param("areaId") Long areaId);
+
+    int insertChecklistTemplate(ChecklistTemplate template);
+
+    int insertChecklistTemplateItem(
+            @Param("templateId") Long templateId,
+            @Param("title") String title,
+            @Param("criterion") String criterion,
+            @Param("category") String category,
+            @Param("displayOrder") int displayOrder);
+
     int insertInspection(SafetyInspection inspection);
 
     int insertInspectionItems(@Param("inspectionId") Long inspectionId, @Param("templateId") Long templateId);
@@ -44,4 +63,6 @@ public interface SafetyCheckMapper {
             @Param("status") String status,
             @Param("comment") String comment,
             @Param("completedAt") LocalDateTime completedAt);
+
+    int deleteInspection(@Param("inspectionId") Long inspectionId);
 }

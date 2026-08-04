@@ -12,6 +12,7 @@ import ReportListPage from '../pages/ReportListPage';
 import SafetyCheckAreasPage from '../pages/SafetyCheckAreasPage';
 import SafetyCheckHistoryPage from '../pages/SafetyCheckHistoryPage';
 import SafetyCheckDetailPage from '../pages/SafetyCheckDetailPage';
+import SafetyCheckTemplatePage from '../pages/SafetyCheckTemplatePage';
 
 export const router = createBrowserRouter([
   {
@@ -38,6 +39,10 @@ export const router = createBrowserRouter([
               {
                 path: 'safety-checklists/inspections/:inspectionId',
                 element: <SafetyCheckDetailPage />,
+              },
+              {
+                path: 'safety-checklists/areas/:areaId/template',
+                element: <SafetyCheckTemplatePage />,
               },
               { path: 'regulations', element: <RegulationsPage /> },
               {

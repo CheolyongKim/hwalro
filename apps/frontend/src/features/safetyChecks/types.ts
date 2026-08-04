@@ -49,3 +49,21 @@ export interface InspectionUpdateRequest {
   comment: string | null;
   items: Array<Pick<InspectionItem, 'id' | 'result' | 'comment'>>;
 }
+
+export interface ChecklistTemplateItem {
+  id: number;
+  title: string;
+  criterion: string | null;
+  category: string;
+  displayOrder: number;
+}
+
+export interface ChecklistTemplate {
+  id: number | null;
+  version: number;
+  items: ChecklistTemplateItem[];
+}
+
+export interface ChecklistTemplateUpdateRequest {
+  items: Array<Pick<ChecklistTemplateItem, 'title' | 'criterion' | 'category'>>;
+}

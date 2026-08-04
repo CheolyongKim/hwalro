@@ -89,6 +89,65 @@
         LIMIT 1
     </select>
 
+    <select id="findTemplateVersion" resultType="int">
+        SELECT version
+        FROM checklist_templates
+        WHERE id = #{templateId}
+    </select>
+
+    <select id="findTemplateItems"
+            resultType="com.hwalro.regulation.safetycheck.dto.ChecklistTemplateItemResponse">
+        SELECT id,
+               title,
+               criterion,
+               category,
+               display_order
+        FROM checklist_template_items
+        WHERE checklist_template_id = #{templateId}
+        ORDER BY display_order, id
+    </select>
+
+    <select id="findNextTemplateVersion" resultType="int">
+        SELECT COALESCE(MAX(version), 0) + 1
+        FROM checklist_templates
+        WHERE inspection_area_id = #{areaId}
+    </select>
+
+    <update id="retireActiveTemplates">
+        UPDATE checklist_templates
+        SET status = 'RETIRED'
+        WHERE inspection_area_id = #{areaId}
+          AND status = 'ACTIVE'
+    </update>
+
+    <insert id="insertChecklistTemplate" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO checklist_templates (
+            inspection_area_id,
+            version,
+            status
+        ) VALUES (
+            #{inspectionAreaId},
+            #{version},
+            'ACTIVE'
+        )
+    </insert>
+
+    <insert id="insertChecklistTemplateItem">
+        INSERT INTO checklist_template_items (
+            checklist_template_id,
+            title,
+            criterion,
+            category,
+            display_order
+        ) VALUES (
+            #{templateId},
+            #{title},
+            #{criterion},
+            #{category},
+            #{displayOrder}
+        )
+    </insert>
+
     <insert id="insertInspection" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO safety_inspections (
             inspection_area_id,
@@ -156,5 +215,11 @@
             completed_at = #{completedAt}
         WHERE id = #{inspectionId}
     </update>
+
+    <delete id="deleteInspection">
+        DELETE FROM safety_inspections
+        WHERE id = #{inspectionId}
+          AND status = 'DRAFT'
+    </delete>
 
 </mapper>

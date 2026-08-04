@@ -2,7 +2,10 @@ package com.hwalro.regulation.safetycheck.service;
 
 import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
+import com.hwalro.regulation.safetycheck.domain.ChecklistTemplate;
 import com.hwalro.regulation.safetycheck.domain.SafetyInspection;
+import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateResponse;
+import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateUpdateRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionCreateRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionDetailHeader;
@@ -15,7 +18,9 @@ import com.hwalro.regulation.safetycheck.exception.SafetyInspectionNotFoundExcep
 import com.hwalro.regulation.safetycheck.mapper.SafetyCheckMapper;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +47,42 @@ public class SafetyCheckService {
     public InspectionDetailResponse getInspection(Long inspectionId) {
         InspectionDetailHeader header = findHeader(inspectionId);
         return toDetail(header, safetyCheckMapper.findInspectionItems(inspectionId));
+    }
+
+    public ChecklistTemplateResponse getChecklistTemplate(Long areaId) {
+        requireArea(areaId);
+        Long templateId = safetyCheckMapper.findActiveTemplateId(areaId);
+        if (templateId == null) {
+            return new ChecklistTemplateResponse(null, 0, List.of());
+        }
+        Integer version = safetyCheckMapper.findTemplateVersion(templateId);
+        return new ChecklistTemplateResponse(
+                templateId, version == null ? 0 : version, safetyCheckMapper.findTemplateItems(templateId));
+    }
+
+    @Transactional
+    public ChecklistTemplateResponse updateChecklistTemplate(Long areaId, ChecklistTemplateUpdateRequest request) {
+        requireArea(areaId);
+        validateTemplate(request);
+
+        int nextVersion = safetyCheckMapper.findNextTemplateVersion(areaId);
+        safetyCheckMapper.retireActiveTemplates(areaId);
+
+        ChecklistTemplate template = new ChecklistTemplate();
+        template.setInspectionAreaId(areaId);
+        template.setVersion(nextVersion);
+        safetyCheckMapper.insertChecklistTemplate(template);
+
+        for (int index = 0; index < request.items().size(); index++) {
+            ChecklistTemplateUpdateRequest.ItemInput item = request.items().get(index);
+            safetyCheckMapper.insertChecklistTemplateItem(
+                    template.getId(),
+                    item.title().trim(),
+                    normalizeComment(item.criterion()),
+                    item.category().trim(),
+                    index + 1);
+        }
+        return getChecklistTemplate(areaId);
     }
 
     @Transactional
@@ -97,6 +138,22 @@ public class SafetyCheckService {
         return getInspection(inspectionId);
     }
 
+    @Transactional
+    public void deleteInspection(Long inspectionId, JwtUser user) {
+        InspectionDetailHeader header = findHeader(inspectionId);
+        if ("COMPLETED".equals(header.status())) {
+            throw new IllegalArgumentException("Completed inspections cannot be deleted.");
+        }
+        boolean isOwner = header.inspectorId().equals(user.userId());
+        boolean isAdmin = user.roles().contains("ADMIN");
+        if (!isOwner && !isAdmin) {
+            throw new ForbiddenException("Only the assigned inspector or an administrator can delete this inspection.");
+        }
+        if (safetyCheckMapper.deleteInspection(inspectionId) != 1) {
+            throw new IllegalArgumentException("Only draft inspections can be deleted.");
+        }
+    }
+
     private void requireArea(Long areaId) {
         if (!safetyCheckMapper.areaExists(areaId)) {
             throw new InspectionAreaNotFoundException(areaId);
@@ -125,6 +182,32 @@ public class SafetyCheckService {
                 .count();
         if (distinctItemCount != request.items().size()) {
             throw new IllegalArgumentException("Checklist items must not be duplicated.");
+        }
+    }
+
+    private void validateTemplate(ChecklistTemplateUpdateRequest request) {
+        if (request == null || request.items() == null || request.items().isEmpty()) {
+            throw new IllegalArgumentException("At least one checklist item is required.");
+        }
+        if (request.items().size() > 100) {
+            throw new IllegalArgumentException("A checklist can contain at most 100 items.");
+        }
+        for (ChecklistTemplateUpdateRequest.ItemInput item : request.items()) {
+            if (item == null
+                    || item.title() == null
+                    || item.title().isBlank()
+                    || item.title().trim().length() > 200
+                    || item.category() == null
+                    || item.category().isBlank()
+                    || item.category().trim().length() > 30) {
+                throw new IllegalArgumentException("Each checklist item requires a valid title and category.");
+            }
+        }
+        Set<String> titles = request.items().stream()
+                .map(item -> item.title().trim().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        if (titles.size() != request.items().size()) {
+            throw new IllegalArgumentException("Checklist item titles must not be duplicated.");
         }
     }
 
