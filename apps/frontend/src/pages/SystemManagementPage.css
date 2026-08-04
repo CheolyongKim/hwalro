@@ -1,11 +1,15 @@
 .system-management-page {
   width: 100%;
-  min-height: calc(100dvh - 80px);
-  color: #163b37;
+  min-height: 0;
+  color: var(--color-ink);
 }
 
 .system-management-content {
   width: 100%;
+  max-width: 1360px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 8px 4px 0;
 }
 
 .system-management-page button {
@@ -16,35 +20,50 @@
 
 .system-management-page .page-header {
   display: flex;
+  flex-direction: column;
+  gap: 16px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.system-management-page .page-eyebrow {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .system-management-page .page-header h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
+  margin: 8px 0 0;
+  color: var(--color-ink);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.025em;
   line-height: 1.2;
 }
 
 .system-management-page .page-header p {
-  margin: 0;
-  color: #829793;
-  font-size: 13px;
+  margin: 12px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 24px;
 }
 
 .system-management-page .account-control {
-  margin-top: 6px;
+  margin: 0;
 }
 
 .system-management-page .account-control button {
-  min-width: 128px;
-  height: 40px;
-  padding: 0 18px;
+  min-width: 112px;
+  height: 44px;
+  padding: 0 20px;
   border-radius: 8px;
-  color: #fff;
-  background: #0e8b7d;
-  font-size: 12px;
+  color: var(--color-white);
+  background: var(--color-primary);
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -56,34 +75,31 @@
 
 .system-management-page .management-card {
   width: 100%;
-  min-height: 560px;
-  padding: 20px 22px 28px;
-  border: 1px solid #d0dfdc;
-  border-radius: 14px;
-  background: #fff;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-white);
+  box-shadow: 0 1px 3px rgb(13 25 23 / 5%);
 }
 
 .system-management-page .card-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-line);
 }
 
 .system-management-page .card-heading h2 {
   margin: 0;
-  font-size: 16px;
+  color: var(--color-ink);
+  font-size: 20px;
+  font-weight: 900;
 }
 
 .system-management-page .card-heading span {
-  display: inline-grid;
-  min-width: 108px;
-  height: 28px;
-  place-items: center;
-  border-radius: 999px;
-  color: #4d6763;
-  background: #edf2f1;
-  font-size: 11px;
+  color: var(--color-text-muted);
+  font-size: 14px;
 }
 
 .system-management-page .table-wrap {
@@ -93,26 +109,25 @@
 .system-management-page table {
   width: 100%;
   border-spacing: 0;
-  border: 1px solid #d7e2e0;
-  border-radius: 8px 8px 0 0;
-  color: #264a45;
-  font-size: 12px;
+  color: var(--color-text-strong);
+  font-size: 14px;
 }
 
 .system-management-page th,
 .system-management-page td {
-  height: 52px;
-  padding: 0 16px;
-  border-bottom: 1px solid #d7e2e0;
+  height: 68px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--color-line);
   text-align: left;
   white-space: nowrap;
 }
 
 .system-management-page thead th {
-  height: 38px;
-  color: #67817d;
-  background: #f5f8f7;
-  font-weight: 400;
+  height: 48px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .system-management-page tbody th {
@@ -125,8 +140,8 @@
 }
 
 .system-management-page .user-identity small {
-  color: #718985;
-  font-size: 10px;
+  color: var(--color-text-muted);
+  font-size: 12px;
   font-weight: 400;
 }
 
@@ -146,16 +161,16 @@
   padding: 0 10px;
   place-items: center;
   border-radius: 999px;
-  color: #078f80;
-  background: #e3f4f1;
-  font-size: 11px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .system-management-page .status.stopped {
-  color: #899895;
-  background: #edf2f1;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
 }
 
 .system-management-page .status:hover:not(:disabled),
@@ -211,14 +226,16 @@
 }
 
 .system-management-page .role-section {
-  margin-top: 24px;
-  padding-top: 22px;
-  border-top: 1px solid #dce6e4;
+  margin-top: 0;
+  padding: 24px 20px 28px;
+  border-top: 1px solid var(--color-line);
 }
 
 .system-management-page .role-section h3 {
   margin: 0 0 16px;
-  font-size: 14px;
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .system-management-page .role-list {
@@ -243,8 +260,8 @@
   min-height: 100px;
   padding: 16px;
   overflow: hidden;
-  border: 1px solid #cddfdb;
-  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
 }
 
 .system-management-page .role-card::before {
@@ -257,14 +274,14 @@
 
 .system-management-page .role-card h4 {
   margin: 0 0 7px;
-  color: #264a45;
-  font-size: 13px;
+  color: var(--color-ink);
+  font-size: 14px;
 }
 
 .system-management-page .role-card p {
   margin: 0;
-  color: #718985;
-  font-size: 11px;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .system-management-page .role-card.operator {
@@ -449,9 +466,9 @@
 
 .system-management-page .modal-actions button {
   min-width: 88px;
-  height: 36px;
-  border-radius: 6px;
-  font-size: 11px;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -462,8 +479,8 @@
 }
 
 .system-management-page .primary-button {
-  color: #fff;
-  background: #0e8b7d;
+  color: var(--color-white);
+  background: var(--color-primary);
 }
 
 .system-management-page .primary-button:disabled {
@@ -471,10 +488,25 @@
   opacity: 0.6;
 }
 
-@media (max-width: 720px) {
-  .system-management-page .management-card {
-    width: 100%;
-    padding: 16px;
+@media (min-width: 640px) {
+  .system-management-content {
+    padding: 8px 16px 0;
+  }
+
+  .system-management-page .page-header {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .system-management-page .page-header h1 {
+    font-size: 36px;
+    line-height: 1.11;
+  }
+}
+
+@media (min-width: 1024px) {
+  .system-management-content {
+    padding-top: 16px;
   }
 }
 

@@ -104,13 +104,13 @@ function ReportDetailPage() {
     );
 
   return (
-    <div className="mx-auto w-full max-w-[1392px] px-1 pt-2 sm:px-4 lg:px-8 lg:pt-4">
-      <header className="flex flex-col gap-5 border-b border-line pb-5 xl:flex-row xl:items-end xl:justify-between">
+    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 sm:px-4 lg:pt-4">
+      <header className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link to="/reports" className="text-sm font-bold text-primary hover:text-primary/80">
-            보고서 목록
+            보고서 관리
           </Link>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-ink sm:text-4xl">
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-ink sm:text-4xl">
             보고서 상세·편집
           </h1>
           <p className="mt-3 text-sm leading-6 text-text-muted">

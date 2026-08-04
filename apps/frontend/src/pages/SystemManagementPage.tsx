@@ -227,6 +227,7 @@ function SystemManagementPage() {
       <div className="system-management-content">
         <header className="page-header">
           <div>
+            <p className="page-eyebrow">시스템 설정</p>
             <h1>시스템 관리</h1>
             <p>사용자와 역할을 관리합니다.</p>
           </div>
