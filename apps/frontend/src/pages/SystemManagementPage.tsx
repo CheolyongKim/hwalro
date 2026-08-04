@@ -46,10 +46,20 @@ const focusableElementSelector = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+const roleLabels: Record<string, string> = {
+  ADMIN: '관리자',
+  OPERATOR: '운영 담당자',
+  SAFETY_REVIEWER: '안전 검토자',
+};
+
 function roleTone(roleName: string) {
-  if (roleName === '안전 검토자') return 'reviewer';
-  if (roleName === '관리자') return 'admin';
+  if (roleName === 'SAFETY_REVIEWER') return 'reviewer';
+  if (roleName === 'ADMIN') return 'admin';
   return 'operator';
+}
+
+function roleLabel(roleName: string) {
+  return roleLabels[roleName] ?? roleName;
 }
 
 function formatCreatedAt(createdAt: string) {
@@ -273,7 +283,7 @@ function SystemManagementPage() {
                           <small>{user.loginId}</small>
                         </span>
                       </th>
-                      <td>{user.roles.join(', ') || '역할 없음'}</td>
+                      <td>{user.roles.map(roleLabel).join(', ') || '역할 없음'}</td>
                       <td>{formatCreatedAt(user.createdAt)}</td>
                       <td>
                         <button
@@ -317,7 +327,7 @@ function SystemManagementPage() {
                 <div className="role-list">
                   {data.roles.map((role) => (
                     <article className={`role-card ${roleTone(role.roleName)}`} key={role.roleId}>
-                      <h4>{role.roleName}</h4>
+                      <h4>{roleLabel(role.roleName)}</h4>
                       <p>{role.description || '설명 없음'}</p>
                     </article>
                   ))}
@@ -403,7 +413,7 @@ function SystemManagementPage() {
                         onChange={() => toggleRole(role.roleId)}
                       />
                       <span>
-                        {role.roleName}
+                        {roleLabel(role.roleName)}
                         <small>{role.description || '설명 없음'}</small>
                       </span>
                     </label>
