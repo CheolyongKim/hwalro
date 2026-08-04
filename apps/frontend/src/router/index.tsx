@@ -9,6 +9,9 @@ import ProtectedRoute from '../features/auth/components/ProtectedRoute';
 import RegulationsPage from '../pages/RegulationsPage';
 import RiskManagementPage from '../pages/RiskManagementPage';
 import ReportListPage from '../pages/ReportListPage';
+import SafetyCheckAreasPage from '../pages/SafetyCheckAreasPage';
+import SafetyCheckHistoryPage from '../pages/SafetyCheckHistoryPage';
+import SafetyCheckDetailPage from '../pages/SafetyCheckDetailPage';
 
 export const router = createBrowserRouter([
   {
@@ -27,6 +30,15 @@ export const router = createBrowserRouter([
               },
               { path: 'risk-management', element: <RiskManagementPage /> },
               { path: 'reports', element: <ReportListPage /> },
+              { path: 'safety-checklists', element: <SafetyCheckAreasPage /> },
+              {
+                path: 'safety-checklists/areas/:areaId',
+                element: <SafetyCheckHistoryPage />,
+              },
+              {
+                path: 'safety-checklists/inspections/:inspectionId',
+                element: <SafetyCheckDetailPage />,
+              },
               { path: 'regulations', element: <RegulationsPage /> },
               {
                 element: <AdminRoute />,
