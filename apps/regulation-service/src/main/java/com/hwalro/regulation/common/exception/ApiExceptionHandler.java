@@ -64,7 +64,7 @@ public class ApiExceptionHandler {
     public Map<String, String> handleSafetyCheckNotFound(RuntimeException exception) {
         return Map.of("message", exception.getMessage());
     }
-  
+
     @ExceptionHandler(ReportNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, String> handleReportNotFound(ReportNotFoundException exception) {

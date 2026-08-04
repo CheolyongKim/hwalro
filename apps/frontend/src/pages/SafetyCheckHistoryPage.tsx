@@ -140,7 +140,9 @@ function SafetyCheckHistoryPage() {
             {inspections.map((inspection) => {
               const needsAttention = inspection.failCount > 0 || inspection.reviewRequiredCount > 0;
               const inspectorName =
-                inspection.inspectorId === user?.id ? user.name : `점검자 #${inspection.inspectorId}`;
+                inspection.inspectorId === user?.id
+                  ? user.name
+                  : `점검자 #${inspection.inspectorId}`;
               const canDelete =
                 inspection.status === 'DRAFT' &&
                 (inspection.inspectorId === user?.id || user?.roles.includes('ADMIN'));
@@ -152,7 +154,9 @@ function SafetyCheckHistoryPage() {
                     className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-primary-soft/30 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
                   >
                     <div>
-                      <p className="font-black text-ink">{formatInspectionDate(inspection.createdAt)}</p>
+                      <p className="font-black text-ink">
+                        {formatInspectionDate(inspection.createdAt)}
+                      </p>
                       <p className="mt-1 text-xs text-text-muted">점검 #{inspection.id}</p>
                     </div>
                     <div>
@@ -175,7 +179,9 @@ function SafetyCheckHistoryPage() {
                         </span>
                       </div>
                     </div>
-                    <div className={`flex flex-wrap items-center gap-2 md:justify-end ${canDelete ? 'pr-10' : ''}`}>
+                    <div
+                      className={`flex flex-wrap items-center gap-2 md:justify-end ${canDelete ? 'pr-10' : ''}`}
+                    >
                       <span
                         className={`rounded-full px-3 py-1.5 text-xs font-bold ${inspection.status === 'COMPLETED' ? 'bg-primary-soft text-primary' : 'bg-orange-50 text-orange-600'}`}
                       >

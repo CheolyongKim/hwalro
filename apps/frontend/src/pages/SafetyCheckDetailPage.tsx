@@ -8,11 +8,7 @@ import type {
   InspectionResult,
   InspectionStatus,
 } from '../features/safetyChecks/types';
-import {
-  getSafetyCheckError,
-  RESULT_LABELS,
-  RESULT_STYLES,
-} from '../features/safetyChecks/utils';
+import { getSafetyCheckError, RESULT_LABELS, RESULT_STYLES } from '../features/safetyChecks/utils';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
 const RESULT_OPTIONS = Object.keys(RESULT_LABELS) as InspectionResult[];
@@ -66,14 +62,10 @@ function SafetyCheckDetailPage() {
   );
   const canEdit = inspection?.status === 'DRAFT' && inspection.inspectorId === user?.id;
   const inspectorName =
-    inspection?.inspectorId === user?.id && user
-      ? user.name
-      : `점검자 #${inspection?.inspectorId}`;
+    inspection?.inspectorId === user?.id && user ? user.name : `점검자 #${inspection?.inspectorId}`;
 
   function updateItem(id: number, values: Partial<Pick<InspectionItem, 'result' | 'comment'>>) {
-    setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...values } : item)),
-    );
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...values } : item)));
     setNotice(null);
   }
 
@@ -193,7 +185,9 @@ function SafetyCheckDetailPage() {
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
               <div
                 className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${items.length === 0 ? 0 : (counts.completed / items.length) * 100}%` }}
+                style={{
+                  width: `${items.length === 0 ? 0 : (counts.completed / items.length) * 100}%`,
+                }}
               />
             </div>
           </div>
@@ -228,7 +222,9 @@ function SafetyCheckDetailPage() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <h2 className="text-xl font-black text-ink">점검 항목</h2>
-              <p className="mt-2 text-sm text-text-muted">각 항목의 판정과 현장 확인 내용을 기록하세요.</p>
+              <p className="mt-2 text-sm text-text-muted">
+                각 항목의 판정과 현장 확인 내용을 기록하세요.
+              </p>
             </div>
             {inspection.simulationResultId && (
               <span className="rounded-full bg-surface px-3 py-1.5 text-xs font-bold text-text-muted">
