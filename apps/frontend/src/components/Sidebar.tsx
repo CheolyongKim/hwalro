@@ -194,7 +194,7 @@ function Sidebar() {
             <NavLink
               key={item.label}
               to={item.to}
-              end
+              end={item.to === '/'}
               aria-label={item.label}
               className={({ isActive }) =>
                 isActive

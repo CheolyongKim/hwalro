@@ -23,10 +23,10 @@ function RiskItemTable({
   return (
     <div>
       <div
-        className={`grid ${TABLE_COLUMNS} items-center gap-x-6 rounded-lg bg-surface px-5 py-3.5`}
+        className={`grid ${TABLE_COLUMNS} items-center gap-x-6 bg-surface px-5 py-4 sm:px-7`}
       >
         {TABLE_HEADERS.map((header) => (
-          <span key={header} className="text-sm font-bold text-text-muted">
+          <span key={header} className="text-xs font-bold tracking-wide text-text-muted">
             {header}
           </span>
         ))}
@@ -35,7 +35,7 @@ function RiskItemTable({
       {items.length === 0 ? (
         <p className="py-10 text-center text-sm text-text-muted">등록된 위험 항목이 없습니다.</p>
       ) : (
-        <ul className="mt-2.5 space-y-2.5">
+        <ul className="divide-y divide-line">
           {items.map((item) => {
             const isSelected = item.id === selectedId;
             return (
@@ -44,10 +44,10 @@ function RiskItemTable({
                   type="button"
                   onClick={() => onSelect(item.id)}
                   aria-pressed={isSelected}
-                  className={`grid w-full ${TABLE_COLUMNS} items-center gap-x-6 border px-5 py-4 text-left transition-colors ${
+                  className={`grid w-full ${TABLE_COLUMNS} items-center gap-x-6 px-5 py-4 text-left transition-colors sm:px-7 ${
                     isSelected
-                      ? 'border-line bg-primary-soft'
-                      : 'border-line bg-white hover:bg-surface'
+                      ? 'bg-primary-soft'
+                      : 'bg-white hover:bg-primary-soft/35'
                   }`}
                 >
                   <span className="text-sm font-bold text-ink">{item.title}</span>
@@ -66,7 +66,7 @@ function RiskItemTable({
           type="button"
           onClick={onLoadMore}
           disabled={isFetchingMore}
-          className="mt-2.5 w-full rounded-lg border border-line bg-white px-4 py-3 text-sm font-bold text-text-strong transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full border-t border-line bg-white px-4 py-3 text-sm font-bold text-text-strong transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isFetchingMore ? '불러오는 중...' : '더 보기'}
         </button>

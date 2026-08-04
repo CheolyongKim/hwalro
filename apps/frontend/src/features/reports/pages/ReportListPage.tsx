@@ -78,10 +78,10 @@ function ReportListPage() {
 
   return (
     <main className="bg-background">
-      <div className="mx-auto w-full max-w-[1392px] px-1 pt-2 sm:px-4 lg:px-8 lg:pt-4">
-        <header className="flex max-w-[1360px] flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 sm:px-4 lg:pt-4">
+        <header className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-bold text-primary">안전 운영</p>
+            <p className="text-sm font-bold text-primary">보고서 관리</p>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-ink sm:text-4xl">
               보고서 목록
             </h1>
@@ -91,7 +91,7 @@ function ReportListPage() {
           </div>
         </header>
         <section
-          className="mt-5 max-w-[1360px] rounded-xl border border-line bg-white p-4 shadow-sm shadow-ink/5 sm:p-5"
+          className="mt-5 rounded-xl border border-line bg-white p-4 shadow-sm shadow-ink/5 sm:p-5"
           aria-label="보고서 검색"
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -122,7 +122,7 @@ function ReportListPage() {
           </div>
         </section>
         <section
-          className="mt-4 max-w-[1360px] overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5"
+          className="mt-4 overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5"
           aria-labelledby="report-table-title"
         >
           <div className="border-b border-line px-5 py-4 sm:px-7">
