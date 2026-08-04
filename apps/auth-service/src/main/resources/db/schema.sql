@@ -43,3 +43,9 @@ CREATE TABLE IF NOT EXISTS user_roles (
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
+
+INSERT INTO roles (role_name, description)
+VALUES ('운영 담당자', '도면·조건·실행'),
+       ('안전 검토자', '결과·위험·보고서'),
+       ('관리자', '계정·기준·실행 이력') AS new_roles
+ON DUPLICATE KEY UPDATE description = new_roles.description;

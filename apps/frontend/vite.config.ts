@@ -5,10 +5,29 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    // 구체적인 경로를 범용 /api보다 먼저 선언한다.
     // 개발 서버에서는 서비스별 프록시를 통해 브라우저의 교차 출처 요청을 피한다.
     proxy: {
-      '/api/auth': 'http://localhost:8080',
-      '/api': 'http://localhost:8082',
+      '/api/auth': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/api/admin': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/api/regulations': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/api/reports': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/api/risks': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
     },
   },
 });
