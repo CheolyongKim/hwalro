@@ -234,7 +234,7 @@ function ReportListPage() {
               disabled={pageGroupStart === 1}
               className="rounded-md px-3 py-1.5 text-xs font-bold text-text-muted disabled:opacity-40"
             >
-              이전 5
+              이전
             </button>
             {Array.from(
               { length: pageGroupEnd - pageGroupStart + 1 },
@@ -256,7 +256,7 @@ function ReportListPage() {
               disabled={pageGroupEnd === pageCount}
               className="rounded-md px-3 py-1.5 text-xs font-bold text-text-muted disabled:opacity-40"
             >
-              다음 5
+              다음
             </button>
           </nav>
         </section>
