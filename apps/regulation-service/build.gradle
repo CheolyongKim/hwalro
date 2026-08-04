@@ -28,6 +28,7 @@ repositories {
 dependencies {
     // Common
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -36,9 +37,21 @@ dependencies {
     runtimeOnly 'com.mysql:mysql-connector-j'
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4'
 
+    // JWT validation
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Swagger / OpenAPI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
+
     // Spring AI
-    implementation 'org.springframework.ai:spring-ai-spring-boot-autoconfigure'
-    implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
+    implementation('org.springframework.ai:spring-ai-spring-boot-autoconfigure') {
+        exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
+    }
+    implementation('org.springframework.ai:spring-ai-openai-spring-boot-starter') {
+        exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
+    }
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
