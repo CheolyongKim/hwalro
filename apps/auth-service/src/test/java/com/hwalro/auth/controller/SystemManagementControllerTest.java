@@ -46,14 +46,14 @@ class SystemManagementControllerTest {
     void allowsAdministratorToReadSystemManagementData() throws Exception {
         when(service.getSystemManagementData()).thenReturn(new SystemManagementResponse(List.of(), List.of()));
 
-        mockMvc.perform(get("/api/admin/system-management").with(user("admin").authorities(() -> "ROLE_관리자")))
+        mockMvc.perform(get("/api/admin/system-management").with(user("admin").authorities(() -> "ROLE_ADMIN")))
                 .andExpect(status().isOk());
     }
 
     @Test
     void rejectsNonAdministrator() throws Exception {
         mockMvc.perform(get("/api/admin/system-management")
-                        .with(user("operator").authorities(() -> "ROLE_운영 담당자")))
+                        .with(user("operator").authorities(() -> "ROLE_OPERATOR")))
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(service);
@@ -62,7 +62,7 @@ class SystemManagementControllerTest {
     @Test
     void rejectsNonPositiveUserId() throws Exception {
         mockMvc.perform(patch("/api/admin/system-management/users/-1/enabled")
-                        .with(user("admin").authorities(() -> "ROLE_관리자"))
+                        .with(user("admin").authorities(() -> "ROLE_ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"enabled\":true}"))
                 .andExpect(status().isBadRequest());
@@ -76,7 +76,7 @@ class SystemManagementControllerTest {
                 "loginId", "korean-password", "password", "가".repeat(25), "name", "테스트 사용자", "roleIds", List.of(1)));
 
         mockMvc.perform(post("/api/admin/system-management/users")
-                        .with(user("admin").authorities(() -> "ROLE_관리자"))
+                        .with(user("admin").authorities(() -> "ROLE_ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isBadRequest())

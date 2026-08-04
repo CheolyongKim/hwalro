@@ -39,22 +39,24 @@ class SystemManagementServiceTest {
     void returnsUsersWithAssignedRolesAndAvailableRoles() {
         LocalDateTime createdAt = LocalDateTime.of(2026, 8, 3, 14, 28);
         when(mapper.findAllUsers()).thenReturn(List.of(new UserRow(1L, "safety", "김안전", true, createdAt)));
-        when(mapper.findAllUserRoles()).thenReturn(List.of(new UserRoleRow(1L, "안전 검토자"), new UserRoleRow(1L, "관리자")));
-        when(mapper.findAllRoles()).thenReturn(List.of(new RoleRow(1L, "안전 검토자", "결과·위험·보고서")));
+        when(mapper.findAllUserRoles())
+                .thenReturn(List.of(new UserRoleRow(1L, "SAFETY_REVIEWER"), new UserRoleRow(1L, "ADMIN")));
+        when(mapper.findAllRoles()).thenReturn(List.of(new RoleRow(1L, "SAFETY_REVIEWER", "안전 검토자")));
 
         SystemManagementResponse response = service.getSystemManagementData();
 
         assertThat(response.users()).hasSize(1);
-        assertThat(response.users().get(0).roles()).containsExactly("안전 검토자", "관리자");
+        assertThat(response.users().get(0).roles()).containsExactly("SAFETY_REVIEWER", "ADMIN");
         assertThat(response.roles())
-                .containsExactly(new SystemManagementResponse.RoleSummary(1L, "안전 검토자", "결과·위험·보고서"));
+                .containsExactly(new SystemManagementResponse.RoleSummary(1L, "SAFETY_REVIEWER", "안전 검토자"));
     }
 
     @Test
     void createsUserWithEncodedPasswordAndAssignedRoles() {
         when(mapper.existsByLoginId("operator")).thenReturn(false);
         when(mapper.findAllRoles())
-                .thenReturn(List.of(new RoleRow(1L, "운영 담당자", "도면·조건·실행"), new RoleRow(2L, "안전 검토자", "결과·위험·보고서")));
+                .thenReturn(
+                        List.of(new RoleRow(1L, "OPERATOR", "운영 담당자"), new RoleRow(2L, "SAFETY_REVIEWER", "안전 검토자")));
         when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
         when(mapper.insertUser(any(NewUserRow.class))).thenAnswer(invocation -> {
             invocation.<NewUserRow>getArgument(0).setUserId(10L);
@@ -68,7 +70,7 @@ class SystemManagementServiceTest {
 
         assertThat(created.userId()).isEqualTo(10L);
         assertThat(created.loginId()).isEqualTo("operator");
-        assertThat(created.roles()).containsExactly("운영 담당자");
+        assertThat(created.roles()).containsExactly("OPERATOR");
         assertThat(created.createdAt()).isEqualTo(createdAt);
         verify(mapper).insertUserRoles(eq(10L), eq(List.of(1L)));
     }

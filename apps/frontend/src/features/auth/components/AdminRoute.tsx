@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 function AdminRoute() {
   const { user } = useAuth();
 
-  if (!user?.roles.includes('관리자')) {
+  if (!user?.roles.includes('ADMIN')) {
     return <Navigate to="/" replace />;
   }
 
