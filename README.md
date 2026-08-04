@@ -199,6 +199,7 @@ macOS/Linux:
 
 | 환경 변수        | 용도                               |
 | ---------------- | ---------------------------------- |
+| `JWT_SECRET`     | JWT 서명 키 (32바이트 이상, auth·regulation 서비스 공용, 미설정 시 서비스 기동 불가) |
 | `MYSQL_PASSWORD` | MySQL 접속 비밀번호                |
 | `OPENAI_API_KEY` | Regulation 서비스의 AI 보고서 작성 |
 
