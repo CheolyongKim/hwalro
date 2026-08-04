@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { AxiosError } from 'axios';
-import { apiClient } from '../api/client';
-import { useAuth } from '../features/auth/context/AuthContext';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/context/AuthContext';
+import { reportApi } from '../api/reportApi';
+import type { ReportListResponse, ReportListStatusFilter, ReportStatus } from '../types/report';
+import { getReportErrorMessage } from '../utils/getReportErrorMessage';
 
-type ReportStatus = '초안' | '작성 중' | '완료';
-type StatusFilter = '전체' | ReportStatus;
+type StatusFilter = ReportListStatusFilter;
 
 const PAGE_SIZE = 5;
 const PAGE_BUTTON_COUNT = 5;
@@ -14,36 +15,13 @@ const STATUS_STYLES: Record<ReportStatus, string> = {
   완료: 'bg-lime/40 text-ink',
 };
 
-interface ReportItem {
-  id: number;
-  authorId: number;
-  authorName: string | null;
-  title: string;
-  status: ReportStatus;
-  updatedAt: string;
-}
-
-interface ReportListResponse {
-  totalCount: number;
-  page: number;
-  size: number;
-  hasNext: boolean;
-  items: ReportItem[];
-}
-
 function formatUpdatedAt(value: string): string {
   const [date, time = ''] = value.split('T');
   return `${date.split('-').join('. ')}. ${time.slice(0, 5)}`;
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof AxiosError) {
-    return (
-      (error.response?.data as { message?: string } | undefined)?.message ??
-      '보고서 목록을 불러오지 못했습니다.'
-    );
-  }
-  return '보고서 목록을 불러오지 못했습니다.';
+  return getReportErrorMessage(error, '보고서 목록을 불러오지 못했습니다.');
 }
 
 function ReportListPage() {
@@ -54,23 +32,22 @@ function ReportListPage() {
   const [data, setData] = useState<ReportListResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isSafetyReviewer = user?.roles.includes('SAFETY_REVIEWER') ?? false;
+  const canViewAllReports =
+    user?.roles.includes('SAFETY_REVIEWER') || user?.roles.includes('ADMIN') || false;
 
   useEffect(() => {
     let active = true;
     setIsLoading(true);
     setError(null);
-    void apiClient
-      .get<ReportListResponse>('/api/reports', {
-        params: {
-          query: query.trim() || undefined,
-          status: status === '전체' ? undefined : status,
-          page,
-          size: PAGE_SIZE,
-        },
+    void reportApi
+      .list({
+        query: query.trim() || undefined,
+        status: status === '전체' ? undefined : status,
+        page,
+        size: PAGE_SIZE,
       })
       .then((response) => {
-        if (active) setData(response.data);
+        if (active) setData(response);
       })
       .catch((requestError: unknown) => {
         if (active) setError(getErrorMessage(requestError));
@@ -112,12 +89,6 @@ function ReportListPage() {
               시뮬레이션 결과를 바탕으로 작성된 안전 검토 보고서를 확인합니다.
             </p>
           </div>
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-bold text-white transition hover:bg-primary/85"
-          >
-            보고서 작성
-          </button>
         </header>
         <section
           className="mt-5 max-w-[1360px] rounded-xl border border-line bg-white p-4 shadow-sm shadow-ink/5 sm:p-5"
@@ -175,15 +146,15 @@ function ReportListPage() {
               <table className="w-full min-w-[540px] table-fixed border-collapse text-left">
                 <caption className="sr-only">보고서 목록</caption>
                 <colgroup>
-                  <col className={isSafetyReviewer ? 'w-[52%]' : 'w-[64%]'} />
-                  {isSafetyReviewer && <col className="w-[14%]" />}
+                  <col className={canViewAllReports ? 'w-[52%]' : 'w-[64%]'} />
+                  {canViewAllReports && <col className="w-[14%]" />}
                   <col className="w-[21%]" />
                   <col className="w-[13%]" />
                 </colgroup>
                 <thead className="bg-surface text-xs font-bold tracking-wide text-text-muted">
                   <tr>
                     <th className="px-7 py-4">보고서 제목</th>
-                    {isSafetyReviewer && <th className="px-5 py-4">작성자</th>}
+                    {canViewAllReports && <th className="px-5 py-4">작성자</th>}
                     <th className="px-7 py-4">최근 수정</th>
                     <th className="px-5 py-4">상태</th>
                   </tr>
@@ -195,14 +166,19 @@ function ReportListPage() {
                       className="group transition-colors hover:bg-primary-soft/35"
                     >
                       <td className="px-7 py-4">
-                        <span className="block text-sm font-bold text-ink group-hover:text-primary">
-                          {report.title}
-                        </span>
-                        <span className="mt-1 block text-xs text-text-muted">
-                          보고서 #{report.id}
-                        </span>
+                        <Link
+                          to={`/reports/${report.id}`}
+                          className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <span className="block text-sm font-bold text-ink group-hover:text-primary">
+                            {report.title}
+                          </span>
+                          <span className="mt-1 block text-xs text-text-muted">
+                            보고서 #{report.id}
+                          </span>
+                        </Link>
                       </td>
-                      {isSafetyReviewer && (
+                      {canViewAllReports && (
                         <td className="px-5 py-4 text-sm font-medium text-text-strong">
                           {report.authorName ?? '-'}
                         </td>
@@ -237,7 +213,7 @@ function ReportListPage() {
               disabled={pageGroupStart === 1}
               className="rounded-md px-3 py-1.5 text-xs font-bold text-text-muted disabled:opacity-40"
             >
-              이전 5
+              이전
             </button>
             {Array.from(
               { length: pageGroupEnd - pageGroupStart + 1 },
@@ -259,7 +235,7 @@ function ReportListPage() {
               disabled={pageGroupEnd === pageCount}
               className="rounded-md px-3 py-1.5 text-xs font-bold text-text-muted disabled:opacity-40"
             >
-              다음 5
+              다음
             </button>
           </nav>
         </section>

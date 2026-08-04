@@ -35,4 +35,38 @@
         ORDER BY updated_at DESC, id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
+
+    <select id="findDetailById" resultType="com.hwalro.regulation.report.dto.ReportDetailRow">
+        SELECT id,
+               author_id AS authorId,
+               title,
+               content,
+               status,
+               created_at AS createdAt,
+               updated_at AS updatedAt
+        FROM reports
+        WHERE id = #{id}
+    </select>
+
+    <select id="findSimulationResultIds" resultType="long">
+        SELECT simulation_result_id
+        FROM report_simulations
+        WHERE report_id = #{reportId}
+        ORDER BY simulation_result_id
+    </select>
+
+    <update id="updateReport">
+        UPDATE reports
+        SET title = #{title},
+            content = #{content},
+            status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <update id="startEditing">
+        UPDATE reports
+        SET status = '작성 중'
+        WHERE id = #{id}
+          AND status = '초안'
+    </update>
 </mapper>

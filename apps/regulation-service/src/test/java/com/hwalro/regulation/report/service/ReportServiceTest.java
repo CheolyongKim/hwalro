@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.dto.ReportListItem;
@@ -27,9 +28,11 @@ class ReportServiceTest {
     @Mock
     private AuthorDirectoryClient authorDirectoryClient;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Test
     void returnsSecondPageWithStatusFilter() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient);
+        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
         JwtUser operator = new JwtUser(1L, Set.of("OPERATOR"));
         List<ReportListItem> reports = List.of(new ReportListItem(
                 6L, 1L, null, "야외 휴게 공간 비상 유도선 점검 보고서", "완료", LocalDateTime.of(2026, 7, 28, 17, 20)));
@@ -49,7 +52,7 @@ class ReportServiceTest {
 
     @Test
     void rejectsUnsupportedStatus() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient);
+        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
         JwtUser operator = new JwtUser(1L, Set.of("OPERATOR"));
 
         assertThatThrownBy(() -> reportService.getReports(operator, "Bearer token", null, "보류", 1, 5))
@@ -59,7 +62,7 @@ class ReportServiceTest {
 
     @Test
     void safetyReviewerQueriesAllAuthors() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient);
+        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
         JwtUser reviewer = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
         when(reportMapper.countReports(null, null, null)).thenReturn(2L);
         when(reportMapper.findReports(null, null, null, 5, 0L))
