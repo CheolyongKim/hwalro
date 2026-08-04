@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/context/AuthContext';
 
-type SidebarIconName = 'home' | 'review' | 'risk' | 'checklist' | 'report' | 'regulation';
+type SidebarIconName =
+  'home' | 'review' | 'risk' | 'checklist' | 'report' | 'regulation' | 'settings';
 
 interface NavigationItem {
   label: string;
@@ -17,6 +18,7 @@ const navigationItems: NavigationItem[] = [
   { label: '보고서 관리', icon: 'report', to: '/reports' },
   { label: '위험 예상 항목 관리', icon: 'risk', to: '/risk-management' },
   { label: '안전 체크리스트', icon: 'checklist' },
+  { label: '시스템 관리', icon: 'settings', to: '/system-management' },
   { label: '안전 법령', icon: 'regulation', to: '/regulations' },
 ];
 
@@ -57,6 +59,12 @@ const iconPaths: Record<SidebarIconName, React.ReactNode> = {
   regulation: (
     <>
       <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" />
     </>
   ),
 };
