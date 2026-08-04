@@ -65,4 +65,19 @@ class SafetyCheckServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("All checklist items must be assessed before completion.");
     }
+
+    @Test
+    void rejectsAnyUpdateAfterInspectionIsCompleted() {
+        SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
+        JwtUser inspector = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
+        when(safetyCheckMapper.findInspectionHeader(12L))
+                .thenReturn(new InspectionDetailHeader(
+                        12L, 2L, "B2", null, 3L, "COMPLETED", null, LocalDateTime.now(), LocalDateTime.now()));
+        InspectionUpdateRequest request = new InspectionUpdateRequest(
+                "DRAFT", null, List.of(new InspectionUpdateRequest.ItemUpdate(22L, "PASS", null)));
+
+        assertThatThrownBy(() -> service.updateInspection(12L, request, inspector))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Completed inspections cannot be modified.");
+    }
 }

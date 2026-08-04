@@ -18,7 +18,7 @@ export interface InspectionHistory {
   totalItemCount: number;
   failCount: number;
   reviewRequiredCount: number;
-  updatedAt: string;
+  createdAt: string;
 }
 
 export interface InspectionItem {

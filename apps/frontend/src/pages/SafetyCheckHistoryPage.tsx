@@ -109,7 +109,7 @@ function SafetyCheckHistoryPage() {
                   className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-primary-soft/30 md:grid-cols-[1.4fr_1fr_1fr_auto] md:items-center"
                 >
                   <div>
-                    <p className="font-black text-ink">{formatInspectionDate(inspection.updatedAt)}</p>
+                    <p className="font-black text-ink">{formatInspectionDate(inspection.createdAt)}</p>
                     <p className="mt-1 text-xs text-text-muted">점검 #{inspection.id}</p>
                   </div>
                   <div>
@@ -132,7 +132,12 @@ function SafetyCheckHistoryPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 md:justify-end">
+                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                    <span
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold ${inspection.status === 'COMPLETED' ? 'bg-primary-soft text-primary' : 'bg-orange-50 text-orange-600'}`}
+                    >
+                      {inspection.status === 'COMPLETED' ? '점검 완료' : '작성 중'}
+                    </span>
                     <span
                       className={`rounded-full px-3 py-1.5 text-xs font-bold ${needsAttention ? 'bg-danger-soft text-danger' : inspection.status === 'COMPLETED' ? 'bg-primary-soft text-primary' : 'bg-orange-50 text-orange-600'}`}
                     >

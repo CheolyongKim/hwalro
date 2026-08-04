@@ -65,6 +65,9 @@ public class SafetyCheckService {
     @Transactional
     public InspectionDetailResponse updateInspection(Long inspectionId, InspectionUpdateRequest request, JwtUser user) {
         InspectionDetailHeader header = findHeader(inspectionId);
+        if ("COMPLETED".equals(header.status())) {
+            throw new IllegalArgumentException("Completed inspections cannot be modified.");
+        }
         if (!header.inspectorId().equals(user.userId())) {
             throw new ForbiddenException("Only the assigned inspector can update this inspection.");
         }

@@ -10,7 +10,7 @@
                area.name,
                area.description,
                COUNT(inspection.id) AS inspection_count,
-               MAX(inspection.updated_at) AS last_inspected_at
+               MAX(inspection.created_at) AS last_inspected_at
         FROM inspection_areas area
         LEFT JOIN safety_inspections inspection
                ON inspection.inspection_area_id = area.id
@@ -38,7 +38,7 @@
                COUNT(item.id) AS total_item_count,
                COALESCE(SUM(item.result = 'FAIL'), 0) AS fail_count,
                COALESCE(SUM(item.result = 'REVIEW_REQUIRED'), 0) AS review_required_count,
-               inspection.updated_at
+               inspection.created_at
         FROM safety_inspections inspection
         LEFT JOIN safety_inspection_items item
                ON item.safety_inspection_id = inspection.id
@@ -46,8 +46,8 @@
         GROUP BY inspection.id,
                  inspection.inspector_id,
                  inspection.status,
-                 inspection.updated_at
-        ORDER BY inspection.updated_at DESC, inspection.id DESC
+                 inspection.created_at
+        ORDER BY inspection.created_at DESC, inspection.id DESC
     </select>
 
     <select id="findInspectionHeader"

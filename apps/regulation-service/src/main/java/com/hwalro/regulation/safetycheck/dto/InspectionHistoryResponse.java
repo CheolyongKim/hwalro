@@ -10,4 +10,4 @@ public record InspectionHistoryResponse(
         int totalItemCount,
         int failCount,
         int reviewRequiredCount,
-        LocalDateTime updatedAt) {}
+        LocalDateTime createdAt) {}
