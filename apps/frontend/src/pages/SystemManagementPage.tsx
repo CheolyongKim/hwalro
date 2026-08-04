@@ -307,7 +307,8 @@ function SystemManagementPage() {
 
           <div className="role-section">
             <h3>역할별 주요 권한</h3>
-            {!isLoading && !loadError &&
+            {!isLoading &&
+              !loadError &&
               (data.roles.length === 0 ? (
                 <p className="role-empty-state">
                   등록된 역할이 없습니다. 사용자 초대 전에 역할을 등록해 주세요.
