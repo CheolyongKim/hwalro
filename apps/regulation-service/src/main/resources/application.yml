@@ -22,6 +22,7 @@ spring:
   # 개발 환경에서는 OpenAI 없이 실행 (아래 exclude 제거 후 설정)
   autoconfigure:
     exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
 
   datasource:
@@ -36,7 +37,6 @@ spring:
       schema-locations: classpath:db/schema.sql
       continue-on-error: false
 
-# MyBatis Configuration
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   configuration:
@@ -45,6 +45,20 @@ mybatis:
 jwt:
   secret: ${JWT_SECRET:}
   issuer: ${JWT_ISSUER:hwalro-auth-service}
+
+auth-service:
+  base-url: ${AUTH_SERVICE_URL:http://localhost:8080}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4173}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
 
   # Spring AI Configuration
   # ai:

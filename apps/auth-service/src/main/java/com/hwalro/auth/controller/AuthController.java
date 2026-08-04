@@ -5,6 +5,7 @@ import com.hwalro.auth.auth.AuthService;
 import com.hwalro.auth.controller.dto.AuthResponse;
 import com.hwalro.auth.controller.dto.LoginRequest;
 import com.hwalro.auth.controller.dto.UserResponse;
+import com.hwalro.auth.controller.dto.UserSummaryResponse;
 import com.hwalro.auth.domain.User;
 import com.hwalro.auth.jwt.InvalidTokenException;
 import com.hwalro.auth.security.AuthenticatedUser;
@@ -17,12 +18,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Auth", description = "인증 API (액세스 토큰은 응답 바디 + Authorization 헤더, 리프레시 토큰은 HttpOnly 쿠키)")
@@ -87,6 +91,21 @@ public class AuthController {
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser principal) {
         User user = authService.findUserWithRoles(principal.loginId());
         return ResponseEntity.ok(toUserResponse(user));
+    }
+
+    @Operation(summary = "사용자 표시 이름 일괄 조회", description = "안전 검토자는 여러 사용자를, 운영 담당자는 본인만 조회할 수 있습니다.")
+    @GetMapping("/users")
+    public List<UserSummaryResponse> users(
+            @RequestParam List<Long> ids,
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser principal) {
+        boolean canReadAllUsers = principal.roles().contains("SAFETY_REVIEWER");
+        boolean requestsOnlySelf = ids.stream().allMatch(id -> id.equals(principal.userId()));
+        if (!canReadAllUsers && !requestsOnlySelf) {
+            throw new AccessDeniedException("다른 사용자의 정보를 조회할 권한이 없습니다.");
+        }
+        return authService.findUsersByIds(ids).stream()
+                .map(user -> new UserSummaryResponse(user.getUserId(), user.getName()))
+                .toList();
     }
 
     private UserResponse toUserResponse(User user) {

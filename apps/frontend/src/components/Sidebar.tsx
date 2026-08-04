@@ -14,7 +14,7 @@ interface NavigationItem {
 const navigationItems: NavigationItem[] = [
   { label: '홈', icon: 'home', to: '/' },
   { label: '시뮬레이션 검토', icon: 'review', children: ['도면 목록', '시뮬레이션 목록'] },
-  { label: '보고서 관리', icon: 'report' },
+  { label: '보고서 관리', icon: 'report', to: '/reports' },
   { label: '위험 예상 항목 관리', icon: 'risk', to: '/risk-management' },
   { label: '안전 체크리스트', icon: 'checklist' },
   { label: '안전 법령', icon: 'regulation', to: '/regulations' },

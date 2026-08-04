@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hwalro.regulation.report.mapper.ReportMapper">
+
+    <sql id="reportFilter">
+        <where>
+            <if test="query != null">
+                AND title LIKE CONCAT('%', #{query}, '%')
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="authorId != null">
+                AND author_id = #{authorId}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countReports" resultType="long">
+        SELECT COUNT(*)
+        FROM reports
+        <include refid="reportFilter" />
+    </select>
+
+    <select id="findReports" resultType="com.hwalro.regulation.report.dto.ReportListItem">
+        SELECT id,
+               author_id AS authorId,
+               NULL AS authorName,
+               title,
+               status,
+               updated_at AS updatedAt
+        FROM reports
+        <include refid="reportFilter" />
+        ORDER BY updated_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+</mapper>
