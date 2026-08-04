@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/system-management")
-@PreAuthorize("hasAuthority('ROLE_관리자')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class SystemManagementController {
     private final SystemManagementService service;
 

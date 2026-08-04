@@ -63,7 +63,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth.requestMatchers(PUBLIC_PATHS)
                         .permitAll()
                         .requestMatchers("/api/admin/system-management", "/api/admin/system-management/**")
-                        .hasAuthority("ROLE_관리자")
+                        .hasAuthority("ROLE_ADMIN")
                         .anyRequest()
                         .authenticated())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(restAuthenticationEntryPoint))
