@@ -3,13 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/context/AuthContext';
 
 type SidebarIconName =
-  | 'home'
-  | 'review'
-  | 'risk'
-  | 'checklist'
-  | 'report'
-  | 'regulation'
-  | 'settings';
+  'home' | 'review' | 'risk' | 'checklist' | 'report' | 'regulation' | 'settings';
 
 interface NavigationItem {
   label: string;
