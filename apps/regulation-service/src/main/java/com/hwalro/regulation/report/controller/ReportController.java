@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/reports")
 @Tag(name = "Reports", description = "안전 검토 보고서 관리 API")
-@RequireRole({"OPERATOR", "SAFETY_REVIEWER"})
+@RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
 /** 보고서 목록 조회를 프론트엔드에 제공한다. */
 public class ReportController {
     private final ReportService reportService;

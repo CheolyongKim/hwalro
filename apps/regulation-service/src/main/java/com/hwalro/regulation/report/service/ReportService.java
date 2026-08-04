@@ -88,7 +88,7 @@ public class ReportService {
     }
 
     private Long resolveAuthorId(JwtUser user) {
-        if (user.roles().contains("SAFETY_REVIEWER")) {
+        if (user.roles().contains("SAFETY_REVIEWER") || user.roles().contains("ADMIN")) {
             return null;
         }
         if (user.roles().contains("OPERATOR")) {
@@ -106,7 +106,7 @@ public class ReportService {
     }
 
     private void requireAccessible(JwtUser user, ReportDetailRow report) {
-        if (user.roles().contains("SAFETY_REVIEWER")) {
+        if (user.roles().contains("SAFETY_REVIEWER") || user.roles().contains("ADMIN")) {
             return;
         }
         if (user.roles().contains("OPERATOR") && user.userId().equals(report.authorId())) {

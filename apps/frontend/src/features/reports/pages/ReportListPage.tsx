@@ -32,7 +32,8 @@ function ReportListPage() {
   const [data, setData] = useState<ReportListResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isSafetyReviewer = user?.roles.includes('SAFETY_REVIEWER') ?? false;
+  const canViewAllReports =
+    user?.roles.includes('SAFETY_REVIEWER') || user?.roles.includes('ADMIN') || false;
 
   useEffect(() => {
     let active = true;
@@ -145,15 +146,15 @@ function ReportListPage() {
               <table className="w-full min-w-[540px] table-fixed border-collapse text-left">
                 <caption className="sr-only">보고서 목록</caption>
                 <colgroup>
-                  <col className={isSafetyReviewer ? 'w-[52%]' : 'w-[64%]'} />
-                  {isSafetyReviewer && <col className="w-[14%]" />}
+                  <col className={canViewAllReports ? 'w-[52%]' : 'w-[64%]'} />
+                  {canViewAllReports && <col className="w-[14%]" />}
                   <col className="w-[21%]" />
                   <col className="w-[13%]" />
                 </colgroup>
                 <thead className="bg-surface text-xs font-bold tracking-wide text-text-muted">
                   <tr>
                     <th className="px-7 py-4">보고서 제목</th>
-                    {isSafetyReviewer && <th className="px-5 py-4">작성자</th>}
+                    {canViewAllReports && <th className="px-5 py-4">작성자</th>}
                     <th className="px-7 py-4">최근 수정</th>
                     <th className="px-5 py-4">상태</th>
                   </tr>
@@ -174,7 +175,7 @@ function ReportListPage() {
                         </span>
                         </Link>
                       </td>
-                      {isSafetyReviewer && (
+                      {canViewAllReports && (
                         <td className="px-5 py-4 text-sm font-medium text-text-strong">
                           {report.authorName ?? '-'}
                         </td>
