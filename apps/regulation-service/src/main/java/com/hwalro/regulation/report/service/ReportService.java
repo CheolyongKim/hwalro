@@ -1,17 +1,16 @@
 package com.hwalro.regulation.report.service;
 
+import com.hwalro.regulation.common.jwt.ForbiddenException;
+import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.ReportStatus;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.mapper.ReportMapper;
-import com.hwalro.regulation.security.AuthenticatedUser;
 import java.util.List;
 import java.util.Map;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 /** 보고서 목록의 검색·상태 필터·페이지네이션 규칙을 소유한다. */
@@ -28,7 +27,7 @@ public class ReportService {
     }
 
     public ReportListResponse getReports(
-            AuthenticatedUser user, String authorization, String query, String status, int page, int size) {
+            JwtUser user, String authorization, String query, String status, int page, int size) {
         validatePage(page, size);
 
         String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
@@ -57,14 +56,14 @@ public class ReportService {
                 Math.toIntExact(totalCount), page, size, offset + namedItems.size() < totalCount, namedItems);
     }
 
-    private Long resolveAuthorId(AuthenticatedUser user) {
-        if (user.hasRole("SAFETY_REVIEWER")) {
+    private Long resolveAuthorId(JwtUser user) {
+        if (user.roles().contains("SAFETY_REVIEWER")) {
             return null;
         }
-        if (user.hasRole("OPERATOR")) {
+        if (user.roles().contains("OPERATOR")) {
             return user.userId();
         }
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "보고서 목록 조회 권한이 없습니다.");
+        throw new ForbiddenException("보고서 목록 조회 권한이 없습니다.");
     }
 
     private void validatePage(int page, int size) {

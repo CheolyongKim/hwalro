@@ -6,13 +6,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.mapper.ReportMapper;
-import com.hwalro.regulation.security.AuthenticatedUser;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,7 +30,7 @@ class ReportServiceTest {
     @Test
     void returnsSecondPageWithStatusFilter() {
         ReportService reportService = new ReportService(reportMapper, authorDirectoryClient);
-        AuthenticatedUser operator = new AuthenticatedUser(1L, "operator", List.of("OPERATOR"));
+        JwtUser operator = new JwtUser(1L, Set.of("OPERATOR"));
         List<ReportListItem> reports = List.of(new ReportListItem(
                 6L, 1L, null, "야외 휴게 공간 비상 유도선 점검 보고서", "완료", LocalDateTime.of(2026, 7, 28, 17, 20)));
         when(reportMapper.countReports(null, "완료", 1L)).thenReturn(6L);
@@ -49,7 +50,7 @@ class ReportServiceTest {
     @Test
     void rejectsUnsupportedStatus() {
         ReportService reportService = new ReportService(reportMapper, authorDirectoryClient);
-        AuthenticatedUser operator = new AuthenticatedUser(1L, "operator", List.of("OPERATOR"));
+        JwtUser operator = new JwtUser(1L, Set.of("OPERATOR"));
 
         assertThatThrownBy(() -> reportService.getReports(operator, "Bearer token", null, "보류", 1, 5))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -59,7 +60,7 @@ class ReportServiceTest {
     @Test
     void safetyReviewerQueriesAllAuthors() {
         ReportService reportService = new ReportService(reportMapper, authorDirectoryClient);
-        AuthenticatedUser reviewer = new AuthenticatedUser(3L, "reviewer", List.of("SAFETY_REVIEWER"));
+        JwtUser reviewer = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
         when(reportMapper.countReports(null, null, null)).thenReturn(2L);
         when(reportMapper.findReports(null, null, null, 5, 0L))
                 .thenReturn(List.of(

@@ -1,16 +1,18 @@
 package com.hwalro.regulation.report.controller;
 
+import com.hwalro.regulation.common.jwt.JwtAuthInterceptor;
+import com.hwalro.regulation.common.jwt.JwtUser;
+import com.hwalro.regulation.common.jwt.RequireRole;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.service.ReportService;
-import com.hwalro.regulation.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/reports")
 @Tag(name = "Reports", description = "안전 검토 보고서 관리 API")
+@RequireRole({"OPERATOR", "SAFETY_REVIEWER"})
 /** 보고서 목록 조회를 프론트엔드에 제공한다. */
 public class ReportController {
     private final ReportService reportService;
@@ -34,7 +37,7 @@ public class ReportController {
         @ApiResponse(responseCode = "400", description = "지원하지 않는 상태값 또는 잘못된 페이지 요청")
     })
     public ReportListResponse getReports(
-            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser user,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
             @Parameter(hidden = true) @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @Parameter(description = "보고서 제목 검색어") @RequestParam(required = false) String query,
             @Parameter(description = "상태: 초안, 작성 중, 완료") @RequestParam(required = false) String status,
