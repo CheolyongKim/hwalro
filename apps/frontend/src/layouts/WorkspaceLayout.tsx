@@ -8,7 +8,9 @@ function WorkspaceLayout() {
   return (
     <div className="flex min-h-[100dvh] bg-background text-ink">
       <Sidebar />
-      <main className={`min-w-0 flex-1 ${isReportList ? 'overflow-hidden p-6 lg:p-6' : 'overflow-auto p-6 lg:p-10'}`}>
+      <main
+        className={`min-w-0 flex-1 ${isReportList ? 'overflow-hidden p-6 lg:p-6' : 'overflow-auto p-6 lg:p-10'}`}
+      >
         <Outlet />
       </main>
     </div>
