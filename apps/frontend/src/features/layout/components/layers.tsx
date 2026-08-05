@@ -1,10 +1,11 @@
+import { memo } from 'react';
 import type { BackgroundImage, LayoutText, Wall } from '../types';
 import { textFontPx, textWorldBox } from '../utils/hitTest';
 
 export const MINOR_STEP = 50;
 export const MAJOR_STEP = 250;
 
-export function BackgroundLayer({ bg }: { bg: BackgroundImage }) {
+export const BackgroundLayer = memo(function BackgroundLayer({ bg }: { bg: BackgroundImage }) {
   return (
     <image
       href={bg.image}
@@ -16,7 +17,7 @@ export function BackgroundLayer({ bg }: { bg: BackgroundImage }) {
       preserveAspectRatio="none"
     />
   );
-}
+});
 
 interface GridLine {
   x1: number;
@@ -33,7 +34,7 @@ interface GridLayerProps {
   zoom: number;
 }
 
-export function GridLayer({ minX, minY, maxX, maxY, zoom }: GridLayerProps) {
+export const GridLayer = memo(function GridLayer({ minX, minY, maxX, maxY, zoom }: GridLayerProps) {
   const minor: GridLine[] = [];
   if (MINOR_STEP * zoom >= 6) {
     for (let x = Math.floor(minX / MINOR_STEP) * MINOR_STEP; x <= maxX; x += MINOR_STEP) {
@@ -72,7 +73,7 @@ export function GridLayer({ minX, minY, maxX, maxY, zoom }: GridLayerProps) {
       ))}
     </g>
   );
-}
+});
 
 interface WallViewProps {
   wall: Wall;
@@ -80,7 +81,7 @@ interface WallViewProps {
   s: (px: number) => number;
 }
 
-export function WallView({ wall, selected, s }: WallViewProps) {
+export const WallView = memo(function WallView({ wall, selected, s }: WallViewProps) {
   const color = selected ? 'var(--layout-accent)' : 'var(--layout-ink)';
   return (
     <g>
@@ -95,8 +96,6 @@ export function WallView({ wall, selected, s }: WallViewProps) {
       />
       {selected && (
         <g>
-          <circle cx={wall.startX} cy={wall.startY} r={s(3)} fill="var(--layout-accent)" />
-          <circle cx={wall.endX} cy={wall.endY} r={s(3)} fill="var(--layout-accent)" />
           <circle
             cx={wall.startX}
             cy={wall.startY}
@@ -115,11 +114,13 @@ export function WallView({ wall, selected, s }: WallViewProps) {
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
+          <circle cx={wall.startX} cy={wall.startY} r={s(3)} fill="var(--layout-accent)" />
+          <circle cx={wall.endX} cy={wall.endY} r={s(3)} fill="var(--layout-accent)" />
         </g>
       )}
     </g>
   );
-}
+});
 
 interface TextViewProps {
   text: LayoutText;
@@ -127,7 +128,7 @@ interface TextViewProps {
   zoom: number;
 }
 
-export function TextView({ text, selected, zoom }: TextViewProps) {
+export const TextView = memo(function TextView({ text, selected, zoom }: TextViewProps) {
   const fontPx = textFontPx(zoom);
   const box = textWorldBox(text, zoom);
   return (
@@ -158,4 +159,4 @@ export function TextView({ text, selected, zoom }: TextViewProps) {
       </text>
     </g>
   );
-}
+});

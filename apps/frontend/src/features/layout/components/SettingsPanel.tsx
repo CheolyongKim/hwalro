@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, Dispatch } from 'react';
 import type { BackgroundImage, EditorState, LayoutText, Wall } from '../types';
 import type { EditorAction } from '../state/editorReducer';
@@ -32,12 +32,21 @@ interface NumberFieldProps {
 }
 
 function NumberField({ label, value, onChange }: NumberFieldProps) {
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const next = event.currentTarget.valueAsNumber;
-    if (Number.isFinite(next)) {
-      onChange(round1(next));
+  const [draft, setDraft] = useState(String(round1(value)));
+
+  useEffect(() => {
+    setDraft(String(round1(value)));
+  }, [value]);
+
+  const commitDraft = () => {
+    const num = Number(draft);
+    if (Number.isFinite(num)) {
+      onChange(round1(num));
+    } else {
+      setDraft(String(round1(value)));
     }
   };
+
   return (
     <label className="block min-w-0">
       <span className="block text-[11px] text-text-muted">{label}</span>
@@ -45,8 +54,14 @@ function NumberField({ label, value, onChange }: NumberFieldProps) {
         <input
           type="number"
           step={0.1}
-          value={round1(value)}
-          onChange={handleChange}
+          value={draft}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onBlur={commitDraft}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              commitDraft();
+            }
+          }}
           className="h-full w-full min-w-0 bg-transparent px-2 font-mono text-[13px] text-text-strong outline-none"
         />
         <span className="shrink-0 pr-2 font-mono text-[11px] text-text-muted">m</span>
@@ -131,6 +146,10 @@ function BackgroundSection({ background, dispatch }: BackgroundSectionProps) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) {
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      dispatch({ type: 'setError', message: '배경 이미지는 3MB 이하만 가능합니다' });
       return;
     }
     const reader = new FileReader();

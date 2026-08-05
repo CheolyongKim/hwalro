@@ -135,6 +135,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     if (width <= 0 || height <= 0) {
       throw new Error('background.width/height는 0보다 커야 합니다');
     }
+    const rawAspect = toFiniteNumber(bg.aspect ?? width / height, 'background.aspect');
     background = {
       id: 'loaded-background',
       image,
@@ -143,7 +144,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
       width,
       height,
       opacity: Math.min(1, Math.max(0.1, toFiniteNumber(bg.opacity, 'background.opacity'))),
-      aspect: toFiniteNumber(bg.aspect ?? width / height, 'background.aspect'),
+      aspect: rawAspect > 0 ? rawAspect : width / height,
     };
   }
 

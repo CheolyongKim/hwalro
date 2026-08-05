@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, PointerEvent as ReactPointerEvent } from 'react';
 import type { Camera, EditorState, Vec2 } from '../types';
 import type { EditorAction } from '../state/editorReducer';
@@ -24,37 +24,8 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
   const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<PanSession | null>(null);
   const [panning, setPanning] = useState(false);
-  const [spaceDown, setSpaceDown] = useState(false);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-        return;
-      }
-      if (event.code === 'Space' && !event.repeat) {
-        setSpaceDown(true);
-      }
-    };
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.code === 'Space') {
-        setSpaceDown(false);
-      }
-    };
-    const onBlur = () => {
-      setSpaceDown(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', onBlur);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('blur', onBlur);
-    };
-  }, []);
-
-  const { containerRef, spaceRef } = useCanvasListeners({
+  const { containerRef, spaceDown } = useCanvasListeners({
     dispatch,
     onSizeChange,
     camera: state.camera,
@@ -76,7 +47,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
   }, []);
 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (event.button === 1 || (event.button === 0 && spaceRef.current)) {
+    if (event.button === 1 || (event.button === 0 && spaceDown)) {
       startPan({ x: event.clientX, y: event.clientY }, camera);
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
@@ -172,7 +143,9 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
-    dispatch({ type: 'cursorMove', world });
+    if (state.draft) {
+      dispatch({ type: 'cursorMove', world });
+    }
 
     if (panRef.current) {
       const dx = event.clientX - panRef.current.startScreen.x;
@@ -227,7 +200,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
 
   const viewW = size.w > 0 ? size.w / camera.zoom : 1;
   const viewH = size.h > 0 ? size.h / camera.zoom : 1;
-  const s = (px: number) => px / camera.zoom;
+  const s = useCallback((px: number) => px / camera.zoom, [camera.zoom]);
 
   return (
     <div ref={containerRef} className={`layout-canvas-wrap ${cursorClass}`}>
@@ -307,7 +280,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                     vectorEffect="non-scaling-stroke"
                   />
                 )}
-                {cursor && draft.end.x !== draft.start.x && draft.end.y !== draft.start.y && (
+                {cursor && (draft.end.x !== draft.start.x || draft.end.y !== draft.start.y) && (
                   <text
                     x={(draft.start.x + draft.end.x) / 2}
                     y={(draft.start.y + draft.end.y) / 2 - s(6)}

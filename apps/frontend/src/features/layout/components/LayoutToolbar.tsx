@@ -6,7 +6,7 @@ import type { EditorAction } from '../state/editorReducer';
 interface LayoutToolbarProps {
   state: EditorState;
   dispatch: Dispatch<EditorAction>;
-  saveStatus: 'idle' | 'saving' | 'saved';
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   onSave: () => void;
 }
 
@@ -46,9 +46,17 @@ export function LayoutToolbar({ state, dispatch, saveStatus, onSave }: LayoutToo
       <button
         type="button"
         onClick={onSave}
-        className="flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-[13px] font-bold text-white transition-colors hover:bg-primary/85"
+        className={`flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-bold text-white transition-colors ${
+          saveStatus === 'error' ? 'bg-danger' : 'bg-primary hover:bg-primary/85'
+        }`}
       >
-        {saveStatus === 'saving' ? '저장 중' : saveStatus === 'saved' ? '저장 완료' : '저장'}
+        {saveStatus === 'saving'
+          ? '저장 중'
+          : saveStatus === 'saved'
+            ? '저장 완료'
+            : saveStatus === 'error'
+              ? '저장 실패'
+              : '저장'}
       </button>
       <div className="mx-1 h-5 w-px shrink-0 bg-line" />
       <div className="flex items-center gap-1">

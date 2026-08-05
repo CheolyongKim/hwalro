@@ -43,6 +43,7 @@ export function InlineTextInput({
   return (
     <input
       ref={inputRef}
+      aria-label="텍스트 입력"
       className="absolute z-10 min-w-20 rounded-sm border-2 border-primary bg-white px-0.5 font-sans text-ink shadow-[0_2px_8px_rgba(0,0,0,0.15)] outline-none"
       style={{
         left: (point.x - panX) * zoom,

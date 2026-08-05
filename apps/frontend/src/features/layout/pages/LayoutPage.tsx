@@ -10,7 +10,7 @@ import { fetchBackground, fetchDrawing, saveBackground, saveDrawing } from '../a
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing';
-type SaveStatus = 'idle' | 'saving' | 'saved';
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 function LayoutPage() {
   const { drawingId = '' } = useParams();
@@ -67,6 +67,7 @@ function LayoutPage() {
     setSaveStatus('saving');
     try {
       await saveDrawing(drawingId, stateRef.current.doc);
+      await saveBackground(drawingId, stateRef.current.doc.background);
       setSaveStatus('saved');
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -76,7 +77,15 @@ function LayoutPage() {
         saveTimerRef.current = null;
       }, 2000);
     } catch {
-      setSaveStatus('idle');
+      setSaveStatus('error');
+      dispatch({ type: 'setError', message: '저장에 실패했습니다' });
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+      saveTimerRef.current = window.setTimeout(() => {
+        setSaveStatus('idle');
+        saveTimerRef.current = null;
+      }, 2000);
     }
   }, [saveStatus, loadStatus, drawingId]);
 
@@ -168,6 +177,22 @@ function LayoutPage() {
               onCommit={(text) => dispatch({ type: 'textCommit', text })}
               onCancel={() => dispatch({ type: 'textCancel' })}
             />
+          )}
+          {state.error && (
+            <div
+              role="alert"
+              className="absolute bottom-3 right-3 z-10 flex max-w-[320px] items-center gap-2 rounded-md border border-danger bg-white px-3 py-2 text-[13px] text-danger shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+            >
+              <span className="min-w-0">{state.error}</span>
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'setError', message: null })}
+                aria-label="닫기"
+                className="shrink-0 text-danger transition-colors hover:opacity-70"
+              >
+                ×
+              </button>
+            </div>
           )}
         </div>
         <SettingsPanel state={state} dispatch={dispatch} />

@@ -245,7 +245,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'loadDocument':
       return {
         ...clearInteraction({ ...state, doc: action.doc }),
-        past: [...state.past, state.doc],
+        past: [],
         future: [],
         cameraFitNonce: state.cameraFitNonce + 1,
       };

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import type { Dispatch, MutableRefObject, RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { Dispatch, RefObject } from 'react';
 import type { Camera, DrawingDocument } from '../types';
 import type { EditorAction } from '../state/editorReducer';
 import { clampPan, fitCamera, zoomAtPoint } from '../utils/geometry';
@@ -15,7 +15,7 @@ interface UseCanvasListenersOptions {
 
 export interface CanvasListeners {
   containerRef: RefObject<HTMLDivElement | null>;
-  spaceRef: MutableRefObject<boolean>;
+  spaceDown: boolean;
 }
 
 export function useCanvasListeners({
@@ -27,7 +27,7 @@ export function useCanvasListeners({
   cameraFitNonce,
 }: UseCanvasListenersOptions): CanvasListeners {
   const containerRef = useRef<HTMLDivElement>(null);
-  const spaceRef = useRef(false);
+  const [spaceDown, setSpaceDown] = useState(false);
   const cameraRef = useRef(camera);
   const docRef = useRef(doc);
   const sizeRef = useRef(size);
@@ -91,22 +91,31 @@ export function useCanvasListeners({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
       if (event.code === 'Space' && !event.repeat) {
-        spaceRef.current = true;
+        setSpaceDown(true);
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.code === 'Space') {
-        spaceRef.current = false;
+        setSpaceDown(false);
       }
+    };
+    const onBlur = () => {
+      setSpaceDown(false);
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, []);
 
-  return { containerRef, spaceRef };
+  return { containerRef, spaceDown };
 }
