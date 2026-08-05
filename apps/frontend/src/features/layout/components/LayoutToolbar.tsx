@@ -15,7 +15,6 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'wall', label: '벽' },
   { id: 'text', label: '텍스트' },
   { id: 'erase', label: '삭제' },
-  { id: 'background', label: '배경' },
 ];
 
 export function LayoutToolbar({ state, dispatch, saveStatus, onSave }: LayoutToolbarProps) {

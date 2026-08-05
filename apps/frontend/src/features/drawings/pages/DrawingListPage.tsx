@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MOCK_DRAWINGS } from '../api/mockDrawings';
+import { useAuth } from '../../auth/context/AuthContext';
+import { useDeleteDrawing, useDrawingList } from '../hooks';
 import DrawingListTable from '../components/DrawingListTable';
-import { DRAWING_PERIOD_OPTIONS, DRAWING_STATUS_OPTIONS } from '../constants/drawingOptions';
-import type { DrawingItem, DrawingPeriod, DrawingStatus } from '../types/drawing';
+import { DRAWING_PERIOD_OPTIONS } from '../constants/drawingOptions';
+import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
+import type { DrawingPeriod, DrawingSummary } from '../types/drawing';
 
-type StatusFilter = DrawingStatus | '전체';
-type CreatorFilter = string;
-
-const CREATOR_OPTIONS = ['전체', ...new Set(MOCK_DRAWINGS.map((drawing) => drawing.createdBy))];
+type CreatorFilter = number | '전체';
 
 function isWithinPeriod(createdAt: string, period: DrawingPeriod): boolean {
   if (period === '전체') {
@@ -20,32 +19,42 @@ function isWithinPeriod(createdAt: string, period: DrawingPeriod): boolean {
 }
 
 function DrawingListPage() {
-  const [drawings, setDrawings] = useState<DrawingItem[]>(MOCK_DRAWINGS);
+  const { items, totalCount, hasNextPage, isPending, isError, error, fetchNextPage, isFetchingNextPage } =
+    useDrawingList();
+  const deleteDrawing = useDeleteDrawing();
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('전체');
   const [creator, setCreator] = useState<CreatorFilter>('전체');
   const [period, setPeriod] = useState<DrawingPeriod>('전체');
 
+  const creatorOptions = useMemo(() => {
+    const ids = new Set(items.map((drawing) => drawing.createdBy));
+    return ['전체' as const, ...ids];
+  }, [items]);
+
   const filteredDrawings = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return drawings.filter((drawing) => {
+    return items.filter((drawing) => {
       const matchesQuery =
         normalizedQuery === '' || drawing.title.toLowerCase().includes(normalizedQuery);
-      const matchesStatus = status === '전체' || drawing.status === status;
       const matchesCreator = creator === '전체' || drawing.createdBy === creator;
       const matchesPeriod = isWithinPeriod(drawing.createdAt, period);
-      return matchesQuery && matchesStatus && matchesCreator && matchesPeriod;
+      return matchesQuery && matchesCreator && matchesPeriod;
     });
-  }, [creator, drawings, period, query, status]);
+  }, [creator, items, period, query]);
 
-  const handleDelete = (drawing: DrawingItem) => {
+  const handleDelete = (drawing: DrawingSummary) => {
     const confirmed = window.confirm(
       `도면 "${drawing.title}"을(를) 삭제하시겠습니까? 삭제한 도면은 복구할 수 없습니다.`,
     );
     if (!confirmed) {
       return;
     }
-    setDrawings((current) => current.filter((item) => item.id !== drawing.id));
+    deleteDrawing.mutate(drawing.id, {
+      onError: (deleteError) => {
+        window.alert(getDrawingErrorMessage(deleteError));
+      },
+    });
   };
 
   return (
@@ -86,30 +95,22 @@ function DrawingListPage() {
               className="h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-4 text-sm text-ink outline-none placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
             />
             <label className="flex h-11 shrink-0 items-center gap-2 rounded-lg bg-soft-gray px-3.5 text-sm font-bold text-text-strong">
-              <span className="text-text-muted">상태</span>
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value as StatusFilter)}
-                className="min-w-20 rounded-lg bg-transparent outline-none transition focus-visible:ring-2 focus-visible:ring-primary/15"
-              >
-                <option value="전체">전체</option>
-                {DRAWING_STATUS_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex h-11 shrink-0 items-center gap-2 rounded-lg bg-soft-gray px-3.5 text-sm font-bold text-text-strong">
               <span className="text-text-muted">등록자</span>
               <select
-                value={creator}
-                onChange={(event) => setCreator(event.target.value)}
+                value={creator === '전체' ? '전체' : String(creator)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setCreator(value === '전체' ? '전체' : Number(value));
+                }}
                 className="min-w-20 rounded-lg bg-transparent outline-none transition focus-visible:ring-2 focus-visible:ring-primary/15"
               >
-                {CREATOR_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
+                {creatorOptions.map((option) => (
+                  <option key={String(option)} value={String(option)}>
+                    {option === '전체'
+                      ? '전체'
+                      : user !== null && option === user.id
+                        ? user.name
+                        : `#${option}`}
                   </option>
                 ))}
               </select>
@@ -135,11 +136,29 @@ function DrawingListPage() {
           className="mt-4 overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5"
           aria-label="도면 목록"
         >
-          {filteredDrawings.length > 0 ? (
-            <DrawingListTable items={filteredDrawings} onDelete={handleDelete} />
+          {isPending ? (
+            <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
+              도면을 불러오는 중...
+            </div>
+          ) : isError ? (
+            <div className="flex min-h-64 items-center justify-center px-6 text-center">
+              <p className="rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
+                {getDrawingErrorMessage(error)}
+              </p>
+            </div>
+          ) : filteredDrawings.length > 0 ? (
+            <DrawingListTable
+              items={filteredDrawings}
+              onDelete={handleDelete}
+              hasNext={hasNextPage}
+              onLoadMore={() => void fetchNextPage()}
+              isFetchingMore={isFetchingNextPage}
+            />
           ) : (
             <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
-              조건에 맞는 도면이 없습니다.
+              {totalCount > 0
+                ? '조건에 맞는 도면이 없습니다.'
+                : '등록된 도면이 없습니다. 도면 등록 버튼으로 첫 도면을 만들어 보세요.'}
             </div>
           )}
         </section>

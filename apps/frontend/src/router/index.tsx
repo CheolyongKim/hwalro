@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import App from '../App';
 import WorkspaceLayout from '../layouts/WorkspaceLayout';
 import HomePage from '../pages/HomePage';
@@ -15,8 +16,13 @@ import SafetyCheckTemplatePage from '../pages/SafetyCheckTemplatePage';
 import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
-import DrawingEditorPlaceholderPage from '../features/drawings/pages/DrawingEditorPlaceholderPage';
+import CreateDrawingPage from '../features/drawings/pages/CreateDrawingPage';
 import LayoutPage from '../features/layout/pages/LayoutPage';
+
+function DrawingEditRedirect() {
+  const { drawingId } = useParams();
+  return <Navigate to={`/layout/${drawingId}`} replace />;
+}
 
 export const router = createBrowserRouter([
   {
@@ -50,14 +56,8 @@ export const router = createBrowserRouter([
               },
               { path: 'reports/:reportId', element: <ReportDetailPage /> },
               { path: 'drawings', element: <DrawingListPage /> },
-              {
-                path: 'drawings/new',
-                element: <DrawingEditorPlaceholderPage mode="create" />,
-              },
-              {
-                path: 'drawings/:drawingId',
-                element: <DrawingEditorPlaceholderPage mode="edit" />,
-              },
+              { path: 'drawings/new', element: <CreateDrawingPage /> },
+              { path: 'drawings/:drawingId', element: <DrawingEditRedirect /> },
               { path: 'regulations', element: <RegulationsPage /> },
               {
                 element: <AdminRoute />,

@@ -46,4 +46,8 @@ public interface DrawingMapper {
     int deleteLayoutTextsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deleteLayoutById(@Param("id") Long id);
+
+    int deleteFloorPlanById(@Param("id") Long id);
+
+    int countSimulationsByLayoutId(@Param("layoutId") Long layoutId);
 }

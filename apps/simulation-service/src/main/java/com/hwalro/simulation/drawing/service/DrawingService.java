@@ -15,6 +15,7 @@ import com.hwalro.simulation.drawing.dto.DrawingSummary;
 import com.hwalro.simulation.drawing.dto.DrawingUpdateRequest;
 import com.hwalro.simulation.drawing.dto.LayoutTextDto;
 import com.hwalro.simulation.drawing.dto.WallDto;
+import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import java.util.List;
@@ -90,8 +91,8 @@ public class DrawingService {
         version.setOptimisticLock(0);
         drawingMapper.insertLayoutVersion(version);
 
-        drawingMapper.insertFacilities(toFacilitiesFromDefault(defaultDrawing.walls(), version.getId()));
-        drawingMapper.insertLayoutTexts(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
+        insertFacilitiesIfPresent(toFacilitiesFromDefault(defaultDrawing.walls(), version.getId()));
+        insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
 
         layout.setCurrentVersionId(version.getId());
         drawingMapper.updateLayoutCurrentVersion(layout);
@@ -113,16 +114,21 @@ public class DrawingService {
         LayoutVersion version = findVersionOrThrow(layout.getCurrentVersionId());
         drawingMapper.deleteFacilitiesByVersionId(version.getId());
         drawingMapper.deleteLayoutTextsByVersionId(version.getId());
-        drawingMapper.insertFacilities(toFacilities(request.walls(), version.getId()));
-        drawingMapper.insertLayoutTexts(toLayoutTexts(request.layoutTexts(), version.getId()));
+        insertFacilitiesIfPresent(toFacilities(request.walls(), version.getId()));
+        insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
 
         return toResponse(findLayoutOrThrow(id));
     }
 
+    @Transactional
     public void delete(Long id, JwtUser user) {
         Layout layout = findLayoutOrThrow(id);
         requireAccessible(layout, user);
+        if (drawingMapper.countSimulationsByLayoutId(id) > 0) {
+            throw new DrawingDeletionNotAllowedException(id);
+        }
         drawingMapper.deleteLayoutById(id);
+        drawingMapper.deleteFloorPlanById(layout.getFloorPlanId());
     }
 
     private boolean canSeeAll(Set<String> roles) {
@@ -292,6 +298,18 @@ public class DrawingService {
             if (layoutText.x() == null || layoutText.y() == null) {
                 throw new IllegalArgumentException("텍스트 좌표가 누락되었습니다.");
             }
+        }
+    }
+
+    private void insertFacilitiesIfPresent(List<Facility> facilities) {
+        if (!facilities.isEmpty()) {
+            drawingMapper.insertFacilities(facilities);
+        }
+    }
+
+    private void insertLayoutTextsIfPresent(List<LayoutText> layoutTexts) {
+        if (!layoutTexts.isEmpty()) {
+            drawingMapper.insertLayoutTexts(layoutTexts);
         }
     }
 }

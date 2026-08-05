@@ -149,4 +149,16 @@
         WHERE id = #{id}
     </delete>
 
+    <delete id="deleteFloorPlanById">
+        DELETE FROM floor_plans
+        WHERE id = #{id}
+    </delete>
+
+    <select id="countSimulationsByLayoutId" resultType="int">
+        SELECT COUNT(*)
+        FROM simulations s
+        JOIN layout_versions lv ON s.layout_version_id = lv.id
+        WHERE lv.layout_id = #{layoutId}
+    </select>
+
 </mapper>

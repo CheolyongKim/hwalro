@@ -6,7 +6,8 @@ import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { InlineTextInput } from '../components/InlineTextInput';
 import { createInitialState, editorReducer } from '../state/editorReducer';
-import { fetchBackground, fetchDrawing, saveBackground, saveDrawing } from '../api/layoutApi';
+import { fetchDrawing, saveDrawing } from '../api/layoutApi';
+import type { DrawingSession } from '../api/layoutApi';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing';
@@ -20,6 +21,7 @@ function LayoutPage() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [size, setSize] = useState({ w: 0, h: 0 });
   const stateRef = useRef(state);
+  const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
 
@@ -37,16 +39,17 @@ function LayoutPage() {
     }
     loadedRef.current = true;
     let cancelled = false;
-    Promise.all([fetchDrawing(drawingId), fetchBackground(drawingId)])
-      .then(([doc, background]) => {
+    fetchDrawing(drawingId)
+      .then((session) => {
         if (cancelled) {
           return;
         }
-        if (doc === null) {
+        if (session === null) {
           setLoadStatus('missing');
           return;
         }
-        dispatch({ type: 'loadDocument', doc: { ...doc, background } });
+        sessionRef.current = session;
+        dispatch({ type: 'loadDocument', doc: session.doc });
         setLoadStatus('ready');
       })
       .catch(() => {
@@ -66,8 +69,10 @@ function LayoutPage() {
     }
     setSaveStatus('saving');
     try {
-      await saveDrawing(drawingId, stateRef.current.doc);
-      await saveBackground(drawingId, stateRef.current.doc.background);
+      await saveDrawing(drawingId, {
+        doc: stateRef.current.doc,
+        description: sessionRef.current?.description ?? null,
+      });
       setSaveStatus('saved');
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -88,15 +93,6 @@ function LayoutPage() {
       }, 2000);
     }
   }, [saveStatus, loadStatus, drawingId]);
-
-  const background = state.doc.background;
-
-  useEffect(() => {
-    if (loadStatus !== 'ready') {
-      return;
-    }
-    void saveBackground(drawingId, background);
-  }, [background, drawingId, loadStatus]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
