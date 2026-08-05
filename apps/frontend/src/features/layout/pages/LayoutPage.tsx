@@ -93,8 +93,7 @@ function LayoutPage() {
       }, 2000);
     } catch (error) {
       setSaveStatus('error');
-      const conflict =
-        error instanceof AxiosError && error.response?.status === 409;
+      const conflict = error instanceof AxiosError && error.response?.status === 409;
       dispatch({
         type: 'setError',
         message: conflict
