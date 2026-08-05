@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hwalro.simulation.drawing.mapper.DrawingMapper">
+
+    <select id="findLayoutById" resultType="com.hwalro.simulation.drawing.domain.Layout">
+        SELECT id,
+               floor_plan_id,
+               created_by,
+               current_version_id,
+               title,
+               description,
+               created_at
+        FROM layouts
+        WHERE id = #{id}
+    </select>
+
+    <select id="findLayoutPage" resultType="com.hwalro.simulation.drawing.domain.Layout">
+        SELECT id,
+               floor_plan_id,
+               created_by,
+               current_version_id,
+               title,
+               description,
+               created_at
+        FROM layouts
+        <where>
+            <if test="createdBy != null">created_by = #{createdBy}</if>
+        </where>
+        ORDER BY id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countLayouts" resultType="long">
+        SELECT COUNT(*)
+        FROM layouts
+        <where>
+            <if test="createdBy != null">created_by = #{createdBy}</if>
+        </where>
+    </select>
+
+    <select id="findFloorPlanById" resultType="com.hwalro.simulation.drawing.domain.FloorPlan">
+        SELECT id,
+               name,
+               image_url,
+               width,
+               height
+        FROM floor_plans
+        WHERE id = #{id}
+    </select>
+
+    <select id="findLayoutVersionById" resultType="com.hwalro.simulation.drawing.domain.LayoutVersion">
+        SELECT id,
+               layout_id,
+               version,
+               parent_version_id,
+               status,
+               optimistic_lock,
+               created_at
+        FROM layout_versions
+        WHERE id = #{id}
+    </select>
+
+    <select id="findFacilitiesByVersionId" resultType="com.hwalro.simulation.drawing.domain.Facility">
+        SELECT id,
+               layout_version_id,
+               name,
+               start_x,
+               start_y,
+               end_x,
+               end_y
+        FROM facilities
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findLayoutTextsByVersionId" resultType="com.hwalro.simulation.drawing.domain.LayoutText">
+        SELECT id,
+               layout_version_id,
+               text,
+               x,
+               y
+        FROM layout_texts
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insertFloorPlan" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO floor_plans (name, image_url, width, height)
+        VALUES (#{name}, #{imageUrl}, #{width}, #{height})
+    </insert>
+
+    <insert id="insertLayout" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO layouts (floor_plan_id, created_by, title, description)
+        VALUES (#{floorPlanId}, #{createdBy}, #{title}, #{description})
+    </insert>
+
+    <insert id="insertLayoutVersion" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO layout_versions (layout_id, version, parent_version_id, status, optimistic_lock)
+        VALUES (#{layoutId}, #{version}, #{parentVersionId}, #{status}, #{optimisticLock})
+    </insert>
+
+    <insert id="insertFacilities">
+        INSERT INTO facilities (layout_version_id, name, start_x, start_y, end_x, end_y)
+        VALUES
+        <foreach collection="list" item="facility" separator=",">
+            (#{facility.layoutVersionId},
+             #{facility.name},
+             #{facility.startX},
+             #{facility.startY},
+             #{facility.endX},
+             #{facility.endY})
+        </foreach>
+    </insert>
+
+    <insert id="insertLayoutTexts">
+        INSERT INTO layout_texts (layout_version_id, text, x, y)
+        VALUES
+        <foreach collection="list" item="layoutText" separator=",">
+            (#{layoutText.layoutVersionId}, #{layoutText.text}, #{layoutText.x}, #{layoutText.y})
+        </foreach>
+    </insert>
+
+    <update id="updateLayout">
+        UPDATE layouts
+        SET title = #{title},
+            description = #{description}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateLayoutCurrentVersion">
+        UPDATE layouts
+        SET current_version_id = #{currentVersionId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateLayoutVersionLock">
+        UPDATE layout_versions
+        SET optimistic_lock = #{nextLock}
+        WHERE id = #{id}
+          AND optimistic_lock = #{expectedLock}
+    </update>
+
+    <delete id="deleteFacilitiesByVersionId">
+        DELETE FROM facilities
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <delete id="deleteLayoutTextsByVersionId">
+        DELETE FROM layout_texts
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <delete id="deleteLayoutById">
+        DELETE FROM layouts
+        WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteFloorPlanById">
+        DELETE FROM floor_plans
+        WHERE id = #{id}
+    </delete>
+
+    <select id="countSimulationsByLayoutId" resultType="int">
+        SELECT COUNT(*)
+        FROM simulations s
+        JOIN layout_versions lv ON s.layout_version_id = lv.id
+        WHERE lv.layout_id = #{layoutId}
+    </select>
+
+</mapper>

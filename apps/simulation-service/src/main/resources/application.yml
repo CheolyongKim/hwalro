@@ -10,6 +10,35 @@ spring:
     exclude:
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
 
+  datasource:
+    url: ${SIMULATION_DB_URL:jdbc:mysql://localhost:3307/hwalro_simulation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SIMULATION_DB_USERNAME:hwalro_simulation}
+    password: ${SIMULATION_DB_PASSWORD:hwalro_simulation}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  sql:
+    init:
+      mode: ${DB_INIT_MODE:never}
+      schema-locations: classpath:db/schema.sql
+      continue-on-error: false
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+jwt:
+  secret: ${JWT_SECRET:}
+  issuer: ${JWT_ISSUER:hwalro-auth-service}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
   # Spring AI Configuration
   # ai:
   #   openai:

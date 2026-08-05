@@ -16,6 +16,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/api/drawings': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
       '/api/regulations': {
         target: 'http://localhost:8082',
         changeOrigin: true,

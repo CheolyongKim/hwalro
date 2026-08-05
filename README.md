@@ -197,11 +197,13 @@ macOS/Linux:
 
 외부 시스템 연동을 활성화할 때는 다음과 같은 환경 변수가 필요할 수 있습니다.
 
-| 환경 변수        | 용도                               |
-| ---------------- | ---------------------------------- |
-| `JWT_SECRET`     | JWT 서명 키 (32바이트 이상, auth·regulation 서비스 공용, 미설정 시 서비스 기동 불가) |
-| `MYSQL_PASSWORD` | MySQL 접속 비밀번호                |
-| `OPENAI_API_KEY` | Regulation 서비스의 AI 보고서 작성 |
+| 환경 변수                | 용도                               |
+| ----------------------- | ---------------------------------- |
+| `JWT_SECRET`            | JWT 서명 키 (32바이트 이상, auth·simulation·regulation 서비스 공용, 미설정 시 서비스 기동 불가) |
+| `AUTH_DB_PASSWORD`      | auth-service MySQL 접속 비밀번호   |
+| `SIMULATION_DB_PASSWORD`| simulation-service MySQL 접속 비밀번호 |
+| `REGULATION_DB_PASSWORD`| regulation-service MySQL 접속 비밀번호 |
+| `OPENAI_API_KEY`        | Regulation 서비스의 AI 보고서 작성 |
 
 개발 초기 설정에서는 외부 DB와 OpenAI 연결 없이 각 서비스의 기본 실행 상태를 확인할 수 있도록 자동 구성이 제외되어 있습니다. 외부 연동을 활성화할 때는 각 서비스의 `application.yml`과 팀의 환경 설정 기준을 함께 갱신해야 합니다.
 
