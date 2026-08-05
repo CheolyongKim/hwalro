@@ -55,7 +55,10 @@ function SafetyCheckAreasPage() {
             점검 구역을 불러오는 중입니다.
           </div>
         ) : error ? (
-          <div className="mt-5 flex min-h-64 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm text-red-600">
+          <div
+            role="alert"
+            className="mt-5 flex min-h-64 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : areas.length === 0 ? (

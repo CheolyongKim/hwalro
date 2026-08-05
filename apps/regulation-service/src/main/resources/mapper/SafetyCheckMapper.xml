@@ -29,6 +29,14 @@
           AND active = TRUE
     </select>
 
+    <select id="lockInspectionArea" resultType="long">
+        SELECT id
+        FROM inspection_areas
+        WHERE id = #{areaId}
+          AND active = TRUE
+        FOR UPDATE
+    </select>
+
     <select id="findInspectionHistory"
             resultType="com.hwalro.regulation.safetycheck.dto.InspectionHistoryResponse">
         SELECT inspection.id,
@@ -187,12 +195,15 @@
     </insert>
 
     <update id="updateInspectionItem">
-        UPDATE safety_inspection_items
-        SET result = #{result},
-            comment = #{comment},
-            checked_at = #{checkedAt}
-        WHERE id = #{itemId}
-          AND safety_inspection_id = #{inspectionId}
+        UPDATE safety_inspection_items item
+        JOIN safety_inspections inspection
+          ON inspection.id = item.safety_inspection_id
+        SET item.result = #{result},
+            item.comment = #{comment},
+            item.checked_at = #{checkedAt}
+        WHERE item.id = #{itemId}
+          AND item.safety_inspection_id = #{inspectionId}
+          AND inspection.status = 'DRAFT'
     </update>
 
     <select id="countInspectionItems" resultType="int">
@@ -214,6 +225,7 @@
             comment = #{comment},
             completed_at = #{completedAt}
         WHERE id = #{inspectionId}
+          AND status = 'DRAFT'
     </update>
 
     <delete id="deleteInspection">

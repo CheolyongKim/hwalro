@@ -62,8 +62,8 @@ public class SafetyCheckService {
 
     @Transactional
     public ChecklistTemplateResponse updateChecklistTemplate(Long areaId, ChecklistTemplateUpdateRequest request) {
-        requireArea(areaId);
         validateTemplate(request);
+        lockArea(areaId);
 
         int nextVersion = safetyCheckMapper.findNextTemplateVersion(areaId);
         safetyCheckMapper.retireActiveTemplates(areaId);
@@ -87,6 +87,7 @@ public class SafetyCheckService {
 
     @Transactional
     public InspectionDetailResponse createInspection(Long areaId, InspectionCreateRequest request, JwtUser user) {
+        Long simulationResultId = validateSimulationResultReference(request);
         requireArea(areaId);
         Long templateId = safetyCheckMapper.findActiveTemplateId(areaId);
         if (templateId == null) {
@@ -96,7 +97,7 @@ public class SafetyCheckService {
         SafetyInspection inspection = new SafetyInspection();
         inspection.setInspectionAreaId(areaId);
         inspection.setChecklistTemplateId(templateId);
-        inspection.setSimulationResultId(request == null ? null : request.simulationResultId());
+        inspection.setSimulationResultId(simulationResultId);
         inspection.setInspectorId(user.userId());
         safetyCheckMapper.insertInspection(inspection);
         safetyCheckMapper.insertInspectionItems(inspection.getId(), templateId);
@@ -133,8 +134,11 @@ public class SafetyCheckService {
             throw new IllegalArgumentException("All checklist items must be assessed before completion.");
         }
         LocalDateTime completedAt = "COMPLETED".equals(request.status()) ? now : null;
-        safetyCheckMapper.updateInspection(
-                inspectionId, request.status(), normalizeComment(request.comment()), completedAt);
+        if (safetyCheckMapper.updateInspection(
+                        inspectionId, request.status(), normalizeComment(request.comment()), completedAt)
+                != 1) {
+            throw new IllegalArgumentException("The inspection was already completed by another request.");
+        }
         return getInspection(inspectionId);
     }
 
@@ -158,6 +162,23 @@ public class SafetyCheckService {
         if (!safetyCheckMapper.areaExists(areaId)) {
             throw new InspectionAreaNotFoundException(areaId);
         }
+    }
+
+    private void lockArea(Long areaId) {
+        if (safetyCheckMapper.lockInspectionArea(areaId) == null) {
+            throw new InspectionAreaNotFoundException(areaId);
+        }
+    }
+
+    private Long validateSimulationResultReference(InspectionCreateRequest request) {
+        if (request == null || request.simulationResultId() == null) {
+            return null;
+        }
+        if (request.simulationResultId() <= 0) {
+            throw new IllegalArgumentException("simulationResultId must be a positive number.");
+        }
+        throw new IllegalArgumentException(
+                "simulationResultId cannot be linked until simulation-service provides a validation API.");
     }
 
     private InspectionDetailHeader findHeader(Long inspectionId) {

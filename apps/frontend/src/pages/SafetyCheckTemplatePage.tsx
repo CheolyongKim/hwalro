@@ -23,9 +23,16 @@ const CATEGORY_OPTIONS = [
   { value: 'OTHER', label: '기타' },
 ];
 
+let temporaryItemSequence = 0;
+
+function createTemporaryItemKey(): string {
+  temporaryItemSequence += 1;
+  return `checklist-item-${Date.now()}-${temporaryItemSequence}`;
+}
+
 function createEmptyItem(): EditableItem {
   return {
-    key: crypto.randomUUID(),
+    key: createTemporaryItemKey(),
     title: '',
     criterion: '',
     category: 'EVACUATION',
@@ -171,6 +178,7 @@ function SafetyCheckTemplatePage() {
 
       {(error || notice) && (
         <div
+          role={error ? 'alert' : 'status'}
           className={`mt-5 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-600' : 'border-primary/20 bg-primary-soft text-primary'}`}
         >
           {error ?? notice}
@@ -203,6 +211,14 @@ function SafetyCheckTemplatePage() {
         </div>
 
         <div className="mt-6 space-y-4">
+          {items.length === 0 && (
+            <div className="rounded-xl border border-dashed border-line px-6 py-12 text-center">
+              <p className="font-bold text-ink">등록된 점검 항목이 없습니다.</p>
+              <p className="mt-2 text-sm text-text-muted">
+                상단의 ‘항목 추가’ 버튼으로 새 점검 항목을 추가하세요.
+              </p>
+            </div>
+          )}
           {items.map((item, index) => {
             const knownCategory = CATEGORY_OPTIONS.some((option) => option.value === item.category);
             return (

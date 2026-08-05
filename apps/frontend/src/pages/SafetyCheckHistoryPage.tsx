@@ -51,12 +51,12 @@ function SafetyCheckHistoryPage() {
 
   async function createInspection() {
     setIsCreating(true);
-    setError(null);
+    setActionError(null);
     try {
       const inspection = await safetyCheckApi.createInspection(areaId);
       navigate(`/safety-checklists/inspections/${inspection.id}`);
     } catch (requestError) {
-      setError(getSafetyCheckError(requestError));
+      setActionError(getSafetyCheckError(requestError));
       setIsCreating(false);
     }
   }
@@ -112,7 +112,10 @@ function SafetyCheckHistoryPage() {
       />
 
       {actionError && (
-        <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div
+          role="alert"
+          className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
+        >
           {actionError}
         </div>
       )}
@@ -127,7 +130,7 @@ function SafetyCheckHistoryPage() {
             점검 이력을 불러오는 중입니다.
           </div>
         ) : error ? (
-          <div className="flex min-h-64 items-center justify-center px-6 text-sm text-red-600">
+          <div role="alert" className="flex min-h-64 items-center justify-center px-6 text-sm text-red-600">
             {error}
           </div>
         ) : inspections.length === 0 ? (

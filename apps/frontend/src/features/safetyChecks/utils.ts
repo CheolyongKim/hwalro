@@ -17,13 +17,15 @@ export const RESULT_STYLES: Record<InspectionResult, string> = {
 
 export function formatInspectionDate(value: string | null): string {
   if (!value) return '점검 이력 없음';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '날짜 정보 없음';
   return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function getInspectionSummary(inspection: InspectionHistory): string {

@@ -18,6 +18,8 @@ public interface SafetyCheckMapper {
 
     boolean areaExists(@Param("areaId") Long areaId);
 
+    Long lockInspectionArea(@Param("areaId") Long areaId);
+
     List<InspectionHistoryResponse> findInspectionHistory(@Param("areaId") Long areaId);
 
     InspectionDetailHeader findInspectionHeader(@Param("inspectionId") Long inspectionId);

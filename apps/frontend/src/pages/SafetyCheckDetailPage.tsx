@@ -113,7 +113,10 @@ function SafetyCheckDetailPage() {
 
   if (!inspection) {
     return (
-      <div className="mx-auto flex min-h-96 w-full max-w-[1392px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm text-red-600">
+      <div
+        role="alert"
+        className="mx-auto flex min-h-96 w-full max-w-[1392px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm text-red-600"
+      >
         {error ?? '점검 정보를 찾을 수 없습니다.'}
       </div>
     );
@@ -158,7 +161,7 @@ function SafetyCheckDetailPage() {
 
       {(error || notice) && (
         <div
-          role="status"
+          role={error ? 'alert' : 'status'}
           className={`mt-5 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-600' : 'border-primary/20 bg-primary-soft text-primary'}`}
         >
           {error ?? notice}

@@ -14,7 +14,7 @@ export default function SafetyCheckHeader({
   title,
   description,
   backTo,
-  backLabel,
+  backLabel = '이전 화면으로 돌아가기',
   action,
 }: SafetyCheckHeaderProps) {
   return (
