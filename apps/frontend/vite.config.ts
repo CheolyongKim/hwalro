@@ -28,6 +28,10 @@ export default defineConfig({
         target: 'http://localhost:8082',
         changeOrigin: true,
       },
+      '/api/safety-checks': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
     },
   },
 });
