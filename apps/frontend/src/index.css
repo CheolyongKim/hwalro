@@ -17,6 +17,13 @@
   --color-text-muted: #718884; /* 부제목·표 헤더·섹션 라벨 텍스트 */
   --color-danger: #c94f47; /* 높음 배지(심각도) 텍스트 */
   --color-danger-soft: #fcecea; /* 높음 배지(심각도) 배경 */
+  --color-soft-gray: #edf2f1; /* 도면 목록: 작성 중 배지, 필터 배경 */
+  --color-soft-blue: #eaf3f6; /* 도면 목록: 검토 중 배지 */
+  --color-soft-orange: #fff2e6; /* 도면 목록: 검토 대기 배지 */
+  --color-soft-purple: #f2effa; /* 도면 목록: 위험 발견 배지 */
+
+  /* 도면 배치 편집기 페이지 */
+  --color-toolbar: #edf2f1; /* 비활성 툴 필 배경 */
 
   --font-sans:
     'Happiness Sans Print', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',

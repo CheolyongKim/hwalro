@@ -14,13 +14,14 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface SafetyCheckMapper {
-    List<InspectionAreaResponse> findAreas();
+    List<InspectionAreaResponse> findAreas(@Param("inspectorId") Long inspectorId);
 
     boolean areaExists(@Param("areaId") Long areaId);
 
     Long lockInspectionArea(@Param("areaId") Long areaId);
 
-    List<InspectionHistoryResponse> findInspectionHistory(@Param("areaId") Long areaId);
+    List<InspectionHistoryResponse> findInspectionHistory(
+            @Param("areaId") Long areaId, @Param("inspectorId") Long inspectorId);
 
     InspectionDetailHeader findInspectionHeader(@Param("inspectionId") Long inspectionId);
 
