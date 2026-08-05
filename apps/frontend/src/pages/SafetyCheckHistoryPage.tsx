@@ -130,7 +130,10 @@ function SafetyCheckHistoryPage() {
             점검 이력을 불러오는 중입니다.
           </div>
         ) : error ? (
-          <div role="alert" className="flex min-h-64 items-center justify-center px-6 text-sm text-red-600">
+          <div
+            role="alert"
+            className="flex min-h-64 items-center justify-center px-6 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : inspections.length === 0 ? (
