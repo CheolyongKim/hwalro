@@ -80,7 +80,7 @@ function SafetyCheckHistoryPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1392px] pb-10">
+    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
       <SafetyCheckHeader
         eyebrow="점검 구역"
         title={area?.name ?? '점검 이력'}
@@ -120,8 +120,8 @@ function SafetyCheckHistoryPage() {
         </div>
       )}
 
-      <section className="mt-8 overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5">
-        <div className="border-b border-line px-6 py-5">
+      <section className="mt-5 overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5">
+        <div className="border-b border-line px-5 py-4 sm:px-7">
           <h2 className="text-xl font-black text-ink">점검 이력</h2>
           <p className="mt-1 text-sm text-text-muted">총 {inspections.length}회</p>
         </div>
@@ -157,7 +157,7 @@ function SafetyCheckHistoryPage() {
                   <button
                     type="button"
                     onClick={() => navigate(`/safety-checklists/inspections/${inspection.id}`)}
-                    className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-primary-soft/30 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
+                    className="grid w-full gap-4 px-5 py-4 text-left transition hover:bg-primary-soft/30 sm:px-7 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
                   >
                     <div>
                       <p className="font-black text-ink">

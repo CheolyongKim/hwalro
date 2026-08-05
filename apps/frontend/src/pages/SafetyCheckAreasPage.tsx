@@ -30,17 +30,17 @@ function SafetyCheckAreasPage() {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-[1392px] pb-10">
+    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
       <SafetyCheckHeader
         eyebrow="안전 운영"
         title="안전 점검·체크리스트"
         description="점검할 층 또는 구역을 선택해 이전 점검 이력과 체크리스트 결과를 확인합니다."
       />
 
-      <section className="mt-8" aria-labelledby="inspection-area-title">
+      <section className="mt-5" aria-labelledby="inspection-area-title">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h2 id="inspection-area-title" className="text-2xl font-black text-ink">
+            <h2 id="inspection-area-title" className="text-xl font-black text-ink">
               점검 구역
             </h2>
             <p className="mt-2 text-sm text-text-muted">등록된 구역 {areas.length}곳</p>
@@ -63,7 +63,7 @@ function SafetyCheckAreasPage() {
             등록된 점검 구역이 없습니다.
           </div>
         ) : (
-          <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {areas.map((area) => (
               <button
                 key={area.id}
