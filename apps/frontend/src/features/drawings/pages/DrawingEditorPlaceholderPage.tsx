@@ -23,7 +23,9 @@ function DrawingEditorPlaceholderPage({ mode }: DrawingEditorPlaceholderPageProp
         </header>
         <section className="mt-5 flex min-h-96 flex-col items-center justify-center gap-3 rounded-xl border border-line bg-white px-6 text-center shadow-sm shadow-ink/5">
           <p className="font-bold text-ink">도면 작성 화면은 준비 중입니다.</p>
-          <p className="text-sm text-text-muted">도면 작성 API와 함께 이 화면이 제공될 예정입니다.</p>
+          <p className="text-sm text-text-muted">
+            도면 작성 API와 함께 이 화면이 제공될 예정입니다.
+          </p>
           <Link
             to="/drawings"
             className="mt-2 inline-flex items-center gap-2 rounded-lg border border-line-strong bg-white px-4 py-2.5 text-sm font-bold text-text-strong transition-colors hover:bg-surface"

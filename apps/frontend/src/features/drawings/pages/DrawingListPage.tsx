@@ -2,10 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MOCK_DRAWINGS } from '../api/mockDrawings';
 import DrawingListTable from '../components/DrawingListTable';
-import {
-  DRAWING_PERIOD_OPTIONS,
-  DRAWING_STATUS_OPTIONS,
-} from '../constants/drawingOptions';
+import { DRAWING_PERIOD_OPTIONS, DRAWING_STATUS_OPTIONS } from '../constants/drawingOptions';
 import type { DrawingItem, DrawingPeriod, DrawingStatus } from '../types/drawing';
 
 type StatusFilter = DrawingStatus | '전체';

@@ -50,7 +50,9 @@ function DrawingListTable({ items, onDelete }: DrawingListTableProps) {
                 </Link>
               </td>
               <td className="px-5 py-4">
-                <span className="block truncate text-sm text-text-muted">{drawing.description}</span>
+                <span className="block truncate text-sm text-text-muted">
+                  {drawing.description}
+                </span>
               </td>
               <td className="px-5 py-4 text-sm font-medium text-text-strong">
                 {drawing.createdBy}
