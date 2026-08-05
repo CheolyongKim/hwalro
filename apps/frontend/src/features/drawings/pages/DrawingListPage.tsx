@@ -19,8 +19,16 @@ function isWithinPeriod(createdAt: string, period: DrawingPeriod): boolean {
 }
 
 function DrawingListPage() {
-  const { items, totalCount, hasNextPage, isPending, isError, error, fetchNextPage, isFetchingNextPage } =
-    useDrawingList();
+  const {
+    items,
+    totalCount,
+    hasNextPage,
+    isPending,
+    isError,
+    error,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useDrawingList();
   const deleteDrawing = useDeleteDrawing();
   const { user } = useAuth();
   const [query, setQuery] = useState('');

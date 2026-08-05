@@ -83,16 +83,8 @@ function WallFields({ wall, dispatch }: WallFieldsProps) {
       <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
       <p className="mt-0.5 text-[13px] text-text-strong">{wall.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <NumberField
-          label="시작점 X"
-          value={wall.startX}
-          onChange={(x) => update({ startX: x })}
-        />
-        <NumberField
-          label="시작점 Y"
-          value={wall.startY}
-          onChange={(y) => update({ startY: y })}
-        />
+        <NumberField label="시작점 X" value={wall.startX} onChange={(x) => update({ startX: x })} />
+        <NumberField label="시작점 Y" value={wall.startY} onChange={(y) => update({ startY: y })} />
         <NumberField label="끝점 X" value={wall.endX} onChange={(x) => update({ endX: x })} />
         <NumberField label="끝점 Y" value={wall.endY} onChange={(y) => update({ endY: y })} />
       </div>

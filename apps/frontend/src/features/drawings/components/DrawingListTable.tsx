@@ -15,14 +15,24 @@ function formatCreatedAt(value: string): string {
   return `${date.split('-').join('. ')}. ${time.slice(0, 5)}`;
 }
 
-function creatorLabel(createdBy: number, currentUserId: number | null, currentUserName: string): string {
+function creatorLabel(
+  createdBy: number,
+  currentUserId: number | null,
+  currentUserName: string,
+): string {
   if (currentUserId !== null && createdBy === currentUserId) {
     return currentUserName;
   }
   return `#${createdBy}`;
 }
 
-function DrawingListTable({ items, onDelete, hasNext, onLoadMore, isFetchingMore }: DrawingListTableProps) {
+function DrawingListTable({
+  items,
+  onDelete,
+  hasNext,
+  onLoadMore,
+  isFetchingMore,
+}: DrawingListTableProps) {
   const { user } = useAuth();
 
   return (
