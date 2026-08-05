@@ -5,17 +5,26 @@ import { useAuth } from '../features/auth/context/AuthContext';
 type SidebarIconName =
   'home' | 'review' | 'risk' | 'checklist' | 'report' | 'regulation' | 'settings';
 
+interface NavigationChild {
+  label: string;
+  to?: string;
+}
+
 interface NavigationItem {
   label: string;
   icon: SidebarIconName;
   to?: string;
-  children?: string[];
+  children?: NavigationChild[];
   requiredRole?: string;
 }
 
 const navigationItems: NavigationItem[] = [
   { label: '홈', icon: 'home', to: '/' },
-  { label: '시뮬레이션 검토', icon: 'review', children: ['도면 목록', '시뮬레이션 목록'] },
+  {
+    label: '시뮬레이션 검토',
+    icon: 'review',
+    children: [{ label: '도면 목록', to: '/drawings' }, { label: '시뮬레이션 목록' }],
+  },
   { label: '보고서 관리', icon: 'report', to: '/reports' },
   { label: '위험 예상 항목 관리', icon: 'risk', to: '/risk-management' },
   { label: '안전 체크리스트', icon: 'checklist', to: '/safety-checklists' },
@@ -174,19 +183,37 @@ function Sidebar() {
                 className="absolute left-full top-12 z-10 ml-2 w-44 space-y-1 rounded-xl bg-ink-deep p-2 shadow-xl shadow-ink/25 lg:static lg:mt-1 lg:ml-0 lg:w-auto lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none"
               >
                 {item.children.map((child) => (
-                  <li key={child}>
-                    <button
-                      type="button"
-                      disabled
-                      aria-label={`${child} (준비 중)`}
-                      className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/35 lg:pl-12"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="h-1 w-1 shrink-0 rounded-full bg-white/30"
-                      />
-                      <span className="truncate">{child}</span>
-                    </button>
+                  <li key={child.label}>
+                    {child.to ? (
+                      <NavLink
+                        to={child.to}
+                        aria-label={child.label}
+                        className={({ isActive }) =>
+                          isActive
+                            ? 'flex h-9 w-full items-center gap-3 rounded-lg bg-white/10 px-3 text-left text-xs font-bold text-white lg:pl-12'
+                            : 'flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/35 transition-colors hover:bg-white/5 hover:text-white/70 lg:pl-12'
+                        }
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="h-1 w-1 shrink-0 rounded-full bg-white/30"
+                        />
+                        <span className="truncate">{child.label}</span>
+                      </NavLink>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        aria-label={`${child.label} (준비 중)`}
+                        className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-xs font-medium text-white/35 lg:pl-12"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="h-1 w-1 shrink-0 rounded-full bg-white/30"
+                        />
+                        <span className="truncate">{child.label}</span>
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
