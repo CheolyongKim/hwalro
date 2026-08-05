@@ -14,6 +14,7 @@ import SafetyCheckDetailPage from '../pages/SafetyCheckDetailPage';
 import SafetyCheckTemplatePage from '../pages/SafetyCheckTemplatePage';
 import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
+import LayoutPage from '../features/layout/pages/LayoutPage';
 
 export const router = createBrowserRouter([
   {
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
               },
             ],
           },
+          { path: 'layout/:drawingId', element: <LayoutPage /> },
         ],
       },
       { path: 'login', element: <LoginPage /> },

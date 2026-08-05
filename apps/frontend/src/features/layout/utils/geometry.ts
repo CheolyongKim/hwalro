@@ -1,0 +1,123 @@
+import type { Vec2 } from '../types';
+
+export const MIN_ZOOM = 0.25;
+export const MAX_ZOOM = 8;
+
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function clampZoom(zoom: number): number {
+  return clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+}
+
+export function distance(a: Vec2, b: Vec2): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+export function segmentLength(a: Vec2, b: Vec2): number {
+  return distance(a, b);
+}
+
+export function closestPointOnSegment(p: Vec2, a: Vec2, b: Vec2): Vec2 {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) {
+    return { x: a.x, y: a.y };
+  }
+  const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq, 0, 1);
+  return { x: a.x + t * dx, y: a.y + t * dy };
+}
+
+export function distanceToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const closest = closestPointOnSegment(p, a, b);
+  return distance(p, closest);
+}
+
+export function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+export function formatMeters(value: number): string {
+  const rounded = round1(value);
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+export function screenToWorld(
+  screen: Vec2,
+  rect: { left: number; top: number },
+  camera: CameraLike,
+): Vec2 {
+  return {
+    x: camera.panX + (screen.x - rect.left) / camera.zoom,
+    y: camera.panY + (screen.y - rect.top) / camera.zoom,
+  };
+}
+
+export interface CameraLike {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+export function worldToScreen(
+  world: Vec2,
+  rect: { left: number; top: number },
+  camera: CameraLike,
+): Vec2 {
+  return {
+    x: rect.left + (world.x - camera.panX) * camera.zoom,
+    y: rect.top + (world.y - camera.panY) * camera.zoom,
+  };
+}
+
+export function zoomAtPoint(
+  camera: CameraLike,
+  screen: Vec2,
+  rect: { left: number; top: number },
+  factor: number,
+): CameraLike {
+  const anchor = screenToWorld(screen, rect, camera);
+  const zoom = clampZoom(camera.zoom * factor);
+  return {
+    zoom,
+    panX: anchor.x - (screen.x - rect.left) / zoom,
+    panY: anchor.y - (screen.y - rect.top) / zoom,
+  };
+}
+
+export function fitCamera(
+  docWidth: number,
+  docHeight: number,
+  viewW: number,
+  viewH: number,
+): CameraLike {
+  const zoom = clampZoom(Math.min(viewW / docWidth, viewH / docHeight) * 0.95);
+  return {
+    zoom,
+    panX: (docWidth - viewW / zoom) / 2,
+    panY: (docHeight - viewH / zoom) / 2,
+  };
+}
+
+export function clampPan(
+  camera: CameraLike,
+  docWidth: number,
+  docHeight: number,
+  viewW: number,
+  viewH: number,
+): CameraLike {
+  const margin = 0;
+  const minX = -margin;
+  const maxX = docWidth + margin - viewW;
+  const minY = -margin;
+  const maxY = docHeight + margin - viewH;
+  const panX = viewW > maxX - minX ? (minX + maxX) / 2 : clamp(camera.panX, minX, maxX);
+  const panY = viewH > maxY - minY ? (minY + maxY) / 2 : clamp(camera.panY, minY, maxY);
+  return { zoom: camera.zoom, panX, panY };
+}
+
+export function estimateTextWidthPx(text: string, fontSizePx: number): number {
+  return text.length * fontSizePx * 0.62 + 4;
+}

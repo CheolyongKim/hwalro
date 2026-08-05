@@ -18,6 +18,9 @@
   --color-danger: #c94f47; /* 높음 배지(심각도) 텍스트 */
   --color-danger-soft: #fcecea; /* 높음 배지(심각도) 배경 */
 
+  /* 도면 배치 편집기 페이지 */
+  --color-toolbar: #edf2f1; /* 비활성 툴 필 배경 */
+
   --font-sans:
     'Happiness Sans Print', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',
     sans-serif;
