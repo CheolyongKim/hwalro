@@ -93,12 +93,13 @@ public class AuthController {
         return ResponseEntity.ok(toUserResponse(user));
     }
 
-    @Operation(summary = "사용자 표시 이름 일괄 조회", description = "안전 검토자는 여러 사용자를, 운영 담당자는 본인만 조회할 수 있습니다.")
+    @Operation(summary = "사용자 표시 이름 일괄 조회", description = "관리자와 안전 검토자는 여러 사용자를, 운영 담당자는 본인만 조회할 수 있습니다.")
     @GetMapping("/users")
     public List<UserSummaryResponse> users(
             @RequestParam List<Long> ids,
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser principal) {
-        boolean canReadAllUsers = principal.roles().contains("SAFETY_REVIEWER");
+        boolean canReadAllUsers = principal.roles().contains("SAFETY_REVIEWER")
+                || principal.roles().contains("ADMIN");
         boolean requestsOnlySelf = ids.stream().allMatch(id -> id.equals(principal.userId()));
         if (!canReadAllUsers && !requestsOnlySelf) {
             throw new AccessDeniedException("다른 사용자의 정보를 조회할 권한이 없습니다.");

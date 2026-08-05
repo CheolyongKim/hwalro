@@ -22,30 +22,33 @@ function RiskManagementPage() {
   const selectedItem = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-[1392px] pb-10">
-      <header className="flex items-start justify-between gap-6">
+    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
+      <header className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-ink">위험 예상 항목 관리</h1>
-          <p className="mt-3 text-sm text-text-muted">
+          <p className="text-sm font-bold text-primary">안전 운영</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-ink sm:text-4xl">
+            위험 예상 항목 관리
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-text-muted">
             시뮬레이션과 현장 점검에서 발견한 위험을 담당자와 상태로 관리합니다.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setIsCreateOpen(true)}
-          className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary/85"
+          className="h-11 shrink-0 rounded-lg bg-primary px-5 text-sm font-bold text-white transition-colors hover:bg-primary/85"
         >
           위험 예상 항목 등록
         </button>
       </header>
 
-      <div className="mt-11 grid grid-cols-1 gap-11 lg:grid-cols-[722fr_342fr]">
-        <section className="rounded-lg border border-line bg-white px-5 pb-5 pt-11">
-          <div className="flex items-center justify-between px-2">
-            <h2 className="text-2xl font-bold text-ink">위험 예상 목록</h2>
-            <p className="text-sm text-text-muted">전체 {totalCount}건</p>
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <section className="overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5">
+          <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-7">
+            <h2 className="text-xl font-black text-ink">위험 예상 목록</h2>
+            <p className="text-sm text-text-muted">총 {totalCount}건</p>
           </div>
-          <div className="mt-6">
+          <div>
             {isPending ? (
               <p className="text-sm text-text-muted">불러오는 중...</p>
             ) : isError ? (
@@ -65,9 +68,9 @@ function RiskManagementPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-line bg-white px-7 pb-7 pt-9">
-          <h2 className="text-2xl font-bold text-ink">위험 상세</h2>
-          <div className="mt-12">
+        <section className="flex min-h-[500px] flex-col rounded-xl border border-line bg-white p-6 shadow-sm shadow-ink/5">
+          <h2 className="text-xl font-black text-ink">위험 상세</h2>
+          <div className="mt-5">
             {selectedItem ? (
               <RiskDetailPanel key={selectedItem.id} risk={selectedItem} />
             ) : (

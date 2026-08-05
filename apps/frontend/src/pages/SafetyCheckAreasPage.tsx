@@ -2,10 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type { InspectionArea } from '../features/safetyChecks/types';
-import {
-  formatInspectionDate,
-  getSafetyCheckError,
-} from '../features/safetyChecks/utils';
+import { formatInspectionDate, getSafetyCheckError } from '../features/safetyChecks/utils';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
 function SafetyCheckAreasPage() {

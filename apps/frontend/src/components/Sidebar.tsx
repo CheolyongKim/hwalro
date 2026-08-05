@@ -10,6 +10,7 @@ interface NavigationItem {
   icon: SidebarIconName;
   to?: string;
   children?: string[];
+  requiredRole?: string;
 }
 
 const navigationItems: NavigationItem[] = [
@@ -20,6 +21,7 @@ const navigationItems: NavigationItem[] = [
   { label: '안전 체크리스트', icon: 'checklist', to: '/safety-checklists' },
   { label: '시스템 관리', icon: 'settings', to: '/system-management' },
   { label: '안전 법령', icon: 'regulation', to: '/regulations' },
+  { label: '시스템 관리', icon: 'settings', to: '/system-management', requiredRole: 'ADMIN' },
 ];
 
 const iconPaths: Record<SidebarIconName, React.ReactNode> = {
@@ -101,6 +103,9 @@ function Sidebar() {
   const [isSimulationMenuOpen, setIsSimulationMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const visibleNavigationItems = navigationItems.filter(
+    (item) => !item.requiredRole || user?.roles.includes(item.requiredRole),
+  );
 
   const handleLogout = async () => {
     await logout();
@@ -132,7 +137,7 @@ function Sidebar() {
       <div className="my-7 h-px bg-white/10" />
 
       <nav aria-label="주요 메뉴" className="flex flex-col gap-2">
-        {navigationItems.map((item) =>
+        {visibleNavigationItems.map((item) =>
           item.children ? (
             <div key={item.label} className="relative">
               <button
@@ -190,7 +195,7 @@ function Sidebar() {
             <NavLink
               key={item.label}
               to={item.to}
-              end
+              end={item.to === '/'}
               aria-label={item.label}
               className={({ isActive }) =>
                 isActive

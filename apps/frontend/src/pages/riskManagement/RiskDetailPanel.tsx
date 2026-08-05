@@ -5,10 +5,10 @@ import type { Risk } from '../../features/risks/types/risks';
 import { getRiskErrorMessage } from '../../features/risks/utils/getRiskErrorMessage';
 
 const INPUT_CLASSES =
-  'mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink';
+  'mt-2 w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-text-muted outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15';
 
 const SELECT_CLASSES =
-  'rounded-2xl border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-text-strong outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink';
+  'rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-bold text-text-strong outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15';
 
 function RiskDetailPanel({ risk }: { risk: Risk }) {
   const {
@@ -76,7 +76,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
         </select>
       </div>
 
-      <label className="mt-8 block text-sm font-bold text-text-muted" htmlFor="risk-title">
+      <label className="mt-6 block text-xs font-bold text-text-muted" htmlFor="risk-title">
         위험 항목명
       </label>
       <input
@@ -86,7 +86,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
         className={INPUT_CLASSES}
       />
 
-      <label className="mt-8 block text-sm font-bold text-text-muted" htmlFor="risk-description">
+      <label className="mt-6 block text-xs font-bold text-text-muted" htmlFor="risk-description">
         설명
       </label>
       <textarea
@@ -103,12 +103,12 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
         </p>
       )}
 
-      <div className="mt-8 grid grid-cols-2 gap-4 pb-1">
+      <div className="mt-6 grid grid-cols-2 gap-3 pb-1">
         <button
           type="button"
           onClick={handleSave}
           disabled={updateMutation.isPending}
-          className="rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-11 rounded-lg bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {updateMutation.isPending ? '저장 중...' : '저장'}
         </button>
@@ -116,7 +116,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
           type="button"
           onClick={handleDelete}
           disabled={deleteMutation.isPending}
-          className="rounded-lg border border-line-strong bg-white px-4 py-3 text-sm font-bold text-text-strong transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-11 rounded-lg border border-line-strong bg-white px-4 text-sm font-bold text-text-strong transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
         >
           {deleteMutation.isPending ? '삭제 중...' : '삭제'}
         </button>
