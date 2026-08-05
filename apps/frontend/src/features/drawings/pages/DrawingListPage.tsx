@@ -90,7 +90,7 @@ function DrawingListPage() {
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value as StatusFilter)}
-                className="min-w-20 bg-transparent outline-none"
+                className="min-w-20 rounded-lg bg-transparent outline-none transition focus-visible:ring-2 focus-visible:ring-primary/15"
               >
                 <option value="전체">전체</option>
                 {DRAWING_STATUS_OPTIONS.map((option) => (
@@ -105,7 +105,7 @@ function DrawingListPage() {
               <select
                 value={creator}
                 onChange={(event) => setCreator(event.target.value)}
-                className="min-w-20 bg-transparent outline-none"
+                className="min-w-20 rounded-lg bg-transparent outline-none transition focus-visible:ring-2 focus-visible:ring-primary/15"
               >
                 {CREATOR_OPTIONS.map((option) => (
                   <option key={option} value={option}>
@@ -119,7 +119,7 @@ function DrawingListPage() {
               <select
                 value={period}
                 onChange={(event) => setPeriod(event.target.value as DrawingPeriod)}
-                className="min-w-20 bg-transparent outline-none"
+                className="min-w-20 rounded-lg bg-transparent outline-none transition focus-visible:ring-2 focus-visible:ring-primary/15"
               >
                 {DRAWING_PERIOD_OPTIONS.map((option) => (
                   <option key={option} value={option}>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/context/AuthContext';
 
 type SidebarIconName =
@@ -111,9 +111,16 @@ function Sidebar() {
   const [isSimulationMenuOpen, setIsSimulationMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const visibleNavigationItems = navigationItems.filter(
     (item) => !item.requiredRole || user?.roles.includes(item.requiredRole),
   );
+
+  useEffect(() => {
+    if (pathname.startsWith('/drawings')) {
+      setIsSimulationMenuOpen(true);
+    }
+  }, [pathname]);
 
   const handleLogout = async () => {
     await logout();
