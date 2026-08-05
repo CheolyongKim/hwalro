@@ -37,13 +37,15 @@ public class SafetyCheckController {
     }
 
     @GetMapping("/areas")
-    public List<InspectionAreaResponse> getAreas() {
-        return safetyCheckService.getAreas();
+    public List<InspectionAreaResponse> getAreas(
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return safetyCheckService.getAreas(user);
     }
 
     @GetMapping("/areas/{areaId}/inspections")
-    public List<InspectionHistoryResponse> getInspectionHistory(@PathVariable Long areaId) {
-        return safetyCheckService.getInspectionHistory(areaId);
+    public List<InspectionHistoryResponse> getInspectionHistory(
+            @PathVariable Long areaId, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return safetyCheckService.getInspectionHistory(areaId, user);
     }
 
     @GetMapping("/areas/{areaId}/checklist-template")
@@ -67,8 +69,10 @@ public class SafetyCheckController {
     }
 
     @GetMapping("/inspections/{inspectionId}")
-    public InspectionDetailResponse getInspection(@PathVariable Long inspectionId) {
-        return safetyCheckService.getInspection(inspectionId);
+    public InspectionDetailResponse getInspection(
+            @PathVariable Long inspectionId,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return safetyCheckService.getInspection(inspectionId, user);
     }
 
     @PutMapping("/inspections/{inspectionId}")

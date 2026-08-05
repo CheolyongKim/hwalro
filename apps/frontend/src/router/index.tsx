@@ -16,6 +16,7 @@ import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
 import DrawingEditorPlaceholderPage from '../features/drawings/pages/DrawingEditorPlaceholderPage';
+import LayoutPage from '../features/layout/pages/LayoutPage';
 
 export const router = createBrowserRouter([
   {
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
               },
             ],
           },
+          { path: 'layout/:drawingId', element: <LayoutPage /> },
         ],
       },
       { path: 'login', element: <LoginPage /> },

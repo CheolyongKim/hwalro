@@ -97,7 +97,7 @@ function SafetyCheckDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex min-h-96 w-full max-w-[1392px] items-center justify-center rounded-xl border border-line bg-white text-sm text-text-muted">
+      <div className="mx-auto flex min-h-96 w-full max-w-[1360px] items-center justify-center rounded-xl border border-line bg-white text-sm text-text-muted">
         체크리스트를 불러오는 중입니다.
       </div>
     );
@@ -107,7 +107,7 @@ function SafetyCheckDetailPage() {
     return (
       <div
         role="alert"
-        className="mx-auto flex min-h-96 w-full max-w-[1392px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm text-red-600"
+        className="mx-auto flex min-h-96 w-full max-w-[1360px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm text-red-600"
       >
         {error ?? '점검 정보를 찾을 수 없습니다.'}
       </div>
@@ -115,7 +115,7 @@ function SafetyCheckDetailPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1392px] pb-10">
+    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
       <SafetyCheckHeader
         eyebrow="점검 상세"
         title="안전 점검·체크리스트"
@@ -160,7 +160,7 @@ function SafetyCheckDetailPage() {
         </div>
       )}
 
-      <div className="mt-7 grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="rounded-xl border border-line bg-white p-6 shadow-sm shadow-ink/5">
           <h2 className="text-lg font-black text-ink">점검 정보</h2>
           <dl className="mt-6 space-y-5">

@@ -1,0 +1,84 @@
+import type { Vec2, Wall } from '../types';
+
+export const ANGLE_SNAP_DEG = 4;
+export const ENDPOINT_MAGNET_PX = 10;
+
+export interface SnapResult {
+  point: Vec2;
+  snappedToEndpoint: Vec2 | null;
+  axisSnapped: boolean;
+}
+
+export function wallEndpoints(wall: Wall): [Vec2, Vec2] {
+  return [
+    { x: wall.startX, y: wall.startY },
+    { x: wall.endX, y: wall.endY },
+  ];
+}
+
+export function allEndpoints(walls: Wall[]): Vec2[] {
+  const points: Vec2[] = [];
+  for (const wall of walls) {
+    points.push({ x: wall.startX, y: wall.startY });
+    points.push({ x: wall.endX, y: wall.endY });
+  }
+  return points;
+}
+
+export function axisSnap(origin: Vec2, target: Vec2): Vec2 | null {
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
+    return null;
+  }
+  const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const modAngle = ((angle % 90) + 90) % 90;
+  const distanceToAxis = Math.min(modAngle, 90 - modAngle);
+  if (distanceToAxis > ANGLE_SNAP_DEG) {
+    return null;
+  }
+  if (modAngle < 45) {
+    return { x: target.x, y: origin.y };
+  }
+  return { x: origin.x, y: target.y };
+}
+
+export function endpointMagnet(
+  point: Vec2,
+  candidates: Vec2[],
+  exclude: Vec2[],
+  zoom: number,
+): Vec2 | null {
+  const radius = ENDPOINT_MAGNET_PX / zoom;
+  let best: Vec2 | null = null;
+  let bestDist = radius;
+  for (const candidate of candidates) {
+    if (exclude.some((e) => e.x === candidate.x && e.y === candidate.y)) {
+      continue;
+    }
+    const dist = Math.hypot(candidate.x - point.x, candidate.y - point.y);
+    if (dist <= bestDist) {
+      bestDist = dist;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+export function snapPoint(
+  raw: Vec2,
+  origin: Vec2,
+  walls: Wall[],
+  exclude: Vec2[],
+  zoom: number,
+): SnapResult {
+  const magnet = endpointMagnet(raw, allEndpoints(walls), exclude, zoom);
+  if (magnet) {
+    return { point: magnet, snappedToEndpoint: magnet, axisSnapped: false };
+  }
+  const axis = axisSnap(origin, raw);
+  if (axis) {
+    return { point: axis, snappedToEndpoint: null, axisSnapped: true };
+  }
+  return { point: raw, snappedToEndpoint: null, axisSnapped: false };
+}

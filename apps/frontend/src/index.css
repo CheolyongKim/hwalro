@@ -22,6 +22,9 @@
   --color-soft-orange: #fff2e6; /* 도면 목록: 검토 대기 배지 */
   --color-soft-purple: #f2effa; /* 도면 목록: 위험 발견 배지 */
 
+  /* 도면 배치 편집기 페이지 */
+  --color-toolbar: #edf2f1; /* 비활성 툴 필 배경 */
+
   --font-sans:
     'Happiness Sans Print', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',
     sans-serif;
