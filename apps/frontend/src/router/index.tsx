@@ -14,6 +14,8 @@ import SafetyCheckDetailPage from '../pages/SafetyCheckDetailPage';
 import SafetyCheckTemplatePage from '../pages/SafetyCheckTemplatePage';
 import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
+import DrawingListPage from '../features/drawings/pages/DrawingListPage';
+import DrawingEditorPlaceholderPage from '../features/drawings/pages/DrawingEditorPlaceholderPage';
 import LayoutPage from '../features/layout/pages/LayoutPage';
 
 export const router = createBrowserRouter([
@@ -47,6 +49,15 @@ export const router = createBrowserRouter([
                 element: <SafetyCheckTemplatePage />,
               },
               { path: 'reports/:reportId', element: <ReportDetailPage /> },
+              { path: 'drawings', element: <DrawingListPage /> },
+              {
+                path: 'drawings/new',
+                element: <DrawingEditorPlaceholderPage mode="create" />,
+              },
+              {
+                path: 'drawings/:drawingId',
+                element: <DrawingEditorPlaceholderPage mode="edit" />,
+              },
               { path: 'regulations', element: <RegulationsPage /> },
               {
                 element: <AdminRoute />,
