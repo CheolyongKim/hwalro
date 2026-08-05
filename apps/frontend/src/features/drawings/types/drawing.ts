@@ -25,6 +25,7 @@ export interface Drawing extends DrawingSummary {
   height: number;
   walls: DrawingWall[];
   layoutTexts: DrawingLayoutText[];
+  version: number;
 }
 
 export interface DrawingCreateRequest {
@@ -37,6 +38,7 @@ export interface DrawingUpdateRequest {
   description: string | null;
   walls: DrawingWall[];
   layoutTexts: DrawingLayoutText[];
+  expectedVersion: number;
 }
 
 export interface DrawingListResponse {

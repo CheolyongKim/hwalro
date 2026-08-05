@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutToolbar } from '../components/LayoutToolbar';
 import { ZoomControl } from '../components/ZoomControl';
@@ -10,7 +11,7 @@ import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
 import '../layout.css';
 
-type LoadStatus = 'loading' | 'ready' | 'missing';
+type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 function LayoutPage() {
@@ -20,6 +21,7 @@ function LayoutPage() {
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [retryCount, setRetryCount] = useState(0);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
@@ -39,6 +41,8 @@ function LayoutPage() {
     }
     loadedRef.current = true;
     let cancelled = false;
+    sessionRef.current = null;
+    setLoadStatus('loading');
     fetchDrawing(drawingId)
       .then((session) => {
         if (cancelled) {
@@ -54,25 +58,31 @@ function LayoutPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setLoadStatus('missing');
+          setLoadStatus('error');
         }
       });
     return () => {
       cancelled = true;
       loadedRef.current = false;
     };
-  }, [drawingId]);
+  }, [drawingId, retryCount]);
 
   const performSave = useCallback(async () => {
-    if (saveStatus === 'saving' || loadStatus !== 'ready') {
+    if (saveStatus === 'saving' || loadStatus !== 'ready' || sessionRef.current === null) {
       return;
     }
     setSaveStatus('saving');
     try {
-      await saveDrawing(drawingId, {
+      const version = await saveDrawing(drawingId, {
         doc: stateRef.current.doc,
-        description: sessionRef.current?.description ?? null,
+        description: sessionRef.current.description,
+        version: sessionRef.current.version,
       });
+      sessionRef.current = {
+        ...sessionRef.current,
+        doc: stateRef.current.doc,
+        version,
+      };
       setSaveStatus('saved');
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -81,9 +91,16 @@ function LayoutPage() {
         setSaveStatus('idle');
         saveTimerRef.current = null;
       }, 2000);
-    } catch {
+    } catch (error) {
       setSaveStatus('error');
-      dispatch({ type: 'setError', message: '저장에 실패했습니다' });
+      const conflict =
+        error instanceof AxiosError && error.response?.status === 409;
+      dispatch({
+        type: 'setError',
+        message: conflict
+          ? '다른 사용자가 이 도면을 수정했습니다. 새로고침 후 다시 시도해 주세요.'
+          : '저장에 실패했습니다',
+      });
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
       }
@@ -140,6 +157,30 @@ function LayoutPage() {
         >
           목록으로 이동
         </button>
+      </div>
+    );
+  }
+
+  if (loadStatus === 'error') {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background">
+        <p className="text-sm text-text-muted">도면을 불러오지 못했습니다</p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setRetryCount((count) => count + 1)}
+            className="h-9 rounded-md bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85"
+          >
+            다시 시도
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="h-9 rounded-md border border-line-strong bg-white px-4 text-sm font-bold text-text-strong transition-colors hover:bg-surface"
+          >
+            목록으로 이동
+          </button>
+        </div>
       </div>
     );
   }

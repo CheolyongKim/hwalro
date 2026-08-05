@@ -41,6 +41,9 @@ public interface DrawingMapper {
 
     int updateLayoutCurrentVersion(Layout layout);
 
+    int updateLayoutVersionLock(
+            @Param("id") Long id, @Param("expectedLock") Integer expectedLock, @Param("nextLock") Integer nextLock);
+
     int deleteFacilitiesByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deleteLayoutTextsByVersionId(@Param("layoutVersionId") Long layoutVersionId);

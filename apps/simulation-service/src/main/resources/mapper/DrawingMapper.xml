@@ -134,6 +134,13 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updateLayoutVersionLock">
+        UPDATE layout_versions
+        SET optimistic_lock = #{nextLock}
+        WHERE id = #{id}
+          AND optimistic_lock = #{expectedLock}
+    </update>
+
     <delete id="deleteFacilitiesByVersionId">
         DELETE FROM facilities
         WHERE layout_version_id = #{layoutVersionId}

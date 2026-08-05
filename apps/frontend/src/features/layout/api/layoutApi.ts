@@ -6,6 +6,7 @@ import { drawingApi } from '../../drawings/api/drawingApi';
 export interface DrawingSession {
   doc: DrawingDocument;
   description: string | null;
+  version: number;
 }
 
 export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
@@ -18,7 +19,7 @@ export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
       walls: drawing.walls,
       layoutTexts: drawing.layoutTexts,
     });
-    return { doc, description: drawing.description };
+    return { doc, description: drawing.description, version: drawing.version };
   } catch (error) {
     if (error instanceof AxiosError && error.response?.status === 404) {
       return null;
@@ -27,15 +28,14 @@ export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
   }
 }
 
-export async function saveDrawing(
-  id: string,
-  session: { doc: DrawingDocument; description: string | null },
-): Promise<void> {
+export async function saveDrawing(id: string, session: DrawingSession): Promise<number> {
   const serialized = toSerialized(session.doc);
-  await drawingApi.update(Number(id), {
+  const drawing = await drawingApi.update(Number(id), {
     title: serialized.name,
     description: session.description,
     walls: serialized.walls,
     layoutTexts: serialized.layoutTexts,
+    expectedVersion: session.version,
   });
+  return drawing.version;
 }

@@ -13,4 +13,5 @@ public record DrawingResponse(
         BigDecimal width,
         BigDecimal height,
         List<WallDto> walls,
-        List<LayoutTextDto> layoutTexts) {}
+        List<LayoutTextDto> layoutTexts,
+        Integer version) {}

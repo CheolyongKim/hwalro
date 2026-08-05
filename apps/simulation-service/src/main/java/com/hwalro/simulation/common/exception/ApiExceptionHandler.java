@@ -2,6 +2,7 @@ package com.hwalro.simulation.common.exception;
 
 import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.InvalidTokenException;
+import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import java.util.Map;
@@ -59,7 +60,13 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(DrawingDeletionNotAllowedException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
-    public Map<String, String> handleDrawingDeletionNotAllowed(DrawingDeletionNotAllowedException exception) {
+    public Map<String, String> handleDeletionNotAllowed(DrawingDeletionNotAllowedException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(DrawingConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> handleConflict(DrawingConflictException exception) {
         return Map.of("message", exception.getMessage());
     }
 

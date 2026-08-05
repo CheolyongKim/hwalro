@@ -154,14 +154,21 @@ function DrawingListPage() {
                 {getDrawingErrorMessage(error)}
               </p>
             </div>
-          ) : filteredDrawings.length > 0 ? (
-            <DrawingListTable
-              items={filteredDrawings}
-              onDelete={handleDelete}
-              hasNext={hasNextPage}
-              onLoadMore={() => void fetchNextPage()}
-              isFetchingMore={isFetchingNextPage}
-            />
+          ) : filteredDrawings.length > 0 || hasNextPage ? (
+            <div>
+              {filteredDrawings.length === 0 && (
+                <div className="flex min-h-40 items-center justify-center px-6 text-center text-sm text-text-muted">
+                  조건에 맞는 도면이 없습니다. 더 보기를 눌러 다음 도면을 확인해 보세요.
+                </div>
+              )}
+              <DrawingListTable
+                items={filteredDrawings}
+                onDelete={handleDelete}
+                hasNext={hasNextPage}
+                onLoadMore={() => void fetchNextPage()}
+                isFetchingMore={isFetchingNextPage}
+              />
+            </div>
           ) : (
             <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
               {totalCount > 0

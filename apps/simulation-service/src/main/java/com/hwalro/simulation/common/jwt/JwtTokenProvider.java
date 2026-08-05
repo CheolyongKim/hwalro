@@ -34,6 +34,9 @@ public class JwtTokenProvider {
         Claims claims = parseToken(token);
         requireType(claims, TOKEN_TYPE_ACCESS);
         Long userId = claims.get(CLAIM_USER_ID, Long.class);
+        if (userId == null) {
+            throw new InvalidTokenException("토큰에 사용자 정보가 없습니다.");
+        }
         List<?> rawRoles = claims.get(CLAIM_USER_ROLES, List.class);
         Set<String> roles = new HashSet<>();
         if (rawRoles != null) {
