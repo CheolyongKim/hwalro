@@ -35,17 +35,18 @@ public class SafetyCheckService {
         this.safetyCheckMapper = safetyCheckMapper;
     }
 
-    public List<InspectionAreaResponse> getAreas() {
-        return safetyCheckMapper.findAreas();
+    public List<InspectionAreaResponse> getAreas(JwtUser user) {
+        return safetyCheckMapper.findAreas(resolveInspectorFilter(user));
     }
 
-    public List<InspectionHistoryResponse> getInspectionHistory(Long areaId) {
+    public List<InspectionHistoryResponse> getInspectionHistory(Long areaId, JwtUser user) {
         requireArea(areaId);
-        return safetyCheckMapper.findInspectionHistory(areaId);
+        return safetyCheckMapper.findInspectionHistory(areaId, resolveInspectorFilter(user));
     }
 
-    public InspectionDetailResponse getInspection(Long inspectionId) {
+    public InspectionDetailResponse getInspection(Long inspectionId, JwtUser user) {
         InspectionDetailHeader header = findHeader(inspectionId);
+        requireReadable(user, header);
         return toDetail(header, safetyCheckMapper.findInspectionItems(inspectionId));
     }
 
@@ -101,7 +102,7 @@ public class SafetyCheckService {
         inspection.setInspectorId(user.userId());
         safetyCheckMapper.insertInspection(inspection);
         safetyCheckMapper.insertInspectionItems(inspection.getId(), templateId);
-        return getInspection(inspection.getId());
+        return getInspection(inspection.getId(), user);
     }
 
     @Transactional
@@ -139,7 +140,7 @@ public class SafetyCheckService {
                 != 1) {
             throw new IllegalArgumentException("The inspection was already completed by another request.");
         }
-        return getInspection(inspectionId);
+        return getInspection(inspectionId, user);
     }
 
     @Transactional
@@ -187,6 +188,29 @@ public class SafetyCheckService {
             throw new SafetyInspectionNotFoundException(inspectionId);
         }
         return header;
+    }
+
+    private Long resolveInspectorFilter(JwtUser user) {
+        if (canReadAll(user)) {
+            return null;
+        }
+        if (user.roles().contains("OPERATOR")) {
+            return user.userId();
+        }
+        throw new ForbiddenException("안전 점검 조회 권한이 없습니다.");
+    }
+
+    private void requireReadable(JwtUser user, InspectionDetailHeader inspection) {
+        if (canReadAll(user)
+                || (user.roles().contains("OPERATOR")
+                        && inspection.inspectorId().equals(user.userId()))) {
+            return;
+        }
+        throw new ForbiddenException("이 안전 점검을 조회할 권한이 없습니다.");
+    }
+
+    private boolean canReadAll(JwtUser user) {
+        return user.roles().contains("SAFETY_REVIEWER") || user.roles().contains("ADMIN");
     }
 
     private void validateUpdate(InspectionUpdateRequest request) {

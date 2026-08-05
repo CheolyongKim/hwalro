@@ -14,6 +14,9 @@
         FROM inspection_areas area
         LEFT JOIN safety_inspections inspection
                ON inspection.inspection_area_id = area.id
+        <if test="inspectorId != null">
+           AND inspection.inspector_id = #{inspectorId}
+        </if>
         WHERE area.active = TRUE
         GROUP BY area.id,
                  area.floor_plan_id,
@@ -51,6 +54,9 @@
         LEFT JOIN safety_inspection_items item
                ON item.safety_inspection_id = inspection.id
         WHERE inspection.inspection_area_id = #{areaId}
+        <if test="inspectorId != null">
+          AND inspection.inspector_id = #{inspectorId}
+        </if>
         GROUP BY inspection.id,
                  inspection.inspector_id,
                  inspection.status,

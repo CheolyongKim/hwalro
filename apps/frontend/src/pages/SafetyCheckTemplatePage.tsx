@@ -148,14 +148,14 @@ function SafetyCheckTemplatePage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex min-h-96 w-full max-w-[1392px] items-center justify-center rounded-xl border border-line bg-white text-sm text-text-muted">
+      <div className="mx-auto flex min-h-96 w-full max-w-[1360px] items-center justify-center rounded-xl border border-line bg-white text-sm text-text-muted">
         점검 항목을 불러오는 중입니다.
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] pb-10">
+    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
       <SafetyCheckHeader
         eyebrow="체크리스트 설정"
         title={`${area?.name ?? '점검 구역'} 점검 항목`}
@@ -191,7 +191,7 @@ function SafetyCheckTemplatePage() {
         </div>
       )}
 
-      <section className="mt-7 rounded-xl border border-line bg-white p-5 shadow-sm shadow-ink/5 sm:p-7">
+      <section className="mt-5 rounded-xl border border-line bg-white p-5 shadow-sm shadow-ink/5 sm:p-7">
         <div className="flex items-end justify-between gap-4 border-b border-line pb-5">
           <div>
             <h2 className="text-xl font-black text-ink">항목 구성</h2>
