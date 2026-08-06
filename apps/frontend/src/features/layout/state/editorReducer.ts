@@ -567,6 +567,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const nextWall: Wall = { ...wall, ...action.patch };
       if (
+        round1(nextWall.startX) === round1(nextWall.endX) &&
+        round1(nextWall.startY) === round1(nextWall.endY)
+      ) {
+        return state;
+      }
+      if (
         !isRectInsideBounds(
           state.doc,
           nextWall.startX,
@@ -590,6 +596,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextExit: Exit = { ...exit, ...action.patch };
+      if (
+        round1(nextExit.startX) === round1(nextExit.endX) &&
+        round1(nextExit.startY) === round1(nextExit.endY)
+      ) {
+        return state;
+      }
       if (
         !isRectInsideBounds(
           state.doc,
@@ -615,6 +627,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const nextPillar: Pillar = { ...pillar, ...action.patch };
       if (
+        round1(nextPillar.startX) === round1(nextPillar.endX) &&
+        round1(nextPillar.startY) === round1(nextPillar.endY)
+      ) {
+        return state;
+      }
+      if (
         !isRectInsideBounds(
           state.doc,
           nextPillar.startX,
@@ -638,6 +656,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextFabric: Fabric = { ...fabric, ...action.patch };
+      if (
+        round1(nextFabric.startX) === round1(nextFabric.endX) &&
+        round1(nextFabric.startY) === round1(nextFabric.endY)
+      ) {
+        return state;
+      }
       if (
         !isRectInsideBounds(
           state.doc,
@@ -678,6 +702,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextWall: OutsideWall = { ...wall, ...action.patch };
+      if (
+        round1(nextWall.startX) === round1(nextWall.endX) &&
+        round1(nextWall.startY) === round1(nextWall.endY)
+      ) {
+        return state;
+      }
       if (
         !isRectInsideBounds(
           state.doc,
