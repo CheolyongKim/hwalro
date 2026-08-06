@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hwalro.simulation.simulation.mapper.SimulationMapper">
+
+    <sql id="layoutContextColumns">
+        SELECT lv.id AS layout_version_id,
+               l.id AS layout_id,
+               l.created_by,
+               l.title,
+               lv.version AS layout_version_number,
+               lv.status AS layout_version_status,
+               fp.width,
+               fp.height
+        FROM layout_versions lv
+        JOIN layouts l ON l.id = lv.layout_id
+        JOIN floor_plans fp ON fp.id = l.floor_plan_id
+        WHERE lv.id = #{layoutVersionId}
+    </sql>
+
+    <select id="findLayoutContext" resultType="com.hwalro.simulation.simulation.domain.LayoutSimulationContext">
+        <include refid="layoutContextColumns"/>
+    </select>
+
+    <select id="findLayoutContextForUpdate" resultType="com.hwalro.simulation.simulation.domain.LayoutSimulationContext">
+        <include refid="layoutContextColumns"/>
+        FOR UPDATE
+    </select>
+
+    <select id="findSimulationById" resultType="com.hwalro.simulation.simulation.domain.Simulation">
+        SELECT id,
+               layout_version_id,
+               parent_simulation_id,
+               created_by,
+               status,
+               created_at
+        FROM simulations
+        WHERE id = #{id}
+    </select>
+
+    <select id="findSimulationByIdForUpdate" resultType="com.hwalro.simulation.simulation.domain.Simulation">
+        SELECT id,
+               layout_version_id,
+               parent_simulation_id,
+               created_by,
+               status,
+               created_at
+        FROM simulations
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
+
+    <select id="findSimulationsByLayoutVersion" resultType="com.hwalro.simulation.simulation.domain.Simulation">
+        SELECT s.id,
+               s.layout_version_id,
+               s.parent_simulation_id,
+               s.created_by,
+               s.status,
+               s.created_at,
+               so.total_people
+        FROM simulations s
+        JOIN simulation_options so ON so.simulation_id = s.id
+        WHERE s.layout_version_id = #{layoutVersionId}
+        <if test="createdBy != null">
+            AND s.created_by = #{createdBy}
+        </if>
+        ORDER BY s.created_at DESC, s.id DESC
+    </select>
+
+    <select id="findSimulationOption" resultType="com.hwalro.simulation.simulation.domain.SimulationOption">
+        SELECT id,
+               simulation_id,
+               random_seed,
+               model_profile,
+               total_people,
+               walking_speed,
+               reaction_time
+        FROM simulation_options
+        WHERE simulation_id = #{simulationId}
+    </select>
+
+    <select id="findInitialStateJson" resultType="string">
+        SELECT agent_positions
+        FROM simulation_initial_states
+        WHERE simulation_id = #{simulationId}
+    </select>
+
+    <select id="findHazardZones" resultType="com.hwalro.simulation.simulation.domain.HazardZone">
+        SELECT id,
+               simulation_id,
+               center_x,
+               center_y,
+               radius
+        FROM hazard_zones
+        WHERE simulation_id = #{simulationId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findSelectedExitIds" resultType="long">
+        SELECT layout_exit_id
+        FROM simulation_exits
+        WHERE simulation_id = #{simulationId}
+        ORDER BY layout_exit_id ASC
+    </select>
+
+    <insert id="insertSimulation" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, status)
+        VALUES (#{layoutVersionId}, #{parentSimulationId}, #{createdBy}, #{status})
+    </insert>
+
+    <insert id="insertSimulationOption" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO simulation_options
+            (simulation_id, random_seed, model_profile, total_people, walking_speed, reaction_time)
+        VALUES
+            (#{simulationId}, #{randomSeed}, #{modelProfile}, #{totalPeople}, #{walkingSpeed}, #{reactionTime})
+    </insert>
+
+    <insert id="insertInitialState">
+        INSERT INTO simulation_initial_states (simulation_id, agent_positions)
+        VALUES (#{simulationId}, CAST(#{agentPositions} AS JSON))
+    </insert>
+
+    <insert id="insertHazardZones">
+        INSERT INTO hazard_zones (simulation_id, center_x, center_y, radius)
+        VALUES
+        <foreach collection="list" item="hazard" separator=",">
+            (#{hazard.simulationId}, #{hazard.centerX}, #{hazard.centerY}, #{hazard.radius})
+        </foreach>
+    </insert>
+
+    <insert id="insertSimulationExits">
+        INSERT INTO simulation_exits (simulation_id, layout_exit_id, layout_version_id)
+        VALUES
+        <foreach collection="layoutExitIds" item="layoutExitId" separator=",">
+            (#{simulationId}, #{layoutExitId}, #{layoutVersionId})
+        </foreach>
+    </insert>
+
+    <update id="updateSimulationOption">
+        UPDATE simulation_options
+        SET total_people = #{totalPeople},
+            walking_speed = #{walkingSpeed},
+            reaction_time = #{reactionTime}
+        WHERE simulation_id = #{simulationId}
+    </update>
+
+    <update id="updateInitialState">
+        UPDATE simulation_initial_states
+        SET agent_positions = CAST(#{agentPositions} AS JSON)
+        WHERE simulation_id = #{simulationId}
+    </update>
+
+    <delete id="deleteHazardZones">
+        DELETE FROM hazard_zones
+        WHERE simulation_id = #{simulationId}
+    </delete>
+
+    <delete id="deleteSimulationExits">
+        DELETE FROM simulation_exits
+        WHERE simulation_id = #{simulationId}
+    </delete>
+
+    <update id="lockLayoutVersion">
+        UPDATE layout_versions
+        SET status = '잠금'
+        WHERE id = #{layoutVersionId}
+          AND status = '초안'
+    </update>
+
+</mapper>

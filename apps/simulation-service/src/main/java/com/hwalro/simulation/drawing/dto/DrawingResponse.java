@@ -18,4 +18,7 @@ public record DrawingResponse(
         List<FabricDto> fabrics,
         List<LayoutTextDto> layoutTexts,
         List<ExitDto> exits,
-        Integer version) {}
+        Integer version,
+        Long layoutVersionId,
+        Integer layoutVersionNumber,
+        String layoutVersionStatus) {}

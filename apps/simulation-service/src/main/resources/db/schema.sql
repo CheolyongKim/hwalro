@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS simulation_options (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     simulation_id BIGINT UNSIGNED NOT NULL,
     random_seed INT NOT NULL,
+    model_profile VARCHAR(50) NOT NULL DEFAULT 'SFM_DEFAULT_V1',
     total_people INT UNSIGNED NOT NULL,
     walking_speed DECIMAL(8, 4) NOT NULL,
     reaction_time DECIMAL(8, 4) NOT NULL,

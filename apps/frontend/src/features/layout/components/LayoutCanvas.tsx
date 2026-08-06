@@ -36,6 +36,7 @@ interface LayoutCanvasProps {
   dispatch: Dispatch<EditorAction>;
   size: { w: number; h: number };
   onSizeChange: (size: { w: number; h: number }) => void;
+  readOnly?: boolean;
 }
 
 interface PanSession {
@@ -58,7 +59,13 @@ const LINE_DRAFT_UPDATE: Record<
   exit: 'exitUpdate',
 };
 
-export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanvasProps) {
+export function LayoutCanvas({
+  state,
+  dispatch,
+  size,
+  onSizeChange,
+  readOnly = false,
+}: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const [panning, setPanning] = useState(false);
 
@@ -113,6 +120,9 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
     if (event.button !== 0) {
+      return;
+    }
+    if (readOnly) {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();

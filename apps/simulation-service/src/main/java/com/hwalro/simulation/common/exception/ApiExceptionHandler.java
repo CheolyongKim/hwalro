@@ -4,7 +4,11 @@ import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.InvalidTokenException;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
+import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
+import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
+import com.hwalro.simulation.simulation.exception.SimulationConflictException;
+import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +71,30 @@ public class ApiExceptionHandler {
     @ExceptionHandler(DrawingConflictException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public Map<String, String> handleConflict(DrawingConflictException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(DrawingLockedException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> handleDrawingLocked(DrawingLockedException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(SimulationNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleSimulationNotFound(SimulationNotFoundException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(SimulationConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> handleSimulationConflict(SimulationConflictException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidSimulationGeometryException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public Map<String, String> handleInvalidSimulationGeometry(InvalidSimulationGeometryException exception) {
         return Map.of("message", exception.getMessage());
     }
 
