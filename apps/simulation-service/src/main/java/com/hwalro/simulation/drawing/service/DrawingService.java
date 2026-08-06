@@ -419,8 +419,20 @@ public class DrawingService {
             List<FabricDto> fabrics,
             List<LayoutTextDto> layoutTexts,
             List<ExitDto> exits) {
-        if (walls == null || pillars == null || fabrics == null || layoutTexts == null || exits == null) {
-            throw new IllegalArgumentException("도면 데이터가 필요합니다.");
+        if (walls == null) {
+            throw new IllegalArgumentException("벽 데이터가 필요합니다.");
+        }
+        if (pillars == null) {
+            throw new IllegalArgumentException("기둥 데이터가 필요합니다.");
+        }
+        if (fabrics == null) {
+            throw new IllegalArgumentException("구조물 데이터가 필요합니다.");
+        }
+        if (layoutTexts == null) {
+            throw new IllegalArgumentException("텍스트 데이터가 필요합니다.");
+        }
+        if (exits == null) {
+            throw new IllegalArgumentException("비상구 데이터가 필요합니다.");
         }
         if (walls.size() > MAX_WALLS) {
             throw new IllegalArgumentException("벽은 최대 5000개까지 저장할 수 있습니다.");
