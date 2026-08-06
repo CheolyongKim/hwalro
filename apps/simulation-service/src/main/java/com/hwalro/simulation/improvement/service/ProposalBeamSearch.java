@@ -38,7 +38,11 @@ public final class ProposalBeamSearch {
         List<ProposalCandidate> secondChanges = firstBeam.stream()
                 .flatMap(candidate -> candidateGenerator.addSecondChanges(candidate, fabrics).stream())
                 .toList();
-        return rank(secondChanges, isValid, score, RESULT_LIMIT);
+        List<ProposalCandidate> rankedSecondChanges = rank(secondChanges, isValid, score, RESULT_LIMIT);
+        // 주변에 한 개만 있거나 두 번째 변경이 모두 충돌하면, 유효한 단일 변경을 버리지 않습니다.
+        return rankedSecondChanges.isEmpty()
+                ? firstBeam.stream().limit(RESULT_LIMIT).toList()
+                : rankedSecondChanges;
     }
 
     private List<ProposalCandidate> rank(

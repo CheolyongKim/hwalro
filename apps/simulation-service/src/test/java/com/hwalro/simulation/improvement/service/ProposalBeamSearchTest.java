@@ -24,4 +24,15 @@ class ProposalBeamSearchTest {
         assertEquals(3, results.size());
         assertEquals(2, results.get(0).changes().size());
     }
+
+    @Test
+    void fallsBackToSingleFabricCandidatesWhenNoSecondChangeExists() {
+        List<FabricState> fabrics = List.of(new FabricState(1, RotatedRectangle.of(4, 4, 6, 6, 0)));
+
+        List<ProposalCandidate> results =
+                beamSearch.findTopCandidates(fabrics, candidate -> true, candidate -> -candidate.totalMoveDistance());
+
+        assertEquals(3, results.size());
+        assertEquals(1, results.get(0).changes().size());
+    }
 }
