@@ -24,6 +24,7 @@ import {
   ExitView,
   FabricView,
   GridLayer,
+  OutsideWallView,
   PillarView,
   TextView,
   WallView,
@@ -48,6 +49,15 @@ interface RectHandleHit {
   handle: RectHandle;
 }
 
+const LINE_DRAFT_UPDATE: Record<
+  'wall' | 'outsideWall' | 'exit',
+  'wallUpdate' | 'outsideWallUpdate' | 'exitUpdate'
+> = {
+  wall: 'wallUpdate',
+  outsideWall: 'outsideWallUpdate',
+  exit: 'exitUpdate',
+};
+
 export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const [panning, setPanning] = useState(false);
@@ -68,6 +78,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       hitTestElements(
         world,
         doc.walls,
+        doc.outsideWalls,
         doc.layoutTexts,
         doc.pillars,
         doc.fabrics,
@@ -79,6 +90,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
 
   const hasHit = (hit: ElementHit) =>
     hit.wallId !== null ||
+    hit.outsideWallId !== null ||
     hit.exitId !== null ||
     hit.textId !== null ||
     hit.pillarId !== null ||
@@ -117,6 +129,15 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       }
       return;
     }
+    if (tool === 'outsideWall') {
+      if (state.draft) {
+        dispatch({ type: 'outsideWallUpdate', point: world });
+        dispatch({ type: 'outsideWallCommit' });
+      } else {
+        dispatch({ type: 'outsideWallStart', point: world });
+      }
+      return;
+    }
     if (tool === 'exit') {
       if (state.draft) {
         dispatch({ type: 'exitUpdate', point: world });
@@ -149,10 +170,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
     if (tool === 'erase') {
-      const hit = hitAt(world);
-      if (hasHit(hit)) {
-        dispatch({ type: 'eraseStart', point: world, hit });
-      }
+      dispatch({ type: 'eraseStart', point: world, hit: hitAt(world) });
       return;
     }
     if (tool === 'background') {
@@ -172,6 +190,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     }
 
     let handleHit: HandleHit | null = null;
+    let handleElementKind: 'wall' | 'outsideWall' = 'wall';
     for (const wall of doc.walls) {
       if (selection.wallIds.includes(wall.id)) {
         const hit = hitTestHandle(world, wall, camera.zoom);
@@ -181,10 +200,22 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
         }
       }
     }
+    if (!handleHit) {
+      handleElementKind = 'outsideWall';
+      for (const wall of doc.outsideWalls) {
+        if (selection.outsideWallIds.includes(wall.id)) {
+          const hit = hitTestHandle(world, wall, camera.zoom);
+          if (hit) {
+            handleHit = hit;
+            break;
+          }
+        }
+      }
+    }
     if (handleHit) {
       dispatch({
         type: 'reshapeStart',
-        elementKind: 'wall',
+        elementKind: handleElementKind,
         elementId: handleHit.wallId,
         handle: handleHit.handle,
         point: world,
@@ -270,6 +301,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     const hit = hitTestElements(
       world,
       doc.walls,
+      doc.outsideWalls,
       doc.layoutTexts,
       doc.pillars,
       doc.fabrics,
@@ -278,6 +310,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     );
     if (
       hit.wallId !== null ||
+      hit.outsideWallId !== null ||
       hit.exitId !== null ||
       hit.textId !== null ||
       hit.pillarId !== null ||
@@ -286,6 +319,8 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       let wasSelected = false;
       if (hit.wallId !== null) {
         wasSelected = selection.wallIds.includes(hit.wallId);
+      } else if (hit.outsideWallId !== null) {
+        wasSelected = selection.outsideWallIds.includes(hit.outsideWallId);
       } else if (hit.exitId !== null) {
         wasSelected = selection.exitIds.includes(hit.exitId);
       } else if (hit.textId !== null) {
@@ -298,6 +333,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       dispatch({
         type: 'selectAt',
         wallId: hit.wallId,
+        outsideWallId: hit.outsideWallId,
         exitId: hit.exitId,
         textId: hit.textId,
         pillarId: hit.pillarId,
@@ -314,6 +350,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     dispatch({
       type: 'selectAt',
       wallId: null,
+      outsideWallId: null,
       exitId: null,
       textId: null,
       pillarId: null,
@@ -363,8 +400,8 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
     if (state.draft) {
-      if (tool === 'wall' || tool === 'exit') {
-        dispatch({ type: tool === 'exit' ? 'exitUpdate' : 'wallUpdate', point: world });
+      if (tool === 'wall' || tool === 'outsideWall' || tool === 'exit') {
+        dispatch({ type: LINE_DRAFT_UPDATE[tool], point: world });
       } else if (tool === 'pillar') {
         dispatch({ type: 'pillarUpdate', point: world });
       } else if (tool === 'fabric') {
@@ -394,22 +431,29 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
         : 'layout-cursor-grab'
       : tool === 'wall'
         ? 'layout-cursor-wall'
-        : tool === 'exit'
-          ? 'layout-cursor-exit'
-          : tool === 'pillar'
-            ? 'layout-cursor-pillar'
-            : tool === 'fabric'
-              ? 'layout-cursor-fabric'
-              : tool === 'erase'
-                ? 'layout-cursor-erase'
-                : tool === 'text'
-                  ? 'layout-cursor-text'
-                  : 'layout-cursor-default';
+        : tool === 'outsideWall'
+          ? 'layout-cursor-outside-wall'
+          : tool === 'exit'
+            ? 'layout-cursor-exit'
+            : tool === 'pillar'
+              ? 'layout-cursor-pillar'
+              : tool === 'fabric'
+                ? 'layout-cursor-fabric'
+                : tool === 'erase'
+                  ? 'layout-cursor-erase'
+                  : tool === 'text'
+                    ? 'layout-cursor-text'
+                    : 'layout-cursor-default';
 
   const viewW = size.w > 0 ? size.w / (camera.zoom * PX_PER_METER) : 1;
   const viewH = size.h > 0 ? size.h / (camera.zoom * PX_PER_METER) : 1;
   const s = useCallback((px: number) => px / (camera.zoom * PX_PER_METER), [camera.zoom]);
-  const draftColor = tool === 'exit' ? CANVAS_COLORS.exit : CANVAS_COLORS.accent;
+  const draftColor =
+    tool === 'exit'
+      ? CANVAS_COLORS.exit
+      : tool === 'outsideWall'
+        ? CANVAS_COLORS.outsideWall
+        : CANVAS_COLORS.accent;
   const isWallDraft = draft !== null && 'axisSnapped' in draft;
   const draftLabel =
     draft !== null && cursor && (draft.end.x !== draft.start.x || draft.end.y !== draft.start.y)
@@ -458,6 +502,14 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 key={wall.id}
                 wall={wall}
                 selected={selection.wallIds.includes(wall.id)}
+                s={s}
+              />
+            ))}
+            {doc.outsideWalls.map((wall) => (
+              <OutsideWallView
+                key={wall.id}
+                wall={wall}
+                selected={selection.outsideWallIds.includes(wall.id)}
                 s={s}
               />
             ))}

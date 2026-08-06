@@ -14,6 +14,10 @@
   cursor: crosshair;
 }
 
+.layout-cursor-outside-wall {
+  cursor: crosshair;
+}
+
 .layout-cursor-exit {
   cursor: crosshair;
 }

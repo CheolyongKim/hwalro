@@ -1,4 +1,4 @@
-import type { DrawingDocument, Fabric, Pillar, Vec2, Wall } from '../types';
+import type { DrawingDocument, Fabric, OutsideWall, Pillar, Vec2, Wall } from '../types';
 import { PX_PER_METER, rectCenter, rotatePoint } from './geometry';
 
 export const ANGLE_SNAP_DEG = 4;
@@ -12,12 +12,18 @@ export interface SnapResult {
 
 export interface SnapSources {
   walls: Wall[];
+  outsideWalls: OutsideWall[];
   pillars: Pillar[];
   fabrics: Fabric[];
 }
 
 export function docSnapSources(doc: DrawingDocument): SnapSources {
-  return { walls: doc.walls, pillars: doc.pillars, fabrics: doc.fabrics };
+  return {
+    walls: doc.walls,
+    outsideWalls: doc.outsideWalls,
+    pillars: doc.pillars,
+    fabrics: doc.fabrics,
+  };
 }
 
 export function wallEndpoints(wall: Wall): [Vec2, Vec2] {
@@ -30,6 +36,10 @@ export function wallEndpoints(wall: Wall): [Vec2, Vec2] {
 export function allEndpoints(sources: SnapSources): Vec2[] {
   const points: Vec2[] = [];
   for (const wall of sources.walls) {
+    points.push({ x: wall.startX, y: wall.startY });
+    points.push({ x: wall.endX, y: wall.endY });
+  }
+  for (const wall of sources.outsideWalls) {
     points.push({ x: wall.startX, y: wall.startY });
     points.push({ x: wall.endX, y: wall.endY });
   }
@@ -53,12 +63,13 @@ export function axisSnap(origin: Vec2, target: Vec2): Vec2 | null {
     return null;
   }
   const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-  const modAngle = ((angle % 90) + 90) % 90;
-  const distanceToAxis = Math.min(modAngle, 90 - modAngle);
-  if (distanceToAxis > ANGLE_SNAP_DEG) {
+  const folded = ((angle % 180) + 180) % 180;
+  const distanceToHorizontal = Math.min(folded, 180 - folded);
+  const distanceToVertical = 90 - distanceToHorizontal;
+  if (Math.min(distanceToHorizontal, distanceToVertical) > ANGLE_SNAP_DEG) {
     return null;
   }
-  if (modAngle < 45) {
+  if (distanceToHorizontal <= distanceToVertical) {
     return { x: target.x, y: origin.y };
   }
   return { x: origin.x, y: target.y };
