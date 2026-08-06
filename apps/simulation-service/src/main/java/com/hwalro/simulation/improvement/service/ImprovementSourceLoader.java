@@ -50,6 +50,9 @@ public class ImprovementSourceLoader {
         List<FabricState> fabrics = drawingMapper.findFabricsByVersionId(layoutVersionId).stream()
                 .map(fabric -> new FabricState(fabric.getId(), bounds(fabric)))
                 .toList();
+        List<RotatedRectangle> exits = drawingMapper.findLayoutExitsByVersionId(layoutVersionId).stream()
+                .map(this::bounds)
+                .toList();
         List<RotatedRectangle> fixedObstacles = List.of(
                         drawingMapper.findWallsByVersionId(layoutVersionId).stream()
                                 .map(this::bounds),
@@ -57,8 +60,7 @@ public class ImprovementSourceLoader {
                                 .map(this::bounds),
                         drawingMapper.findOutsideWallsByVersionId(layoutVersionId).stream()
                                 .map(this::bounds),
-                        drawingMapper.findLayoutExitsByVersionId(layoutVersionId).stream()
-                                .map(this::bounds))
+                        exits.stream())
                 .stream()
                 .flatMap(stream -> stream)
                 .toList();
@@ -69,6 +71,7 @@ public class ImprovementSourceLoader {
                 floorPlan.getHeight().doubleValue(),
                 fabrics,
                 fixedObstacles,
+                exits,
                 improvementSourceMapper.findBottlenecksBySimulationId(simulationId).stream()
                         .map(this::toBottleneckArea)
                         .toList(),

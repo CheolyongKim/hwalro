@@ -10,5 +10,6 @@ public record ImprovementSource(
         double floorHeight,
         List<FabricState> fabrics,
         List<RotatedRectangle> fixedObstacles,
+        List<RotatedRectangle> exits,
         List<BottleneckArea> bottlenecks,
         List<HeatmapChunk> heatmapChunks) {}

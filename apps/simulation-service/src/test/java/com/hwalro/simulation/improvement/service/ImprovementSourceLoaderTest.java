@@ -61,6 +61,7 @@ class ImprovementSourceLoaderTest {
         assertEquals(80.0, source.floorHeight());
         assertEquals(1, source.fabrics().size());
         assertEquals(4, source.fixedObstacles().size());
+        assertEquals(1, source.exits().size());
         assertEquals(1, source.bottlenecks().size());
         assertEquals(40.0, source.bottlenecks().get(0).bounds().center().x());
         assertEquals(1, source.heatmapChunks().size());
