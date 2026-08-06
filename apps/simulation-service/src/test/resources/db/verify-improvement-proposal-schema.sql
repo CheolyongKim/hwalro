@@ -77,8 +77,8 @@ BEGIN
     VALUES (@saved_layout_version_id, @source_simulation_id, 1, 'COMPLETED');
     SET @verification_simulation_id = LAST_INSERT_ID();
 
-    INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id)
-    VALUES (@proposal_a_id, @verification_simulation_id);
+    INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id, source_simulation_id)
+    VALUES (@proposal_a_id, @verification_simulation_id, @source_simulation_id);
 
     -- Each block catches the expected constraint violation and records that it occurred.
     BEGIN
@@ -90,14 +90,14 @@ BEGIN
 
     BEGIN
         DECLARE CONTINUE HANDLER FOR 1062 SET duplicate_proposal_simulation_blocked = TRUE;
-        INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id)
-        VALUES (@proposal_a_id, @source_simulation_id);
+        INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id, source_simulation_id)
+        VALUES (@proposal_a_id, @source_simulation_id, @source_simulation_id);
     END;
 
     BEGIN
         DECLARE CONTINUE HANDLER FOR 1062 SET duplicate_simulation_link_blocked = TRUE;
-        INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id)
-        VALUES (@proposal_b_id, @verification_simulation_id);
+        INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id, source_simulation_id)
+        VALUES (@proposal_b_id, @verification_simulation_id, @source_simulation_id);
     END;
 
     BEGIN
