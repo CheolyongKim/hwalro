@@ -200,14 +200,10 @@ function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
 
 function applyEraseAt(state: EditorState, hit: ElementHit): EditorState {
   const { doc } = state;
-  const walls =
-    hit.wallId === null ? doc.walls : doc.walls.filter((w) => w.id !== hit.wallId);
-  const exits =
-    hit.exitId === null ? doc.exits : doc.exits.filter((e) => e.id !== hit.exitId);
+  const walls = hit.wallId === null ? doc.walls : doc.walls.filter((w) => w.id !== hit.wallId);
+  const exits = hit.exitId === null ? doc.exits : doc.exits.filter((e) => e.id !== hit.exitId);
   const layoutTexts =
-    hit.textId === null
-      ? doc.layoutTexts
-      : doc.layoutTexts.filter((t) => t.id !== hit.textId);
+    hit.textId === null ? doc.layoutTexts : doc.layoutTexts.filter((t) => t.id !== hit.textId);
   const pillars =
     hit.pillarId === null ? doc.pillars : doc.pillars.filter((p) => p.id !== hit.pillarId);
   const fabrics =
