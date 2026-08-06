@@ -1,6 +1,7 @@
 package com.hwalro.simulation.improvement.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,5 +41,28 @@ class ImprovementProposalQueryServiceTest {
                         .path("facilityId")
                         .asInt());
         assertEquals("시설 이동", responses.get(0).changeSummary().path("summary").asText());
+    }
+
+    @Test
+    void failsWhenStoredJsonIsNull() {
+        ImprovementProposal proposal = new ImprovementProposal();
+        proposal.setChangeData(null);
+        when(improvementProposalMapper.findBySourceSimulationId(10L)).thenReturn(List.of(proposal));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new ImprovementProposalQueryService(improvementProposalMapper, new ObjectMapper()).list(10L));
+    }
+
+    @Test
+    void failsWhenStoredJsonIsMalformed() {
+        ImprovementProposal proposal = new ImprovementProposal();
+        proposal.setChangeData("{");
+        proposal.setChangeSummary("{}");
+        when(improvementProposalMapper.findBySourceSimulationId(10L)).thenReturn(List.of(proposal));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> new ImprovementProposalQueryService(improvementProposalMapper, new ObjectMapper()).list(10L));
     }
 }
