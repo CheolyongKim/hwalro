@@ -90,12 +90,14 @@ export function hitTestElements(
       return { wallId: null, textId: text.id, pillarId: null, fabricId: null };
     }
   }
-  for (const fabric of fabrics) {
+  for (let i = fabrics.length - 1; i >= 0; i--) {
+    const fabric = fabrics[i];
     if (hitTestFabric(point, fabric, zoom)) {
       return { wallId: null, textId: null, pillarId: null, fabricId: fabric.id };
     }
   }
-  for (const pillar of pillars) {
+  for (let i = pillars.length - 1; i >= 0; i--) {
+    const pillar = pillars[i];
     if (hitTestPillar(point, pillar, zoom)) {
       return { wallId: null, textId: null, pillarId: pillar.id, fabricId: null };
     }

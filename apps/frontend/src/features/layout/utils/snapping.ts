@@ -1,4 +1,5 @@
 import type { DrawingDocument, Fabric, Pillar, Vec2, Wall } from '../types';
+import { rectCenter, rotatePoint } from './geometry';
 
 export const ANGLE_SNAP_DEG = 4;
 export const ENDPOINT_MAGNET_PX = 10;
@@ -33,12 +34,14 @@ export function allEndpoints(sources: SnapSources): Vec2[] {
     points.push({ x: wall.endX, y: wall.endY });
   }
   for (const pillar of sources.pillars) {
-    points.push({ x: pillar.startX, y: pillar.startY });
-    points.push({ x: pillar.endX, y: pillar.endY });
+    const center = rectCenter(pillar);
+    points.push(rotatePoint({ x: pillar.startX, y: pillar.startY }, center, pillar.rotation));
+    points.push(rotatePoint({ x: pillar.endX, y: pillar.endY }, center, pillar.rotation));
   }
   for (const fabric of sources.fabrics) {
-    points.push({ x: fabric.startX, y: fabric.startY });
-    points.push({ x: fabric.endX, y: fabric.endY });
+    const center = rectCenter(fabric);
+    points.push(rotatePoint({ x: fabric.startX, y: fabric.startY }, center, fabric.rotation));
+    points.push(rotatePoint({ x: fabric.endX, y: fabric.endY }, center, fabric.rotation));
   }
   return points;
 }
