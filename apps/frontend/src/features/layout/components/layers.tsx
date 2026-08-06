@@ -1,21 +1,48 @@
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
+import { Circle, Group, Image as KonvaImage, Line, Rect, Text as KonvaText } from 'react-konva';
 import type { BackgroundImage, Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
 import { PX_PER_METER, rectCenter } from '../utils/geometry';
 import { ROTATE_HANDLE_OFFSET_PX, TEXT_FONT_PX, textWorldBox } from '../utils/hitTest';
+import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_UI } from '../utils/colors';
 
 export const MINOR_STEP = 50;
 export const MAJOR_STEP = 250;
 
+const imageCache = new Map<string, HTMLImageElement>();
+
+function useImage(src: string): HTMLImageElement | null {
+  const [image, setImage] = useState<HTMLImageElement | null>(() => imageCache.get(src) ?? null);
+
+  useEffect(() => {
+    const cached = imageCache.get(src);
+    if (cached) {
+      setImage(cached);
+      return;
+    }
+    const el = new window.Image();
+    el.onload = () => {
+      imageCache.set(src, el);
+      setImage(el);
+    };
+    el.src = src;
+  }, [src]);
+
+  return image;
+}
+
 export const BackgroundLayer = memo(function BackgroundLayer({ bg }: { bg: BackgroundImage }) {
+  const image = useImage(bg.image);
+  if (image === null) {
+    return null;
+  }
   return (
-    <image
-      href={bg.image}
+    <KonvaImage
+      image={image}
       x={bg.x}
       y={bg.y}
       width={bg.width}
       height={bg.height}
       opacity={bg.opacity}
-      preserveAspectRatio="none"
     />
   );
 });
@@ -36,6 +63,7 @@ interface GridLayerProps {
 }
 
 export const GridLayer = memo(function GridLayer({ minX, minY, maxX, maxY, zoom }: GridLayerProps) {
+  const strokeWidth = 1 / (zoom * PX_PER_METER);
   const minor: GridLine[] = [];
   if (MINOR_STEP * zoom * PX_PER_METER >= 6) {
     for (let x = Math.floor(minX / MINOR_STEP) * MINOR_STEP; x <= maxX; x += MINOR_STEP) {
@@ -53,26 +81,24 @@ export const GridLayer = memo(function GridLayer({ minX, minY, maxX, maxY, zoom 
     major.push({ x1: minX, y1: y, x2: maxX, y2: y });
   }
   return (
-    <g>
+    <>
       {minor.map((line, i) => (
-        <line
+        <Line
           key={`m${i}`}
-          {...line}
-          stroke="var(--layout-grid-minor)"
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
+          points={[line.x1, line.y1, line.x2, line.y2]}
+          stroke={CANVAS_COLORS.gridMinor}
+          strokeWidth={strokeWidth}
         />
       ))}
       {major.map((line, i) => (
-        <line
+        <Line
           key={`M${i}`}
-          {...line}
-          stroke="var(--layout-grid-major)"
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
+          points={[line.x1, line.y1, line.x2, line.y2]}
+          stroke={CANVAS_COLORS.gridMajor}
+          strokeWidth={strokeWidth}
         />
       ))}
-    </g>
+    </>
   );
 });
 
@@ -83,43 +109,37 @@ interface WallViewProps {
 }
 
 export const WallView = memo(function WallView({ wall, selected, s }: WallViewProps) {
-  const color = selected ? 'var(--layout-accent)' : 'var(--layout-ink)';
+  const color = selected ? CANVAS_COLORS.accent : CANVAS_COLORS.ink;
   return (
-    <g>
-      <line
-        x1={wall.startX}
-        y1={wall.startY}
-        x2={wall.endX}
-        y2={wall.endY}
+    <Group>
+      <Line
+        points={[wall.startX, wall.startY, wall.endX, wall.endY]}
         stroke={color}
-        strokeWidth={selected ? 2.5 : 2}
-        vectorEffect="non-scaling-stroke"
+        strokeWidth={selected ? s(2.5) : s(2)}
       />
       {selected && (
-        <g>
-          <circle
-            cx={wall.startX}
-            cy={wall.startY}
-            r={s(5)}
-            fill="var(--layout-canvas)"
-            stroke="var(--layout-accent)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
+        <Group>
+          <Circle
+            x={wall.startX}
+            y={wall.startY}
+            radius={s(5)}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.accent}
+            strokeWidth={s(1.5)}
           />
-          <circle
-            cx={wall.endX}
-            cy={wall.endY}
-            r={s(5)}
-            fill="var(--layout-canvas)"
-            stroke="var(--layout-accent)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
+          <Circle
+            x={wall.endX}
+            y={wall.endY}
+            radius={s(5)}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.accent}
+            strokeWidth={s(1.5)}
           />
-          <circle cx={wall.startX} cy={wall.startY} r={s(3)} fill="var(--layout-accent)" />
-          <circle cx={wall.endX} cy={wall.endY} r={s(3)} fill="var(--layout-accent)" />
-        </g>
+          <Circle x={wall.startX} y={wall.startY} radius={s(3)} fill={CANVAS_COLORS.accent} />
+          <Circle x={wall.endX} y={wall.endY} radius={s(3)} fill={CANVAS_COLORS.accent} />
+        </Group>
       )}
-    </g>
+    </Group>
   );
 });
 
@@ -130,43 +150,37 @@ interface ExitViewProps {
 }
 
 export const ExitView = memo(function ExitView({ exit, selected, s }: ExitViewProps) {
-  const color = selected ? 'var(--layout-exit-strong)' : 'var(--layout-exit)';
+  const color = selected ? CANVAS_COLORS.exitStrong : CANVAS_COLORS.exit;
   return (
-    <g>
-      <line
-        x1={exit.startX}
-        y1={exit.startY}
-        x2={exit.endX}
-        y2={exit.endY}
+    <Group>
+      <Line
+        points={[exit.startX, exit.startY, exit.endX, exit.endY]}
         stroke={color}
-        strokeWidth={selected ? 3 : 2.5}
-        vectorEffect="non-scaling-stroke"
+        strokeWidth={selected ? s(3) : s(2.5)}
       />
       {selected && (
-        <g>
-          <circle
-            cx={exit.startX}
-            cy={exit.startY}
-            r={s(5)}
-            fill="var(--layout-canvas)"
-            stroke="var(--layout-exit-strong)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
+        <Group>
+          <Circle
+            x={exit.startX}
+            y={exit.startY}
+            radius={s(5)}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.exitStrong}
+            strokeWidth={s(1.5)}
           />
-          <circle
-            cx={exit.endX}
-            cy={exit.endY}
-            r={s(5)}
-            fill="var(--layout-canvas)"
-            stroke="var(--layout-exit-strong)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
+          <Circle
+            x={exit.endX}
+            y={exit.endY}
+            radius={s(5)}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.exitStrong}
+            strokeWidth={s(1.5)}
           />
-          <circle cx={exit.startX} cy={exit.startY} r={s(3)} fill="var(--layout-exit-strong)" />
-          <circle cx={exit.endX} cy={exit.endY} r={s(3)} fill="var(--layout-exit-strong)" />
-        </g>
+          <Circle x={exit.startX} y={exit.startY} radius={s(3)} fill={CANVAS_COLORS.exitStrong} />
+          <Circle x={exit.endX} y={exit.endY} radius={s(3)} fill={CANVAS_COLORS.exitStrong} />
+        </Group>
       )}
-    </g>
+    </Group>
   );
 });
 
@@ -199,51 +213,57 @@ function RectShape({
   const height = Math.abs(endY - startY);
   const center = rectCenter({ startX, startY, endX, endY });
   return (
-    <g transform={`rotate(${rotation} ${center.x} ${center.y})`}>
-      <rect
-        x={minX}
-        y={minY}
+    <Group x={center.x} y={center.y} rotation={rotation}>
+      <Rect
+        x={minX - center.x}
+        y={minY - center.y}
         width={width}
         height={height}
         fill={fill}
         stroke={stroke}
-        strokeWidth={selected ? 2 : 1}
-        vectorEffect="non-scaling-stroke"
+        strokeWidth={selected ? s(2) : s(1)}
       />
       {selected && (
-        <g>
-          <circle
-            cx={startX}
-            cy={startY}
-            r={s(5)}
-            fill="var(--layout-canvas)"
-            stroke="var(--layout-accent)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
+        <Group>
+          <Circle
+            x={startX - center.x}
+            y={startY - center.y}
+            radius={s(5)}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.accent}
+            strokeWidth={s(1.5)}
           />
-          <circle
-            cx={endX}
-            cy={endY}
-            r={s(5)}
-            fill="var(--layout-canvas)"
-            stroke="var(--layout-accent)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
+          <Circle
+            x={endX - center.x}
+            y={endY - center.y}
+            radius={s(5)}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.accent}
+            strokeWidth={s(1.5)}
           />
-          <circle cx={startX} cy={startY} r={s(3)} fill="var(--layout-accent)" />
-          <circle cx={endX} cy={endY} r={s(3)} fill="var(--layout-accent)" />
-          <circle
-            cx={center.x}
-            cy={minY - s(ROTATE_HANDLE_OFFSET_PX)}
-            r={s(5)}
-            fill="var(--layout-canvas)"
-            stroke="var(--layout-accent)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
+          <Circle
+            x={startX - center.x}
+            y={startY - center.y}
+            radius={s(3)}
+            fill={CANVAS_COLORS.accent}
           />
-        </g>
+          <Circle
+            x={endX - center.x}
+            y={endY - center.y}
+            radius={s(3)}
+            fill={CANVAS_COLORS.accent}
+          />
+          <Circle
+            x={0}
+            y={minY - s(ROTATE_HANDLE_OFFSET_PX) - center.y}
+            radius={s(5)}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.accent}
+            strokeWidth={s(1.5)}
+          />
+        </Group>
       )}
-    </g>
+    </Group>
   );
 }
 
@@ -258,8 +278,8 @@ export const PillarView = memo(function PillarView({ pillar, selected, s }: Pill
     <RectShape
       selected={selected}
       s={s}
-      fill="var(--layout-pillar-fill)"
-      stroke={selected ? 'var(--layout-accent)' : 'var(--layout-pillar-stroke)'}
+      fill={CANVAS_COLORS.pillarFill}
+      stroke={selected ? CANVAS_COLORS.accent : CANVAS_COLORS.pillarStroke}
       startX={pillar.startX}
       startY={pillar.startY}
       endX={pillar.endX}
@@ -280,8 +300,8 @@ export const FabricView = memo(function FabricView({ fabric, selected, s }: Fabr
     <RectShape
       selected={selected}
       s={s}
-      fill={selected ? 'var(--layout-fabric-selected-fill)' : 'var(--layout-fabric-fill)'}
-      stroke={selected ? 'var(--layout-accent)' : 'var(--layout-fabric-stroke)'}
+      fill={selected ? CANVAS_COLORS.fabricSelectedFill : CANVAS_COLORS.fabricFill}
+      stroke={selected ? CANVAS_COLORS.accent : CANVAS_COLORS.fabricStroke}
       startX={fabric.startX}
       startY={fabric.startY}
       endX={fabric.endX}
@@ -298,33 +318,30 @@ interface TextViewProps {
 }
 
 export const TextView = memo(function TextView({ text, selected, zoom }: TextViewProps) {
+  const s = (px: number) => px / (zoom * PX_PER_METER);
   const box = textWorldBox(text, zoom);
   return (
-    <g>
+    <Group>
       {selected && (
-        <rect
-          x={box.x - TEXT_FONT_PX / (zoom * PX_PER_METER) / 4}
-          y={box.y - TEXT_FONT_PX / (zoom * PX_PER_METER) / 4}
-          width={box.w + TEXT_FONT_PX / (zoom * PX_PER_METER) / 2}
-          height={box.h + TEXT_FONT_PX / (zoom * PX_PER_METER) / 2}
-          fill="var(--layout-accent)"
-          fillOpacity={0.08}
-          stroke="var(--layout-accent)"
-          strokeWidth={1}
-          strokeDasharray="4 3"
-          vectorEffect="non-scaling-stroke"
+        <Rect
+          x={box.x - s(TEXT_FONT_PX) / 4}
+          y={box.y - s(TEXT_FONT_PX) / 4}
+          width={box.w + s(TEXT_FONT_PX) / 2}
+          height={box.h + s(TEXT_FONT_PX) / 2}
+          fill={ACCENT_ALPHA_8}
+          stroke={CANVAS_COLORS.accent}
+          strokeWidth={s(1)}
+          dash={[s(4), s(3)]}
         />
       )}
-      <text
+      <KonvaText
         x={text.x}
         y={text.y}
-        fontSize={TEXT_FONT_PX / (zoom * PX_PER_METER)}
-        fontFamily="var(--layout-ui)"
-        dominantBaseline="hanging"
-        fill={selected ? 'var(--layout-accent)' : 'var(--layout-ink)'}
-      >
-        {text.text}
-      </text>
-    </g>
+        text={text.text}
+        fontSize={s(TEXT_FONT_PX)}
+        fontFamily={FONT_UI}
+        fill={selected ? CANVAS_COLORS.accent : CANVAS_COLORS.ink}
+      />
+    </Group>
   );
 });

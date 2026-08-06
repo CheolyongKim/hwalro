@@ -46,31 +46,31 @@ export function ZoomControl({ state, dispatch, size, className }: ZoomControlPro
 
   return (
     <div
-      className={`flex items-center rounded-md border border-line bg-white p-1 ${className ?? ''}`}
+      className={`flex items-center gap-0.5 rounded-full border border-zoom-border bg-zoom-soft p-1 shadow-[0_2px_8px_rgba(0,0,0,0.08)] ${className ?? ''}`}
     >
       <button
         type="button"
         onClick={() => zoomAtCenter(1 / 1.25)}
         aria-label="축소"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-text-strong transition-colors hover:bg-background"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70"
       >
         −
       </button>
-      <span className="min-w-11 text-center font-mono text-xs text-text-muted">
+      <span className="min-w-11 text-center font-mono text-xs font-semibold text-zoom-text">
         {Math.round(camera.zoom * 100)}%
       </span>
       <button
         type="button"
         onClick={() => zoomAtCenter(1.25)}
         aria-label="확대"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-text-strong transition-colors hover:bg-background"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70"
       >
         +
       </button>
       <button
         type="button"
         onClick={fit}
-        className="h-7 rounded-md px-2.5 text-[13px] font-semibold text-text-strong transition-colors hover:bg-background"
+        className="h-7 rounded-full px-2.5 text-[13px] font-semibold text-zoom-text transition-colors hover:bg-white/70"
       >
         맞춤
       </button>

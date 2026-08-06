@@ -25,6 +25,22 @@
   /* 도면 배치 편집기 페이지 */
   --color-toolbar: #edf2f1; /* 비활성 툴 필 배경 */
 
+  /* 도면 배치 편집기 페이지 — 오른쪽 상단 플로팅 패널 */
+  --color-panel: #19312d; /* 패널 배경 */
+  --color-panel-soft: #243e39; /* 입력 필드·비활성 도구 버튼 배경 */
+  --color-panel-border: #39534d; /* 입력 필드 테두리 */
+  --color-panel-text: #e7efed; /* 패널 본문 텍스트 */
+  --color-panel-muted: #b9cac6; /* 섹션 라벨·설명 텍스트 */
+  --color-panel-faint: #8fa6a0; /* 단위·보조 텍스트 */
+  --color-panel-divider: #34504a; /* 섹션 구분선 */
+  --color-panel-accent: #c9f438; /* 주요 동작(저장)·활성 도구 */
+  --color-panel-danger: #e95a52; /* 오류·위험 배지 */
+
+  /* 도면 배치 편집기 페이지 — 좌상단 줌 컨트롤 */
+  --color-zoom-soft: #e9f8f1; /* 줌 컨트롤 배경 */
+  --color-zoom-border: #32a96b; /* 줌 컨트롤 테두리 */
+  --color-zoom-text: #23945a; /* 줌 아이콘·텍스트 */
+
   --font-sans:
     'Happiness Sans Print', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',
     sans-serif;

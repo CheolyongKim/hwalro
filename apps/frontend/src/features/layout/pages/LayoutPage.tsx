@@ -22,6 +22,7 @@ function LayoutPage() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [retryCount, setRetryCount] = useState(0);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
@@ -185,54 +186,56 @@ function LayoutPage() {
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
-      <div className="relative z-10 shrink-0 px-4 pt-3">
+    <div className="relative h-dvh w-full overflow-hidden bg-background">
+      <LayoutCanvas state={state} dispatch={dispatch} size={size} onSizeChange={onSizeChange} />
+      <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
         <LayoutToolbar
           state={state}
           dispatch={dispatch}
           saveStatus={saveStatus}
           onSave={() => void performSave()}
+          collapsed={panelCollapsed}
+          onToggleCollapse={() => setPanelCollapsed((value) => !value)}
         />
+        {!panelCollapsed && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SettingsPanel state={state} dispatch={dispatch} />
+          </div>
+        )}
       </div>
-      <div className="flex min-h-0 flex-1 gap-4 px-4 pb-4 pt-3">
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-md border border-line-strong bg-white">
-          <LayoutCanvas state={state} dispatch={dispatch} size={size} onSizeChange={onSizeChange} />
-          <ZoomControl
-            state={state}
-            dispatch={dispatch}
-            size={size}
-            className="absolute right-3 top-3 z-10"
-          />
-          {state.textDraft && (
-            <InlineTextInput
-              key={`${state.textDraft.point.x}:${state.textDraft.point.y}`}
-              point={state.textDraft.point}
-              zoom={state.camera.zoom}
-              panX={state.camera.panX}
-              panY={state.camera.panY}
-              onCommit={(text) => dispatch({ type: 'textCommit', text })}
-              onCancel={() => dispatch({ type: 'textCancel' })}
-            />
-          )}
-          {state.error && (
-            <div
-              role="alert"
-              className="absolute bottom-3 right-3 z-10 flex max-w-[320px] items-center gap-2 rounded-md border border-danger bg-white px-3 py-2 text-[13px] text-danger shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
-            >
-              <span className="min-w-0">{state.error}</span>
-              <button
-                type="button"
-                onClick={() => dispatch({ type: 'setError', message: null })}
-                aria-label="닫기"
-                className="shrink-0 text-danger transition-colors hover:opacity-70"
-              >
-                ×
-              </button>
-            </div>
-          )}
+      <ZoomControl
+        state={state}
+        dispatch={dispatch}
+        size={size}
+        className="absolute left-4 top-4 z-20"
+      />
+      {state.textDraft && (
+        <InlineTextInput
+          key={`${state.textDraft.point.x}:${state.textDraft.point.y}`}
+          point={state.textDraft.point}
+          zoom={state.camera.zoom}
+          panX={state.camera.panX}
+          panY={state.camera.panY}
+          onCommit={(text) => dispatch({ type: 'textCommit', text })}
+          onCancel={() => dispatch({ type: 'textCancel' })}
+        />
+      )}
+      {state.error && (
+        <div
+          role="alert"
+          className="absolute bottom-4 right-4 z-20 flex max-w-[320px] items-center gap-2 rounded-md border border-danger bg-white px-3 py-2 text-[13px] text-danger shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+        >
+          <span className="min-w-0">{state.error}</span>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'setError', message: null })}
+            aria-label="닫기"
+            className="shrink-0 text-danger transition-colors hover:opacity-70"
+          >
+            ×
+          </button>
         </div>
-        <SettingsPanel state={state} dispatch={dispatch} />
-      </div>
+      )}
     </div>
   );
 }

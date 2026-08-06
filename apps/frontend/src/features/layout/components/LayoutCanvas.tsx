@@ -1,8 +1,15 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, PointerEvent as ReactPointerEvent } from 'react';
+import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 import type { Camera, EditorState, RectHandle, Vec2 } from '../types';
 import type { EditorAction } from '../state/editorReducer';
-import { clampPan, formatMeters, PX_PER_METER, screenToWorld } from '../utils/geometry';
+import {
+  clampPan,
+  estimateTextWidthPx,
+  formatMeters,
+  PX_PER_METER,
+  screenToWorld,
+} from '../utils/geometry';
 import {
   hitTestElements,
   hitTestExitHandle,
@@ -11,6 +18,7 @@ import {
   hitTestRotateHandle,
 } from '../utils/hitTest';
 import type { HandleHit } from '../utils/hitTest';
+import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO } from '../utils/colors';
 import {
   BackgroundLayer,
   ExitView,
@@ -41,7 +49,6 @@ interface RectHandleHit {
 }
 
 export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanvasProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<PanSession | null>(null);
   const [panning, setPanning] = useState(false);
 
@@ -66,7 +73,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     setPanning(false);
   }, []);
 
-  const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button === 1 || (event.button === 0 && spaceDown)) {
       startPan({ x: event.clientX, y: event.clientY }, camera);
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -318,7 +325,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     startPan({ x: event.clientX, y: event.clientY }, camera);
   };
 
-  const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     if (state.draft) {
@@ -361,7 +368,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     }
   };
 
-  const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panRef.current) {
       stopPan();
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -397,24 +404,44 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
   const viewW = size.w > 0 ? size.w / (camera.zoom * PX_PER_METER) : 1;
   const viewH = size.h > 0 ? size.h / (camera.zoom * PX_PER_METER) : 1;
   const s = useCallback((px: number) => px / (camera.zoom * PX_PER_METER), [camera.zoom]);
-  const draftColor = tool === 'exit' ? 'var(--layout-exit)' : 'var(--layout-accent)';
+  const draftColor = tool === 'exit' ? CANVAS_COLORS.exit : CANVAS_COLORS.accent;
   const isWallDraft = draft !== null && 'axisSnapped' in draft;
+  const draftLabel =
+    draft !== null &&
+    cursor &&
+    (draft.end.x !== draft.start.x || draft.end.y !== draft.start.y)
+      ? isWallDraft
+        ? `${formatMeters(
+            Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y),
+          )} m`
+        : `${formatMeters(Math.abs(draft.end.x - draft.start.x))} × ${formatMeters(
+            Math.abs(draft.end.y - draft.start.y),
+          )} m`
+      : null;
+  const k = camera.zoom * PX_PER_METER;
+  const draftLabelWidth = draftLabel !== null ? estimateTextWidthPx(draftLabel, s(11)) : 0;
 
   return (
-    <div ref={containerRef} className={`layout-canvas-wrap ${cursorClass}`}>
-      <svg
-        ref={svgRef}
-        className="layout-canvas-svg"
-        viewBox={`${camera.panX} ${camera.panY} ${viewW} ${viewH}`}
-        role="application"
-        aria-label="도면 캔버스"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerLeave}
-      >
-        {size.w > 0 && (
-          <g pointerEvents="none">
+    <div
+      ref={containerRef}
+      className={`layout-canvas-wrap ${cursorClass}`}
+      role="application"
+      aria-label="도면 캔버스"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+    >
+      {size.w > 0 && size.h > 0 && (
+        <Stage width={size.w} height={size.h}>
+          <Layer
+            listening={false}
+            x={-camera.panX * k}
+            y={-camera.panY * k}
+            scaleX={k}
+            scaleY={k}
+          >
+            <Rect x={0} y={0} width={doc.width} height={doc.height} fill={CANVAS_COLORS.canvas} />
             {doc.background && <BackgroundLayer bg={doc.background} />}
             <GridLayer
               minX={camera.panX}
@@ -423,15 +450,13 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
               maxY={camera.panY + viewH}
               zoom={camera.zoom}
             />
-            <rect
+            <Rect
               x={0}
               y={0}
               width={doc.width}
               height={doc.height}
-              fill="none"
-              stroke="var(--layout-grid-boundary)"
-              strokeWidth={1}
-              vectorEffect="non-scaling-stroke"
+              stroke={CANVAS_COLORS.gridBoundary}
+              strokeWidth={s(1)}
             />
             {doc.walls.map((wall) => (
               <WallView
@@ -474,78 +499,62 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
               />
             ))}
             {draft && (
-              <g>
+              <Group>
                 {isWallDraft ? (
-                  <line
-                    x1={draft.start.x}
-                    y1={draft.start.y}
-                    x2={draft.end.x}
-                    y2={draft.end.y}
+                  <Line
+                    points={[draft.start.x, draft.start.y, draft.end.x, draft.end.y]}
                     stroke={draftColor}
-                    strokeWidth={1.5}
-                    strokeDasharray="6 4"
-                    vectorEffect="non-scaling-stroke"
+                    strokeWidth={s(1.5)}
+                    dash={[s(6), s(4)]}
                   />
                 ) : (
-                  <rect
+                  <Rect
                     x={Math.min(draft.start.x, draft.end.x)}
                     y={Math.min(draft.start.y, draft.end.y)}
                     width={Math.abs(draft.end.x - draft.start.x)}
                     height={Math.abs(draft.end.y - draft.start.y)}
-                    fill="var(--layout-accent)"
-                    fillOpacity={0.08}
-                    stroke="var(--layout-accent)"
-                    strokeWidth={1.5}
-                    strokeDasharray="6 4"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
-                <circle cx={draft.start.x} cy={draft.start.y} r={s(3.5)} fill={draftColor} />
-                {isWallDraft && 'snappedToEndpoint' in draft && draft.snappedToEndpoint && (
-                  <circle
-                    cx={draft.snappedToEndpoint.x}
-                    cy={draft.snappedToEndpoint.y}
-                    r={s(7)}
-                    fill="none"
+                    fill={ACCENT_ALPHA_8}
                     stroke={draftColor}
-                    strokeWidth={1.5}
-                    vectorEffect="non-scaling-stroke"
+                    strokeWidth={s(1.5)}
+                    dash={[s(6), s(4)]}
                   />
                 )}
-                {cursor && (draft.end.x !== draft.start.x || draft.end.y !== draft.start.y) && (
-                  <text
-                    x={(draft.start.x + draft.end.x) / 2}
-                    y={(draft.start.y + draft.end.y) / 2 - s(6)}
-                    fontSize={11 / (camera.zoom * PX_PER_METER)}
-                    fill={draftColor}
-                    fontFamily="var(--layout-mono)"
-                    textAnchor="middle"
-                  >
-                    {isWallDraft
-                      ? `${formatMeters(
-                          Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y),
-                        )} m`
-                      : `${formatMeters(Math.abs(draft.end.x - draft.start.x))} × ${formatMeters(
-                          Math.abs(draft.end.y - draft.start.y),
-                        )} m`}
-                  </text>
+                <Circle x={draft.start.x} y={draft.start.y} radius={s(3.5)} fill={draftColor} />
+                {isWallDraft && 'snappedToEndpoint' in draft && draft.snappedToEndpoint && (
+                  <Circle
+                    x={draft.snappedToEndpoint.x}
+                    y={draft.snappedToEndpoint.y}
+                    radius={s(7)}
+                    stroke={draftColor}
+                    strokeWidth={s(1.5)}
+                  />
                 )}
-              </g>
+                {draftLabel !== null && (
+                  <KonvaText
+                    x={(draft.start.x + draft.end.x) / 2 - draftLabelWidth / 2}
+                    y={(draft.start.y + draft.end.y) / 2 - s(6)}
+                    width={draftLabelWidth}
+                    align="center"
+                    text={draftLabel}
+                    fontSize={s(11)}
+                    fill={draftColor}
+                    fontFamily={FONT_MONO}
+                  />
+                )}
+              </Group>
             )}
             {snapHint && (
-              <circle
-                cx={snapHint.x}
-                cy={snapHint.y}
-                r={s(7)}
-                fill="none"
-                stroke="var(--layout-accent)"
-                strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke"
+              <Circle
+                x={snapHint.x}
+                y={snapHint.y}
+                radius={s(7)}
+                stroke={CANVAS_COLORS.accent}
+                strokeWidth={s(1.5)}
               />
             )}
-          </g>
-        )}
-      </svg>
+          </Layer>
+        </Stage>
+      )}
     </div>
   );
 }
