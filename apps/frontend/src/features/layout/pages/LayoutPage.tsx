@@ -152,7 +152,7 @@ function LayoutPage() {
         <p className="text-sm text-text-muted">도면을 찾을 수 없습니다</p>
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/drawings')}
           className="h-9 rounded-md bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85"
         >
           목록으로 이동
@@ -175,7 +175,7 @@ function LayoutPage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/drawings')}
             className="h-9 rounded-md border border-line-strong bg-white px-4 text-sm font-bold text-text-strong transition-colors hover:bg-surface"
           >
             목록으로 이동
@@ -187,6 +187,26 @@ function LayoutPage() {
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-background">
+      <button
+        type="button"
+        onClick={() => navigate('/drawings')}
+        aria-label="도면 목록으로 돌아가기"
+        className="fixed left-4 top-4 z-30 flex h-8 w-8 items-center justify-center rounded-md border border-panel-divider bg-panel text-panel-muted shadow-[0_2px_8px_rgba(0,0,0,0.25)] transition-colors hover:bg-panel-soft hover:text-panel-text"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M10 3 L5 8 L10 13" />
+        </svg>
+      </button>
       <LayoutCanvas state={state} dispatch={dispatch} size={size} onSizeChange={onSizeChange} />
       <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
         <LayoutToolbar
@@ -207,7 +227,7 @@ function LayoutPage() {
         state={state}
         dispatch={dispatch}
         size={size}
-        className="absolute left-4 top-4 z-20"
+        className="absolute left-4 top-16 z-20"
       />
       {state.textDraft && (
         <InlineTextInput

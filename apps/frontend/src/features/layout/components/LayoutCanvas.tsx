@@ -17,7 +17,7 @@ import {
   hitTestRectHandle,
   hitTestRotateHandle,
 } from '../utils/hitTest';
-import type { HandleHit } from '../utils/hitTest';
+import type { ElementHit, HandleHit } from '../utils/hitTest';
 import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO } from '../utils/colors';
 import {
   BackgroundLayer,
@@ -62,6 +62,27 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
   });
 
   const { doc, camera, tool, selection, draft, snapHint, cursor } = state;
+
+  const hitAt = useCallback(
+    (world: Vec2) =>
+      hitTestElements(
+        world,
+        doc.walls,
+        doc.layoutTexts,
+        doc.pillars,
+        doc.fabrics,
+        doc.exits,
+        camera.zoom,
+      ),
+    [doc, camera.zoom],
+  );
+
+  const hasHit = (hit: ElementHit) =>
+    hit.wallId !== null ||
+    hit.exitId !== null ||
+    hit.textId !== null ||
+    hit.pillarId !== null ||
+    hit.fabricId !== null;
 
   const startPan = useCallback((screen: Vec2, cameraStart: Camera) => {
     panRef.current = { startScreen: screen, startCamera: cameraStart };
@@ -128,32 +149,9 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
     if (tool === 'erase') {
-      const hit = hitTestElements(
-        world,
-        doc.walls,
-        doc.layoutTexts,
-        doc.pillars,
-        doc.fabrics,
-        doc.exits,
-        camera.zoom,
-      );
-      if (
-        hit.wallId !== null ||
-        hit.exitId !== null ||
-        hit.textId !== null ||
-        hit.pillarId !== null ||
-        hit.fabricId !== null
-      ) {
-        dispatch({
-          type: 'selectAt',
-          wallId: hit.wallId,
-          exitId: hit.exitId,
-          textId: hit.textId,
-          pillarId: hit.pillarId,
-          fabricId: hit.fabricId,
-          additive: false,
-        });
-        dispatch({ type: 'deleteSelection' });
+      const hit = hitAt(world);
+      if (hasHit(hit)) {
+        dispatch({ type: 'eraseStart', point: world, hit });
       }
       return;
     }
@@ -351,6 +349,13 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
           size.h / (start.zoom * PX_PER_METER),
         ),
       });
+      return;
+    }
+    if (state.drag?.kind === 'erase') {
+      const hit = hitAt(world);
+      if (hasHit(hit)) {
+        dispatch({ type: 'eraseUpdate', hit });
+      }
       return;
     }
     if (state.drag) {

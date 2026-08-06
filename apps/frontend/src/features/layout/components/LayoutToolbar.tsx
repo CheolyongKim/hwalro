@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import type { Dispatch } from 'react';
 import type { EditorState, Tool } from '../types';
 import type { EditorAction } from '../state/editorReducer';
@@ -19,7 +18,7 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'pillar', label: '기둥' },
   { id: 'fabric', label: '구조물' },
   { id: 'text', label: '텍스트' },
-  { id: 'erase', label: '삭제' },
+  { id: 'erase', label: '지우개' },
 ];
 
 export function LayoutToolbar({
@@ -30,31 +29,9 @@ export function LayoutToolbar({
   collapsed,
   onToggleCollapse,
 }: LayoutToolbarProps) {
-  const navigate = useNavigate();
-
   return (
     <div className="shrink-0 border-b border-panel-divider p-3">
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          aria-label="목록"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-panel-muted transition-colors hover:bg-panel-soft hover:text-panel-text"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M10 3 L5 8 L10 13" />
-          </svg>
-        </button>
         <h1 className="min-w-0 flex-1 truncate text-[15px] font-bold text-panel-text">
           {state.doc.name}
         </h1>
