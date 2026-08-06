@@ -1,4 +1,13 @@
-import type { Exit, Fabric, LayoutText, Pillar, RectHandle, Vec2, Wall, WallHandle } from '../types';
+import type {
+  Exit,
+  Fabric,
+  LayoutText,
+  Pillar,
+  RectHandle,
+  Vec2,
+  Wall,
+  WallHandle,
+} from '../types';
 import {
   distanceToSegment,
   estimateTextWidthPx,
