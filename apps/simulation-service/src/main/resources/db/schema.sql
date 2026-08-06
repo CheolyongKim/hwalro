@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS simulations (
     finished_at DATETIME(6) NULL,
     CONSTRAINT pk_simulations PRIMARY KEY (id),
     CONSTRAINT uk_simulations_id_version UNIQUE (id, layout_version_id),
+    CONSTRAINT uk_simulations_id_parent UNIQUE (id, parent_simulation_id),
     CONSTRAINT fk_simulations_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
@@ -272,6 +273,7 @@ CREATE TABLE IF NOT EXISTS improvement_proposals (
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     saved_at DATETIME(6) NULL,
     CONSTRAINT pk_improvement_proposals PRIMARY KEY (id),
+    CONSTRAINT uk_improvement_proposals_id_source UNIQUE (id, source_simulation_id),
     CONSTRAINT uk_improvement_proposals_source_order UNIQUE (source_simulation_id, proposal_order),
     CONSTRAINT uk_improvement_proposals_saved_layout_version UNIQUE (saved_layout_version_id),
     CONSTRAINT fk_improvement_proposals_source_simulation
@@ -290,16 +292,19 @@ CREATE TABLE IF NOT EXISTS proposal_simulations (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     improvement_proposal_id BIGINT UNSIGNED NOT NULL,
     simulation_id BIGINT UNSIGNED NOT NULL,
+    source_simulation_id BIGINT UNSIGNED NOT NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_proposal_simulations PRIMARY KEY (id),
     CONSTRAINT uk_proposal_simulations_proposal UNIQUE (improvement_proposal_id),
     CONSTRAINT uk_proposal_simulations_simulation UNIQUE (simulation_id),
-    CONSTRAINT fk_proposal_simulations_improvement_proposal
-        FOREIGN KEY (improvement_proposal_id) REFERENCES improvement_proposals (id)
+    CONSTRAINT fk_proposal_simulations_improvement_proposal_lineage
+        FOREIGN KEY (improvement_proposal_id, source_simulation_id)
+        REFERENCES improvement_proposals (id, source_simulation_id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
-    CONSTRAINT fk_proposal_simulations_simulation
-        FOREIGN KEY (simulation_id) REFERENCES simulations (id)
+    CONSTRAINT fk_proposal_simulations_simulation_lineage
+        FOREIGN KEY (simulation_id, source_simulation_id)
+        REFERENCES simulations (id, parent_simulation_id)
         ON UPDATE CASCADE
         ON DELETE CASCADE
 ) ENGINE = InnoDB
