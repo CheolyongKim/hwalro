@@ -1,12 +1,4 @@
-import type {
-  Fabric,
-  LayoutText,
-  Pillar,
-  RectHandle,
-  Vec2,
-  Wall,
-  WallHandle,
-} from '../types';
+import type { Fabric, LayoutText, Pillar, RectHandle, Vec2, Wall, WallHandle } from '../types';
 import { distanceToSegment, estimateTextWidthPx, rectCenter, rotatePoint } from './geometry';
 
 export const HIT_RADIUS_PX = 6;

@@ -135,7 +135,17 @@ interface RectViewProps {
   rotation: number;
 }
 
-function RectShape({ selected, s, fill, stroke, startX, startY, endX, endY, rotation }: RectViewProps) {
+function RectShape({
+  selected,
+  s,
+  fill,
+  stroke,
+  startX,
+  startY,
+  endX,
+  endY,
+  rotation,
+}: RectViewProps) {
   const minX = Math.min(startX, endX);
   const minY = Math.min(startY, endY);
   const width = Math.abs(endX - startX);

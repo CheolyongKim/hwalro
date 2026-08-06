@@ -57,11 +57,9 @@ function applyWallReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   };
 }
 
-function reshapeRectElement<T extends { startX: number; startY: number; endX: number; endY: number; rotation: number }>(
-  element: T,
-  point: Vec2,
-  handle: RectHandle,
-): T {
+function reshapeRectElement<
+  T extends { startX: number; startY: number; endX: number; endY: number; rotation: number },
+>(element: T, point: Vec2, handle: RectHandle): T {
   const center = rectCenter(element);
   const local = rotatePoint(point, center, -element.rotation);
   const patch =
@@ -94,10 +92,9 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   };
 }
 
-function rotateRectElement<T extends { startX: number; startY: number; endX: number; endY: number; rotation: number }>(
-  element: T,
-  point: Vec2,
-): T {
+function rotateRectElement<
+  T extends { startX: number; startY: number; endX: number; endY: number; rotation: number },
+>(element: T, point: Vec2): T {
   const center = rectCenter(element);
   const degrees = (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI + 90;
   return { ...element, rotation: round1(((degrees % 360) + 360) % 360) };

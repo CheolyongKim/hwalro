@@ -116,7 +116,9 @@ interface RectFieldsProps {
 }
 
 function RectFields({ element, dispatch, kind }: RectFieldsProps) {
-  const update = (patch: Partial<Pick<Pillar | Fabric, 'startX' | 'startY' | 'endX' | 'endY' | 'rotation'>>) =>
+  const update = (
+    patch: Partial<Pick<Pillar | Fabric, 'startX' | 'startY' | 'endX' | 'endY' | 'rotation'>>,
+  ) =>
     dispatch(
       kind === 'pillar'
         ? { type: 'updatePillar', pillarId: element.id, patch }
@@ -127,8 +129,16 @@ function RectFields({ element, dispatch, kind }: RectFieldsProps) {
       <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
       <p className="mt-0.5 text-[13px] text-text-strong">{element.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <NumberField label="시작점 X" value={element.startX} onChange={(x) => update({ startX: x })} />
-        <NumberField label="시작점 Y" value={element.startY} onChange={(y) => update({ startY: y })} />
+        <NumberField
+          label="시작점 X"
+          value={element.startX}
+          onChange={(x) => update({ startX: x })}
+        />
+        <NumberField
+          label="시작점 Y"
+          value={element.startY}
+          onChange={(y) => update({ startY: y })}
+        />
         <NumberField label="끝점 X" value={element.endX} onChange={(x) => update({ endX: x })} />
         <NumberField label="끝점 Y" value={element.endY} onChange={(y) => update({ endY: y })} />
         <NumberField

@@ -199,14 +199,30 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     }
 
     for (const pillar of doc.pillars) {
-      if (selection.pillarIds.includes(pillar.id) && hitTestRotateHandle(pillar, world, camera.zoom)) {
-        dispatch({ type: 'rotateStart', elementKind: 'pillar', elementId: pillar.id, point: world });
+      if (
+        selection.pillarIds.includes(pillar.id) &&
+        hitTestRotateHandle(pillar, world, camera.zoom)
+      ) {
+        dispatch({
+          type: 'rotateStart',
+          elementKind: 'pillar',
+          elementId: pillar.id,
+          point: world,
+        });
         return;
       }
     }
     for (const fabric of doc.fabrics) {
-      if (selection.fabricIds.includes(fabric.id) && hitTestRotateHandle(fabric, world, camera.zoom)) {
-        dispatch({ type: 'rotateStart', elementKind: 'fabric', elementId: fabric.id, point: world });
+      if (
+        selection.fabricIds.includes(fabric.id) &&
+        hitTestRotateHandle(fabric, world, camera.zoom)
+      ) {
+        dispatch({
+          type: 'rotateStart',
+          elementKind: 'fabric',
+          elementId: fabric.id,
+          point: world,
+        });
         return;
       }
     }
