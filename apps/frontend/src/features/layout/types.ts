@@ -12,6 +12,26 @@ export interface Wall {
   endY: number;
 }
 
+export interface Pillar {
+  id: string;
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation: number;
+}
+
+export interface Fabric {
+  id: string;
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation: number;
+}
+
 export interface LayoutText {
   id: string;
   text: string;
@@ -35,11 +55,13 @@ export interface DrawingDocument {
   width: number;
   height: number;
   walls: Wall[];
+  pillars: Pillar[];
+  fabrics: Fabric[];
   layoutTexts: LayoutText[];
   background: BackgroundImage | null;
 }
 
-export type Tool = 'select' | 'wall' | 'text' | 'erase' | 'background';
+export type Tool = 'select' | 'wall' | 'text' | 'erase' | 'background' | 'pillar' | 'fabric';
 
 export interface Camera {
   zoom: number;
@@ -50,15 +72,24 @@ export interface Camera {
 export interface PointSelection {
   wallIds: string[];
   textIds: string[];
+  pillarIds: string[];
+  fabricIds: string[];
 }
 
 export type WallHandle = 'start' | 'end';
+
+export type RectHandle = 'start' | 'end';
 
 export interface WallDraft {
   start: Vec2;
   end: Vec2;
   snappedToEndpoint: Vec2 | null;
   axisSnapped: boolean;
+}
+
+export interface RectDraft {
+  start: Vec2;
+  end: Vec2;
 }
 
 export interface TextDraft {
@@ -75,8 +106,16 @@ export type DragState =
       kind: 'reshape';
       origin: Vec2;
       originDoc: DrawingDocument;
-      wallId: string;
-      handle: WallHandle;
+      elementKind: 'wall' | 'pillar' | 'fabric';
+      elementId: string;
+      handle: RectHandle;
+    }
+  | {
+      kind: 'rotate';
+      origin: Vec2;
+      originDoc: DrawingDocument;
+      elementKind: 'pillar' | 'fabric';
+      elementId: string;
     }
   | {
       kind: 'backgroundMove';
@@ -92,7 +131,7 @@ export interface EditorState {
   tool: Tool;
   selection: PointSelection;
   camera: Camera;
-  draft: WallDraft | null;
+  draft: WallDraft | RectDraft | null;
   textDraft: TextDraft | null;
   drag: DragState | null;
   cursor: Vec2 | null;
@@ -107,6 +146,24 @@ export interface SerializedWall {
   startY: number;
   endX: number;
   endY: number;
+}
+
+export interface SerializedPillar {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation: number;
+}
+
+export interface SerializedFabric {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation: number;
 }
 
 export interface SerializedText {
@@ -130,6 +187,8 @@ export interface SerializedDocument {
   width: number;
   height: number;
   walls: SerializedWall[];
+  pillars: SerializedPillar[];
+  fabrics: SerializedFabric[];
   layoutTexts: SerializedText[];
   background: SerializedBackground | null;
 }

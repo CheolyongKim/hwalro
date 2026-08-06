@@ -1,4 +1,5 @@
-import type { Vec2, Wall } from '../types';
+import type { DrawingDocument, Fabric, Pillar, Vec2, Wall } from '../types';
+import { rectCenter, rotatePoint } from './geometry';
 
 export const ANGLE_SNAP_DEG = 4;
 export const ENDPOINT_MAGNET_PX = 10;
@@ -9,6 +10,16 @@ export interface SnapResult {
   axisSnapped: boolean;
 }
 
+export interface SnapSources {
+  walls: Wall[];
+  pillars: Pillar[];
+  fabrics: Fabric[];
+}
+
+export function docSnapSources(doc: DrawingDocument): SnapSources {
+  return { walls: doc.walls, pillars: doc.pillars, fabrics: doc.fabrics };
+}
+
 export function wallEndpoints(wall: Wall): [Vec2, Vec2] {
   return [
     { x: wall.startX, y: wall.startY },
@@ -16,11 +27,21 @@ export function wallEndpoints(wall: Wall): [Vec2, Vec2] {
   ];
 }
 
-export function allEndpoints(walls: Wall[]): Vec2[] {
+export function allEndpoints(sources: SnapSources): Vec2[] {
   const points: Vec2[] = [];
-  for (const wall of walls) {
+  for (const wall of sources.walls) {
     points.push({ x: wall.startX, y: wall.startY });
     points.push({ x: wall.endX, y: wall.endY });
+  }
+  for (const pillar of sources.pillars) {
+    const center = rectCenter(pillar);
+    points.push(rotatePoint({ x: pillar.startX, y: pillar.startY }, center, pillar.rotation));
+    points.push(rotatePoint({ x: pillar.endX, y: pillar.endY }, center, pillar.rotation));
+  }
+  for (const fabric of sources.fabrics) {
+    const center = rectCenter(fabric);
+    points.push(rotatePoint({ x: fabric.startX, y: fabric.startY }, center, fabric.rotation));
+    points.push(rotatePoint({ x: fabric.endX, y: fabric.endY }, center, fabric.rotation));
   }
   return points;
 }
@@ -68,11 +89,11 @@ export function endpointMagnet(
 export function snapPoint(
   raw: Vec2,
   origin: Vec2,
-  walls: Wall[],
+  sources: SnapSources,
   exclude: Vec2[],
   zoom: number,
 ): SnapResult {
-  const magnet = endpointMagnet(raw, allEndpoints(walls), exclude, zoom);
+  const magnet = endpointMagnet(raw, allEndpoints(sources), exclude, zoom);
   if (magnet) {
     return { point: magnet, snappedToEndpoint: magnet, axisSnapped: false };
   }
