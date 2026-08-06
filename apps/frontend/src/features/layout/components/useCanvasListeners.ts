@@ -76,11 +76,7 @@ export function useCanvasListeners({
       event.preventDefault();
       const rect = el.getBoundingClientRect();
       const current = cameraRef.current;
-      const step = clamp(
-        -event.deltaY * (event.deltaMode === 1 ? 0.04 : 0.0016),
-        -0.3,
-        0.3,
-      );
+      const step = clamp(-event.deltaY * (event.deltaMode === 1 ? 0.04 : 0.0016), -0.3, 0.3);
       const factor = Math.exp(step);
       const zoomed = zoomAtPoint(current, { x: event.clientX, y: event.clientY }, rect, factor);
       const viewW = sizeRef.current.w / (zoomed.zoom * PX_PER_METER);

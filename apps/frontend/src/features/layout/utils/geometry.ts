@@ -99,9 +99,7 @@ export function fitCamera(
   viewW: number,
   viewH: number,
 ): CameraLike {
-  const zoom = clampFitZoom(
-    Math.min(viewW / docWidth, viewH / docHeight) * 0.95 / PX_PER_METER,
-  );
+  const zoom = clampFitZoom((Math.min(viewW / docWidth, viewH / docHeight) * 0.95) / PX_PER_METER);
   return {
     zoom,
     panX: (docWidth - viewW / (zoom * PX_PER_METER)) / 2,

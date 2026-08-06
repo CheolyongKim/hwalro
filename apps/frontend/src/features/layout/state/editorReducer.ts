@@ -11,7 +11,13 @@ import type {
 } from '../types';
 import { round1 } from '../utils/geometry';
 import { snapPoint } from '../utils/snapping';
-import { createEmptyDocument, emptySelection, nextExitName, nextWallName, uid } from '../utils/document';
+import {
+  createEmptyDocument,
+  emptySelection,
+  nextExitName,
+  nextWallName,
+  uid,
+} from '../utils/document';
 import { applyRedo, applyUndo, clearInteraction, commit } from './history';
 import { applyDragUpdate } from './drag';
 import { applySelectAt } from './selection';
@@ -62,11 +68,13 @@ export type EditorAction =
   | { type: 'setError'; message: string | null }
   | { type: 'clearSelection' }
   | { type: 'escape' }
-  | { type: 'updateWall';
+  | {
+      type: 'updateWall';
       wallId: string;
       patch: Partial<Pick<Wall, 'startX' | 'startY' | 'endX' | 'endY'>>;
     }
-  | { type: 'updateExit';
+  | {
+      type: 'updateExit';
       exitId: string;
       patch: Partial<Pick<Exit, 'startX' | 'startY' | 'endX' | 'endY'>>;
     }
@@ -285,7 +293,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'deleteSelection': {
       const { selection } = state;
-      if (selection.wallIds.length === 0 && selection.exitIds.length === 0 && selection.textIds.length === 0) {
+      if (
+        selection.wallIds.length === 0 &&
+        selection.exitIds.length === 0 &&
+        selection.textIds.length === 0
+      ) {
         return state;
       }
       const walls = state.doc.walls.filter((w) => !selection.wallIds.includes(w.id));
@@ -367,7 +379,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (state.textDraft) {
         return { ...state, textDraft: null };
       }
-      if (state.selection.wallIds.length > 0 || state.selection.exitIds.length > 0 || state.selection.textIds.length > 0) {
+      if (
+        state.selection.wallIds.length > 0 ||
+        state.selection.exitIds.length > 0 ||
+        state.selection.textIds.length > 0
+      ) {
         return { ...state, selection: emptySelection() };
       }
       return state;

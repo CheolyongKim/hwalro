@@ -240,9 +240,9 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
           ? 'layout-cursor-exit'
           : tool === 'erase'
             ? 'layout-cursor-erase'
-          : tool === 'text'
-            ? 'layout-cursor-text'
-            : 'layout-cursor-default';
+            : tool === 'text'
+              ? 'layout-cursor-text'
+              : 'layout-cursor-default';
 
   const viewW = size.w > 0 ? size.w / (camera.zoom * PX_PER_METER) : 1;
   const viewH = size.h > 0 ? size.h / (camera.zoom * PX_PER_METER) : 1;
@@ -318,12 +318,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                   strokeDasharray="6 4"
                   vectorEffect="non-scaling-stroke"
                 />
-                <circle
-                  cx={draft.start.x}
-                  cy={draft.start.y}
-                  r={s(3.5)}
-                  fill={draftColor}
-                />
+                <circle cx={draft.start.x} cy={draft.start.y} r={s(3.5)} fill={draftColor} />
                 {draft.snappedToEndpoint && (
                   <circle
                     cx={draft.snappedToEndpoint.x}

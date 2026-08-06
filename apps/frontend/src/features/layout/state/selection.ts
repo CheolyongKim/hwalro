@@ -19,7 +19,9 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
     return {
       ...state,
       selection: {
-        wallIds: action.additive ? toggleId(state.selection.wallIds, action.wallId) : [action.wallId],
+        wallIds: action.additive
+          ? toggleId(state.selection.wallIds, action.wallId)
+          : [action.wallId],
         exitIds: action.additive ? state.selection.exitIds : [],
         textIds: action.additive ? state.selection.textIds : [],
       },
@@ -31,7 +33,9 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
       ...state,
       selection: {
         wallIds: action.additive ? state.selection.wallIds : [],
-        exitIds: action.additive ? toggleId(state.selection.exitIds, action.exitId) : [action.exitId],
+        exitIds: action.additive
+          ? toggleId(state.selection.exitIds, action.exitId)
+          : [action.exitId],
         textIds: action.additive ? state.selection.textIds : [],
       },
       snapHint: null,

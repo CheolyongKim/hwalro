@@ -32,7 +32,7 @@ export function ZoomControl({ state, dispatch, size, className }: ZoomControlPro
     if (size.w === 0 || size.h === 0) {
       return;
     }
-    const zoom = Math.min(size.w / doc.width, size.h / doc.height) * 0.95 / PX_PER_METER;
+    const zoom = (Math.min(size.w / doc.width, size.h / doc.height) * 0.95) / PX_PER_METER;
     const clamped = clampFitZoom(zoom);
     dispatch({
       type: 'setCamera',
