@@ -29,28 +29,16 @@ public class NearbyClearanceEvaluator {
         List<RotatedRectangle> after = obstacles(fabrics, fixed, changed);
         double loss = 0;
         for (FabricChange change : candidate.changes()) {
-            for (double x = Math.max(
-                            0,
-                            Math.floor(
-                                    change.after().center().x() - change.after().width() / 2 - RADIUS));
-                    x
-                            <= Math.min(
-                                    width,
-                                    Math.ceil(change.after().center().x()
-                                            + change.after().width() / 2
-                                            + RADIUS));
+            List<Point> corners = change.after().corners();
+            double minimumX = corners.stream().mapToDouble(Point::x).min().orElseThrow();
+            double maximumX = corners.stream().mapToDouble(Point::x).max().orElseThrow();
+            double minimumY = corners.stream().mapToDouble(Point::y).min().orElseThrow();
+            double maximumY = corners.stream().mapToDouble(Point::y).max().orElseThrow();
+            for (double x = Math.max(0, Math.floor(minimumX - RADIUS));
+                    x <= Math.min(width, Math.ceil(maximumX + RADIUS));
                     x++) {
-                for (double y = Math.max(
-                                0,
-                                Math.floor(change.after().center().y()
-                                        - change.after().height() / 2
-                                        - RADIUS));
-                        y
-                                <= Math.min(
-                                        height,
-                                        Math.ceil(change.after().center().y()
-                                                + change.after().height() / 2
-                                                + RADIUS));
+                for (double y = Math.max(0, Math.floor(minimumY - RADIUS));
+                        y <= Math.min(height, Math.ceil(maximumY + RADIUS));
                         y++) {
                     Point point = new Point(x, y);
                     if (!before.stream().anyMatch(obstacle -> Geometry.contains(obstacle, point))) {

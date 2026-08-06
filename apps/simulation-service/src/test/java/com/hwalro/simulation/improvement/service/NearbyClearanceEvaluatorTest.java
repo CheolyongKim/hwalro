@@ -20,4 +20,15 @@ class NearbyClearanceEvaluatorTest {
 
         assertTrue(loss > 0);
     }
+
+    @Test
+    void includesLossNearProjectedCornersOfRotatedFabric() {
+        FabricState fabric = new FabricState(1, RotatedRectangle.of(14, 9, 16, 11, 0));
+        ProposalCandidate candidate = new ProposalCandidate(
+                List.of(new FabricChange(1, fabric.bounds(), RotatedRectangle.of(9, 9, 11, 11, 45))));
+
+        double loss = new NearbyClearanceEvaluator().maximumLoss(candidate, List.of(fabric), List.of(), 20, 20);
+
+        assertTrue(loss > 0);
+    }
 }
