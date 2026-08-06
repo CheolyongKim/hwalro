@@ -35,6 +35,7 @@ public class ImprovementProposalService {
         if (candidates.size() > PROPOSAL_TYPES.size()) {
             throw new IllegalArgumentException("개선안은 최대 3개까지만 저장할 수 있습니다.");
         }
+        improvementProposalMapper.lockSourceSimulationId(sourceSimulationId);
         if (improvementProposalMapper.existsSavedBySourceSimulationId(sourceSimulationId)) {
             throw new IllegalStateException("저장된 개선안이 있어 재생성할 수 없습니다.");
         }

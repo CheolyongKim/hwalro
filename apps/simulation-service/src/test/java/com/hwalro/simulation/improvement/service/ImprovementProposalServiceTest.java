@@ -3,6 +3,7 @@ package com.hwalro.simulation.improvement.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -37,6 +39,9 @@ class ImprovementProposalServiceTest {
                 service.replaceUnsaved(1L, List.of(candidate(10), candidate(20), candidate(30)));
 
         ArgumentCaptor<ImprovementProposal> captor = ArgumentCaptor.forClass(ImprovementProposal.class);
+        InOrder inOrder = inOrder(improvementProposalMapper);
+        inOrder.verify(improvementProposalMapper).lockSourceSimulationId(1L);
+        inOrder.verify(improvementProposalMapper).existsSavedBySourceSimulationId(1L);
         verify(improvementProposalMapper).deleteUnsavedBySourceSimulationId(1L);
         verify(improvementProposalMapper, org.mockito.Mockito.times(3)).insert(captor.capture());
         assertEquals(

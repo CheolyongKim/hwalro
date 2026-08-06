@@ -18,6 +18,9 @@ public interface ImprovementProposalMapper {
     /** 저장된 개선안이 있으면 재생성으로 기존 확정안을 덮어쓰지 않습니다. */
     boolean existsSavedBySourceSimulationId(@Param("sourceSimulationId") Long sourceSimulationId);
 
+    /** 같은 원본 시뮬레이션의 개선안 재생성을 직렬화합니다. */
+    Long lockSourceSimulationId(@Param("sourceSimulationId") Long sourceSimulationId);
+
     /** 아직 배치 버전으로 저장되지 않은 개선안을 삭제합니다. */
     int deleteUnsavedBySourceSimulationId(@Param("sourceSimulationId") Long sourceSimulationId);
 

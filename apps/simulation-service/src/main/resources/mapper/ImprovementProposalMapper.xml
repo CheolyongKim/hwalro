@@ -27,6 +27,13 @@
         )
     </select>
 
+    <select id="lockSourceSimulationId" resultType="long">
+        SELECT id
+        FROM simulations
+        WHERE id = #{sourceSimulationId}
+        FOR UPDATE
+    </select>
+
     <!-- 저장되지 않은 후보만 교체해 확정된 개선안 이력을 보존합니다. -->
     <delete id="deleteUnsavedBySourceSimulationId">
         DELETE FROM improvement_proposals
