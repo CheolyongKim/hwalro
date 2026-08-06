@@ -23,6 +23,19 @@ public final class Geometry {
                         && point.y() <= floorHeight + EPSILON);
     }
 
+    /**
+     * 두 회전 직사각형의 가장 가까운 거리를 실제 도면 단위로 반환합니다.
+     *
+     * <p>겹치면 0이고, 그렇지 않으면 모든 꼭짓점과 반대편 모서리의 최단 거리를 비교합니다.
+     */
+    public static double distance(RotatedRectangle first, RotatedRectangle second) {
+        if (intersects(first, second)) {
+            return 0;
+        }
+        return Math.min(
+                distanceToEdges(first.corners(), second.corners()), distanceToEdges(second.corners(), first.corners()));
+    }
+
     private static boolean overlapsOnEveryAxis(List<Point> axisSource, List<Point> first, List<Point> second) {
         for (int index = 0; index < axisSource.size(); index++) {
             Point current = axisSource.get(index);
@@ -56,6 +69,34 @@ public final class Geometry {
 
     private static boolean overlaps(Interval first, Interval second) {
         return first.maximum + EPSILON >= second.minimum && second.maximum + EPSILON >= first.minimum;
+    }
+
+    private static double distanceToEdges(List<Point> points, List<Point> edges) {
+        return points.stream()
+                .mapToDouble(point -> distanceToPolygon(point, edges))
+                .min()
+                .orElseThrow();
+    }
+
+    private static double distanceToPolygon(Point point, List<Point> corners) {
+        double minimum = Double.MAX_VALUE;
+        for (int index = 0; index < corners.size(); index++) {
+            minimum = Math.min(
+                    minimum, distanceToSegment(point, corners.get(index), corners.get((index + 1) % corners.size())));
+        }
+        return minimum;
+    }
+
+    private static double distanceToSegment(Point point, Point start, Point end) {
+        double deltaX = end.x() - start.x();
+        double deltaY = end.y() - start.y();
+        double lengthSquared = deltaX * deltaX + deltaY * deltaY;
+        if (lengthSquared < EPSILON) {
+            return Math.hypot(point.x() - start.x(), point.y() - start.y());
+        }
+        double projection = ((point.x() - start.x()) * deltaX + (point.y() - start.y()) * deltaY) / lengthSquared;
+        double ratio = Math.max(0, Math.min(1, projection));
+        return Math.hypot(point.x() - (start.x() + ratio * deltaX), point.y() - (start.y() + ratio * deltaY));
     }
 
     private record Interval(double minimum, double maximum) {}

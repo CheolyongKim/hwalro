@@ -25,6 +25,14 @@ class GeometryTest {
     }
 
     @Test
+    void calculatesTheGapBetweenSeparatedRotatedRectangles() {
+        RotatedRectangle first = RotatedRectangle.of(0, 0, 2, 2, 0);
+        RotatedRectangle second = RotatedRectangle.of(5, 0, 7, 2, 0);
+
+        assertEquals(3.0, Geometry.distance(first, second));
+    }
+
+    @Test
     void rotatesAroundTheFabricCenterClockwise() {
         RotatedRectangle rectangle = RotatedRectangle.of(0, 0, 4, 2, 0).rotateClockwiseBy(90);
 
