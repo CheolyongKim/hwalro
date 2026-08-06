@@ -36,6 +36,29 @@ public final class Geometry {
                 distanceToEdges(first.corners(), second.corners()), distanceToEdges(second.corners(), first.corners()));
     }
 
+    /** 점이 도형 안이나 경계에 있으면 true를 반환합니다. */
+    public static boolean contains(RotatedRectangle rectangle, Point point) {
+        Boolean direction = null;
+        List<Point> corners = rectangle.corners();
+        for (int index = 0; index < corners.size(); index++) {
+            Point first = corners.get(index);
+            Point second = corners.get((index + 1) % corners.size());
+            boolean current =
+                    cross(second.x() - first.x(), second.y() - first.y(), point.x() - first.x(), point.y() - first.y())
+                            >= -EPSILON;
+            if (direction != null && direction != current) {
+                return false;
+            }
+            direction = current;
+        }
+        return true;
+    }
+
+    /** 점에서 도형 외곽까지의 최단 거리입니다. 내부 점은 0입니다. */
+    public static double distance(Point point, RotatedRectangle rectangle) {
+        return contains(rectangle, point) ? 0 : distanceToPolygon(point, rectangle.corners());
+    }
+
     private static boolean overlapsOnEveryAxis(List<Point> axisSource, List<Point> first, List<Point> second) {
         for (int index = 0; index < axisSource.size(); index++) {
             Point current = axisSource.get(index);
@@ -65,6 +88,10 @@ public final class Geometry {
 
     private static double dot(Point point, Point axis) {
         return point.x() * axis.x() + point.y() * axis.y();
+    }
+
+    private static double cross(double firstX, double firstY, double secondX, double secondY) {
+        return firstX * secondY - firstY * secondX;
     }
 
     private static boolean overlaps(Interval first, Interval second) {
