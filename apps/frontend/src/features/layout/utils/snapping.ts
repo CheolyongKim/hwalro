@@ -63,12 +63,13 @@ export function axisSnap(origin: Vec2, target: Vec2): Vec2 | null {
     return null;
   }
   const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-  const modAngle = ((angle % 90) + 90) % 90;
-  const distanceToAxis = Math.min(modAngle, 90 - modAngle);
-  if (distanceToAxis > ANGLE_SNAP_DEG) {
+  const folded = ((angle % 180) + 180) % 180;
+  const distanceToHorizontal = Math.min(folded, 180 - folded);
+  const distanceToVertical = 90 - distanceToHorizontal;
+  if (Math.min(distanceToHorizontal, distanceToVertical) > ANGLE_SNAP_DEG) {
     return null;
   }
-  if (modAngle < 45) {
+  if (distanceToHorizontal <= distanceToVertical) {
     return { x: target.x, y: origin.y };
   }
   return { x: origin.x, y: target.y };
