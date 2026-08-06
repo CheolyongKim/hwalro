@@ -4,6 +4,7 @@ export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 32;
 export const FIT_MAX_ZOOM = 2;
 export const PX_PER_METER = 7;
+export const PAN_MARGIN_FACTOR = 0.5;
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -135,14 +136,23 @@ export function clampPan(
   viewW: number,
   viewH: number,
 ): CameraLike {
-  const margin = 0;
-  const minX = -margin;
-  const maxX = docWidth + margin - viewW;
-  const minY = -margin;
-  const maxY = docHeight + margin - viewH;
-  const panX = viewW > maxX - minX ? (minX + maxX) / 2 : clamp(camera.panX, minX, maxX);
-  const panY = viewH > maxY - minY ? (minY + maxY) / 2 : clamp(camera.panY, minY, maxY);
+  const rangeX = panRange(docWidth, viewW);
+  const rangeY = panRange(docHeight, viewH);
+  const panX = clamp(camera.panX, rangeX.min, rangeX.max);
+  const panY = clamp(camera.panY, rangeY.min, rangeY.max);
   return { zoom: camera.zoom, panX, panY };
+}
+
+function panRange(docSize: number, viewSize: number): { min: number; max: number } {
+  const margin = viewSize * PAN_MARGIN_FACTOR;
+  let min = -margin;
+  let max = docSize + margin - viewSize;
+  if (viewSize > max - min) {
+    const extra = (viewSize - (max - min)) / 2;
+    min -= extra;
+    max += extra;
+  }
+  return { min, max };
 }
 
 export function estimateTextWidthPx(text: string, fontSizePx: number): number {

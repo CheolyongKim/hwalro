@@ -8,6 +8,8 @@ interface LayoutToolbarProps {
   dispatch: Dispatch<EditorAction>;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   onSave: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 const TOOLS: Array<{ id: Tool; label: string }> = [
@@ -20,67 +22,115 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'erase', label: '삭제' },
 ];
 
-export function LayoutToolbar({ state, dispatch, saveStatus, onSave }: LayoutToolbarProps) {
+export function LayoutToolbar({
+  state,
+  dispatch,
+  saveStatus,
+  onSave,
+  collapsed,
+  onToggleCollapse,
+}: LayoutToolbarProps) {
   const navigate = useNavigate();
 
   return (
-    <div className="flex w-fit items-center gap-2 rounded-md border border-line bg-surface p-2">
-      <button
-        type="button"
-        onClick={() => navigate('/')}
-        aria-label="목록"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line-strong bg-white text-text-strong transition-colors hover:bg-background"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+    <div className="shrink-0 border-b border-panel-divider p-3">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          aria-label="목록"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-panel-muted transition-colors hover:bg-panel-soft hover:text-panel-text"
         >
-          <path d="M10 3 L5 8 L10 13" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        onClick={onSave}
-        className={`flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-bold text-white transition-colors ${
-          saveStatus === 'error' ? 'bg-danger' : 'bg-primary hover:bg-primary/85'
-        }`}
-      >
-        {saveStatus === 'saving'
-          ? '저장 중'
-          : saveStatus === 'saved'
-            ? '저장 완료'
-            : saveStatus === 'error'
-              ? '저장 실패'
-              : '저장'}
-      </button>
-      <div className="mx-1 h-5 w-px shrink-0 bg-line" />
-      <div className="flex items-center gap-1">
-        {TOOLS.map((tool) => {
-          const active = state.tool === tool.id;
-          return (
-            <button
-              key={tool.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => dispatch({ type: 'setTool', tool: tool.id })}
-              className={`h-8 rounded-md px-3 text-[13px] transition-colors ${
-                active
-                  ? 'bg-primary font-bold text-white'
-                  : 'bg-toolbar font-semibold text-text-strong hover:bg-primary-soft'
-              }`}
-            >
-              {tool.label}
-            </button>
-          );
-        })}
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10 3 L5 8 L10 13" />
+          </svg>
+        </button>
+        <h1 className="min-w-0 flex-1 truncate text-[15px] font-bold text-panel-text">
+          {state.doc.name}
+        </h1>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? '패널 펼치기' : '패널 접기'}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-panel-muted transition-colors hover:bg-panel-soft hover:text-panel-text"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            {collapsed ? (
+              <>
+                <path d="M8 3 L12 8 L8 13" />
+                <path d="M4 3 L8 8 L4 13" />
+              </>
+            ) : (
+              <>
+                <path d="M8 3 L4 8 L8 13" />
+                <path d="M12 3 L8 8 L12 13" />
+              </>
+            )}
+          </svg>
+        </button>
       </div>
+      {!collapsed && (
+        <div className="mt-3 flex flex-col gap-2">
+          <div className="grid grid-cols-4 gap-1.5">
+            {TOOLS.map((tool) => {
+              const active = state.tool === tool.id;
+              return (
+                <button
+                  key={tool.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => dispatch({ type: 'setTool', tool: tool.id })}
+                  className={`h-8 rounded-md text-[12px] transition-colors ${
+                    active
+                      ? 'bg-panel-accent font-bold text-ink'
+                      : 'bg-panel-soft font-semibold text-panel-text hover:bg-panel-border'
+                  }`}
+                >
+                  {tool.label}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={onSave}
+            className={`h-9 rounded-md text-[13px] font-bold transition-colors ${
+              saveStatus === 'error'
+                ? 'bg-panel-danger text-white'
+                : 'bg-panel-accent text-ink hover:opacity-85'
+            }`}
+          >
+            {saveStatus === 'saving'
+              ? '저장 중'
+              : saveStatus === 'saved'
+                ? '저장 완료'
+                : saveStatus === 'error'
+                  ? '저장 실패'
+                  : '저장'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

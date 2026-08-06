@@ -74,8 +74,8 @@ function NumberField({ label, value, unit = 'm', onChange }: NumberFieldProps) {
 
   return (
     <label className="block min-w-0">
-      <span className="block text-[11px] text-text-muted">{label}</span>
-      <span className="mt-1 flex h-8 items-center rounded-md border border-line bg-white">
+      <span className="block text-[11px] text-panel-muted">{label}</span>
+      <span className="mt-1 flex h-8 items-center rounded-md border border-panel-border bg-panel-soft">
         <input
           type="number"
           step={0.1}
@@ -87,9 +87,9 @@ function NumberField({ label, value, unit = 'm', onChange }: NumberFieldProps) {
               commitDraft();
             }
           }}
-          className="h-full w-full min-w-0 bg-transparent px-2 font-mono text-[13px] text-text-strong outline-none"
+          className="h-full w-full min-w-0 bg-transparent px-2 font-mono text-[13px] text-panel-text outline-none"
         />
-        <span className="shrink-0 pr-2 font-mono text-[11px] text-text-muted">{unit}</span>
+        <span className="shrink-0 pr-2 font-mono text-[11px] text-panel-faint">{unit}</span>
       </span>
     </label>
   );
@@ -105,8 +105,8 @@ function WallFields({ wall, dispatch }: WallFieldsProps) {
     dispatch({ type: 'updateWall', wallId: wall.id, patch });
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
-      <p className="mt-0.5 text-[13px] text-text-strong">{wall.name}</p>
+      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-[13px] text-panel-text">{wall.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField label="시작점 X" value={wall.startX} onChange={(x) => update({ startX: x })} />
         <NumberField label="시작점 Y" value={wall.startY} onChange={(y) => update({ startY: y })} />
@@ -127,8 +127,8 @@ function ExitFields({ exit, dispatch }: ExitFieldsProps) {
     dispatch({ type: 'updateExit', exitId: exit.id, patch });
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
-      <p className="mt-0.5 text-[13px] text-text-strong">{exit.name}</p>
+      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-[13px] text-panel-text">{exit.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField label="시작점 X" value={exit.startX} onChange={(x) => update({ startX: x })} />
         <NumberField label="시작점 Y" value={exit.startY} onChange={(y) => update({ startY: y })} />
@@ -156,8 +156,8 @@ function RectFields({ element, dispatch, kind }: RectFieldsProps) {
     );
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
-      <p className="mt-0.5 text-[13px] text-text-strong">{element.name}</p>
+      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-[13px] text-panel-text">{element.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField
           label="시작점 X"
@@ -192,8 +192,8 @@ function TextFields({ text, dispatch }: TextFieldsProps) {
     dispatch({ type: 'updateText', textId: text.id, patch });
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
-      <p className="mt-0.5 truncate text-[13px] text-text-strong">{text.text}</p>
+      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 truncate text-[13px] text-panel-text">{text.text}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField label="X 위치" value={text.x} onChange={(x) => update({ x })} />
         <NumberField label="Y 위치" value={text.y} onChange={(y) => update({ y })} />
@@ -210,8 +210,8 @@ interface InfoRowProps {
 function InfoRow({ label, value }: InfoRowProps) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
-      <span className="shrink-0 text-[11px] text-text-muted">{label}</span>
-      <span className="truncate font-mono text-[13px] text-text-strong">{value}</span>
+      <span className="shrink-0 text-[11px] text-panel-muted">{label}</span>
+      <span className="truncate font-mono text-[13px] text-panel-text">{value}</span>
     </div>
   );
 }
@@ -225,41 +225,16 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
   const { doc } = state;
 
   return (
-    <aside className="flex w-[330px] shrink-0 flex-col overflow-y-auto rounded-md border border-line bg-white">
-      <h2 className="shrink-0 border-b border-line px-4 py-3 text-sm font-bold text-text-strong">
-        배치 설정
-      </h2>
-      <div className="flex-1 px-4 py-4">
-        {wall === null && exit === null && pillar === null && fabric === null && text === null ? (
-          <section>
-            <h3 className="text-[13px] font-bold text-text-strong">도면 정보</h3>
-            <div className="mt-2">
-              <InfoRow label="도면명" value={doc.name} />
-              <InfoRow
-                label="크기"
-                value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
-              />
-              <InfoRow label="벽" value={`${doc.walls.length}개`} />
-              <InfoRow label="비상구" value={`${doc.exits.length}개`} />
-              <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
-              <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
-              <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
-            </div>
-          </section>
-        ) : wall !== null ? (
-          <WallFields wall={wall} dispatch={dispatch} />
-        ) : exit !== null ? (
-          <ExitFields exit={exit} dispatch={dispatch} />
-        ) : pillar !== null ? (
-          <RectFields element={pillar} dispatch={dispatch} kind="pillar" />
-        ) : fabric !== null ? (
-          <RectFields element={fabric} dispatch={dispatch} kind="fabric" />
-        ) : (
-          <TextFields text={text as LayoutText} dispatch={dispatch} />
-        )}
-        <section className="mt-6 border-t border-line pt-4">
-          <h3 className="text-[13px] font-bold text-text-strong">레이어</h3>
-          <div className="mt-2">
+    <aside aria-label="도면 설정" className="px-3 pb-3">
+      {wall === null && exit === null && pillar === null && fabric === null && text === null ? (
+        <section>
+          <h3 className="text-[13px] font-bold text-panel-text">도면 정보</h3>
+          <div className="mt-1">
+            <InfoRow label="도면명" value={doc.name} />
+            <InfoRow
+              label="크기"
+              value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
+            />
             <InfoRow label="벽" value={`${doc.walls.length}개`} />
             <InfoRow label="비상구" value={`${doc.exits.length}개`} />
             <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
@@ -267,7 +242,27 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
             <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
           </div>
         </section>
-      </div>
+      ) : wall !== null ? (
+        <WallFields wall={wall} dispatch={dispatch} />
+      ) : exit !== null ? (
+        <ExitFields exit={exit} dispatch={dispatch} />
+      ) : pillar !== null ? (
+        <RectFields element={pillar} dispatch={dispatch} kind="pillar" />
+      ) : fabric !== null ? (
+        <RectFields element={fabric} dispatch={dispatch} kind="fabric" />
+      ) : (
+        <TextFields text={text as LayoutText} dispatch={dispatch} />
+      )}
+      <section className="mt-4 border-t border-panel-divider pt-4">
+        <h3 className="text-[13px] font-bold text-panel-text">레이어</h3>
+        <div className="mt-1">
+          <InfoRow label="벽" value={`${doc.walls.length}개`} />
+          <InfoRow label="비상구" value={`${doc.exits.length}개`} />
+          <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
+          <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
+          <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
+        </div>
+      </section>
     </aside>
   );
 }
