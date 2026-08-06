@@ -2,6 +2,7 @@ import type {
   Camera,
   DrawingDocument,
   EditorState,
+  Exit,
   Tool,
   Vec2,
   Wall,
@@ -10,7 +11,7 @@ import type {
 } from '../types';
 import { round1 } from '../utils/geometry';
 import { snapPoint } from '../utils/snapping';
-import { createEmptyDocument, emptySelection, nextWallName, uid } from '../utils/document';
+import { createEmptyDocument, emptySelection, nextExitName, nextWallName, uid } from '../utils/document';
 import { applyRedo, applyUndo, clearInteraction, commit } from './history';
 import { applyDragUpdate } from './drag';
 import { applySelectAt } from './selection';
@@ -29,12 +30,22 @@ export type EditorAction =
   | { type: 'wallStart'; point: Vec2 }
   | { type: 'wallUpdate'; point: Vec2 }
   | { type: 'wallCommit' }
+  | { type: 'exitStart'; point: Vec2 }
+  | { type: 'exitUpdate'; point: Vec2 }
+  | { type: 'exitCommit' }
   | { type: 'textPlace'; point: Vec2 }
   | { type: 'textCommit'; text: string }
   | { type: 'textCancel' }
-  | { type: 'selectAt'; wallId: string | null; textId: string | null; additive: boolean }
+  | {
+      type: 'selectAt';
+      wallId: string | null;
+      exitId: string | null;
+      textId: string | null;
+      additive: boolean;
+    }
   | { type: 'dragStartMove'; point: Vec2 }
   | { type: 'reshapeStart'; wallId: string; handle: WallHandle; point: Vec2 }
+  | { type: 'reshapeExitStart'; exitId: string; handle: WallHandle; point: Vec2 }
   | { type: 'dragUpdate'; point: Vec2 }
   | { type: 'dragEnd' }
   | { type: 'deleteSelection' }
@@ -51,10 +62,13 @@ export type EditorAction =
   | { type: 'setError'; message: string | null }
   | { type: 'clearSelection' }
   | { type: 'escape' }
-  | {
-      type: 'updateWall';
+  | { type: 'updateWall';
       wallId: string;
       patch: Partial<Pick<Wall, 'startX' | 'startY' | 'endX' | 'endY'>>;
+    }
+  | { type: 'updateExit';
+      exitId: string;
+      patch: Partial<Pick<Exit, 'startX' | 'startY' | 'endX' | 'endY'>>;
     }
   | { type: 'updateText'; textId: string; patch: Partial<Pick<LayoutText, 'x' | 'y'>> };
 
@@ -76,6 +90,44 @@ export function createInitialState(): EditorState {
   };
 }
 
+function applyDraftStart(state: EditorState, point: Vec2): EditorState {
+  const snapped = snapPoint(point, point, state.doc.walls, [], state.camera.zoom);
+  return {
+    ...state,
+    draft: {
+      start: snapped.point,
+      end: snapped.point,
+      axisSnapped: false,
+      snappedToEndpoint: null,
+    },
+    snapHint: snapped.snappedToEndpoint,
+    textDraft: null,
+    error: null,
+  };
+}
+
+function applyDraftUpdate(state: EditorState, point: Vec2): EditorState {
+  if (!state.draft) {
+    return state;
+  }
+  const snapped = snapPoint(
+    point,
+    state.draft.start,
+    state.doc.walls,
+    [state.draft.start],
+    state.camera.zoom,
+  );
+  return {
+    ...state,
+    draft: {
+      ...state.draft,
+      end: snapped.point,
+      axisSnapped: snapped.axisSnapped,
+      snappedToEndpoint: snapped.snappedToEndpoint,
+    },
+  };
+}
+
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'setTool':
@@ -94,43 +146,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'cursorMove':
       return { ...state, cursor: action.world };
 
-    case 'wallStart': {
-      const snapped = snapPoint(action.point, action.point, state.doc.walls, [], state.camera.zoom);
-      return {
-        ...state,
-        draft: {
-          start: snapped.point,
-          end: snapped.point,
-          axisSnapped: false,
-          snappedToEndpoint: null,
-        },
-        snapHint: snapped.snappedToEndpoint,
-        textDraft: null,
-        error: null,
-      };
-    }
+    case 'wallStart':
+      return applyDraftStart(state, action.point);
 
-    case 'wallUpdate': {
-      if (!state.draft) {
-        return state;
-      }
-      const snapped = snapPoint(
-        action.point,
-        state.draft.start,
-        state.doc.walls,
-        [state.draft.start],
-        state.camera.zoom,
-      );
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          end: snapped.point,
-          axisSnapped: snapped.axisSnapped,
-          snappedToEndpoint: snapped.snappedToEndpoint,
-        },
-      };
-    }
+    case 'wallUpdate':
+      return applyDraftUpdate(state, action.point);
 
     case 'wallCommit': {
       if (!state.draft) {
@@ -149,6 +169,32 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         endY: round1(end.y),
       };
       const next = { ...state.doc, walls: [...state.doc.walls, wall] };
+      return commit(state, state.doc, next);
+    }
+
+    case 'exitStart':
+      return applyDraftStart(state, action.point);
+
+    case 'exitUpdate':
+      return applyDraftUpdate(state, action.point);
+
+    case 'exitCommit': {
+      if (!state.draft) {
+        return state;
+      }
+      const { start, end } = state.draft;
+      if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      const exit: Exit = {
+        id: uid(),
+        name: nextExitName(state.doc),
+        startX: round1(start.x),
+        startY: round1(start.y),
+        endX: round1(end.x),
+        endY: round1(end.y),
+      };
+      const next = { ...state.doc, exits: [...state.doc.exits, exit] };
       return commit(state, state.doc, next);
     }
 
@@ -200,6 +246,18 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         },
       };
 
+    case 'reshapeExitStart':
+      return {
+        ...state,
+        drag: {
+          kind: 'reshapeExit',
+          origin: action.point,
+          originDoc: state.doc,
+          exitId: action.exitId,
+          handle: action.handle,
+        },
+      };
+
     case 'dragUpdate':
       return applyDragUpdate(state, action.point);
 
@@ -227,12 +285,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'deleteSelection': {
       const { selection } = state;
-      if (selection.wallIds.length === 0 && selection.textIds.length === 0) {
+      if (selection.wallIds.length === 0 && selection.exitIds.length === 0 && selection.textIds.length === 0) {
         return state;
       }
       const walls = state.doc.walls.filter((w) => !selection.wallIds.includes(w.id));
+      const exits = state.doc.exits.filter((e) => !selection.exitIds.includes(e.id));
       const layoutTexts = state.doc.layoutTexts.filter((t) => !selection.textIds.includes(t.id));
-      const next = { ...state.doc, walls, layoutTexts };
+      const next = { ...state.doc, walls, exits, layoutTexts };
       return commit(state, state.doc, next);
     }
 
@@ -259,6 +318,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const next = {
         ...state.doc,
         walls: state.doc.walls.map((w) => (w.id === wall.id ? nextWall : w)),
+      };
+      return commit(state, state.doc, next);
+    }
+
+    case 'updateExit': {
+      const exit = state.doc.exits.find((e) => e.id === action.exitId);
+      if (!exit) {
+        return state;
+      }
+      const nextExit: Exit = { ...exit, ...action.patch };
+      const next = {
+        ...state.doc,
+        exits: state.doc.exits.map((e) => (e.id === exit.id ? nextExit : e)),
       };
       return commit(state, state.doc, next);
     }
@@ -295,7 +367,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (state.textDraft) {
         return { ...state, textDraft: null };
       }
-      if (state.selection.wallIds.length > 0 || state.selection.textIds.length > 0) {
+      if (state.selection.wallIds.length > 0 || state.selection.exitIds.length > 0 || state.selection.textIds.length > 0) {
         return { ...state, selection: emptySelection() };
       }
       return state;

@@ -2,10 +2,10 @@ import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, PointerEvent as ReactPointerEvent } from 'react';
 import type { Camera, EditorState, Vec2 } from '../types';
 import type { EditorAction } from '../state/editorReducer';
-import { clampPan, formatMeters, screenToWorld } from '../utils/geometry';
-import { hitTestElements, hitTestHandle } from '../utils/hitTest';
+import { clampPan, formatMeters, PX_PER_METER, screenToWorld } from '../utils/geometry';
+import { hitTestElements, hitTestExitHandle, hitTestHandle } from '../utils/hitTest';
 import type { HandleHit } from '../utils/hitTest';
-import { GridLayer, TextView, WallView, BackgroundLayer } from './layers';
+import { ExitView, GridLayer, TextView, WallView, BackgroundLayer } from './layers';
 import { useCanvasListeners } from './useCanvasListeners';
 
 interface LayoutCanvasProps {
@@ -69,14 +69,29 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       }
       return;
     }
+    if (tool === 'exit') {
+      if (state.draft) {
+        dispatch({ type: 'exitUpdate', point: world });
+        dispatch({ type: 'exitCommit' });
+      } else {
+        dispatch({ type: 'exitStart', point: world });
+      }
+      return;
+    }
     if (tool === 'text') {
       dispatch({ type: 'textPlace', point: world });
       return;
     }
     if (tool === 'erase') {
-      const hit = hitTestElements(world, doc.walls, doc.layoutTexts, camera.zoom);
-      if (hit.wallId !== null || hit.textId !== null) {
-        dispatch({ type: 'selectAt', wallId: hit.wallId, textId: hit.textId, additive: false });
+      const hit = hitTestElements(world, doc.walls, doc.layoutTexts, doc.exits, camera.zoom);
+      if (hit.wallId !== null || hit.exitId !== null || hit.textId !== null) {
+        dispatch({
+          type: 'selectAt',
+          wallId: hit.wallId,
+          exitId: hit.exitId,
+          textId: hit.textId,
+          additive: false,
+        });
         dispatch({ type: 'deleteSelection' });
       }
       return;
@@ -116,16 +131,33 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       });
       return;
     }
+    for (const exit of doc.exits) {
+      if (selection.exitIds.includes(exit.id)) {
+        const hit = hitTestExitHandle(world, exit, camera.zoom);
+        if (hit) {
+          dispatch({
+            type: 'reshapeExitStart',
+            exitId: hit.exitId,
+            handle: hit.handle,
+            point: world,
+          });
+          return;
+        }
+      }
+    }
 
-    const hit = hitTestElements(world, doc.walls, doc.layoutTexts, camera.zoom);
-    if (hit.wallId !== null || hit.textId !== null) {
+    const hit = hitTestElements(world, doc.walls, doc.layoutTexts, doc.exits, camera.zoom);
+    if (hit.wallId !== null || hit.exitId !== null || hit.textId !== null) {
       const wasSelected =
         hit.wallId !== null
           ? selection.wallIds.includes(hit.wallId)
-          : selection.textIds.includes(hit.textId as string);
+          : hit.exitId !== null
+            ? selection.exitIds.includes(hit.exitId)
+            : selection.textIds.includes(hit.textId as string);
       dispatch({
         type: 'selectAt',
         wallId: hit.wallId,
+        exitId: hit.exitId,
         textId: hit.textId,
         additive: event.shiftKey,
       });
@@ -136,7 +168,13 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
 
-    dispatch({ type: 'selectAt', wallId: null, textId: null, additive: event.shiftKey });
+    dispatch({
+      type: 'selectAt',
+      wallId: null,
+      exitId: null,
+      textId: null,
+      additive: event.shiftKey,
+    });
     startPan({ x: event.clientX, y: event.clientY }, camera);
   };
 
@@ -153,12 +191,18 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       const start = panRef.current.startCamera;
       const next: Camera = {
         zoom: start.zoom,
-        panX: start.panX - dx / start.zoom,
-        panY: start.panY - dy / start.zoom,
+        panX: start.panX - dx / (start.zoom * PX_PER_METER),
+        panY: start.panY - dy / (start.zoom * PX_PER_METER),
       };
       dispatch({
         type: 'setCamera',
-        camera: clampPan(next, doc.width, doc.height, size.w / start.zoom, size.h / start.zoom),
+        camera: clampPan(
+          next,
+          doc.width,
+          doc.height,
+          size.w / (start.zoom * PX_PER_METER),
+          size.h / (start.zoom * PX_PER_METER),
+        ),
       });
       return;
     }
@@ -167,7 +211,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
     if (state.draft) {
-      dispatch({ type: 'wallUpdate', point: world });
+      dispatch({ type: tool === 'exit' ? 'exitUpdate' : 'wallUpdate', point: world });
     }
   };
 
@@ -192,15 +236,18 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
         : 'layout-cursor-grab'
       : tool === 'wall'
         ? 'layout-cursor-wall'
-        : tool === 'erase'
-          ? 'layout-cursor-erase'
+        : tool === 'exit'
+          ? 'layout-cursor-exit'
+          : tool === 'erase'
+            ? 'layout-cursor-erase'
           : tool === 'text'
             ? 'layout-cursor-text'
             : 'layout-cursor-default';
 
-  const viewW = size.w > 0 ? size.w / camera.zoom : 1;
-  const viewH = size.h > 0 ? size.h / camera.zoom : 1;
-  const s = useCallback((px: number) => px / camera.zoom, [camera.zoom]);
+  const viewW = size.w > 0 ? size.w / (camera.zoom * PX_PER_METER) : 1;
+  const viewH = size.h > 0 ? size.h / (camera.zoom * PX_PER_METER) : 1;
+  const s = useCallback((px: number) => px / (camera.zoom * PX_PER_METER), [camera.zoom]);
+  const draftColor = tool === 'exit' ? 'var(--layout-exit)' : 'var(--layout-accent)';
 
   return (
     <div ref={containerRef} className={`layout-canvas-wrap ${cursorClass}`}>
@@ -243,6 +290,14 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 s={s}
               />
             ))}
+            {doc.exits.map((exit) => (
+              <ExitView
+                key={exit.id}
+                exit={exit}
+                selected={selection.exitIds.includes(exit.id)}
+                s={s}
+              />
+            ))}
             {doc.layoutTexts.map((text) => (
               <TextView
                 key={text.id}
@@ -258,7 +313,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                   y1={draft.start.y}
                   x2={draft.end.x}
                   y2={draft.end.y}
-                  stroke="var(--layout-accent)"
+                  stroke={draftColor}
                   strokeWidth={1.5}
                   strokeDasharray="6 4"
                   vectorEffect="non-scaling-stroke"
@@ -267,7 +322,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                   cx={draft.start.x}
                   cy={draft.start.y}
                   r={s(3.5)}
-                  fill="var(--layout-accent)"
+                  fill={draftColor}
                 />
                 {draft.snappedToEndpoint && (
                   <circle
@@ -275,7 +330,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                     cy={draft.snappedToEndpoint.y}
                     r={s(7)}
                     fill="none"
-                    stroke="var(--layout-accent)"
+                    stroke={draftColor}
                     strokeWidth={1.5}
                     vectorEffect="non-scaling-stroke"
                   />
@@ -284,8 +339,8 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                   <text
                     x={(draft.start.x + draft.end.x) / 2}
                     y={(draft.start.y + draft.end.y) / 2 - s(6)}
-                    fontSize={11 / camera.zoom}
-                    fill="var(--layout-accent)"
+                    fontSize={11 / (camera.zoom * PX_PER_METER)}
+                    fill={draftColor}
                     fontFamily="var(--layout-mono)"
                     textAnchor="middle"
                   >

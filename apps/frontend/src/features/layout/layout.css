@@ -6,6 +6,8 @@
   --layout-accent: #168f80;
   --layout-canvas: #ffffff;
   --layout-ink: #0d1917;
+  --layout-exit: #c94f47;
+  --layout-exit-strong: #a83d36;
   --layout-grid-minor: #eef1f0;
   --layout-grid-major: #dce3e0;
   --layout-grid-boundary: #b8cbc7;
@@ -26,6 +28,10 @@
 }
 
 .layout-cursor-wall {
+  cursor: crosshair;
+}
+
+.layout-cursor-exit {
   cursor: crosshair;
 }
 

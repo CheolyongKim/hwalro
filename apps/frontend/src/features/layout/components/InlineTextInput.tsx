@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Vec2 } from '../types';
-import { textFontPx } from '../utils/hitTest';
+import { TEXT_FONT_PX } from '../utils/hitTest';
+import { PX_PER_METER } from '../utils/geometry';
 
 interface InlineTextInputProps {
   point: Vec2;
@@ -46,9 +47,9 @@ export function InlineTextInput({
       aria-label="텍스트 입력"
       className="absolute z-10 min-w-20 rounded-sm border-2 border-primary bg-white px-0.5 font-sans text-ink shadow-[0_2px_8px_rgba(0,0,0,0.15)] outline-none"
       style={{
-        left: (point.x - panX) * zoom,
-        top: (point.y - panY) * zoom,
-        fontSize: textFontPx(zoom),
+        left: (point.x - panX) * zoom * PX_PER_METER,
+        top: (point.y - panY) * zoom * PX_PER_METER,
+        fontSize: TEXT_FONT_PX,
       }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {

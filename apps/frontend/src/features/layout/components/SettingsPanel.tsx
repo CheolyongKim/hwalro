@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Dispatch } from 'react';
-import type { EditorState, LayoutText, Wall } from '../types';
+import type { EditorState, Exit, LayoutText, Wall } from '../types';
 import type { EditorAction } from '../state/editorReducer';
 import { round1 } from '../utils/geometry';
 
@@ -23,6 +23,14 @@ function selectedText(state: EditorState): LayoutText | null {
     return null;
   }
   return state.doc.layoutTexts.find((text) => text.id === id) ?? null;
+}
+
+function selectedExit(state: EditorState): Exit | null {
+  const id = state.selection.exitIds[0];
+  if (!id) {
+    return null;
+  }
+  return state.doc.exits.find((exit) => exit.id === id) ?? null;
 }
 
 interface NumberFieldProps {
@@ -92,6 +100,28 @@ function WallFields({ wall, dispatch }: WallFieldsProps) {
   );
 }
 
+interface ExitFieldsProps {
+  exit: Exit;
+  dispatch: Dispatch<EditorAction>;
+}
+
+function ExitFields({ exit, dispatch }: ExitFieldsProps) {
+  const update = (patch: Partial<Pick<Exit, 'startX' | 'startY' | 'endX' | 'endY'>>) =>
+    dispatch({ type: 'updateExit', exitId: exit.id, patch });
+  return (
+    <section>
+      <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
+      <p className="mt-0.5 text-[13px] text-text-strong">{exit.name}</p>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <NumberField label="시작점 X" value={exit.startX} onChange={(x) => update({ startX: x })} />
+        <NumberField label="시작점 Y" value={exit.startY} onChange={(y) => update({ startY: y })} />
+        <NumberField label="끝점 X" value={exit.endX} onChange={(x) => update({ endX: x })} />
+        <NumberField label="끝점 Y" value={exit.endY} onChange={(y) => update({ endY: y })} />
+      </div>
+    </section>
+  );
+}
+
 interface TextFieldsProps {
   text: LayoutText;
   dispatch: Dispatch<EditorAction>;
@@ -128,7 +158,8 @@ function InfoRow({ label, value }: InfoRowProps) {
 
 export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
   const wall = selectedWall(state);
-  const text = wall === null ? selectedText(state) : null;
+  const exit = wall === null ? selectedExit(state) : null;
+  const text = wall === null && exit === null ? selectedText(state) : null;
   const { doc } = state;
 
   return (
@@ -137,7 +168,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
         배치 설정
       </h2>
       <div className="flex-1 px-4 py-4">
-        {wall === null && text === null ? (
+        {wall === null && exit === null && text === null ? (
           <section>
             <h3 className="text-[13px] font-bold text-text-strong">도면 정보</h3>
             <div className="mt-2">
@@ -147,11 +178,14 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
                 value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
               />
               <InfoRow label="벽" value={`${doc.walls.length}개`} />
+              <InfoRow label="비상구" value={`${doc.exits.length}개`} />
               <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
             </div>
           </section>
         ) : wall !== null ? (
           <WallFields wall={wall} dispatch={dispatch} />
+        ) : exit !== null ? (
+          <ExitFields exit={exit} dispatch={dispatch} />
         ) : (
           <TextFields text={text as LayoutText} dispatch={dispatch} />
         )}
@@ -159,6 +193,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
           <h3 className="text-[13px] font-bold text-text-strong">레이어</h3>
           <div className="mt-2">
             <InfoRow label="벽" value={`${doc.walls.length}개`} />
+            <InfoRow label="비상구" value={`${doc.exits.length}개`} />
             <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
           </div>
         </section>

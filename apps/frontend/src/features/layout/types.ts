@@ -12,6 +12,15 @@ export interface Wall {
   endY: number;
 }
 
+export interface Exit {
+  id: string;
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
 export interface LayoutText {
   id: string;
   text: string;
@@ -35,11 +44,12 @@ export interface DrawingDocument {
   width: number;
   height: number;
   walls: Wall[];
+  exits: Exit[];
   layoutTexts: LayoutText[];
   background: BackgroundImage | null;
 }
 
-export type Tool = 'select' | 'wall' | 'text' | 'erase' | 'background';
+export type Tool = 'select' | 'wall' | 'exit' | 'text' | 'erase' | 'background';
 
 export interface Camera {
   zoom: number;
@@ -49,6 +59,7 @@ export interface Camera {
 
 export interface PointSelection {
   wallIds: string[];
+  exitIds: string[];
   textIds: string[];
 }
 
@@ -76,6 +87,13 @@ export type DragState =
       origin: Vec2;
       originDoc: DrawingDocument;
       wallId: string;
+      handle: WallHandle;
+    }
+  | {
+      kind: 'reshapeExit';
+      origin: Vec2;
+      originDoc: DrawingDocument;
+      exitId: string;
       handle: WallHandle;
     }
   | {
@@ -109,6 +127,14 @@ export interface SerializedWall {
   endY: number;
 }
 
+export interface SerializedExit {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
 export interface SerializedText {
   text: string;
   x: number;
@@ -130,6 +156,7 @@ export interface SerializedDocument {
   width: number;
   height: number;
   walls: SerializedWall[];
+  exits: SerializedExit[];
   layoutTexts: SerializedText[];
   background: SerializedBackground | null;
 }

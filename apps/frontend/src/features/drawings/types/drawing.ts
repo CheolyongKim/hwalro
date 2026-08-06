@@ -6,6 +6,14 @@ export interface DrawingWall {
   endY: number;
 }
 
+export interface DrawingExit {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
 export interface DrawingLayoutText {
   text: string;
   x: number;
@@ -24,6 +32,7 @@ export interface Drawing extends DrawingSummary {
   width: number;
   height: number;
   walls: DrawingWall[];
+  exits: DrawingExit[];
   layoutTexts: DrawingLayoutText[];
   version: number;
 }
@@ -37,6 +46,7 @@ export interface DrawingUpdateRequest {
   title: string;
   description: string | null;
   walls: DrawingWall[];
+  exits: DrawingExit[];
   layoutTexts: DrawingLayoutText[];
   expectedVersion: number;
 }

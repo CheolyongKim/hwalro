@@ -3,12 +3,13 @@ import { emptySelection, toggleId } from '../utils/document';
 
 export interface SelectAtAction {
   wallId: string | null;
+  exitId: string | null;
   textId: string | null;
   additive: boolean;
 }
 
 export function applySelectAt(state: EditorState, action: SelectAtAction): EditorState {
-  if (action.wallId === null && action.textId === null) {
+  if (action.wallId === null && action.exitId === null && action.textId === null) {
     if (action.additive) {
       return state;
     }
@@ -18,9 +19,19 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
     return {
       ...state,
       selection: {
-        wallIds: action.additive
-          ? toggleId(state.selection.wallIds, action.wallId)
-          : [action.wallId],
+        wallIds: action.additive ? toggleId(state.selection.wallIds, action.wallId) : [action.wallId],
+        exitIds: action.additive ? state.selection.exitIds : [],
+        textIds: action.additive ? state.selection.textIds : [],
+      },
+      snapHint: null,
+    };
+  }
+  if (action.exitId !== null) {
+    return {
+      ...state,
+      selection: {
+        wallIds: action.additive ? state.selection.wallIds : [],
+        exitIds: action.additive ? toggleId(state.selection.exitIds, action.exitId) : [action.exitId],
         textIds: action.additive ? state.selection.textIds : [],
       },
       snapHint: null,
@@ -31,6 +42,7 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
     ...state,
     selection: {
       wallIds: action.additive ? state.selection.wallIds : [],
+      exitIds: action.additive ? state.selection.exitIds : [],
       textIds: action.additive ? toggleId(state.selection.textIds, textId) : [textId],
     },
     snapHint: null,

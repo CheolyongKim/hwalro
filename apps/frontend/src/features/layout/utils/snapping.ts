@@ -1,4 +1,5 @@
 import type { Vec2, Wall } from '../types';
+import { PX_PER_METER } from './geometry';
 
 export const ANGLE_SNAP_DEG = 4;
 export const ENDPOINT_MAGNET_PX = 10;
@@ -49,7 +50,7 @@ export function endpointMagnet(
   exclude: Vec2[],
   zoom: number,
 ): Vec2 | null {
-  const radius = ENDPOINT_MAGNET_PX / zoom;
+  const radius = ENDPOINT_MAGNET_PX / (zoom * PX_PER_METER);
   let best: Vec2 | null = null;
   let bestDist = radius;
   for (const candidate of candidates) {

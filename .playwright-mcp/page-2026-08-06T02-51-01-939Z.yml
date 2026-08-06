@@ -1,0 +1,23 @@
+- generic [ref=f3e24]:
+  - complementary [ref=f3e25]:
+    - generic [ref=f3e30]:
+      - paragraph [ref=f3e31]: 활로
+      - paragraph [ref=f3e32]: HWALRO
+    - navigation "주요 메뉴" [ref=f3e34]:
+      - link "홈" [ref=f3e35] [cursor=pointer]:
+        - /url: /
+      - button "시뮬레이션 검토" [ref=f3e43]
+      - link "보고서 관리" [ref=f3e51] [cursor=pointer]:
+        - /url: /reports
+      - link "위험 예상 항목 관리" [ref=f3e56] [cursor=pointer]:
+        - /url: /risk-management
+      - link "안전 체크리스트" [ref=f3e61] [cursor=pointer]:
+        - /url: /safety-checklists
+      - link "안전 법령" [ref=f3e66] [cursor=pointer]:
+        - /url: /regulations
+    - button "로그아웃" [ref=f3e71]:
+      - generic [ref=f3e72]: í
+      - generic [ref=f3e73]:
+        - paragraph [ref=f3e74]: í…ŒìŠ¤íŠ¸
+        - paragraph [ref=f3e75]: 운영 담당자
+  - main [ref=f3e76]

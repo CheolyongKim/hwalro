@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject } from 'react';
 import type { Camera, DrawingDocument } from '../types';
 import type { EditorAction } from '../state/editorReducer';
-import { clampPan, fitCamera, zoomAtPoint } from '../utils/geometry';
+import { clamp, clampPan, fitCamera, PX_PER_METER, zoomAtPoint } from '../utils/geometry';
 
 interface UseCanvasListenersOptions {
   dispatch: Dispatch<EditorAction>;
@@ -76,10 +76,15 @@ export function useCanvasListeners({
       event.preventDefault();
       const rect = el.getBoundingClientRect();
       const current = cameraRef.current;
-      const factor = Math.exp(-event.deltaY * (event.deltaMode === 1 ? 0.04 : 0.0016));
+      const step = clamp(
+        -event.deltaY * (event.deltaMode === 1 ? 0.04 : 0.0016),
+        -0.3,
+        0.3,
+      );
+      const factor = Math.exp(step);
       const zoomed = zoomAtPoint(current, { x: event.clientX, y: event.clientY }, rect, factor);
-      const viewW = sizeRef.current.w / zoomed.zoom;
-      const viewH = sizeRef.current.h / zoomed.zoom;
+      const viewW = sizeRef.current.w / (zoomed.zoom * PX_PER_METER);
+      const viewH = sizeRef.current.h / (zoomed.zoom * PX_PER_METER);
       dispatch({
         type: 'setCamera',
         camera: clampPan(zoomed, docRef.current.width, docRef.current.height, viewW, viewH),

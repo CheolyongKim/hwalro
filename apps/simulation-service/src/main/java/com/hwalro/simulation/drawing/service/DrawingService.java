@@ -6,6 +6,7 @@ import com.hwalro.simulation.drawing.DefaultDrawingData;
 import com.hwalro.simulation.drawing.domain.Facility;
 import com.hwalro.simulation.drawing.domain.FloorPlan;
 import com.hwalro.simulation.drawing.domain.Layout;
+import com.hwalro.simulation.drawing.domain.LayoutExit;
 import com.hwalro.simulation.drawing.domain.LayoutText;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
 import com.hwalro.simulation.drawing.dto.DrawingCreateRequest;
@@ -13,6 +14,7 @@ import com.hwalro.simulation.drawing.dto.DrawingListResponse;
 import com.hwalro.simulation.drawing.dto.DrawingResponse;
 import com.hwalro.simulation.drawing.dto.DrawingSummary;
 import com.hwalro.simulation.drawing.dto.DrawingUpdateRequest;
+import com.hwalro.simulation.drawing.dto.ExitDto;
 import com.hwalro.simulation.drawing.dto.LayoutTextDto;
 import com.hwalro.simulation.drawing.dto.WallDto;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
@@ -34,8 +36,10 @@ public class DrawingService {
     private static final int MAX_DESCRIPTION_LENGTH = 10_000;
     private static final int MAX_WALLS = 5_000;
     private static final int MAX_LAYOUT_TEXTS = 2_000;
+    private static final int MAX_EXITS = 1_000;
     private static final int MAX_WALL_NAME_LENGTH = 200;
     private static final int MAX_TEXT_LENGTH = 10_000;
+    private static final int MAX_EXIT_NAME_LENGTH = 200;
     private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
     private static final String LAYOUT_STATUS_DRAFT = "초안";
     private static final String ROLE_ADMIN = "ADMIN";
@@ -101,6 +105,7 @@ public class DrawingService {
 
         insertFacilitiesIfPresent(toFacilitiesFromDefault(defaultDrawing.walls(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
+        insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
 
         layout.setCurrentVersionId(version.getId());
         drawingMapper.updateLayoutCurrentVersion(layout);
@@ -111,7 +116,7 @@ public class DrawingService {
     @Transactional
     public DrawingResponse update(Long id, DrawingUpdateRequest request, JwtUser user) {
         validateFields(request.title(), request.description());
-        validateDrawingData(request.walls(), request.layoutTexts());
+        validateDrawingData(request.walls(), request.layoutTexts(), request.exits());
         if (request.expectedVersion() == null) {
             throw new IllegalArgumentException("도면 버전이 필요합니다.");
         }
@@ -131,8 +136,10 @@ public class DrawingService {
 
         drawingMapper.deleteFacilitiesByVersionId(version.getId());
         drawingMapper.deleteLayoutTextsByVersionId(version.getId());
+        drawingMapper.deleteLayoutExitsByVersionId(version.getId());
         insertFacilitiesIfPresent(toFacilities(request.walls(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
+        insertExitsIfPresent(toExits(request.exits(), version.getId()));
 
         return toResponse(findLayoutOrThrow(id));
     }
@@ -202,6 +209,10 @@ public class DrawingService {
         List<LayoutTextDto> layoutTexts = drawingMapper.findLayoutTextsByVersionId(version.getId()).stream()
                 .map(text -> new LayoutTextDto(text.getText(), text.getX(), text.getY()))
                 .toList();
+        List<ExitDto> exits = drawingMapper.findLayoutExitsByVersionId(version.getId()).stream()
+                .map(exit ->
+                        new ExitDto(exit.getName(), exit.getStartX(), exit.getStartY(), exit.getEndX(), exit.getEndY()))
+                .toList();
         return new DrawingResponse(
                 layout.getId(),
                 layout.getTitle(),
@@ -212,6 +223,7 @@ public class DrawingService {
                 floorPlan.getHeight(),
                 walls,
                 layoutTexts,
+                exits,
                 version.getOptimisticLock());
     }
 
@@ -272,6 +284,36 @@ public class DrawingService {
                 .toList();
     }
 
+    private List<LayoutExit> toExitsFromDefault(List<DefaultDrawingData.DefaultExit> exits, Long layoutVersionId) {
+        return exits.stream()
+                .map(exit -> {
+                    LayoutExit layoutExit = new LayoutExit();
+                    layoutExit.setLayoutVersionId(layoutVersionId);
+                    layoutExit.setName(exit.name());
+                    layoutExit.setStartX(exit.startX());
+                    layoutExit.setStartY(exit.startY());
+                    layoutExit.setEndX(exit.endX());
+                    layoutExit.setEndY(exit.endY());
+                    return layoutExit;
+                })
+                .toList();
+    }
+
+    private List<LayoutExit> toExits(List<ExitDto> exits, Long layoutVersionId) {
+        return exits.stream()
+                .map(exit -> {
+                    LayoutExit layoutExit = new LayoutExit();
+                    layoutExit.setLayoutVersionId(layoutVersionId);
+                    layoutExit.setName(exit.name() == null ? "" : exit.name());
+                    layoutExit.setStartX(exit.startX());
+                    layoutExit.setStartY(exit.startY());
+                    layoutExit.setEndX(exit.endX());
+                    layoutExit.setEndY(exit.endY());
+                    return layoutExit;
+                })
+                .toList();
+    }
+
     private String resolveTitle(String title, String defaultName) {
         if (!StringUtils.hasText(title)) {
             return defaultName;
@@ -307,8 +349,8 @@ public class DrawingService {
         validateDescription(description);
     }
 
-    private void validateDrawingData(List<WallDto> walls, List<LayoutTextDto> layoutTexts) {
-        if (walls == null || layoutTexts == null) {
+    private void validateDrawingData(List<WallDto> walls, List<LayoutTextDto> layoutTexts, List<ExitDto> exits) {
+        if (walls == null || layoutTexts == null || exits == null) {
             throw new IllegalArgumentException("도면 데이터가 필요합니다.");
         }
         if (walls.size() > MAX_WALLS) {
@@ -316,6 +358,9 @@ public class DrawingService {
         }
         if (layoutTexts.size() > MAX_LAYOUT_TEXTS) {
             throw new IllegalArgumentException("텍스트는 최대 2000개까지 저장할 수 있습니다.");
+        }
+        if (exits.size() > MAX_EXITS) {
+            throw new IllegalArgumentException("비상구는 최대 1000개까지 저장할 수 있습니다.");
         }
         for (WallDto wall : walls) {
             if (wall == null) {
@@ -339,6 +384,18 @@ public class DrawingService {
             validateCoordinate(layoutText.x(), "텍스트 X");
             validateCoordinate(layoutText.y(), "텍스트 Y");
         }
+        for (ExitDto exit : exits) {
+            if (exit == null) {
+                throw new IllegalArgumentException("비상구 데이터가 누락되었습니다.");
+            }
+            if (exit.name() != null && exit.name().length() > MAX_EXIT_NAME_LENGTH) {
+                throw new IllegalArgumentException("비상구 이름은 200자 이하여야 합니다.");
+            }
+            validateCoordinate(exit.startX(), "비상구 시작 X");
+            validateCoordinate(exit.startY(), "비상구 시작 Y");
+            validateCoordinate(exit.endX(), "비상구 끝 X");
+            validateCoordinate(exit.endY(), "비상구 끝 Y");
+        }
     }
 
     private void validateCoordinate(BigDecimal value, String label) {
@@ -359,6 +416,12 @@ public class DrawingService {
     private void insertLayoutTextsIfPresent(List<LayoutText> layoutTexts) {
         if (!layoutTexts.isEmpty()) {
             drawingMapper.insertLayoutTexts(layoutTexts);
+        }
+    }
+
+    private void insertExitsIfPresent(List<LayoutExit> layoutExits) {
+        if (!layoutExits.isEmpty()) {
+            drawingMapper.insertLayoutExits(layoutExits);
         }
     }
 }

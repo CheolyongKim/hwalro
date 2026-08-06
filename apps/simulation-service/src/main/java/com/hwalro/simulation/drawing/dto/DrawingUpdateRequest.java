@@ -7,4 +7,5 @@ public record DrawingUpdateRequest(
         String description,
         List<WallDto> walls,
         List<LayoutTextDto> layoutTexts,
+        List<ExitDto> exits,
         Integer expectedVersion) {}

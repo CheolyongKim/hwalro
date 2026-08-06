@@ -17,6 +17,7 @@ export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
       width: drawing.width,
       height: drawing.height,
       walls: drawing.walls,
+      exits: drawing.exits,
       layoutTexts: drawing.layoutTexts,
     });
     return { doc, description: drawing.description, version: drawing.version };
@@ -34,6 +35,7 @@ export async function saveDrawing(id: string, session: DrawingSession): Promise<
     title: serialized.name,
     description: session.description,
     walls: serialized.walls,
+    exits: serialized.exits,
     layoutTexts: serialized.layoutTexts,
     expectedVersion: session.version,
   });
