@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS layout_exits (
     end_x DECIMAL(12, 4) NOT NULL,
     end_y DECIMAL(12, 4) NOT NULL,
     CONSTRAINT pk_layout_exits PRIMARY KEY (id),
+    CONSTRAINT uk_layout_exits_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT fk_layout_exits_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
@@ -115,6 +116,7 @@ CREATE TABLE IF NOT EXISTS simulations (
     started_at DATETIME(6) NULL,
     finished_at DATETIME(6) NULL,
     CONSTRAINT pk_simulations PRIMARY KEY (id),
+    CONSTRAINT uk_simulations_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT fk_simulations_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
@@ -158,14 +160,21 @@ CREATE TABLE IF NOT EXISTS simulation_initial_states (
 CREATE TABLE IF NOT EXISTS simulation_exits (
     simulation_id BIGINT UNSIGNED NOT NULL,
     layout_exit_id BIGINT UNSIGNED NOT NULL,
-    CONSTRAINT pk_simulation_exits PRIMARY KEY (simulation_id, layout_exit_id),
-    CONSTRAINT fk_simulation_exits_simulation
-        FOREIGN KEY (simulation_id) REFERENCES simulations (id)
-        ON UPDATE CASCADE
+    layout_version_id BIGINT UNSIGNED NOT NULL,
+
+    CONSTRAINT pk_simulation_exits
+        PRIMARY KEY (simulation_id, layout_exit_id),
+
+    CONSTRAINT fk_simulation_exits_simulation_version
+        FOREIGN KEY (simulation_id, layout_version_id)
+        REFERENCES simulations (id, layout_version_id)
+        ON UPDATE RESTRICT
         ON DELETE CASCADE,
-    CONSTRAINT fk_simulation_exits_layout_exit
-        FOREIGN KEY (layout_exit_id) REFERENCES layout_exits (id)
-        ON UPDATE CASCADE
+
+    CONSTRAINT fk_simulation_exits_layout_exit_version
+        FOREIGN KEY (layout_exit_id, layout_version_id)
+        REFERENCES layout_exits (id, layout_version_id)
+        ON UPDATE RESTRICT
         ON DELETE RESTRICT
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
