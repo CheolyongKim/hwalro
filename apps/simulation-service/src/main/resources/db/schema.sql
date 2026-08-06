@@ -285,9 +285,10 @@ CREATE TABLE IF NOT EXISTS timelines (
 CREATE TABLE IF NOT EXISTS heatmaps (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     simulation_result_id BIGINT UNSIGNED NOT NULL,
+    chunk_sequence INT UNSIGNED NOT NULL,
     density_data JSON NOT NULL,
     CONSTRAINT pk_heatmaps PRIMARY KEY (id),
-    CONSTRAINT uk_heatmaps_result UNIQUE (simulation_result_id),
+    CONSTRAINT uk_heatmaps_result_sequence UNIQUE (simulation_result_id, chunk_sequence),
     CONSTRAINT fk_heatmaps_result
         FOREIGN KEY (simulation_result_id) REFERENCES simulation_results (id)
         ON UPDATE CASCADE
@@ -295,6 +296,30 @@ CREATE TABLE IF NOT EXISTS heatmaps (
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS detected_bottlenecks (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    simulation_result_id BIGINT UNSIGNED NOT NULL,
+    bottleneck_order INT UNSIGNED NOT NULL,
+    start_time_seconds DOUBLE NOT NULL,
+    end_time_seconds DOUBLE NOT NULL,
+    peak_density DOUBLE NOT NULL,
+    threshold_value DOUBLE NOT NULL,
+    geometry JSON NOT NULL,
+    analysis_version VARCHAR(50) NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_detected_bottlenecks
+    PRIMARY KEY (id),
+
+    CONSTRAINT uk_detected_bottlenecks_result_order
+    UNIQUE (simulation_result_id, bottleneck_order),
+
+    CONSTRAINT fk_detected_bottlenecks_result
+    FOREIGN KEY (simulation_result_id)
+    REFERENCES simulation_results (id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS improvement_proposals (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
