@@ -40,6 +40,24 @@ class GeometryTest {
         assertContainsPoint(rectangle, 3, -1);
     }
 
+    @Test
+    void containsOnlyPointsOnDegenerateRectangleSegments() {
+        RotatedRectangle segment = RotatedRectangle.of(1, 1, 1, 5, 0);
+
+        assertTrue(Geometry.contains(segment, new Point(1, 3)));
+        assertFalse(Geometry.contains(segment, new Point(2, 3)));
+        assertEquals(1.0, Geometry.distance(new Point(2, 3), segment));
+    }
+
+    @Test
+    void containsOnlyTheCenterOfPointShapedRectangles() {
+        RotatedRectangle point = RotatedRectangle.of(1, 1, 1, 1, 45);
+
+        assertTrue(Geometry.contains(point, new Point(1, 1)));
+        assertFalse(Geometry.contains(point, new Point(1, 2)));
+        assertEquals(0.0, Geometry.distance(new Point(1, 1), point));
+    }
+
     private void assertContainsPoint(RotatedRectangle rectangle, double expectedX, double expectedY) {
         Point point = rectangle.corners().stream()
                 .filter(candidate -> Math.abs(candidate.x() - expectedX) < 0.000001)

@@ -38,6 +38,10 @@ public final class Geometry {
 
     /** 점이 도형 안이나 경계에 있으면 true를 반환합니다. */
     public static boolean contains(RotatedRectangle rectangle, Point point) {
+        if (rectangle.width() <= EPSILON || rectangle.height() <= EPSILON) {
+            List<Point> corners = rectangle.corners();
+            return distanceToSegment(point, corners.get(0), corners.get(2)) <= EPSILON;
+        }
         Boolean direction = null;
         List<Point> corners = rectangle.corners();
         for (int index = 0; index < corners.size(); index++) {
