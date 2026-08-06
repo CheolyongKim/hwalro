@@ -14,7 +14,7 @@ import java.util.List;
 public final class FabricCandidateGenerator {
     private static final double[] MOVE_DISTANCES_METERS = {1.0, 2.0};
     private static final double DIAGONAL_COMPONENT = Math.sqrt(0.5);
-    private static final int ROTATION_STEP_DEGREES = 30;
+    private static final int ROTATION_STEP_DEGREES = 10;
     private static final List<Direction> DIRECTIONS = List.of(
             new Direction(1, 0),
             new Direction(-1, 0),
@@ -25,7 +25,7 @@ public final class FabricCandidateGenerator {
             new Direction(-DIAGONAL_COMPONENT, DIAGONAL_COMPONENT),
             new Direction(-DIAGONAL_COMPONENT, -DIAGONAL_COMPONENT));
 
-    /** 정지 1개와 8방향·1m/2m 이동 16개에 각 30도 회전을 조합한 204개 상태를 생성합니다. */
+    /** 정지 1개와 8방향·1m/2m 이동 16개에 각 10도 회전을 조합한 612개 상태를 생성합니다. */
     public List<ProposalCandidate> generateSingleChanges(FabricState fabric) {
         List<ProposalCandidate> candidates = new ArrayList<>();
         addCandidates(fabric, 0, 0, candidates);

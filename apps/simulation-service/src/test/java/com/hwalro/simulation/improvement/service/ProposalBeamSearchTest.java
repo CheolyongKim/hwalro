@@ -35,4 +35,27 @@ class ProposalBeamSearchTest {
         assertEquals(3, results.size());
         assertEquals(1, results.get(0).changes().size());
     }
+
+    @Test
+    void treatsRotationsSeparatedByOneHundredEightyDegreesAsTheSameLayout() {
+        FabricState fabric = new FabricState(1, RotatedRectangle.of(4, 4, 6, 8, 0));
+
+        List<ProposalCandidate> results = beamSearch.findTopCandidates(
+                List.of(fabric),
+                candidate -> isNonZeroStationaryRotation(candidate, fabric),
+                candidate -> candidate.changes().get(0).after().clockwiseDegrees());
+
+        assertEquals(3, results.size());
+        assertEquals(
+                3,
+                results.stream()
+                        .map(candidate -> candidate.changes().get(0).after().clockwiseDegrees() % 180)
+                        .distinct()
+                        .count());
+    }
+
+    private boolean isNonZeroStationaryRotation(ProposalCandidate candidate, FabricState fabric) {
+        RotatedRectangle after = candidate.changes().get(0).after();
+        return after.center().equals(fabric.bounds().center()) && after.clockwiseDegrees() != 0;
+    }
 }

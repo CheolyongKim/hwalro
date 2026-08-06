@@ -21,9 +21,9 @@ class FabricCandidateGeneratorTest {
 
         List<ProposalCandidate> candidates = generator.generateSingleChanges(fabric);
 
-        assertEquals(204, candidates.size());
+        assertEquals(612, candidates.size());
         assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 2.0, 0.5, 0.0)));
-        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 3.0, 0.5, 30.0)));
+        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 3.0, 0.5, 10.0)));
         assertTrue(candidates.stream()
                 .anyMatch(candidate -> isChange(candidate, 1 + Math.sqrt(0.5), 0.5 + Math.sqrt(0.5), 0.0)));
         assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 1.0, 0.5, 30.0)));
