@@ -18,11 +18,21 @@
         WHERE id = #{id}
     </select>
 
+    <select id="existsSavedBySourceSimulationId" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1
+            FROM improvement_proposals
+            WHERE source_simulation_id = #{sourceSimulationId}
+              AND (saved_layout_version_id IS NOT NULL OR saved_at IS NOT NULL)
+        )
+    </select>
+
     <!-- 저장되지 않은 후보만 교체해 확정된 개선안 이력을 보존합니다. -->
     <delete id="deleteUnsavedBySourceSimulationId">
         DELETE FROM improvement_proposals
         WHERE source_simulation_id = #{sourceSimulationId}
           AND saved_layout_version_id IS NULL
+          AND saved_at IS NULL
     </delete>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
