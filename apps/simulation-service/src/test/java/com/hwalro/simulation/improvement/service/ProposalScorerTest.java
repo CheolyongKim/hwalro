@@ -13,11 +13,11 @@ class ProposalScorerTest {
     private final ProposalScorer scorer = new ProposalScorer();
 
     @Test
-    void appliesTheAgreedWeightsAndChangePenalty() {
+    void appliesTheAgreedWeightsAndClearanceLossPenalty() {
         RotatedRectangle before = RotatedRectangle.of(0, 0, 2, 1, 0);
         ProposalCandidate candidate = new ProposalCandidate(List.of(new FabricChange(1, before, before.moveBy(1, 0))));
-        ProposalEvaluation evaluation = new ProposalEvaluation(candidate, 2, 1, 0.5);
+        ProposalEvaluation evaluation = new ProposalEvaluation(candidate, 2, 1, 0.5, 0.5);
 
-        assertEquals(90, scorer.score(evaluation));
+        assertEquals(70, scorer.score(evaluation));
     }
 }
