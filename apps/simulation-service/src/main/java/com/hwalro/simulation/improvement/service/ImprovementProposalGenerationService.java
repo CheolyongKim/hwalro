@@ -48,10 +48,10 @@ public class ImprovementProposalGenerationService {
     private void requireSearchInput(ImprovementSource source) {
         // 병목 또는 출구가 없으면 측정 기준 자체가 없으므로 기존 제안도 교체하지 않습니다.
         if (source.bottlenecks().isEmpty()) {
-            throw new IllegalStateException("개선안 탐색을 위한 병목 결과가 없습니다.");
+            throw new IllegalArgumentException("개선안 탐색을 위한 병목 결과가 없습니다.");
         }
         if (source.exits().isEmpty()) {
-            throw new IllegalStateException("개선안 탐색을 위한 출구 정보가 없습니다.");
+            throw new IllegalArgumentException("개선안 탐색을 위한 출구 정보가 없습니다.");
         }
     }
 }

@@ -60,7 +60,7 @@ class ImprovementProposalGenerationServiceTest {
                 new ImprovementSource(1, 100, 100, List.of(), List.of(), List.of(), List.of(), List.of());
         when(improvementSourceLoader.load(1L)).thenReturn(source);
 
-        assertThrows(IllegalStateException.class, () -> service().regenerate(1L));
+        assertThrows(IllegalArgumentException.class, () -> service().regenerate(1L));
 
         verify(improvementProposalService, never()).replaceUnsaved(anyLong(), any());
     }
