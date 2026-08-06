@@ -2,6 +2,7 @@ package com.hwalro.simulation.improvement.service;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.improvement.domain.BottleneckArea;
 import com.hwalro.simulation.improvement.domain.FabricChange;
 import com.hwalro.simulation.improvement.domain.FabricState;
@@ -13,8 +14,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ProposalEvaluationServiceTest {
-    private final ProposalEvaluationService evaluationService =
-            new ProposalEvaluationService(new CorridorClearanceEvaluator(), new NearbyClearanceEvaluator());
+    private final ProposalEvaluationService evaluationService = new ProposalEvaluationService(
+            new CorridorClearanceEvaluator(),
+            new NearbyClearanceEvaluator(),
+            new HeatmapOverlapEvaluator(new ObjectMapper()));
 
     @Test
     void measuresCandidateCorridorImprovementAcrossTheBottleneck() {

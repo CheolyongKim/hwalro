@@ -17,11 +17,15 @@ import org.springframework.stereotype.Service;
 public class ProposalEvaluationService {
     private final CorridorClearanceEvaluator corridorClearanceEvaluator;
     private final NearbyClearanceEvaluator nearbyClearanceEvaluator;
+    private final HeatmapOverlapEvaluator heatmapOverlapEvaluator;
 
     public ProposalEvaluationService(
-            CorridorClearanceEvaluator corridorClearanceEvaluator, NearbyClearanceEvaluator nearbyClearanceEvaluator) {
+            CorridorClearanceEvaluator corridorClearanceEvaluator,
+            NearbyClearanceEvaluator nearbyClearanceEvaluator,
+            HeatmapOverlapEvaluator heatmapOverlapEvaluator) {
         this.corridorClearanceEvaluator = corridorClearanceEvaluator;
         this.nearbyClearanceEvaluator = nearbyClearanceEvaluator;
+        this.heatmapOverlapEvaluator = heatmapOverlapEvaluator;
     }
 
     /**
@@ -41,8 +45,7 @@ public class ProposalEvaluationService {
                 candidate,
                 after.bottleneckAverageWidth() - before.bottleneckAverageWidth(),
                 after.routeAverageWidth() - before.routeAverageWidth(),
-                // Heatmap raw JSON parsing is deliberately kept in its dedicated next unit.
-                0,
+                heatmapOverlapEvaluator.overlapDecrease(candidate, source),
                 nearbyClearanceEvaluator.maximumLoss(
                         candidate, source.fabrics(), physicalFixed, source.floorWidth(), source.floorHeight()));
     }
