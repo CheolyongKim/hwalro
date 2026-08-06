@@ -11,19 +11,22 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class FabricCandidateGeneratorTest {
+    private static final double EPSILON = 0.0000001;
+
     private final FabricCandidateGenerator generator = new FabricCandidateGenerator();
 
     @Test
-    void generatesBoundedMoveAndClockwiseRotationCandidates() {
+    void generatesStationaryAndEightDirectionCandidatesAtTwoDistances() {
         FabricState fabric = new FabricState(1, RotatedRectangle.of(0, 0, 2, 1, 0));
 
         List<ProposalCandidate> candidates = generator.generateSingleChanges(fabric);
 
-        // 이동 4방향 x 4거리와 30도 단위 회전 11개만 생성합니다.
-        assertEquals(203, candidates.size());
-        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 3.0, 0.0)));
-        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 3.0, 30.0)));
-        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 1.0, 30.0)));
+        assertEquals(204, candidates.size());
+        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 2.0, 0.5, 0.0)));
+        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 3.0, 0.5, 30.0)));
+        assertTrue(candidates.stream()
+                .anyMatch(candidate -> isChange(candidate, 1 + Math.sqrt(0.5), 0.5 + Math.sqrt(0.5), 0.0)));
+        assertTrue(candidates.stream().anyMatch(candidate -> isChange(candidate, 1.0, 0.5, 30.0)));
     }
 
     @Test
@@ -39,8 +42,10 @@ class FabricCandidateGeneratorTest {
                 .anyMatch(candidate -> candidate.changes().get(1).fabricId() == first.id()));
     }
 
-    private boolean isChange(ProposalCandidate candidate, double expectedX, double expectedRotation) {
+    private boolean isChange(ProposalCandidate candidate, double expectedX, double expectedY, double expectedRotation) {
         RotatedRectangle after = candidate.changes().get(0).after();
-        return after.center().x() == expectedX && after.clockwiseDegrees() == expectedRotation;
+        return Math.abs(after.center().x() - expectedX) < EPSILON
+                && Math.abs(after.center().y() - expectedY) < EPSILON
+                && Math.abs(after.clockwiseDegrees() - expectedRotation) < EPSILON;
     }
 }

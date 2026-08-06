@@ -23,6 +23,13 @@ class ProposalConstraintValidatorTest {
     }
 
     @Test
+    void rejectsTheStationaryZeroRotationState() {
+        ProposalConstraintValidator validator = validator(List.of());
+
+        assertFalse(validator.isValid(candidate(first, first.bounds())));
+    }
+
+    @Test
     void rejectsCandidateOutsideFloorAfterRotation() {
         ProposalConstraintValidator validator = validator(List.of());
 

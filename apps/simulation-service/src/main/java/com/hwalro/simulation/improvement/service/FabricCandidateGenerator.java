@@ -12,19 +12,27 @@ import java.util.List;
  * <p>후보의 적합성은 이 클래스가 아니라 제약 검사 단계에서 판단합니다.
  */
 public final class FabricCandidateGenerator {
-    private static final double MOVE_STEP_METERS = 0.5;
-    private static final double MAX_MOVE_METERS = 2.0;
+    private static final double[] MOVE_DISTANCES_METERS = {1.0, 2.0};
+    private static final double DIAGONAL_COMPONENT = Math.sqrt(0.5);
     private static final int ROTATION_STEP_DEGREES = 30;
+    private static final List<Direction> DIRECTIONS = List.of(
+            new Direction(1, 0),
+            new Direction(-1, 0),
+            new Direction(0, 1),
+            new Direction(0, -1),
+            new Direction(DIAGONAL_COMPONENT, DIAGONAL_COMPONENT),
+            new Direction(DIAGONAL_COMPONENT, -DIAGONAL_COMPONENT),
+            new Direction(-DIAGONAL_COMPONENT, DIAGONAL_COMPONENT),
+            new Direction(-DIAGONAL_COMPONENT, -DIAGONAL_COMPONENT));
 
-    /** 한 시설물에 가능한 모든 단일 변경 후보를 생성합니다. */
+    /** 정지 1개와 8방향·1m/2m 이동 16개에 각 30도 회전을 조합한 204개 상태를 생성합니다. */
     public List<ProposalCandidate> generateSingleChanges(FabricState fabric) {
         List<ProposalCandidate> candidates = new ArrayList<>();
-        for (double distance = MOVE_STEP_METERS; distance <= MAX_MOVE_METERS; distance += MOVE_STEP_METERS) {
-            addMoveCandidates(fabric, distance, candidates);
-        }
-        for (int degrees = ROTATION_STEP_DEGREES; degrees < 360; degrees += ROTATION_STEP_DEGREES) {
-            candidates.add(new ProposalCandidate(List.of(new FabricChange(
-                    fabric.id(), fabric.bounds(), fabric.bounds().rotateClockwiseBy(degrees)))));
+        addCandidates(fabric, 0, 0, candidates);
+        for (double distance : MOVE_DISTANCES_METERS) {
+            for (Direction direction : DIRECTIONS) {
+                addCandidates(fabric, direction.x() * distance, direction.y() * distance, candidates);
+            }
         }
         return candidates;
     }
@@ -45,21 +53,15 @@ public final class FabricCandidateGenerator {
         return candidates;
     }
 
-    private void addMoveCandidates(FabricState fabric, double distance, List<ProposalCandidate> candidates) {
-        addMoveCandidate(fabric, distance, 0, candidates);
-        addMoveCandidate(fabric, -distance, 0, candidates);
-        addMoveCandidate(fabric, 0, distance, candidates);
-        addMoveCandidate(fabric, 0, -distance, candidates);
-    }
-
-    private void addMoveCandidate(
-            FabricState fabric, double deltaX, double deltaY, List<ProposalCandidate> candidates) {
+    private void addCandidates(FabricState fabric, double deltaX, double deltaY, List<ProposalCandidate> candidates) {
         for (int degrees = 0; degrees < 360; degrees += ROTATION_STEP_DEGREES) {
-            // Zero degrees preserves a move-only candidate; the remaining values combine movement and rotation.
+            // 정지·0도는 상태 공간에는 포함되지만 제약 검사에서 무변경 후보로 제외됩니다.
             candidates.add(new ProposalCandidate(List.of(new FabricChange(
                     fabric.id(),
                     fabric.bounds(),
                     fabric.bounds().moveBy(deltaX, deltaY).rotateClockwiseBy(degrees)))));
         }
     }
+
+    private record Direction(double x, double y) {}
 }

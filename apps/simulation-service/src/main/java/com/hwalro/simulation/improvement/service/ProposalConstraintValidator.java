@@ -35,7 +35,8 @@ public final class ProposalConstraintValidator {
 
     private boolean isValidChange(FabricChange change, Map<Long, RotatedRectangle> updatedBounds) {
         RotatedRectangle after = change.after();
-        if (!fabricBounds.containsKey(change.fabricId())
+        if (change.before().equals(after)
+                || !fabricBounds.containsKey(change.fabricId())
                 || !Geometry.isInside(after, floorWidth, floorHeight)
                 || fixedObstacles.stream().anyMatch(obstacle -> Geometry.intersects(after, obstacle))) {
             return false;
