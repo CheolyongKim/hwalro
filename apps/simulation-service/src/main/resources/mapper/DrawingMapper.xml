@@ -53,7 +53,6 @@
         SELECT id,
                layout_id,
                version,
-               parent_version_id,
                status,
                optimistic_lock,
                created_at
@@ -96,8 +95,8 @@
     </insert>
 
     <insert id="insertLayoutVersion" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO layout_versions (layout_id, version, parent_version_id, status, optimistic_lock)
-        VALUES (#{layoutId}, #{version}, #{parentVersionId}, #{status}, #{optimisticLock})
+        INSERT INTO layout_versions (layout_id, version, status, optimistic_lock)
+        VALUES (#{layoutId}, #{version}, #{status}, #{optimisticLock})
     </insert>
 
     <insert id="insertFacilities">

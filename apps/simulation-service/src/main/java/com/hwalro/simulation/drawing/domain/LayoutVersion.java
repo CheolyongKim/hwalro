@@ -6,7 +6,6 @@ public class LayoutVersion {
     private Long id;
     private Long layoutId;
     private Integer version;
-    private Long parentVersionId;
     private String status;
     private Integer optimisticLock;
     private LocalDateTime createdAt;
@@ -35,14 +34,6 @@ public class LayoutVersion {
 
     public void setVersion(Integer version) {
         this.version = version;
-    }
-
-    public Long getParentVersionId() {
-        return parentVersionId;
-    }
-
-    public void setParentVersionId(Long parentVersionId) {
-        this.parentVersionId = parentVersionId;
     }
 
     public String getStatus() {
