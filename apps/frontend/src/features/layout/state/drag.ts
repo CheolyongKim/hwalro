@@ -15,6 +15,9 @@ export function applyDragUpdate(state: EditorState, point: Vec2): EditorState {
     const delta = { x: point.x - drag.origin.x, y: point.y - drag.origin.y };
     return { ...state, doc: translateDoc(drag.originDoc, state.selection, delta) };
   }
+  if (drag.kind === 'erase') {
+    return state;
+  }
   if (drag.kind === 'backgroundMove') {
     if (!state.doc.background) {
       return state;

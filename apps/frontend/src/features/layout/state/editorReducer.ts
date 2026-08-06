@@ -12,6 +12,7 @@ import type {
   LayoutText,
 } from '../types';
 import { round1 } from '../utils/geometry';
+import type { ElementHit } from '../utils/hitTest';
 import { docSnapSources, snapPoint } from '../utils/snapping';
 import {
   createEmptyDocument,
@@ -78,6 +79,8 @@ export type EditorAction =
     }
   | { type: 'dragUpdate'; point: Vec2 }
   | { type: 'dragEnd' }
+  | { type: 'eraseStart'; point: Vec2; hit: ElementHit }
+  | { type: 'eraseUpdate'; hit: ElementHit }
   | { type: 'deleteSelection' }
   | { type: 'backgroundInsert'; image: string; aspect: number }
   | { type: 'backgroundDragStart'; point: Vec2 }
@@ -193,6 +196,28 @@ function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
     state.camera.zoom,
   );
   return { ...state, draft: { ...state.draft, end: snapped.point } };
+}
+
+function applyEraseAt(state: EditorState, hit: ElementHit): EditorState {
+  const { doc } = state;
+  const walls = hit.wallId === null ? doc.walls : doc.walls.filter((w) => w.id !== hit.wallId);
+  const exits = hit.exitId === null ? doc.exits : doc.exits.filter((e) => e.id !== hit.exitId);
+  const layoutTexts =
+    hit.textId === null ? doc.layoutTexts : doc.layoutTexts.filter((t) => t.id !== hit.textId);
+  const pillars =
+    hit.pillarId === null ? doc.pillars : doc.pillars.filter((p) => p.id !== hit.pillarId);
+  const fabrics =
+    hit.fabricId === null ? doc.fabrics : doc.fabrics.filter((f) => f.id !== hit.fabricId);
+  if (
+    walls === doc.walls &&
+    exits === doc.exits &&
+    layoutTexts === doc.layoutTexts &&
+    pillars === doc.pillars &&
+    fabrics === doc.fabrics
+  ) {
+    return state;
+  }
+  return { ...state, doc: { ...doc, walls, exits, layoutTexts, pillars, fabrics } };
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -416,6 +441,27 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       return commit(state, state.drag.originDoc, state.doc);
     }
+
+    case 'eraseStart': {
+      const hasHit =
+        action.hit.wallId !== null ||
+        action.hit.exitId !== null ||
+        action.hit.textId !== null ||
+        action.hit.pillarId !== null ||
+        action.hit.fabricId !== null;
+      const next = applyEraseAt(state, action.hit);
+      if (!hasHit) {
+        return next;
+      }
+      return {
+        ...next,
+        drag: { kind: 'erase', origin: action.point, originDoc: state.doc },
+        error: null,
+      };
+    }
+
+    case 'eraseUpdate':
+      return applyEraseAt(state, action.hit);
 
     case 'deleteSelection': {
       const { selection } = state;

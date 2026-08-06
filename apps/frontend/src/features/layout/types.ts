@@ -141,6 +141,11 @@ export type DragState =
       origin: Vec2;
       originBg: BackgroundImage;
       originDoc: DrawingDocument;
+    }
+  | {
+      kind: 'erase';
+      origin: Vec2;
+      originDoc: DrawingDocument;
     };
 
 export interface EditorState {
