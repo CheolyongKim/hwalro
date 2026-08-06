@@ -54,7 +54,12 @@ public final class FabricCandidateGenerator {
 
     private void addMoveCandidate(
             FabricState fabric, double deltaX, double deltaY, List<ProposalCandidate> candidates) {
-        candidates.add(new ProposalCandidate(List.of(
-                new FabricChange(fabric.id(), fabric.bounds(), fabric.bounds().moveBy(deltaX, deltaY)))));
+        for (int degrees = 0; degrees < 360; degrees += ROTATION_STEP_DEGREES) {
+            // Zero degrees preserves a move-only candidate; the remaining values combine movement and rotation.
+            candidates.add(new ProposalCandidate(List.of(new FabricChange(
+                    fabric.id(),
+                    fabric.bounds(),
+                    fabric.bounds().moveBy(deltaX, deltaY).rotateClockwiseBy(degrees)))));
+        }
     }
 }
