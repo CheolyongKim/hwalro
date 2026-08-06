@@ -42,20 +42,15 @@ class ProposalBeamSearchTest {
 
         List<ProposalCandidate> results = beamSearch.findTopCandidates(
                 List.of(fabric),
-                candidate -> isNonZeroStationaryRotation(candidate, fabric),
+                candidate -> isStationaryRotation(candidate, fabric, 10, 190),
                 candidate -> candidate.changes().get(0).after().clockwiseDegrees());
 
-        assertEquals(3, results.size());
-        assertEquals(
-                3,
-                results.stream()
-                        .map(candidate -> candidate.changes().get(0).after().clockwiseDegrees() % 180)
-                        .distinct()
-                        .count());
+        assertEquals(1, results.size());
     }
 
-    private boolean isNonZeroStationaryRotation(ProposalCandidate candidate, FabricState fabric) {
+    private boolean isStationaryRotation(ProposalCandidate candidate, FabricState fabric, double... rotations) {
         RotatedRectangle after = candidate.changes().get(0).after();
-        return after.center().equals(fabric.bounds().center()) && after.clockwiseDegrees() != 0;
+        return after.center().equals(fabric.bounds().center())
+                && java.util.Arrays.stream(rotations).anyMatch(rotation -> after.clockwiseDegrees() == rotation);
     }
 }
