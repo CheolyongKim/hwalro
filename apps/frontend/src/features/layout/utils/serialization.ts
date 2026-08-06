@@ -3,6 +3,7 @@ import type {
   DrawingDocument,
   Exit,
   Fabric,
+  OutsideWall,
   Pillar,
   SerializedDocument,
   Wall,
@@ -23,6 +24,11 @@ function toFiniteNumber(value: unknown, key: string): number {
 
 function wallNameIndex(name: string): number | null {
   const match = /^벽 (\d+)$/.exec(name);
+  return match ? Number(match[1]) : null;
+}
+
+function outsideWallNameIndex(name: string): number | null {
+  const match = /^외각벽 (\d+)$/.exec(name);
   return match ? Number(match[1]) : null;
 }
 
@@ -105,6 +111,13 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
     width: doc.width,
     height: doc.height,
     walls: doc.walls.map((wall) => ({
+      name: wall.name,
+      startX: wall.startX,
+      startY: wall.startY,
+      endX: wall.endX,
+      endY: wall.endY,
+    })),
+    outsideWalls: doc.outsideWalls.map((wall) => ({
       name: wall.name,
       startX: wall.startX,
       startY: wall.startY,
@@ -214,6 +227,42 @@ export function fromSerialized(data: unknown): DrawingDocument {
     walls.splice(order, 0, { ...wall, name: `벽 ${maxIndex}` });
   }
 
+  const rawOutsideWalls = (data.outsideWalls ?? []) as unknown[];
+  const outsideWalls: OutsideWall[] = [];
+  let maxOutsideWallIndex = 0;
+  const unnamedOutsideWalls: Array<{ wall: OutsideWall; order: number }> = [];
+  for (let i = 0; i < rawOutsideWalls.length; i++) {
+    const entry = rawOutsideWalls[i];
+    if (!isRecord(entry)) {
+      throw new Error(`outsideWalls[${i}]가 객체가 아닙니다`);
+    }
+    const parsedName = parseWallName(entry.name);
+    if (parsedName) {
+      const idx = outsideWallNameIndex(parsedName);
+      if (idx !== null) {
+        maxOutsideWallIndex = Math.max(maxOutsideWallIndex, idx);
+      }
+    }
+    const wall: OutsideWall = {
+      id: `loaded-outside-wall-${i}`,
+      name: parsedName ?? '',
+      startX: toFiniteNumber(entry.startX ?? entry.start_x, `outsideWalls[${i}].startX`),
+      startY: toFiniteNumber(entry.startY ?? entry.start_y, `outsideWalls[${i}].startY`),
+      endX: toFiniteNumber(entry.endX ?? entry.end_x, `outsideWalls[${i}].endX`),
+      endY: toFiniteNumber(entry.endY ?? entry.end_y, `outsideWalls[${i}].endY`),
+    };
+    if (parsedName) {
+      outsideWalls.push(wall);
+    } else {
+      unnamedOutsideWalls.push({ wall, order: i });
+    }
+  }
+
+  for (const { wall, order } of unnamedOutsideWalls) {
+    maxOutsideWallIndex += 1;
+    outsideWalls.splice(order, 0, { ...wall, name: `외각벽 ${maxOutsideWallIndex}` });
+  }
+
   const rawExits = (data.exits ?? []) as unknown[];
   const exits: Exit[] = [];
   let maxExitIndex = 0;
@@ -306,7 +355,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     };
   }
 
-  return { name, width, height, walls, exits, pillars, fabrics, layoutTexts, background };
+  return { name, width, height, walls, outsideWalls, exits, pillars, fabrics, layoutTexts, background };
 }
 
 export function parseJson(text: string): DrawingDocument {

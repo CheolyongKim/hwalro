@@ -2,7 +2,7 @@ package com.hwalro.simulation.drawing.domain;
 
 import java.math.BigDecimal;
 
-public class Facility {
+public class Wall {
     private Long id;
     private Long layoutVersionId;
     private String name;
@@ -11,7 +11,7 @@ public class Facility {
     private BigDecimal endX;
     private BigDecimal endY;
 
-    public Facility() {}
+    public Wall() {}
 
     public Long getId() {
         return id;

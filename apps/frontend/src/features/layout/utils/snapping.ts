@@ -1,4 +1,4 @@
-import type { DrawingDocument, Fabric, Pillar, Vec2, Wall } from '../types';
+import type { DrawingDocument, Fabric, OutsideWall, Pillar, Vec2, Wall } from '../types';
 import { PX_PER_METER, rectCenter, rotatePoint } from './geometry';
 
 export const ANGLE_SNAP_DEG = 4;
@@ -12,12 +12,18 @@ export interface SnapResult {
 
 export interface SnapSources {
   walls: Wall[];
+  outsideWalls: OutsideWall[];
   pillars: Pillar[];
   fabrics: Fabric[];
 }
 
 export function docSnapSources(doc: DrawingDocument): SnapSources {
-  return { walls: doc.walls, pillars: doc.pillars, fabrics: doc.fabrics };
+  return {
+    walls: doc.walls,
+    outsideWalls: doc.outsideWalls,
+    pillars: doc.pillars,
+    fabrics: doc.fabrics,
+  };
 }
 
 export function wallEndpoints(wall: Wall): [Vec2, Vec2] {
@@ -30,6 +36,10 @@ export function wallEndpoints(wall: Wall): [Vec2, Vec2] {
 export function allEndpoints(sources: SnapSources): Vec2[] {
   const points: Vec2[] = [];
   for (const wall of sources.walls) {
+    points.push({ x: wall.startX, y: wall.startY });
+    points.push({ x: wall.endX, y: wall.endY });
+  }
+  for (const wall of sources.outsideWalls) {
     points.push({ x: wall.startX, y: wall.startY });
     points.push({ x: wall.endX, y: wall.endY });
   }

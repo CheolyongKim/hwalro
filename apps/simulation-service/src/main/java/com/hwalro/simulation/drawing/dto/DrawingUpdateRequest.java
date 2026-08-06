@@ -6,6 +6,7 @@ public record DrawingUpdateRequest(
         String title,
         String description,
         List<WallDto> walls,
+        List<OutsideWallDto> outsideWalls,
         List<PillarDto> pillars,
         List<FabricDto> fabrics,
         List<LayoutTextDto> layoutTexts,

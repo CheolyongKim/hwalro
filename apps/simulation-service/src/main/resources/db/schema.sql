@@ -56,7 +56,7 @@ ALTER TABLE layouts
         ON UPDATE CASCADE
         ON DELETE SET NULL;
 
-CREATE TABLE IF NOT EXISTS facilities (
+CREATE TABLE IF NOT EXISTS walls (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     layout_version_id BIGINT UNSIGNED NOT NULL,
     name VARCHAR(200) NOT NULL,
@@ -64,8 +64,8 @@ CREATE TABLE IF NOT EXISTS facilities (
     start_y DECIMAL(12, 4) NOT NULL,
     end_x DECIMAL(12, 4) NOT NULL,
     end_y DECIMAL(12, 4) NOT NULL,
-    CONSTRAINT pk_facilities PRIMARY KEY (id),
-    CONSTRAINT fk_facilities_layout_version
+    CONSTRAINT pk_walls PRIMARY KEY (id),
+    CONSTRAINT fk_walls_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
         ON DELETE CASCADE

@@ -60,7 +60,7 @@
         WHERE id = #{id}
     </select>
 
-    <select id="findFacilitiesByVersionId" resultType="com.hwalro.simulation.drawing.domain.Facility">
+    <select id="findWallsByVersionId" resultType="com.hwalro.simulation.drawing.domain.Wall">
         SELECT id,
                layout_version_id,
                name,
@@ -68,7 +68,7 @@
                start_y,
                end_x,
                end_y
-        FROM facilities
+        FROM walls
         WHERE layout_version_id = #{layoutVersionId}
         ORDER BY id ASC
     </select>
@@ -97,6 +97,19 @@
                end_y,
                rotation
         FROM fabrics
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findOutsideWallsByVersionId" resultType="com.hwalro.simulation.drawing.domain.OutsideWall">
+        SELECT id,
+               layout_version_id,
+               name,
+               start_x,
+               start_y,
+               end_x,
+               end_y
+        FROM outside_walls
         WHERE layout_version_id = #{layoutVersionId}
         ORDER BY id ASC
     </select>
@@ -140,16 +153,16 @@
         VALUES (#{layoutId}, #{version}, #{status}, #{optimisticLock})
     </insert>
 
-    <insert id="insertFacilities">
-        INSERT INTO facilities (layout_version_id, name, start_x, start_y, end_x, end_y)
+    <insert id="insertWalls">
+        INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y)
         VALUES
-        <foreach collection="list" item="facility" separator=",">
-            (#{facility.layoutVersionId},
-             #{facility.name},
-             #{facility.startX},
-             #{facility.startY},
-             #{facility.endX},
-             #{facility.endY})
+        <foreach collection="list" item="wall" separator=",">
+            (#{wall.layoutVersionId},
+             #{wall.name},
+             #{wall.startX},
+             #{wall.startY},
+             #{wall.endX},
+             #{wall.endY})
         </foreach>
     </insert>
 
@@ -178,6 +191,19 @@
              #{fabric.endX},
              #{fabric.endY},
              #{fabric.rotation})
+        </foreach>
+    </insert>
+
+    <insert id="insertOutsideWalls">
+        INSERT INTO outside_walls (layout_version_id, name, start_x, start_y, end_x, end_y)
+        VALUES
+        <foreach collection="list" item="outsideWall" separator=",">
+            (#{outsideWall.layoutVersionId},
+             #{outsideWall.name},
+             #{outsideWall.startX},
+             #{outsideWall.startY},
+             #{outsideWall.endX},
+             #{outsideWall.endY})
         </foreach>
     </insert>
 
@@ -222,8 +248,8 @@
           AND optimistic_lock = #{expectedLock}
     </update>
 
-    <delete id="deleteFacilitiesByVersionId">
-        DELETE FROM facilities
+    <delete id="deleteWallsByVersionId">
+        DELETE FROM walls
         WHERE layout_version_id = #{layoutVersionId}
     </delete>
 
@@ -234,6 +260,11 @@
 
     <delete id="deleteFabricsByVersionId">
         DELETE FROM fabrics
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <delete id="deleteOutsideWallsByVersionId">
+        DELETE FROM outside_walls
         WHERE layout_version_id = #{layoutVersionId}
     </delete>
 

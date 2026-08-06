@@ -117,15 +117,16 @@ interface WallViewProps {
   wall: Wall;
   selected: boolean;
   s: (px: number) => number;
+  color?: string;
 }
 
-export const WallView = memo(function WallView({ wall, selected, s }: WallViewProps) {
-  const color = selected ? CANVAS_COLORS.accent : CANVAS_COLORS.ink;
+export const WallView = memo(function WallView({ wall, selected, s, color }: WallViewProps) {
+  const stroke = selected ? CANVAS_COLORS.accent : (color ?? CANVAS_COLORS.ink);
   return (
     <Group>
       <Line
         points={[wall.startX, wall.startY, wall.endX, wall.endY]}
-        stroke={color}
+        stroke={stroke}
         strokeWidth={selected ? s(2.5) : s(2)}
       />
       {selected && (
@@ -152,6 +153,10 @@ export const WallView = memo(function WallView({ wall, selected, s }: WallViewPr
       )}
     </Group>
   );
+});
+
+export const OutsideWallView = memo(function OutsideWallView(props: WallViewProps) {
+  return <WallView {...props} color={CANVAS_COLORS.outsideWall} />;
 });
 
 interface ExitViewProps {

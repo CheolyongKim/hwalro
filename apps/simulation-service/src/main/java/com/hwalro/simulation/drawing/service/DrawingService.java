@@ -4,13 +4,14 @@ import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.DefaultDrawingData;
 import com.hwalro.simulation.drawing.domain.Fabric;
-import com.hwalro.simulation.drawing.domain.Facility;
 import com.hwalro.simulation.drawing.domain.FloorPlan;
 import com.hwalro.simulation.drawing.domain.Layout;
 import com.hwalro.simulation.drawing.domain.LayoutExit;
 import com.hwalro.simulation.drawing.domain.LayoutText;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
+import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.domain.Pillar;
+import com.hwalro.simulation.drawing.domain.Wall;
 import com.hwalro.simulation.drawing.dto.DrawingCreateRequest;
 import com.hwalro.simulation.drawing.dto.DrawingListResponse;
 import com.hwalro.simulation.drawing.dto.DrawingResponse;
@@ -19,6 +20,7 @@ import com.hwalro.simulation.drawing.dto.DrawingUpdateRequest;
 import com.hwalro.simulation.drawing.dto.ExitDto;
 import com.hwalro.simulation.drawing.dto.FabricDto;
 import com.hwalro.simulation.drawing.dto.LayoutTextDto;
+import com.hwalro.simulation.drawing.dto.OutsideWallDto;
 import com.hwalro.simulation.drawing.dto.PillarDto;
 import com.hwalro.simulation.drawing.dto.WallDto;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
@@ -39,6 +41,7 @@ public class DrawingService {
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_DESCRIPTION_LENGTH = 10_000;
     private static final int MAX_WALLS = 5_000;
+    private static final int MAX_OUTSIDE_WALLS = 5_000;
     private static final int MAX_PILLARS = 5_000;
     private static final int MAX_FABRICS = 5_000;
     private static final int MAX_LAYOUT_TEXTS = 2_000;
@@ -110,7 +113,7 @@ public class DrawingService {
         version.setOptimisticLock(0);
         drawingMapper.insertLayoutVersion(version);
 
-        insertFacilitiesIfPresent(toFacilitiesFromDefault(defaultDrawing.walls(), version.getId()));
+        insertWallsIfPresent(toWallsFromDefault(defaultDrawing.walls(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
         insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
 
@@ -124,7 +127,12 @@ public class DrawingService {
     public DrawingResponse update(Long id, DrawingUpdateRequest request, JwtUser user) {
         validateFields(request.title(), request.description());
         validateDrawingData(
-                request.walls(), request.pillars(), request.fabrics(), request.layoutTexts(), request.exits());
+                request.walls(),
+                request.outsideWalls(),
+                request.pillars(),
+                request.fabrics(),
+                request.layoutTexts(),
+                request.exits());
         if (request.expectedVersion() == null) {
             throw new IllegalArgumentException("도면 버전이 필요합니다.");
         }
@@ -142,14 +150,16 @@ public class DrawingService {
             throw new DrawingConflictException(id);
         }
 
-        drawingMapper.deleteFacilitiesByVersionId(version.getId());
+        drawingMapper.deleteWallsByVersionId(version.getId());
         drawingMapper.deletePillarsByVersionId(version.getId());
         drawingMapper.deleteFabricsByVersionId(version.getId());
+        drawingMapper.deleteOutsideWallsByVersionId(version.getId());
         drawingMapper.deleteLayoutTextsByVersionId(version.getId());
         drawingMapper.deleteLayoutExitsByVersionId(version.getId());
-        insertFacilitiesIfPresent(toFacilities(request.walls(), version.getId()));
+        insertWallsIfPresent(toWalls(request.walls(), version.getId()));
         insertPillarsIfPresent(toPillars(request.pillars(), version.getId()));
         insertFabricsIfPresent(toFabrics(request.fabrics(), version.getId()));
+        insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
         insertExitsIfPresent(toExits(request.exits(), version.getId()));
 
@@ -210,13 +220,9 @@ public class DrawingService {
     private DrawingResponse toResponse(Layout layout) {
         FloorPlan floorPlan = drawingMapper.findFloorPlanById(layout.getFloorPlanId());
         LayoutVersion version = findVersionOrThrow(layout.getCurrentVersionId());
-        List<WallDto> walls = drawingMapper.findFacilitiesByVersionId(version.getId()).stream()
-                .map(facility -> new WallDto(
-                        facility.getName(),
-                        facility.getStartX(),
-                        facility.getStartY(),
-                        facility.getEndX(),
-                        facility.getEndY()))
+        List<WallDto> walls = drawingMapper.findWallsByVersionId(version.getId()).stream()
+                .map(wall ->
+                        new WallDto(wall.getName(), wall.getStartX(), wall.getStartY(), wall.getEndX(), wall.getEndY()))
                 .toList();
         List<PillarDto> pillars = drawingMapper.findPillarsByVersionId(version.getId()).stream()
                 .map(pillar -> new PillarDto(
@@ -236,6 +242,14 @@ public class DrawingService {
                         fabric.getEndY(),
                         fabric.getRotation()))
                 .toList();
+        List<OutsideWallDto> outsideWalls = drawingMapper.findOutsideWallsByVersionId(version.getId()).stream()
+                .map(outsideWall -> new OutsideWallDto(
+                        outsideWall.getName(),
+                        outsideWall.getStartX(),
+                        outsideWall.getStartY(),
+                        outsideWall.getEndX(),
+                        outsideWall.getEndY()))
+                .toList();
         List<LayoutTextDto> layoutTexts = drawingMapper.findLayoutTextsByVersionId(version.getId()).stream()
                 .map(text -> new LayoutTextDto(text.getText(), text.getX(), text.getY()))
                 .toList();
@@ -252,6 +266,7 @@ public class DrawingService {
                 floorPlan.getWidth(),
                 floorPlan.getHeight(),
                 walls,
+                outsideWalls,
                 pillars,
                 fabrics,
                 layoutTexts,
@@ -259,32 +274,32 @@ public class DrawingService {
                 version.getOptimisticLock());
     }
 
-    private List<Facility> toFacilitiesFromDefault(List<DefaultDrawingData.DefaultWall> walls, Long layoutVersionId) {
+    private List<Wall> toWallsFromDefault(List<DefaultDrawingData.DefaultWall> walls, Long layoutVersionId) {
         return walls.stream()
                 .map(wall -> {
-                    Facility facility = new Facility();
-                    facility.setLayoutVersionId(layoutVersionId);
-                    facility.setName(wall.name());
-                    facility.setStartX(wall.startX());
-                    facility.setStartY(wall.startY());
-                    facility.setEndX(wall.endX());
-                    facility.setEndY(wall.endY());
-                    return facility;
+                    Wall domainWall = new Wall();
+                    domainWall.setLayoutVersionId(layoutVersionId);
+                    domainWall.setName(wall.name());
+                    domainWall.setStartX(wall.startX());
+                    domainWall.setStartY(wall.startY());
+                    domainWall.setEndX(wall.endX());
+                    domainWall.setEndY(wall.endY());
+                    return domainWall;
                 })
                 .toList();
     }
 
-    private List<Facility> toFacilities(List<WallDto> walls, Long layoutVersionId) {
+    private List<Wall> toWalls(List<WallDto> walls, Long layoutVersionId) {
         return walls.stream()
                 .map(wall -> {
-                    Facility facility = new Facility();
-                    facility.setLayoutVersionId(layoutVersionId);
-                    facility.setName(wall.name() == null ? "" : wall.name());
-                    facility.setStartX(wall.startX());
-                    facility.setStartY(wall.startY());
-                    facility.setEndX(wall.endX());
-                    facility.setEndY(wall.endY());
-                    return facility;
+                    Wall domainWall = new Wall();
+                    domainWall.setLayoutVersionId(layoutVersionId);
+                    domainWall.setName(wall.name() == null ? "" : wall.name());
+                    domainWall.setStartX(wall.startX());
+                    domainWall.setStartY(wall.startY());
+                    domainWall.setEndX(wall.endX());
+                    domainWall.setEndY(wall.endY());
+                    return domainWall;
                 })
                 .toList();
     }
@@ -317,6 +332,21 @@ public class DrawingService {
                     domainFabric.setEndY(fabric.endY());
                     domainFabric.setRotation(fabric.rotation());
                     return domainFabric;
+                })
+                .toList();
+    }
+
+    private List<OutsideWall> toOutsideWalls(List<OutsideWallDto> outsideWalls, Long layoutVersionId) {
+        return outsideWalls.stream()
+                .map(outsideWall -> {
+                    OutsideWall domainOutsideWall = new OutsideWall();
+                    domainOutsideWall.setLayoutVersionId(layoutVersionId);
+                    domainOutsideWall.setName(outsideWall.name() == null ? "" : outsideWall.name());
+                    domainOutsideWall.setStartX(outsideWall.startX());
+                    domainOutsideWall.setStartY(outsideWall.startY());
+                    domainOutsideWall.setEndX(outsideWall.endX());
+                    domainOutsideWall.setEndY(outsideWall.endY());
+                    return domainOutsideWall;
                 })
                 .toList();
     }
@@ -415,12 +445,16 @@ public class DrawingService {
 
     private void validateDrawingData(
             List<WallDto> walls,
+            List<OutsideWallDto> outsideWalls,
             List<PillarDto> pillars,
             List<FabricDto> fabrics,
             List<LayoutTextDto> layoutTexts,
             List<ExitDto> exits) {
         if (walls == null) {
             throw new IllegalArgumentException("벽 데이터가 필요합니다.");
+        }
+        if (outsideWalls == null) {
+            throw new IllegalArgumentException("외각벽 데이터가 필요합니다.");
         }
         if (pillars == null) {
             throw new IllegalArgumentException("기둥 데이터가 필요합니다.");
@@ -436,6 +470,9 @@ public class DrawingService {
         }
         if (walls.size() > MAX_WALLS) {
             throw new IllegalArgumentException("벽은 최대 5000개까지 저장할 수 있습니다.");
+        }
+        if (outsideWalls.size() > MAX_OUTSIDE_WALLS) {
+            throw new IllegalArgumentException("외각벽은 최대 5000개까지 저장할 수 있습니다.");
         }
         if (pillars.size() > MAX_PILLARS) {
             throw new IllegalArgumentException("기둥은 최대 5000개까지 저장할 수 있습니다.");
@@ -460,6 +497,18 @@ public class DrawingService {
             validateCoordinate(wall.startY(), "벽 시작 Y");
             validateCoordinate(wall.endX(), "벽 끝 X");
             validateCoordinate(wall.endY(), "벽 끝 Y");
+        }
+        for (OutsideWallDto outsideWall : outsideWalls) {
+            if (outsideWall == null) {
+                throw new IllegalArgumentException("외각벽 데이터가 누락되었습니다.");
+            }
+            if (outsideWall.name() != null && outsideWall.name().length() > MAX_WALL_NAME_LENGTH) {
+                throw new IllegalArgumentException("외각벽 이름은 200자 이하여야 합니다.");
+            }
+            validateCoordinate(outsideWall.startX(), "외각벽 시작 X");
+            validateCoordinate(outsideWall.startY(), "외각벽 시작 Y");
+            validateCoordinate(outsideWall.endX(), "외각벽 끝 X");
+            validateCoordinate(outsideWall.endY(), "외각벽 끝 Y");
         }
         for (PillarDto pillar : pillars) {
             if (pillar == null) {
@@ -530,9 +579,9 @@ public class DrawingService {
         }
     }
 
-    private void insertFacilitiesIfPresent(List<Facility> facilities) {
-        if (!facilities.isEmpty()) {
-            drawingMapper.insertFacilities(facilities);
+    private void insertWallsIfPresent(List<Wall> walls) {
+        if (!walls.isEmpty()) {
+            drawingMapper.insertWalls(walls);
         }
     }
 
@@ -545,6 +594,12 @@ public class DrawingService {
     private void insertFabricsIfPresent(List<Fabric> fabrics) {
         if (!fabrics.isEmpty()) {
             drawingMapper.insertFabrics(fabrics);
+        }
+    }
+
+    private void insertOutsideWallsIfPresent(List<OutsideWall> outsideWalls) {
+        if (!outsideWalls.isEmpty()) {
+            drawingMapper.insertOutsideWalls(outsideWalls);
         }
     }
 

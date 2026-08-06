@@ -1,13 +1,14 @@
 package com.hwalro.simulation.drawing.mapper;
 
 import com.hwalro.simulation.drawing.domain.Fabric;
-import com.hwalro.simulation.drawing.domain.Facility;
 import com.hwalro.simulation.drawing.domain.FloorPlan;
 import com.hwalro.simulation.drawing.domain.Layout;
 import com.hwalro.simulation.drawing.domain.LayoutExit;
 import com.hwalro.simulation.drawing.domain.LayoutText;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
+import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.domain.Pillar;
+import com.hwalro.simulation.drawing.domain.Wall;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -21,11 +22,13 @@ public interface DrawingMapper {
 
     int insertLayoutVersion(LayoutVersion layoutVersion);
 
-    int insertFacilities(List<Facility> facilities);
+    int insertWalls(List<Wall> walls);
 
     int insertPillars(List<Pillar> pillars);
 
     int insertFabrics(List<Fabric> fabrics);
+
+    int insertOutsideWalls(List<OutsideWall> outsideWalls);
 
     int insertLayoutTexts(List<LayoutText> layoutTexts);
 
@@ -42,11 +45,13 @@ public interface DrawingMapper {
 
     LayoutVersion findLayoutVersionById(@Param("id") Long id);
 
-    List<Facility> findFacilitiesByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+    List<Wall> findWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     List<Pillar> findPillarsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     List<Fabric> findFabricsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    List<OutsideWall> findOutsideWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     List<LayoutText> findLayoutTextsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
@@ -59,11 +64,13 @@ public interface DrawingMapper {
     int updateLayoutVersionLock(
             @Param("id") Long id, @Param("expectedLock") Integer expectedLock, @Param("nextLock") Integer nextLock);
 
-    int deleteFacilitiesByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+    int deleteWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deletePillarsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deleteFabricsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    int deleteOutsideWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deleteLayoutTextsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
