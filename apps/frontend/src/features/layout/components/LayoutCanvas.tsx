@@ -1,11 +1,16 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, PointerEvent as ReactPointerEvent } from 'react';
-import type { Camera, EditorState, Vec2 } from '../types';
+import type { Camera, EditorState, RectHandle, Vec2 } from '../types';
 import type { EditorAction } from '../state/editorReducer';
 import { clampPan, formatMeters, screenToWorld } from '../utils/geometry';
-import { hitTestElements, hitTestHandle } from '../utils/hitTest';
+import {
+  hitTestElements,
+  hitTestHandle,
+  hitTestRectHandle,
+  hitTestRotateHandle,
+} from '../utils/hitTest';
 import type { HandleHit } from '../utils/hitTest';
-import { GridLayer, TextView, WallView, BackgroundLayer } from './layers';
+import { GridLayer, TextView, WallView, PillarView, FabricView, BackgroundLayer } from './layers';
 import { useCanvasListeners } from './useCanvasListeners';
 
 interface LayoutCanvasProps {
@@ -18,6 +23,12 @@ interface LayoutCanvasProps {
 interface PanSession {
   startScreen: Vec2;
   startCamera: Camera;
+}
+
+interface RectHandleHit {
+  elementKind: 'pillar' | 'fabric';
+  elementId: string;
+  handle: RectHandle;
 }
 
 export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanvasProps) {
@@ -69,14 +80,51 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       }
       return;
     }
+    if (tool === 'pillar') {
+      if (state.draft) {
+        dispatch({ type: 'pillarUpdate', point: world });
+        dispatch({ type: 'pillarCommit' });
+      } else {
+        dispatch({ type: 'pillarStart', point: world });
+      }
+      return;
+    }
+    if (tool === 'fabric') {
+      if (state.draft) {
+        dispatch({ type: 'fabricUpdate', point: world });
+        dispatch({ type: 'fabricCommit' });
+      } else {
+        dispatch({ type: 'fabricStart', point: world });
+      }
+      return;
+    }
     if (tool === 'text') {
       dispatch({ type: 'textPlace', point: world });
       return;
     }
     if (tool === 'erase') {
-      const hit = hitTestElements(world, doc.walls, doc.layoutTexts, camera.zoom);
-      if (hit.wallId !== null || hit.textId !== null) {
-        dispatch({ type: 'selectAt', wallId: hit.wallId, textId: hit.textId, additive: false });
+      const hit = hitTestElements(
+        world,
+        doc.walls,
+        doc.layoutTexts,
+        doc.pillars,
+        doc.fabrics,
+        camera.zoom,
+      );
+      if (
+        hit.wallId !== null ||
+        hit.textId !== null ||
+        hit.pillarId !== null ||
+        hit.fabricId !== null
+      ) {
+        dispatch({
+          type: 'selectAt',
+          wallId: hit.wallId,
+          textId: hit.textId,
+          pillarId: hit.pillarId,
+          fabricId: hit.fabricId,
+          additive: false,
+        });
         dispatch({ type: 'deleteSelection' });
       }
       return;
@@ -110,23 +158,89 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     if (handleHit) {
       dispatch({
         type: 'reshapeStart',
-        wallId: handleHit.wallId,
+        elementKind: 'wall',
+        elementId: handleHit.wallId,
         handle: handleHit.handle,
         point: world,
       });
       return;
     }
 
-    const hit = hitTestElements(world, doc.walls, doc.layoutTexts, camera.zoom);
-    if (hit.wallId !== null || hit.textId !== null) {
-      const wasSelected =
-        hit.wallId !== null
-          ? selection.wallIds.includes(hit.wallId)
-          : selection.textIds.includes(hit.textId as string);
+    let rectHandleHit: RectHandleHit | null = null;
+    for (const pillar of doc.pillars) {
+      if (selection.pillarIds.includes(pillar.id)) {
+        const hit = hitTestRectHandle(pillar, world, camera.zoom);
+        if (hit) {
+          rectHandleHit = { elementKind: 'pillar', elementId: hit.elementId, handle: hit.handle };
+          break;
+        }
+      }
+    }
+    if (!rectHandleHit) {
+      for (const fabric of doc.fabrics) {
+        if (selection.fabricIds.includes(fabric.id)) {
+          const hit = hitTestRectHandle(fabric, world, camera.zoom);
+          if (hit) {
+            rectHandleHit = { elementKind: 'fabric', elementId: hit.elementId, handle: hit.handle };
+            break;
+          }
+        }
+      }
+    }
+    if (rectHandleHit) {
+      dispatch({
+        type: 'reshapeStart',
+        elementKind: rectHandleHit.elementKind,
+        elementId: rectHandleHit.elementId,
+        handle: rectHandleHit.handle,
+        point: world,
+      });
+      return;
+    }
+
+    for (const pillar of doc.pillars) {
+      if (selection.pillarIds.includes(pillar.id) && hitTestRotateHandle(pillar, world, camera.zoom)) {
+        dispatch({ type: 'rotateStart', elementKind: 'pillar', elementId: pillar.id, point: world });
+        return;
+      }
+    }
+    for (const fabric of doc.fabrics) {
+      if (selection.fabricIds.includes(fabric.id) && hitTestRotateHandle(fabric, world, camera.zoom)) {
+        dispatch({ type: 'rotateStart', elementKind: 'fabric', elementId: fabric.id, point: world });
+        return;
+      }
+    }
+
+    const hit = hitTestElements(
+      world,
+      doc.walls,
+      doc.layoutTexts,
+      doc.pillars,
+      doc.fabrics,
+      camera.zoom,
+    );
+    if (
+      hit.wallId !== null ||
+      hit.textId !== null ||
+      hit.pillarId !== null ||
+      hit.fabricId !== null
+    ) {
+      let wasSelected = false;
+      if (hit.wallId !== null) {
+        wasSelected = selection.wallIds.includes(hit.wallId);
+      } else if (hit.textId !== null) {
+        wasSelected = selection.textIds.includes(hit.textId);
+      } else if (hit.pillarId !== null) {
+        wasSelected = selection.pillarIds.includes(hit.pillarId);
+      } else if (hit.fabricId !== null) {
+        wasSelected = selection.fabricIds.includes(hit.fabricId);
+      }
       dispatch({
         type: 'selectAt',
         wallId: hit.wallId,
         textId: hit.textId,
+        pillarId: hit.pillarId,
+        fabricId: hit.fabricId,
         additive: event.shiftKey,
       });
       const willBeSelected = event.shiftKey ? !wasSelected : true;
@@ -136,7 +250,14 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
 
-    dispatch({ type: 'selectAt', wallId: null, textId: null, additive: event.shiftKey });
+    dispatch({
+      type: 'selectAt',
+      wallId: null,
+      textId: null,
+      pillarId: null,
+      fabricId: null,
+      additive: event.shiftKey,
+    });
     startPan({ x: event.clientX, y: event.clientY }, camera);
   };
 
@@ -167,7 +288,13 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
     if (state.draft) {
-      dispatch({ type: 'wallUpdate', point: world });
+      if (tool === 'wall') {
+        dispatch({ type: 'wallUpdate', point: world });
+      } else if (tool === 'pillar') {
+        dispatch({ type: 'pillarUpdate', point: world });
+      } else if (tool === 'fabric') {
+        dispatch({ type: 'fabricUpdate', point: world });
+      }
     }
   };
 
@@ -192,15 +319,20 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
         : 'layout-cursor-grab'
       : tool === 'wall'
         ? 'layout-cursor-wall'
-        : tool === 'erase'
-          ? 'layout-cursor-erase'
-          : tool === 'text'
-            ? 'layout-cursor-text'
-            : 'layout-cursor-default';
+        : tool === 'pillar'
+          ? 'layout-cursor-pillar'
+          : tool === 'fabric'
+            ? 'layout-cursor-fabric'
+            : tool === 'erase'
+              ? 'layout-cursor-erase'
+              : tool === 'text'
+                ? 'layout-cursor-text'
+                : 'layout-cursor-default';
 
   const viewW = size.w > 0 ? size.w / camera.zoom : 1;
   const viewH = size.h > 0 ? size.h / camera.zoom : 1;
   const s = useCallback((px: number) => px / camera.zoom, [camera.zoom]);
+  const isWallDraft = draft !== null && 'axisSnapped' in draft;
 
   return (
     <div ref={containerRef} className={`layout-canvas-wrap ${cursorClass}`}>
@@ -243,6 +375,22 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 s={s}
               />
             ))}
+            {doc.pillars.map((pillar) => (
+              <PillarView
+                key={pillar.id}
+                pillar={pillar}
+                selected={selection.pillarIds.includes(pillar.id)}
+                s={s}
+              />
+            ))}
+            {doc.fabrics.map((fabric) => (
+              <FabricView
+                key={fabric.id}
+                fabric={fabric}
+                selected={selection.fabricIds.includes(fabric.id)}
+                s={s}
+              />
+            ))}
             {doc.layoutTexts.map((text) => (
               <TextView
                 key={text.id}
@@ -253,23 +401,38 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
             ))}
             {draft && (
               <g>
-                <line
-                  x1={draft.start.x}
-                  y1={draft.start.y}
-                  x2={draft.end.x}
-                  y2={draft.end.y}
-                  stroke="var(--layout-accent)"
-                  strokeWidth={1.5}
-                  strokeDasharray="6 4"
-                  vectorEffect="non-scaling-stroke"
-                />
+                {isWallDraft ? (
+                  <line
+                    x1={draft.start.x}
+                    y1={draft.start.y}
+                    x2={draft.end.x}
+                    y2={draft.end.y}
+                    stroke="var(--layout-accent)"
+                    strokeWidth={1.5}
+                    strokeDasharray="6 4"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : (
+                  <rect
+                    x={Math.min(draft.start.x, draft.end.x)}
+                    y={Math.min(draft.start.y, draft.end.y)}
+                    width={Math.abs(draft.end.x - draft.start.x)}
+                    height={Math.abs(draft.end.y - draft.start.y)}
+                    fill="var(--layout-accent)"
+                    fillOpacity={0.08}
+                    stroke="var(--layout-accent)"
+                    strokeWidth={1.5}
+                    strokeDasharray="6 4"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
                 <circle
                   cx={draft.start.x}
                   cy={draft.start.y}
                   r={s(3.5)}
                   fill="var(--layout-accent)"
                 />
-                {draft.snappedToEndpoint && (
+                {isWallDraft && 'snappedToEndpoint' in draft && draft.snappedToEndpoint && (
                   <circle
                     cx={draft.snappedToEndpoint.x}
                     cy={draft.snappedToEndpoint.y}
@@ -289,10 +452,13 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                     fontFamily="var(--layout-mono)"
                     textAnchor="middle"
                   >
-                    {formatMeters(
-                      Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y),
-                    )}{' '}
-                    m
+                    {isWallDraft
+                      ? `${formatMeters(
+                          Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y),
+                        )} m`
+                      : `${formatMeters(Math.abs(draft.end.x - draft.start.x))} × ${formatMeters(
+                          Math.abs(draft.end.y - draft.start.y),
+                        )} m`}
                   </text>
                 )}
               </g>

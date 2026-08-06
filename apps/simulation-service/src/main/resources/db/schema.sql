@@ -73,6 +73,42 @@ CREATE TABLE IF NOT EXISTS facilities (
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS pillars (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    layout_version_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    start_x DECIMAL(12, 4) NOT NULL,
+    start_y DECIMAL(12, 4) NOT NULL,
+    end_x DECIMAL(12, 4) NOT NULL,
+    end_y DECIMAL(12, 4) NOT NULL,
+    rotation DECIMAL(12, 4) NOT NULL DEFAULT 0,
+    CONSTRAINT pk_pillars PRIMARY KEY (id),
+    CONSTRAINT fk_pillars_layout_version
+        FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fabrics (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    layout_version_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    start_x DECIMAL(12, 4) NOT NULL,
+    start_y DECIMAL(12, 4) NOT NULL,
+    end_x DECIMAL(12, 4) NOT NULL,
+    end_y DECIMAL(12, 4) NOT NULL,
+    rotation DECIMAL(12, 4) NOT NULL DEFAULT 0,
+    CONSTRAINT pk_fabrics PRIMARY KEY (id),
+    CONSTRAINT fk_fabrics_layout_version
+        FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS layout_texts (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     layout_version_id BIGINT UNSIGNED NOT NULL,

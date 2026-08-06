@@ -73,6 +73,34 @@
         ORDER BY id ASC
     </select>
 
+    <select id="findPillarsByVersionId" resultType="com.hwalro.simulation.drawing.domain.Pillar">
+        SELECT id,
+               layout_version_id,
+               name,
+               start_x,
+               start_y,
+               end_x,
+               end_y,
+               rotation
+        FROM pillars
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findFabricsByVersionId" resultType="com.hwalro.simulation.drawing.domain.Fabric">
+        SELECT id,
+               layout_version_id,
+               name,
+               start_x,
+               start_y,
+               end_x,
+               end_y,
+               rotation
+        FROM fabrics
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
     <select id="findLayoutTextsByVersionId" resultType="com.hwalro.simulation.drawing.domain.LayoutText">
         SELECT id,
                layout_version_id,
@@ -112,6 +140,34 @@
         </foreach>
     </insert>
 
+    <insert id="insertPillars">
+        INSERT INTO pillars (layout_version_id, name, start_x, start_y, end_x, end_y, rotation)
+        VALUES
+        <foreach collection="list" item="pillar" separator=",">
+            (#{pillar.layoutVersionId},
+             #{pillar.name},
+             #{pillar.startX},
+             #{pillar.startY},
+             #{pillar.endX},
+             #{pillar.endY},
+             #{pillar.rotation})
+        </foreach>
+    </insert>
+
+    <insert id="insertFabrics">
+        INSERT INTO fabrics (layout_version_id, name, start_x, start_y, end_x, end_y, rotation)
+        VALUES
+        <foreach collection="list" item="fabric" separator=",">
+            (#{fabric.layoutVersionId},
+             #{fabric.name},
+             #{fabric.startX},
+             #{fabric.startY},
+             #{fabric.endX},
+             #{fabric.endY},
+             #{fabric.rotation})
+        </foreach>
+    </insert>
+
     <insert id="insertLayoutTexts">
         INSERT INTO layout_texts (layout_version_id, text, x, y)
         VALUES
@@ -142,6 +198,16 @@
 
     <delete id="deleteFacilitiesByVersionId">
         DELETE FROM facilities
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <delete id="deletePillarsByVersionId">
+        DELETE FROM pillars
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <delete id="deleteFabricsByVersionId">
+        DELETE FROM fabrics
         WHERE layout_version_id = #{layoutVersionId}
     </delete>
 

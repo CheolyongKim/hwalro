@@ -9,6 +9,11 @@
   --layout-grid-minor: #eef1f0;
   --layout-grid-major: #dce3e0;
   --layout-grid-boundary: #b8cbc7;
+  --layout-pillar-fill: #203b38;
+  --layout-pillar-stroke: #142724;
+  --layout-fabric-fill: #e8f0ee;
+  --layout-fabric-selected-fill: #dcebe7;
+  --layout-fabric-stroke: #93aca6;
   --layout-ui:
     'Happiness Sans Print', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',
     sans-serif;
@@ -26,6 +31,14 @@
 }
 
 .layout-cursor-wall {
+  cursor: crosshair;
+}
+
+.layout-cursor-pillar {
+  cursor: crosshair;
+}
+
+.layout-cursor-fabric {
   cursor: crosshair;
 }
 

@@ -3,17 +3,21 @@ package com.hwalro.simulation.drawing.service;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.DefaultDrawingData;
+import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.domain.Facility;
 import com.hwalro.simulation.drawing.domain.FloorPlan;
 import com.hwalro.simulation.drawing.domain.Layout;
 import com.hwalro.simulation.drawing.domain.LayoutText;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
+import com.hwalro.simulation.drawing.domain.Pillar;
 import com.hwalro.simulation.drawing.dto.DrawingCreateRequest;
 import com.hwalro.simulation.drawing.dto.DrawingListResponse;
 import com.hwalro.simulation.drawing.dto.DrawingResponse;
 import com.hwalro.simulation.drawing.dto.DrawingSummary;
 import com.hwalro.simulation.drawing.dto.DrawingUpdateRequest;
+import com.hwalro.simulation.drawing.dto.FabricDto;
 import com.hwalro.simulation.drawing.dto.LayoutTextDto;
+import com.hwalro.simulation.drawing.dto.PillarDto;
 import com.hwalro.simulation.drawing.dto.WallDto;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
@@ -33,10 +37,13 @@ public class DrawingService {
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_DESCRIPTION_LENGTH = 10_000;
     private static final int MAX_WALLS = 5_000;
+    private static final int MAX_PILLARS = 5_000;
+    private static final int MAX_FABRICS = 5_000;
     private static final int MAX_LAYOUT_TEXTS = 2_000;
     private static final int MAX_WALL_NAME_LENGTH = 200;
     private static final int MAX_TEXT_LENGTH = 10_000;
     private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
+    private static final BigDecimal MAX_ROTATION = BigDecimal.valueOf(360);
     private static final String LAYOUT_STATUS_DRAFT = "초안";
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_OPERATOR = "OPERATOR";
@@ -111,7 +118,7 @@ public class DrawingService {
     @Transactional
     public DrawingResponse update(Long id, DrawingUpdateRequest request, JwtUser user) {
         validateFields(request.title(), request.description());
-        validateDrawingData(request.walls(), request.layoutTexts());
+        validateDrawingData(request.walls(), request.pillars(), request.fabrics(), request.layoutTexts());
         if (request.expectedVersion() == null) {
             throw new IllegalArgumentException("도면 버전이 필요합니다.");
         }
@@ -130,8 +137,12 @@ public class DrawingService {
         }
 
         drawingMapper.deleteFacilitiesByVersionId(version.getId());
+        drawingMapper.deletePillarsByVersionId(version.getId());
+        drawingMapper.deleteFabricsByVersionId(version.getId());
         drawingMapper.deleteLayoutTextsByVersionId(version.getId());
         insertFacilitiesIfPresent(toFacilities(request.walls(), version.getId()));
+        insertPillarsIfPresent(toPillars(request.pillars(), version.getId()));
+        insertFabricsIfPresent(toFabrics(request.fabrics(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
 
         return toResponse(findLayoutOrThrow(id));
@@ -199,6 +210,24 @@ public class DrawingService {
                         facility.getEndX(),
                         facility.getEndY()))
                 .toList();
+        List<PillarDto> pillars = drawingMapper.findPillarsByVersionId(version.getId()).stream()
+                .map(pillar -> new PillarDto(
+                        pillar.getName(),
+                        pillar.getStartX(),
+                        pillar.getStartY(),
+                        pillar.getEndX(),
+                        pillar.getEndY(),
+                        pillar.getRotation()))
+                .toList();
+        List<FabricDto> fabrics = drawingMapper.findFabricsByVersionId(version.getId()).stream()
+                .map(fabric -> new FabricDto(
+                        fabric.getName(),
+                        fabric.getStartX(),
+                        fabric.getStartY(),
+                        fabric.getEndX(),
+                        fabric.getEndY(),
+                        fabric.getRotation()))
+                .toList();
         List<LayoutTextDto> layoutTexts = drawingMapper.findLayoutTextsByVersionId(version.getId()).stream()
                 .map(text -> new LayoutTextDto(text.getText(), text.getX(), text.getY()))
                 .toList();
@@ -211,6 +240,8 @@ public class DrawingService {
                 floorPlan.getWidth(),
                 floorPlan.getHeight(),
                 walls,
+                pillars,
+                fabrics,
                 layoutTexts,
                 version.getOptimisticLock());
     }
@@ -241,6 +272,38 @@ public class DrawingService {
                     facility.setEndX(wall.endX());
                     facility.setEndY(wall.endY());
                     return facility;
+                })
+                .toList();
+    }
+
+    private List<Pillar> toPillars(List<PillarDto> pillars, Long layoutVersionId) {
+        return pillars.stream()
+                .map(pillar -> {
+                    Pillar domainPillar = new Pillar();
+                    domainPillar.setLayoutVersionId(layoutVersionId);
+                    domainPillar.setName(pillar.name() == null ? "" : pillar.name());
+                    domainPillar.setStartX(pillar.startX());
+                    domainPillar.setStartY(pillar.startY());
+                    domainPillar.setEndX(pillar.endX());
+                    domainPillar.setEndY(pillar.endY());
+                    domainPillar.setRotation(pillar.rotation());
+                    return domainPillar;
+                })
+                .toList();
+    }
+
+    private List<Fabric> toFabrics(List<FabricDto> fabrics, Long layoutVersionId) {
+        return fabrics.stream()
+                .map(fabric -> {
+                    Fabric domainFabric = new Fabric();
+                    domainFabric.setLayoutVersionId(layoutVersionId);
+                    domainFabric.setName(fabric.name() == null ? "" : fabric.name());
+                    domainFabric.setStartX(fabric.startX());
+                    domainFabric.setStartY(fabric.startY());
+                    domainFabric.setEndX(fabric.endX());
+                    domainFabric.setEndY(fabric.endY());
+                    domainFabric.setRotation(fabric.rotation());
+                    return domainFabric;
                 })
                 .toList();
     }
@@ -307,12 +370,19 @@ public class DrawingService {
         validateDescription(description);
     }
 
-    private void validateDrawingData(List<WallDto> walls, List<LayoutTextDto> layoutTexts) {
-        if (walls == null || layoutTexts == null) {
+    private void validateDrawingData(
+            List<WallDto> walls, List<PillarDto> pillars, List<FabricDto> fabrics, List<LayoutTextDto> layoutTexts) {
+        if (walls == null || pillars == null || fabrics == null || layoutTexts == null) {
             throw new IllegalArgumentException("도면 데이터가 필요합니다.");
         }
         if (walls.size() > MAX_WALLS) {
             throw new IllegalArgumentException("벽은 최대 5000개까지 저장할 수 있습니다.");
+        }
+        if (pillars.size() > MAX_PILLARS) {
+            throw new IllegalArgumentException("기둥은 최대 5000개까지 저장할 수 있습니다.");
+        }
+        if (fabrics.size() > MAX_FABRICS) {
+            throw new IllegalArgumentException("구조물은 최대 5000개까지 저장할 수 있습니다.");
         }
         if (layoutTexts.size() > MAX_LAYOUT_TEXTS) {
             throw new IllegalArgumentException("텍스트는 최대 2000개까지 저장할 수 있습니다.");
@@ -328,6 +398,42 @@ public class DrawingService {
             validateCoordinate(wall.startY(), "벽 시작 Y");
             validateCoordinate(wall.endX(), "벽 끝 X");
             validateCoordinate(wall.endY(), "벽 끝 Y");
+        }
+        for (PillarDto pillar : pillars) {
+            if (pillar == null) {
+                throw new IllegalArgumentException("기둥 데이터가 누락되었습니다.");
+            }
+            if (pillar.name() != null && pillar.name().length() > MAX_WALL_NAME_LENGTH) {
+                throw new IllegalArgumentException("기둥 이름은 200자 이하여야 합니다.");
+            }
+            validateCoordinate(pillar.startX(), "기둥 시작 X");
+            validateCoordinate(pillar.startY(), "기둥 시작 Y");
+            validateCoordinate(pillar.endX(), "기둥 끝 X");
+            validateCoordinate(pillar.endY(), "기둥 끝 Y");
+            if (pillar.rotation() == null) {
+                throw new IllegalArgumentException("기둥 회전 각도가 누락되었습니다.");
+            }
+            if (pillar.rotation().abs().compareTo(MAX_ROTATION) > 0) {
+                throw new IllegalArgumentException("기둥 회전 각도는 ±360 이하여야 합니다.");
+            }
+        }
+        for (FabricDto fabric : fabrics) {
+            if (fabric == null) {
+                throw new IllegalArgumentException("구조물 데이터가 누락되었습니다.");
+            }
+            if (fabric.name() != null && fabric.name().length() > MAX_WALL_NAME_LENGTH) {
+                throw new IllegalArgumentException("구조물 이름은 200자 이하여야 합니다.");
+            }
+            validateCoordinate(fabric.startX(), "구조물 시작 X");
+            validateCoordinate(fabric.startY(), "구조물 시작 Y");
+            validateCoordinate(fabric.endX(), "구조물 끝 X");
+            validateCoordinate(fabric.endY(), "구조물 끝 Y");
+            if (fabric.rotation() == null) {
+                throw new IllegalArgumentException("구조물 회전 각도가 누락되었습니다.");
+            }
+            if (fabric.rotation().abs().compareTo(MAX_ROTATION) > 0) {
+                throw new IllegalArgumentException("구조물 회전 각도는 ±360 이하여야 합니다.");
+            }
         }
         for (LayoutTextDto layoutText : layoutTexts) {
             if (layoutText == null) {
@@ -353,6 +459,18 @@ public class DrawingService {
     private void insertFacilitiesIfPresent(List<Facility> facilities) {
         if (!facilities.isEmpty()) {
             drawingMapper.insertFacilities(facilities);
+        }
+    }
+
+    private void insertPillarsIfPresent(List<Pillar> pillars) {
+        if (!pillars.isEmpty()) {
+            drawingMapper.insertPillars(pillars);
+        }
+    }
+
+    private void insertFabricsIfPresent(List<Fabric> fabrics) {
+        if (!fabrics.isEmpty()) {
+            drawingMapper.insertFabrics(fabrics);
         }
     }
 
