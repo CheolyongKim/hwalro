@@ -355,7 +355,18 @@ export function fromSerialized(data: unknown): DrawingDocument {
     };
   }
 
-  return { name, width, height, walls, outsideWalls, exits, pillars, fabrics, layoutTexts, background };
+  return {
+    name,
+    width,
+    height,
+    walls,
+    outsideWalls,
+    exits,
+    pillars,
+    fabrics,
+    layoutTexts,
+    background,
+  };
 }
 
 export function parseJson(text: string): DrawingDocument {

@@ -6,10 +6,7 @@ import { isRectInsideBounds, translateDoc } from '../utils/document';
 type ReshapeDrag = Extract<DragState, { kind: 'reshape' }>;
 type RotateDrag = Extract<DragState, { kind: 'rotate' }>;
 
-function clampToDocBounds(
-  doc: { width: number; height: number },
-  point: Vec2,
-): Vec2 {
+function clampToDocBounds(doc: { width: number; height: number }, point: Vec2): Vec2 {
   return {
     x: Math.max(0, Math.min(doc.width, point.x)),
     y: Math.max(0, Math.min(doc.height, point.y)),

@@ -215,9 +215,7 @@ export function translateDoc(
       : fabric,
   );
   const layoutTexts = doc.layoutTexts.map((text) =>
-    selection.textIds.includes(text.id)
-      ? { ...text, x: text.x + dx, y: text.y + dy }
-      : text,
+    selection.textIds.includes(text.id) ? { ...text, x: text.x + dx, y: text.y + dy } : text,
   );
   return { ...doc, walls, outsideWalls, exits, pillars, fabrics, layoutTexts };
 }

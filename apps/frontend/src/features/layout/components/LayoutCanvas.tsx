@@ -49,7 +49,10 @@ interface RectHandleHit {
   handle: RectHandle;
 }
 
-const LINE_DRAFT_UPDATE: Record<'wall' | 'outsideWall' | 'exit', 'wallUpdate' | 'outsideWallUpdate' | 'exitUpdate'> = {
+const LINE_DRAFT_UPDATE: Record<
+  'wall' | 'outsideWall' | 'exit',
+  'wallUpdate' | 'outsideWallUpdate' | 'exitUpdate'
+> = {
   wall: 'wallUpdate',
   outsideWall: 'outsideWallUpdate',
   exit: 'exitUpdate',
@@ -432,15 +435,15 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
           ? 'layout-cursor-outside-wall'
           : tool === 'exit'
             ? 'layout-cursor-exit'
-          : tool === 'pillar'
-            ? 'layout-cursor-pillar'
-            : tool === 'fabric'
-              ? 'layout-cursor-fabric'
-              : tool === 'erase'
-                ? 'layout-cursor-erase'
-                : tool === 'text'
-                  ? 'layout-cursor-text'
-                  : 'layout-cursor-default';
+            : tool === 'pillar'
+              ? 'layout-cursor-pillar'
+              : tool === 'fabric'
+                ? 'layout-cursor-fabric'
+                : tool === 'erase'
+                  ? 'layout-cursor-erase'
+                  : tool === 'text'
+                    ? 'layout-cursor-text'
+                    : 'layout-cursor-default';
 
   const viewW = size.w > 0 ? size.w / (camera.zoom * PX_PER_METER) : 1;
   const viewH = size.h > 0 ? size.h / (camera.zoom * PX_PER_METER) : 1;
