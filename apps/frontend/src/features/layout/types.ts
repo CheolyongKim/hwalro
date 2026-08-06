@@ -12,6 +12,15 @@ export interface Wall {
   endY: number;
 }
 
+export interface OutsideWall {
+  id: string;
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
 export interface Exit {
   id: string;
   name: string;
@@ -64,6 +73,7 @@ export interface DrawingDocument {
   width: number;
   height: number;
   walls: Wall[];
+  outsideWalls: OutsideWall[];
   exits: Exit[];
   pillars: Pillar[];
   fabrics: Fabric[];
@@ -72,7 +82,15 @@ export interface DrawingDocument {
 }
 
 export type Tool =
-  'select' | 'wall' | 'exit' | 'text' | 'erase' | 'background' | 'pillar' | 'fabric';
+  | 'select'
+  | 'wall'
+  | 'outsideWall'
+  | 'exit'
+  | 'text'
+  | 'erase'
+  | 'background'
+  | 'pillar'
+  | 'fabric';
 
 export interface Camera {
   zoom: number;
@@ -82,6 +100,7 @@ export interface Camera {
 
 export interface PointSelection {
   wallIds: string[];
+  outsideWallIds: string[];
   exitIds: string[];
   textIds: string[];
   pillarIds: string[];
@@ -118,7 +137,7 @@ export type DragState =
       kind: 'reshape';
       origin: Vec2;
       originDoc: DrawingDocument;
-      elementKind: 'wall' | 'pillar' | 'fabric';
+      elementKind: 'wall' | 'outsideWall' | 'pillar' | 'fabric';
       elementId: string;
       handle: RectHandle;
     }
@@ -165,6 +184,14 @@ export interface EditorState {
 }
 
 export interface SerializedWall {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
+export interface SerializedOutsideWall {
   name: string;
   startX: number;
   startY: number;
@@ -219,6 +246,7 @@ export interface SerializedDocument {
   width: number;
   height: number;
   walls: SerializedWall[];
+  outsideWalls: SerializedOutsideWall[];
   exits: SerializedExit[];
   pillars: SerializedPillar[];
   fabrics: SerializedFabric[];

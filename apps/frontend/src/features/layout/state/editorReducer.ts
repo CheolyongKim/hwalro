@@ -4,6 +4,7 @@ import type {
   EditorState,
   Exit,
   Fabric,
+  OutsideWall,
   Pillar,
   RectHandle,
   Tool,
@@ -17,8 +18,11 @@ import { docSnapSources, snapPoint } from '../utils/snapping';
 import {
   createEmptyDocument,
   emptySelection,
+  isInsideBounds,
+  isRectInsideBounds,
   nextExitName,
   nextFabricName,
+  nextOutsideWallName,
   nextPillarName,
   nextWallName,
   uid,
@@ -41,6 +45,9 @@ export type EditorAction =
   | { type: 'wallStart'; point: Vec2 }
   | { type: 'wallUpdate'; point: Vec2 }
   | { type: 'wallCommit' }
+  | { type: 'outsideWallStart'; point: Vec2 }
+  | { type: 'outsideWallUpdate'; point: Vec2 }
+  | { type: 'outsideWallCommit' }
   | { type: 'exitStart'; point: Vec2 }
   | { type: 'exitUpdate'; point: Vec2 }
   | { type: 'exitCommit' }
@@ -56,6 +63,7 @@ export type EditorAction =
   | {
       type: 'selectAt';
       wallId: string | null;
+      outsideWallId: string | null;
       exitId: string | null;
       textId: string | null;
       pillarId: string | null;
@@ -65,7 +73,7 @@ export type EditorAction =
   | { type: 'dragStartMove'; point: Vec2 }
   | {
       type: 'reshapeStart';
-      elementKind: 'wall' | 'pillar' | 'fabric';
+      elementKind: 'wall' | 'outsideWall' | 'pillar' | 'fabric';
       elementId: string;
       handle: RectHandle;
       point: Vec2;
@@ -99,6 +107,11 @@ export type EditorAction =
       type: 'updateWall';
       wallId: string;
       patch: Partial<Pick<Wall, 'startX' | 'startY' | 'endX' | 'endY'>>;
+    }
+  | {
+      type: 'updateOutsideWall';
+      wallId: string;
+      patch: Partial<Pick<OutsideWall, 'startX' | 'startY' | 'endX' | 'endY'>>;
     }
   | {
       type: 'updateExit';
@@ -201,6 +214,10 @@ function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
 function applyEraseAt(state: EditorState, hit: ElementHit): EditorState {
   const { doc } = state;
   const walls = hit.wallId === null ? doc.walls : doc.walls.filter((w) => w.id !== hit.wallId);
+  const outsideWalls =
+    hit.outsideWallId === null
+      ? doc.outsideWalls
+      : doc.outsideWalls.filter((w) => w.id !== hit.outsideWallId);
   const exits = hit.exitId === null ? doc.exits : doc.exits.filter((e) => e.id !== hit.exitId);
   const layoutTexts =
     hit.textId === null ? doc.layoutTexts : doc.layoutTexts.filter((t) => t.id !== hit.textId);
@@ -210,6 +227,7 @@ function applyEraseAt(state: EditorState, hit: ElementHit): EditorState {
     hit.fabricId === null ? doc.fabrics : doc.fabrics.filter((f) => f.id !== hit.fabricId);
   if (
     walls === doc.walls &&
+    outsideWalls === doc.outsideWalls &&
     exits === doc.exits &&
     layoutTexts === doc.layoutTexts &&
     pillars === doc.pillars &&
@@ -217,7 +235,10 @@ function applyEraseAt(state: EditorState, hit: ElementHit): EditorState {
   ) {
     return state;
   }
-  return { ...state, doc: { ...doc, walls, exits, layoutTexts, pillars, fabrics } };
+  return {
+    ...state,
+    doc: { ...doc, walls, outsideWalls, exits, layoutTexts, pillars, fabrics },
+  };
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -252,6 +273,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
         return { ...state, draft: null, snapHint: null };
       }
+      if (!isRectInsideBounds(state.doc, start.x, start.y, end.x, end.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
       const wall: Wall = {
         id: uid(),
         name: nextWallName(state.doc),
@@ -261,6 +285,35 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         endY: round1(end.y),
       };
       const next = { ...state.doc, walls: [...state.doc.walls, wall] };
+      return commit(state, state.doc, next);
+    }
+
+    case 'outsideWallStart':
+      return applyDraftStart(state, action.point);
+
+    case 'outsideWallUpdate':
+      return applyDraftUpdate(state, action.point);
+
+    case 'outsideWallCommit': {
+      if (!state.draft) {
+        return state;
+      }
+      const { start, end } = state.draft;
+      if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      if (!isRectInsideBounds(state.doc, start.x, start.y, end.x, end.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      const wall: OutsideWall = {
+        id: uid(),
+        name: nextOutsideWallName(state.doc),
+        startX: round1(start.x),
+        startY: round1(start.y),
+        endX: round1(end.x),
+        endY: round1(end.y),
+      };
+      const next = { ...state.doc, outsideWalls: [...state.doc.outsideWalls, wall] };
       return commit(state, state.doc, next);
     }
 
@@ -276,6 +329,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const { start, end } = state.draft;
       if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      if (!isRectInsideBounds(state.doc, start.x, start.y, end.x, end.y)) {
         return { ...state, draft: null, snapHint: null };
       }
       const exit: Exit = {
@@ -304,6 +360,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
         return { ...state, draft: null, snapHint: null };
       }
+      if (!isRectInsideBounds(state.doc, start.x, start.y, end.x, end.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
       const pillar: Pillar = {
         id: uid(),
         name: nextPillarName(state.doc),
@@ -329,6 +388,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const { start, end } = state.draft;
       if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      if (!isRectInsideBounds(state.doc, start.x, start.y, end.x, end.y)) {
         return { ...state, draft: null, snapHint: null };
       }
       const fabric: Fabric = {
@@ -359,6 +421,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const trimmed = action.text.trim();
       if (trimmed === '') {
+        return { ...state, textDraft: null };
+      }
+      if (!isInsideBounds(state.doc, state.textDraft.point.x, state.textDraft.point.y)) {
         return { ...state, textDraft: null };
       }
       const text: LayoutText = {
@@ -439,20 +504,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!state.drag) {
         return state;
       }
+      if (state.drag.originDoc === state.doc) {
+        return { ...state, drag: null };
+      }
       return commit(state, state.drag.originDoc, state.doc);
     }
 
     case 'eraseStart': {
-      const hasHit =
-        action.hit.wallId !== null ||
-        action.hit.exitId !== null ||
-        action.hit.textId !== null ||
-        action.hit.pillarId !== null ||
-        action.hit.fabricId !== null;
       const next = applyEraseAt(state, action.hit);
-      if (!hasHit) {
-        return next;
-      }
       return {
         ...next,
         drag: { kind: 'erase', origin: action.point, originDoc: state.doc },
@@ -467,6 +526,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const { selection } = state;
       if (
         selection.wallIds.length === 0 &&
+        selection.outsideWallIds.length === 0 &&
         selection.exitIds.length === 0 &&
         selection.textIds.length === 0 &&
         selection.pillarIds.length === 0 &&
@@ -475,11 +535,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const walls = state.doc.walls.filter((w) => !selection.wallIds.includes(w.id));
+      const outsideWalls = state.doc.outsideWalls.filter(
+        (w) => !selection.outsideWallIds.includes(w.id),
+      );
       const exits = state.doc.exits.filter((e) => !selection.exitIds.includes(e.id));
       const layoutTexts = state.doc.layoutTexts.filter((t) => !selection.textIds.includes(t.id));
       const pillars = state.doc.pillars.filter((p) => !selection.pillarIds.includes(p.id));
       const fabrics = state.doc.fabrics.filter((f) => !selection.fabricIds.includes(f.id));
-      const next = { ...state.doc, walls, exits, layoutTexts, pillars, fabrics };
+      const next = { ...state.doc, walls, outsideWalls, exits, layoutTexts, pillars, fabrics };
       return commit(state, state.doc, next);
     }
 
@@ -503,6 +566,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextWall: Wall = { ...wall, ...action.patch };
+      if (
+        round1(nextWall.startX) === round1(nextWall.endX) &&
+        round1(nextWall.startY) === round1(nextWall.endY)
+      ) {
+        return state;
+      }
+      if (
+        !isRectInsideBounds(
+          state.doc,
+          nextWall.startX,
+          nextWall.startY,
+          nextWall.endX,
+          nextWall.endY,
+        )
+      ) {
+        return state;
+      }
       const next = {
         ...state.doc,
         walls: state.doc.walls.map((w) => (w.id === wall.id ? nextWall : w)),
@@ -516,6 +596,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextExit: Exit = { ...exit, ...action.patch };
+      if (
+        round1(nextExit.startX) === round1(nextExit.endX) &&
+        round1(nextExit.startY) === round1(nextExit.endY)
+      ) {
+        return state;
+      }
+      if (
+        !isRectInsideBounds(
+          state.doc,
+          nextExit.startX,
+          nextExit.startY,
+          nextExit.endX,
+          nextExit.endY,
+        )
+      ) {
+        return state;
+      }
       const next = {
         ...state.doc,
         exits: state.doc.exits.map((e) => (e.id === exit.id ? nextExit : e)),
@@ -529,6 +626,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextPillar: Pillar = { ...pillar, ...action.patch };
+      if (
+        round1(nextPillar.startX) === round1(nextPillar.endX) &&
+        round1(nextPillar.startY) === round1(nextPillar.endY)
+      ) {
+        return state;
+      }
+      if (
+        !isRectInsideBounds(
+          state.doc,
+          nextPillar.startX,
+          nextPillar.startY,
+          nextPillar.endX,
+          nextPillar.endY,
+        )
+      ) {
+        return state;
+      }
       const next = {
         ...state.doc,
         pillars: state.doc.pillars.map((p) => (p.id === pillar.id ? nextPillar : p)),
@@ -542,6 +656,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextFabric: Fabric = { ...fabric, ...action.patch };
+      if (
+        round1(nextFabric.startX) === round1(nextFabric.endX) &&
+        round1(nextFabric.startY) === round1(nextFabric.endY)
+      ) {
+        return state;
+      }
+      if (
+        !isRectInsideBounds(
+          state.doc,
+          nextFabric.startX,
+          nextFabric.startY,
+          nextFabric.endX,
+          nextFabric.endY,
+        )
+      ) {
+        return state;
+      }
       const next = {
         ...state.doc,
         fabrics: state.doc.fabrics.map((f) => (f.id === fabric.id ? nextFabric : f)),
@@ -555,9 +686,42 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextText: LayoutText = { ...text, ...action.patch };
+      if (!isInsideBounds(state.doc, nextText.x, nextText.y)) {
+        return state;
+      }
       const next = {
         ...state.doc,
         layoutTexts: state.doc.layoutTexts.map((t) => (t.id === text.id ? nextText : t)),
+      };
+      return commit(state, state.doc, next);
+    }
+
+    case 'updateOutsideWall': {
+      const wall = state.doc.outsideWalls.find((w) => w.id === action.wallId);
+      if (!wall) {
+        return state;
+      }
+      const nextWall: OutsideWall = { ...wall, ...action.patch };
+      if (
+        round1(nextWall.startX) === round1(nextWall.endX) &&
+        round1(nextWall.startY) === round1(nextWall.endY)
+      ) {
+        return state;
+      }
+      if (
+        !isRectInsideBounds(
+          state.doc,
+          nextWall.startX,
+          nextWall.startY,
+          nextWall.endX,
+          nextWall.endY,
+        )
+      ) {
+        return state;
+      }
+      const next = {
+        ...state.doc,
+        outsideWalls: state.doc.outsideWalls.map((w) => (w.id === wall.id ? nextWall : w)),
       };
       return commit(state, state.doc, next);
     }
@@ -583,6 +747,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       if (
         state.selection.wallIds.length > 0 ||
+        state.selection.outsideWallIds.length > 0 ||
         state.selection.exitIds.length > 0 ||
         state.selection.textIds.length > 0 ||
         state.selection.pillarIds.length > 0 ||

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Dispatch } from 'react';
-import type { EditorState, Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
+import type { EditorState, Exit, Fabric, LayoutText, OutsideWall, Pillar, Wall } from '../types';
 import type { EditorAction } from '../state/editorReducer';
 import { round1 } from '../utils/geometry';
 
@@ -15,6 +15,14 @@ function selectedWall(state: EditorState): Wall | null {
     return null;
   }
   return state.doc.walls.find((wall) => wall.id === id) ?? null;
+}
+
+function selectedOutsideWall(state: EditorState): OutsideWall | null {
+  const id = state.selection.outsideWallIds[0];
+  if (!id) {
+    return null;
+  }
+  return state.doc.outsideWalls.find((wall) => wall.id === id) ?? null;
 }
 
 function selectedPillar(state: EditorState): Pillar | null {
@@ -103,6 +111,28 @@ interface WallFieldsProps {
 function WallFields({ wall, dispatch }: WallFieldsProps) {
   const update = (patch: Partial<Pick<Wall, 'startX' | 'startY' | 'endX' | 'endY'>>) =>
     dispatch({ type: 'updateWall', wallId: wall.id, patch });
+  return (
+    <section>
+      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-[13px] text-panel-text">{wall.name}</p>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <NumberField label="시작점 X" value={wall.startX} onChange={(x) => update({ startX: x })} />
+        <NumberField label="시작점 Y" value={wall.startY} onChange={(y) => update({ startY: y })} />
+        <NumberField label="끝점 X" value={wall.endX} onChange={(x) => update({ endX: x })} />
+        <NumberField label="끝점 Y" value={wall.endY} onChange={(y) => update({ endY: y })} />
+      </div>
+    </section>
+  );
+}
+
+interface OutsideWallFieldsProps {
+  wall: OutsideWall;
+  dispatch: Dispatch<EditorAction>;
+}
+
+function OutsideWallFields({ wall, dispatch }: OutsideWallFieldsProps) {
+  const update = (patch: Partial<Pick<OutsideWall, 'startX' | 'startY' | 'endX' | 'endY'>>) =>
+    dispatch({ type: 'updateOutsideWall', wallId: wall.id, patch });
   return (
     <section>
       <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
@@ -218,7 +248,8 @@ function InfoRow({ label, value }: InfoRowProps) {
 
 export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
   const wall = selectedWall(state);
-  const exit = wall === null ? selectedExit(state) : null;
+  const outsideWall = wall === null ? selectedOutsideWall(state) : null;
+  const exit = outsideWall === null ? selectedExit(state) : null;
   const pillar = exit === null ? selectedPillar(state) : null;
   const fabric = pillar === null ? selectedFabric(state) : null;
   const text = fabric === null ? selectedText(state) : null;
@@ -226,7 +257,12 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
 
   return (
     <aside aria-label="도면 설정" className="px-3 pb-3">
-      {wall === null && exit === null && pillar === null && fabric === null && text === null ? (
+      {wall === null &&
+      outsideWall === null &&
+      exit === null &&
+      pillar === null &&
+      fabric === null &&
+      text === null ? (
         <section>
           <h3 className="text-[13px] font-bold text-panel-text">도면 정보</h3>
           <div className="mt-1">
@@ -236,6 +272,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
               value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
             />
             <InfoRow label="벽" value={`${doc.walls.length}개`} />
+            <InfoRow label="외각벽" value={`${doc.outsideWalls.length}개`} />
             <InfoRow label="비상구" value={`${doc.exits.length}개`} />
             <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
             <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
@@ -244,6 +281,8 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
         </section>
       ) : wall !== null ? (
         <WallFields wall={wall} dispatch={dispatch} />
+      ) : outsideWall !== null ? (
+        <OutsideWallFields wall={outsideWall} dispatch={dispatch} />
       ) : exit !== null ? (
         <ExitFields exit={exit} dispatch={dispatch} />
       ) : pillar !== null ? (
@@ -257,6 +296,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
         <h3 className="text-[13px] font-bold text-panel-text">레이어</h3>
         <div className="mt-1">
           <InfoRow label="벽" value={`${doc.walls.length}개`} />
+          <InfoRow label="외각벽" value={`${doc.outsideWalls.length}개`} />
           <InfoRow label="비상구" value={`${doc.exits.length}개`} />
           <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
           <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />

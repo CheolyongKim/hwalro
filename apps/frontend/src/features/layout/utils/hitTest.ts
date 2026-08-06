@@ -2,6 +2,7 @@ import type {
   Exit,
   Fabric,
   LayoutText,
+  OutsideWall,
   Pillar,
   RectHandle,
   Vec2,
@@ -46,6 +47,10 @@ export function hitTestWall(point: Vec2, wall: Wall, zoom: number): boolean {
   const start = { x: wall.startX, y: wall.startY };
   const end = { x: wall.endX, y: wall.endY };
   return distanceToSegment(point, start, end) <= radius;
+}
+
+export function hitTestOutsideWall(point: Vec2, wall: OutsideWall, zoom: number): boolean {
+  return hitTestWall(point, wall, zoom);
 }
 
 export function hitTestExit(point: Vec2, exit: Exit, zoom: number): boolean {
@@ -94,6 +99,7 @@ export function hitTestFabric(point: Vec2, fabric: Fabric, zoom: number): boolea
 
 export interface ElementHit {
   wallId: string | null;
+  outsideWallId: string | null;
   exitId: string | null;
   textId: string | null;
   pillarId: string | null;
@@ -103,6 +109,7 @@ export interface ElementHit {
 export function hitTestElements(
   point: Vec2,
   walls: Wall[],
+  outsideWalls: OutsideWall[],
   texts: LayoutText[],
   pillars: Pillar[],
   fabrics: Fabric[],
@@ -111,32 +118,86 @@ export function hitTestElements(
 ): ElementHit {
   for (const text of texts) {
     if (hitTestText(point, text, zoom)) {
-      return { wallId: null, exitId: null, textId: text.id, pillarId: null, fabricId: null };
+      return {
+        wallId: null,
+        outsideWallId: null,
+        exitId: null,
+        textId: text.id,
+        pillarId: null,
+        fabricId: null,
+      };
     }
   }
   for (let i = fabrics.length - 1; i >= 0; i--) {
     const fabric = fabrics[i];
     if (hitTestFabric(point, fabric, zoom)) {
-      return { wallId: null, exitId: null, textId: null, pillarId: null, fabricId: fabric.id };
+      return {
+        wallId: null,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: null,
+        fabricId: fabric.id,
+      };
     }
   }
   for (let i = pillars.length - 1; i >= 0; i--) {
     const pillar = pillars[i];
     if (hitTestPillar(point, pillar, zoom)) {
-      return { wallId: null, exitId: null, textId: null, pillarId: pillar.id, fabricId: null };
+      return {
+        wallId: null,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: pillar.id,
+        fabricId: null,
+      };
     }
   }
   for (const exit of exits) {
     if (hitTestExit(point, exit, zoom)) {
-      return { wallId: null, exitId: exit.id, textId: null, pillarId: null, fabricId: null };
+      return {
+        wallId: null,
+        outsideWallId: null,
+        exitId: exit.id,
+        textId: null,
+        pillarId: null,
+        fabricId: null,
+      };
     }
   }
   for (const wall of walls) {
     if (hitTestWall(point, wall, zoom)) {
-      return { wallId: wall.id, exitId: null, textId: null, pillarId: null, fabricId: null };
+      return {
+        wallId: wall.id,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: null,
+        fabricId: null,
+      };
     }
   }
-  return { wallId: null, exitId: null, textId: null, pillarId: null, fabricId: null };
+  for (const wall of outsideWalls) {
+    if (hitTestOutsideWall(point, wall, zoom)) {
+      return {
+        wallId: null,
+        outsideWallId: wall.id,
+        exitId: null,
+        textId: null,
+        pillarId: null,
+        fabricId: null,
+      };
+    }
+  }
+  return {
+    wallId: null,
+    outsideWallId: null,
+    exitId: null,
+    textId: null,
+    pillarId: null,
+    fabricId: null,
+  };
 }
 
 export interface HandleHit {
@@ -144,7 +205,9 @@ export interface HandleHit {
   handle: WallHandle;
 }
 
-export function hitTestHandle(point: Vec2, wall: Wall, zoom: number): HandleHit | null {
+export type LineLike = Wall | OutsideWall;
+
+export function hitTestHandle(point: Vec2, wall: LineLike, zoom: number): HandleHit | null {
   const radius = pxToWorld(HANDLE_RADIUS_PX, zoom);
   const start = { x: wall.startX, y: wall.startY };
   const end = { x: wall.endX, y: wall.endY };

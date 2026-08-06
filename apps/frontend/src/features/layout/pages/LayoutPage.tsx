@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutToolbar } from '../components/LayoutToolbar';
+import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { InlineTextInput } from '../components/InlineTextInput';
@@ -211,7 +212,6 @@ function LayoutPage() {
       <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
         <LayoutToolbar
           state={state}
-          dispatch={dispatch}
           saveStatus={saveStatus}
           onSave={() => void performSave()}
           collapsed={panelCollapsed}
@@ -223,6 +223,11 @@ function LayoutPage() {
           </div>
         )}
       </div>
+      <ToolToolbar
+        state={state}
+        dispatch={dispatch}
+        className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
+      />
       <ZoomControl
         state={state}
         dispatch={dispatch}
