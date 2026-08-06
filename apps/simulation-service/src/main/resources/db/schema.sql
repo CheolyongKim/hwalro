@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS layout_exits (
 CREATE TABLE IF NOT EXISTS simulations (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     layout_version_id BIGINT UNSIGNED NOT NULL,
+    parent_simulation_id BIGINT UNSIGNED NULL,
     created_by BIGINT UNSIGNED NOT NULL,
     status VARCHAR(30) NOT NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -119,6 +120,10 @@ CREATE TABLE IF NOT EXISTS simulations (
     CONSTRAINT uk_simulations_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT fk_simulations_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_simulations_parent_simulation
+        FOREIGN KEY (parent_simulation_id) REFERENCES simulations (id)
         ON UPDATE CASCADE
         ON DELETE RESTRICT,
     INDEX idx_simulations_created_by (created_by)
@@ -248,6 +253,53 @@ CREATE TABLE IF NOT EXISTS heatmaps (
     CONSTRAINT uk_heatmaps_result UNIQUE (simulation_result_id),
     CONSTRAINT fk_heatmaps_result
         FOREIGN KEY (simulation_result_id) REFERENCES simulation_results (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS improvement_proposals (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    source_simulation_id BIGINT UNSIGNED NOT NULL,
+    saved_layout_version_id BIGINT UNSIGNED NULL,
+    proposal_order INT UNSIGNED NOT NULL,
+    proposal_type VARCHAR(30) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NULL,
+    change_data JSON NOT NULL,
+    change_summary JSON NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    saved_at DATETIME(6) NULL,
+    CONSTRAINT pk_improvement_proposals PRIMARY KEY (id),
+    CONSTRAINT uk_improvement_proposals_source_order UNIQUE (source_simulation_id, proposal_order),
+    CONSTRAINT uk_improvement_proposals_saved_layout_version UNIQUE (saved_layout_version_id),
+    CONSTRAINT fk_improvement_proposals_source_simulation
+        FOREIGN KEY (source_simulation_id) REFERENCES simulations (id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_improvement_proposals_saved_layout_version
+        FOREIGN KEY (saved_layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS proposal_simulations (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    improvement_proposal_id BIGINT UNSIGNED NOT NULL,
+    simulation_id BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_proposal_simulations PRIMARY KEY (id),
+    CONSTRAINT uk_proposal_simulations_proposal UNIQUE (improvement_proposal_id),
+    CONSTRAINT uk_proposal_simulations_simulation UNIQUE (simulation_id),
+    CONSTRAINT fk_proposal_simulations_improvement_proposal
+        FOREIGN KEY (improvement_proposal_id) REFERENCES improvement_proposals (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_proposal_simulations_simulation
+        FOREIGN KEY (simulation_id) REFERENCES simulations (id)
         ON UPDATE CASCADE
         ON DELETE CASCADE
 ) ENGINE = InnoDB
