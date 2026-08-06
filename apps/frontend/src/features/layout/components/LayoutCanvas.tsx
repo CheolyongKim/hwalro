@@ -167,10 +167,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
       return;
     }
     if (tool === 'erase') {
-      const hit = hitAt(world);
-      if (hasHit(hit)) {
-        dispatch({ type: 'eraseStart', point: world, hit });
-      }
+      dispatch({ type: 'eraseStart', point: world, hit: hitAt(world) });
       return;
     }
     if (tool === 'background') {

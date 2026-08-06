@@ -504,21 +504,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!state.drag) {
         return state;
       }
+      if (state.drag.originDoc === state.doc) {
+        return { ...state, drag: null };
+      }
       return commit(state, state.drag.originDoc, state.doc);
     }
 
     case 'eraseStart': {
-      const hasHit =
-        action.hit.wallId !== null ||
-        action.hit.outsideWallId !== null ||
-        action.hit.exitId !== null ||
-        action.hit.textId !== null ||
-        action.hit.pillarId !== null ||
-        action.hit.fabricId !== null;
       const next = applyEraseAt(state, action.hit);
-      if (!hasHit) {
-        return next;
-      }
       return {
         ...next,
         drag: { kind: 'erase', origin: action.point, originDoc: state.doc },
