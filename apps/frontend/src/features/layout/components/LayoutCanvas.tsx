@@ -407,13 +407,9 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
   const draftColor = tool === 'exit' ? CANVAS_COLORS.exit : CANVAS_COLORS.accent;
   const isWallDraft = draft !== null && 'axisSnapped' in draft;
   const draftLabel =
-    draft !== null &&
-    cursor &&
-    (draft.end.x !== draft.start.x || draft.end.y !== draft.start.y)
+    draft !== null && cursor && (draft.end.x !== draft.start.x || draft.end.y !== draft.start.y)
       ? isWallDraft
-        ? `${formatMeters(
-            Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y),
-          )} m`
+        ? `${formatMeters(Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y))} m`
         : `${formatMeters(Math.abs(draft.end.x - draft.start.x))} × ${formatMeters(
             Math.abs(draft.end.y - draft.start.y),
           )} m`
@@ -434,13 +430,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     >
       {size.w > 0 && size.h > 0 && (
         <Stage width={size.w} height={size.h}>
-          <Layer
-            listening={false}
-            x={-camera.panX * k}
-            y={-camera.panY * k}
-            scaleX={k}
-            scaleY={k}
-          >
+          <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             <Rect x={0} y={0} width={doc.width} height={doc.height} fill={CANVAS_COLORS.canvas} />
             {doc.background && <BackgroundLayer bg={doc.background} />}
             <GridLayer
