@@ -23,10 +23,11 @@ class ProposalConstraintValidatorTest {
     }
 
     @Test
-    void rejectsTheStationaryZeroRotationState() {
+    void rejectsStationaryEquivalentRotationStates() {
         ProposalConstraintValidator validator = validator(List.of());
 
         assertFalse(validator.isValid(candidate(first, first.bounds())));
+        assertFalse(validator.isValid(candidate(first, RotatedRectangle.of(1, 1, 3, 3, 180))));
     }
 
     @Test

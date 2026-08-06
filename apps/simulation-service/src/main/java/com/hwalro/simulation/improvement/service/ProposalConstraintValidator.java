@@ -35,7 +35,12 @@ public final class ProposalConstraintValidator {
 
     private boolean isValidChange(FabricChange change, Map<Long, RotatedRectangle> updatedBounds) {
         RotatedRectangle after = change.after();
+        // 방향 표식 없는 직사각형은 180도 회전해도 점유 영역이 바뀌지 않습니다.
         if (change.before().equals(after)
+                || (change.before().center().equals(after.center())
+                        && change.before().width() == after.width()
+                        && change.before().height() == after.height()
+                        && change.before().clockwiseDegrees() % 180 == after.clockwiseDegrees() % 180)
                 || !fabricBounds.containsKey(change.fabricId())
                 || !Geometry.isInside(after, floorWidth, floorHeight)
                 || fixedObstacles.stream().anyMatch(obstacle -> Geometry.intersects(after, obstacle))) {
