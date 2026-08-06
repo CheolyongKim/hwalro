@@ -22,7 +22,7 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
 export function ToolToolbar({ state, dispatch, className }: ToolToolbarProps) {
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-xl border border-panel-divider bg-panel p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${className ?? ''}`}
+      className={`flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border border-panel-divider bg-panel p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${className ?? ''}`}
     >
       {TOOLS.map((tool) => {
         const active = state.tool === tool.id;

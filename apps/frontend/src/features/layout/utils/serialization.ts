@@ -184,6 +184,9 @@ export function fromSerialized(data: unknown): DrawingDocument {
   if (data.walls !== undefined && !Array.isArray(data.walls)) {
     throw new Error('walls는 배열이어야 합니다');
   }
+  if (data.outsideWalls !== undefined && !Array.isArray(data.outsideWalls)) {
+    throw new Error('outsideWalls는 배열이어야 합니다');
+  }
   if (data.exits !== undefined && !Array.isArray(data.exits)) {
     throw new Error('exits는 배열이어야 합니다');
   }
