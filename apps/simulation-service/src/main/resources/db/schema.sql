@@ -37,7 +37,6 @@ CREATE TABLE IF NOT EXISTS layout_versions (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     layout_id BIGINT UNSIGNED NOT NULL,
     version INT UNSIGNED NOT NULL,
-    parent_version_id BIGINT UNSIGNED NULL,
     status VARCHAR(30) NOT NULL,
     optimistic_lock INT UNSIGNED NOT NULL DEFAULT 0,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -46,11 +45,7 @@ CREATE TABLE IF NOT EXISTS layout_versions (
     CONSTRAINT fk_layout_versions_layout
         FOREIGN KEY (layout_id) REFERENCES layouts (id)
         ON UPDATE CASCADE
-        ON DELETE CASCADE,
-    CONSTRAINT fk_layout_versions_parent
-        FOREIGN KEY (parent_version_id) REFERENCES layout_versions (id)
-        ON UPDATE CASCADE
-        ON DELETE SET NULL
+        ON DELETE CASCADE
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -93,12 +88,30 @@ CREATE TABLE IF NOT EXISTS layout_texts (
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS layout_exits (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    layout_version_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    start_x DECIMAL(12, 4) NOT NULL,
+    start_y DECIMAL(12, 4) NOT NULL,
+    end_x DECIMAL(12, 4) NOT NULL,
+    end_y DECIMAL(12, 4) NOT NULL,
+    CONSTRAINT pk_layout_exits PRIMARY KEY (id),
+    CONSTRAINT fk_layout_exits_layout_version
+        FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS simulations (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     layout_version_id BIGINT UNSIGNED NOT NULL,
     created_by BIGINT UNSIGNED NOT NULL,
     status VARCHAR(30) NOT NULL,
-    requested_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    requested_at DATETIME(6) NULL,
     started_at DATETIME(6) NULL,
     finished_at DATETIME(6) NULL,
     CONSTRAINT pk_simulations PRIMARY KEY (id),
@@ -117,6 +130,7 @@ CREATE TABLE IF NOT EXISTS simulation_options (
     random_seed INT NOT NULL,
     total_people INT UNSIGNED NOT NULL,
     walking_speed DECIMAL(8, 4) NOT NULL,
+    reaction_time DECIMAL(8, 4) NOT NULL,
     CONSTRAINT pk_simulation_options PRIMARY KEY (id),
     CONSTRAINT uk_simulation_options_simulation UNIQUE (simulation_id),
     CONSTRAINT fk_simulation_options_simulation
@@ -127,19 +141,32 @@ CREATE TABLE IF NOT EXISTS simulation_options (
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS person_distributions (
+CREATE TABLE IF NOT EXISTS simulation_initial_states (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     simulation_id BIGINT UNSIGNED NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    people_count INT UNSIGNED NOT NULL,
-    center_x DECIMAL(12, 4) NOT NULL,
-    center_y DECIMAL(12, 4) NOT NULL,
-    radius DECIMAL(12, 4) NOT NULL,
-    CONSTRAINT pk_person_distributions PRIMARY KEY (id),
-    CONSTRAINT fk_person_distributions_simulation
+    agent_positions JSON NOT NULL,
+    CONSTRAINT pk_simulation_initial_states PRIMARY KEY (id),
+    CONSTRAINT uk_simulation_initial_states_simulation UNIQUE (simulation_id),
+    CONSTRAINT fk_simulation_initial_states_simulation
         FOREIGN KEY (simulation_id) REFERENCES simulations (id)
         ON UPDATE CASCADE
         ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS simulation_exits (
+    simulation_id BIGINT UNSIGNED NOT NULL,
+    layout_exit_id BIGINT UNSIGNED NOT NULL,
+    CONSTRAINT pk_simulation_exits PRIMARY KEY (simulation_id, layout_exit_id),
+    CONSTRAINT fk_simulation_exits_simulation
+        FOREIGN KEY (simulation_id) REFERENCES simulations (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_simulation_exits_layout_exit
+        FOREIGN KEY (layout_exit_id) REFERENCES layout_exits (id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -162,6 +189,7 @@ CREATE TABLE IF NOT EXISTS hazard_zones (
 CREATE TABLE IF NOT EXISTS simulation_results (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     simulation_id BIGINT UNSIGNED NOT NULL,
+    engine_version VARCHAR(100) NOT NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_simulation_results PRIMARY KEY (id),
     CONSTRAINT uk_simulation_results_simulation UNIQUE (simulation_id),
@@ -191,9 +219,10 @@ CREATE TABLE IF NOT EXISTS simulation_metrics (
 CREATE TABLE IF NOT EXISTS timelines (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     simulation_result_id BIGINT UNSIGNED NOT NULL,
+    chunk_sequence INT UNSIGNED NOT NULL,
     frame_data JSON NOT NULL,
     CONSTRAINT pk_timelines PRIMARY KEY (id),
-    CONSTRAINT uk_timelines_result UNIQUE (simulation_result_id),
+    CONSTRAINT uk_timelines_result_sequence UNIQUE (simulation_result_id, chunk_sequence),
     CONSTRAINT fk_timelines_result
         FOREIGN KEY (simulation_result_id) REFERENCES simulation_results (id)
         ON UPDATE CASCADE
