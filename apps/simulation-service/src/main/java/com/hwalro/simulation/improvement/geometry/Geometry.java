@@ -14,6 +14,15 @@ public final class Geometry {
                 && overlapsOnEveryAxis(second.corners(), first.corners());
     }
 
+    /** 회전한 모든 꼭짓점이 도면의 실제 미터 범위 안에 있는지 확인합니다. */
+    public static boolean isInside(RotatedRectangle rectangle, double floorWidth, double floorHeight) {
+        return rectangle.corners().stream()
+                .allMatch(point -> point.x() >= -EPSILON
+                        && point.x() <= floorWidth + EPSILON
+                        && point.y() >= -EPSILON
+                        && point.y() <= floorHeight + EPSILON);
+    }
+
     private static boolean overlapsOnEveryAxis(List<Point> axisSource, List<Point> first, List<Point> second) {
         for (int index = 0; index < axisSource.size(); index++) {
             Point current = axisSource.get(index);
