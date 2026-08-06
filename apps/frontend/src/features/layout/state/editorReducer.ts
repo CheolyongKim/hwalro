@@ -2,6 +2,7 @@ import type {
   Camera,
   DrawingDocument,
   EditorState,
+  Exit,
   Fabric,
   Pillar,
   RectHandle,
@@ -15,6 +16,7 @@ import { docSnapSources, snapPoint } from '../utils/snapping';
 import {
   createEmptyDocument,
   emptySelection,
+  nextExitName,
   nextFabricName,
   nextPillarName,
   nextWallName,
@@ -38,6 +40,9 @@ export type EditorAction =
   | { type: 'wallStart'; point: Vec2 }
   | { type: 'wallUpdate'; point: Vec2 }
   | { type: 'wallCommit' }
+  | { type: 'exitStart'; point: Vec2 }
+  | { type: 'exitUpdate'; point: Vec2 }
+  | { type: 'exitCommit' }
   | { type: 'pillarStart'; point: Vec2 }
   | { type: 'pillarUpdate'; point: Vec2 }
   | { type: 'pillarCommit' }
@@ -50,6 +55,7 @@ export type EditorAction =
   | {
       type: 'selectAt';
       wallId: string | null;
+      exitId: string | null;
       textId: string | null;
       pillarId: string | null;
       fabricId: string | null;
@@ -63,6 +69,7 @@ export type EditorAction =
       handle: RectHandle;
       point: Vec2;
     }
+  | { type: 'reshapeExitStart'; exitId: string; handle: 'start' | 'end'; point: Vec2 }
   | {
       type: 'rotateStart';
       elementKind: 'pillar' | 'fabric';
@@ -89,6 +96,11 @@ export type EditorAction =
       type: 'updateWall';
       wallId: string;
       patch: Partial<Pick<Wall, 'startX' | 'startY' | 'endX' | 'endY'>>;
+    }
+  | {
+      type: 'updateExit';
+      exitId: string;
+      patch: Partial<Pick<Exit, 'startX' | 'startY' | 'endX' | 'endY'>>;
     }
   | {
       type: 'updatePillar';
@@ -120,6 +132,69 @@ export function createInitialState(): EditorState {
   };
 }
 
+function applyDraftStart(state: EditorState, point: Vec2): EditorState {
+  const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
+  return {
+    ...state,
+    draft: {
+      start: snapped.point,
+      end: snapped.point,
+      axisSnapped: false,
+      snappedToEndpoint: null,
+    },
+    snapHint: snapped.snappedToEndpoint,
+    textDraft: null,
+    error: null,
+  };
+}
+
+function applyDraftUpdate(state: EditorState, point: Vec2): EditorState {
+  if (!state.draft) {
+    return state;
+  }
+  const snapped = snapPoint(
+    point,
+    state.draft.start,
+    docSnapSources(state.doc),
+    [state.draft.start],
+    state.camera.zoom,
+  );
+  return {
+    ...state,
+    draft: {
+      ...state.draft,
+      end: snapped.point,
+      axisSnapped: snapped.axisSnapped,
+      snappedToEndpoint: snapped.snappedToEndpoint,
+    },
+  };
+}
+
+function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
+  const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
+  return {
+    ...state,
+    draft: { start: snapped.point, end: snapped.point },
+    snapHint: snapped.snappedToEndpoint,
+    textDraft: null,
+    error: null,
+  };
+}
+
+function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
+  if (!state.draft) {
+    return state;
+  }
+  const snapped = snapPoint(
+    point,
+    state.draft.start,
+    docSnapSources(state.doc),
+    [state.draft.start],
+    state.camera.zoom,
+  );
+  return { ...state, draft: { ...state.draft, end: snapped.point } };
+}
+
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'setTool':
@@ -138,49 +213,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'cursorMove':
       return { ...state, cursor: action.world };
 
-    case 'wallStart': {
-      const snapped = snapPoint(
-        action.point,
-        action.point,
-        docSnapSources(state.doc),
-        [],
-        state.camera.zoom,
-      );
-      return {
-        ...state,
-        draft: {
-          start: snapped.point,
-          end: snapped.point,
-          axisSnapped: false,
-          snappedToEndpoint: null,
-        },
-        snapHint: snapped.snappedToEndpoint,
-        textDraft: null,
-        error: null,
-      };
-    }
+    case 'wallStart':
+      return applyDraftStart(state, action.point);
 
-    case 'wallUpdate': {
-      if (!state.draft) {
-        return state;
-      }
-      const snapped = snapPoint(
-        action.point,
-        state.draft.start,
-        docSnapSources(state.doc),
-        [state.draft.start],
-        state.camera.zoom,
-      );
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          end: snapped.point,
-          axisSnapped: snapped.axisSnapped,
-          snappedToEndpoint: snapped.snappedToEndpoint,
-        },
-      };
-    }
+    case 'wallUpdate':
+      return applyDraftUpdate(state, action.point);
 
     case 'wallCommit': {
       if (!state.draft) {
@@ -202,36 +239,37 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return commit(state, state.doc, next);
     }
 
-    case 'pillarStart': {
-      const snapped = snapPoint(
-        action.point,
-        action.point,
-        docSnapSources(state.doc),
-        [],
-        state.camera.zoom,
-      );
-      return {
-        ...state,
-        draft: { start: snapped.point, end: snapped.point },
-        snapHint: snapped.snappedToEndpoint,
-        textDraft: null,
-        error: null,
-      };
-    }
+    case 'exitStart':
+      return applyDraftStart(state, action.point);
 
-    case 'pillarUpdate': {
+    case 'exitUpdate':
+      return applyDraftUpdate(state, action.point);
+
+    case 'exitCommit': {
       if (!state.draft) {
         return state;
       }
-      const snapped = snapPoint(
-        action.point,
-        state.draft.start,
-        docSnapSources(state.doc),
-        [state.draft.start],
-        state.camera.zoom,
-      );
-      return { ...state, draft: { ...state.draft, end: snapped.point } };
+      const { start, end } = state.draft;
+      if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      const exit: Exit = {
+        id: uid(),
+        name: nextExitName(state.doc),
+        startX: round1(start.x),
+        startY: round1(start.y),
+        endX: round1(end.x),
+        endY: round1(end.y),
+      };
+      const next = { ...state.doc, exits: [...state.doc.exits, exit] };
+      return commit(state, state.doc, next);
     }
+
+    case 'pillarStart':
+      return applyRectDraftStart(state, action.point);
+
+    case 'pillarUpdate':
+      return applyRectDraftUpdate(state, action.point);
 
     case 'pillarCommit': {
       if (!state.draft) {
@@ -254,36 +292,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return commit(state, state.doc, next);
     }
 
-    case 'fabricStart': {
-      const snapped = snapPoint(
-        action.point,
-        action.point,
-        docSnapSources(state.doc),
-        [],
-        state.camera.zoom,
-      );
-      return {
-        ...state,
-        draft: { start: snapped.point, end: snapped.point },
-        snapHint: snapped.snappedToEndpoint,
-        textDraft: null,
-        error: null,
-      };
-    }
+    case 'fabricStart':
+      return applyRectDraftStart(state, action.point);
 
-    case 'fabricUpdate': {
-      if (!state.draft) {
-        return state;
-      }
-      const snapped = snapPoint(
-        action.point,
-        state.draft.start,
-        docSnapSources(state.doc),
-        [state.draft.start],
-        state.camera.zoom,
-      );
-      return { ...state, draft: { ...state.draft, end: snapped.point } };
-    }
+    case 'fabricUpdate':
+      return applyRectDraftUpdate(state, action.point);
 
     case 'fabricCommit': {
       if (!state.draft) {
@@ -355,6 +368,18 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         },
       };
 
+    case 'reshapeExitStart':
+      return {
+        ...state,
+        drag: {
+          kind: 'reshapeExit',
+          origin: action.point,
+          originDoc: state.doc,
+          exitId: action.exitId,
+          handle: action.handle,
+        },
+      };
+
     case 'rotateStart':
       return {
         ...state,
@@ -396,6 +421,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const { selection } = state;
       if (
         selection.wallIds.length === 0 &&
+        selection.exitIds.length === 0 &&
         selection.textIds.length === 0 &&
         selection.pillarIds.length === 0 &&
         selection.fabricIds.length === 0
@@ -403,10 +429,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const walls = state.doc.walls.filter((w) => !selection.wallIds.includes(w.id));
+      const exits = state.doc.exits.filter((e) => !selection.exitIds.includes(e.id));
       const layoutTexts = state.doc.layoutTexts.filter((t) => !selection.textIds.includes(t.id));
       const pillars = state.doc.pillars.filter((p) => !selection.pillarIds.includes(p.id));
       const fabrics = state.doc.fabrics.filter((f) => !selection.fabricIds.includes(f.id));
-      const next = { ...state.doc, walls, layoutTexts, pillars, fabrics };
+      const next = { ...state.doc, walls, exits, layoutTexts, pillars, fabrics };
       return commit(state, state.doc, next);
     }
 
@@ -433,6 +460,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const next = {
         ...state.doc,
         walls: state.doc.walls.map((w) => (w.id === wall.id ? nextWall : w)),
+      };
+      return commit(state, state.doc, next);
+    }
+
+    case 'updateExit': {
+      const exit = state.doc.exits.find((e) => e.id === action.exitId);
+      if (!exit) {
+        return state;
+      }
+      const nextExit: Exit = { ...exit, ...action.patch };
+      const next = {
+        ...state.doc,
+        exits: state.doc.exits.map((e) => (e.id === exit.id ? nextExit : e)),
       };
       return commit(state, state.doc, next);
     }
@@ -495,10 +535,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (state.textDraft) {
         return { ...state, textDraft: null };
       }
-      if (state.selection.wallIds.length > 0 || state.selection.textIds.length > 0) {
-        return { ...state, selection: emptySelection() };
-      }
-      if (state.selection.pillarIds.length > 0 || state.selection.fabricIds.length > 0) {
+      if (
+        state.selection.wallIds.length > 0 ||
+        state.selection.exitIds.length > 0 ||
+        state.selection.textIds.length > 0 ||
+        state.selection.pillarIds.length > 0 ||
+        state.selection.fabricIds.length > 0
+      ) {
         return { ...state, selection: emptySelection() };
       }
       return state;

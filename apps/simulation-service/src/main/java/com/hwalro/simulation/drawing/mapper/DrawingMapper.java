@@ -4,6 +4,7 @@ import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.domain.Facility;
 import com.hwalro.simulation.drawing.domain.FloorPlan;
 import com.hwalro.simulation.drawing.domain.Layout;
+import com.hwalro.simulation.drawing.domain.LayoutExit;
 import com.hwalro.simulation.drawing.domain.LayoutText;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
 import com.hwalro.simulation.drawing.domain.Pillar;
@@ -28,6 +29,8 @@ public interface DrawingMapper {
 
     int insertLayoutTexts(List<LayoutText> layoutTexts);
 
+    int insertLayoutExits(List<LayoutExit> layoutExits);
+
     FloorPlan findFloorPlanById(@Param("id") Long id);
 
     Layout findLayoutById(@Param("id") Long id);
@@ -47,6 +50,8 @@ public interface DrawingMapper {
 
     List<LayoutText> findLayoutTextsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
+    List<LayoutExit> findLayoutExitsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
     int updateLayout(Layout layout);
 
     int updateLayoutCurrentVersion(Layout layout);
@@ -61,6 +66,8 @@ public interface DrawingMapper {
     int deleteFabricsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deleteLayoutTextsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    int deleteLayoutExitsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deleteLayoutById(@Param("id") Long id);
 

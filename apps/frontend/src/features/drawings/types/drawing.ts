@@ -6,6 +6,14 @@ export interface DrawingWall {
   endY: number;
 }
 
+export interface DrawingExit {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
 export interface DrawingPillar {
   name: string;
   startX: number;
@@ -44,6 +52,7 @@ export interface Drawing extends DrawingSummary {
   walls: DrawingWall[];
   pillars: DrawingPillar[];
   fabrics: DrawingFabric[];
+  exits: DrawingExit[];
   layoutTexts: DrawingLayoutText[];
   version: number;
 }
@@ -59,6 +68,7 @@ export interface DrawingUpdateRequest {
   walls: DrawingWall[];
   pillars: DrawingPillar[];
   fabrics: DrawingFabric[];
+  exits: DrawingExit[];
   layoutTexts: DrawingLayoutText[];
   expectedVersion: number;
 }

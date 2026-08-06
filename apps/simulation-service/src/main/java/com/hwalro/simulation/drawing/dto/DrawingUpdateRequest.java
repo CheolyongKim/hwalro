@@ -9,4 +9,5 @@ public record DrawingUpdateRequest(
         List<PillarDto> pillars,
         List<FabricDto> fabrics,
         List<LayoutTextDto> layoutTexts,
+        List<ExitDto> exits,
         Integer expectedVersion) {}

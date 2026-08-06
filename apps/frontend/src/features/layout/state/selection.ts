@@ -3,6 +3,7 @@ import { emptySelection, toggleId } from '../utils/document';
 
 export interface SelectAtAction {
   wallId: string | null;
+  exitId: string | null;
   textId: string | null;
   pillarId: string | null;
   fabricId: string | null;
@@ -12,6 +13,7 @@ export interface SelectAtAction {
 export function applySelectAt(state: EditorState, action: SelectAtAction): EditorState {
   if (
     action.wallId === null &&
+    action.exitId === null &&
     action.textId === null &&
     action.pillarId === null &&
     action.fabricId === null
@@ -23,12 +25,22 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
   }
   const { selection } = state;
   let wallIds = selection.wallIds;
+  let exitIds = selection.exitIds;
   let textIds = selection.textIds;
   let pillarIds = selection.pillarIds;
   let fabricIds = selection.fabricIds;
   if (action.wallId !== null) {
     wallIds = action.additive ? toggleId(wallIds, action.wallId) : [action.wallId];
     if (!action.additive) {
+      exitIds = [];
+      textIds = [];
+      pillarIds = [];
+      fabricIds = [];
+    }
+  } else if (action.exitId !== null) {
+    exitIds = action.additive ? toggleId(exitIds, action.exitId) : [action.exitId];
+    if (!action.additive) {
+      wallIds = [];
       textIds = [];
       pillarIds = [];
       fabricIds = [];
@@ -37,6 +49,7 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
     textIds = action.additive ? toggleId(textIds, action.textId) : [action.textId];
     if (!action.additive) {
       wallIds = [];
+      exitIds = [];
       pillarIds = [];
       fabricIds = [];
     }
@@ -44,6 +57,7 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
     pillarIds = action.additive ? toggleId(pillarIds, action.pillarId) : [action.pillarId];
     if (!action.additive) {
       wallIds = [];
+      exitIds = [];
       textIds = [];
       fabricIds = [];
     }
@@ -51,9 +65,14 @@ export function applySelectAt(state: EditorState, action: SelectAtAction): Edito
     fabricIds = action.additive ? toggleId(fabricIds, action.fabricId) : [action.fabricId];
     if (!action.additive) {
       wallIds = [];
+      exitIds = [];
       textIds = [];
       pillarIds = [];
     }
   }
-  return { ...state, selection: { wallIds, textIds, pillarIds, fabricIds }, snapHint: null };
+  return {
+    ...state,
+    selection: { wallIds, exitIds, textIds, pillarIds, fabricIds },
+    snapHint: null,
+  };
 }

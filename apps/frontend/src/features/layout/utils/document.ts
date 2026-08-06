@@ -13,6 +13,7 @@ export function createEmptyDocument(): DrawingDocument {
     width: 1000,
     height: 500,
     walls: [],
+    exits: [],
     pillars: [],
     fabrics: [],
     layoutTexts: [],
@@ -21,7 +22,7 @@ export function createEmptyDocument(): DrawingDocument {
 }
 
 export function emptySelection(): PointSelection {
-  return { wallIds: [], textIds: [], pillarIds: [], fabricIds: [] };
+  return { wallIds: [], exitIds: [], textIds: [], pillarIds: [], fabricIds: [] };
 }
 
 export function toggleId(list: string[], id: string): string[] {
@@ -37,6 +38,17 @@ export function nextWallName(doc: DrawingDocument): string {
     }
   }
   return `벽 ${max + 1}`;
+}
+
+export function nextExitName(doc: DrawingDocument): string {
+  let max = 0;
+  for (const exit of doc.exits) {
+    const match = /^비상구 (\d+)$/.exec(exit.name);
+    if (match) {
+      max = Math.max(max, Number(match[1]));
+    }
+  }
+  return `비상구 ${max + 1}`;
 }
 
 export function nextPillarName(doc: DrawingDocument): string {
@@ -80,6 +92,17 @@ export function translateDoc(
         }
       : wall,
   );
+  const exits = doc.exits.map((exit) =>
+    selection.exitIds.includes(exit.id)
+      ? {
+          ...exit,
+          startX: exit.startX + delta.x,
+          startY: exit.startY + delta.y,
+          endX: exit.endX + delta.x,
+          endY: exit.endY + delta.y,
+        }
+      : exit,
+  );
   const pillars = doc.pillars.map((pillar) =>
     selection.pillarIds.includes(pillar.id)
       ? {
@@ -107,5 +130,5 @@ export function translateDoc(
       ? { ...text, x: text.x + delta.x, y: text.y + delta.y }
       : text,
   );
-  return { ...doc, walls, pillars, fabrics, layoutTexts };
+  return { ...doc, walls, exits, pillars, fabrics, layoutTexts };
 }

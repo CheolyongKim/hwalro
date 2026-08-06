@@ -3021,6 +3021,22 @@
       "endY": 40.22
     }
   ],
+  "exits": [
+    {
+      "name": "비상구 1",
+      "startX": 78.4,
+      "startY": 99.2,
+      "endX": 91.5,
+      "endY": 99.2
+    },
+    {
+      "name": "비상구 2",
+      "startX": 146.2,
+      "startY": 43.2,
+      "endX": 146.2,
+      "endY": 46.2
+    }
+  ],
   "layoutTexts": [
     {
       "text": "MLB",

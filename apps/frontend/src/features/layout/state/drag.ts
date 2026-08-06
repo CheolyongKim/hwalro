@@ -1,4 +1,4 @@
-import type { DragState, EditorState, RectHandle, Vec2, Wall } from '../types';
+import type { DragState, EditorState, Exit, RectHandle, Vec2, Wall } from '../types';
 import { rectCenter, rotatePoint, round1 } from '../utils/geometry';
 import { docSnapSources, snapPoint } from '../utils/snapping';
 import { translateDoc } from '../utils/document';
@@ -27,6 +27,9 @@ export function applyDragUpdate(state: EditorState, point: Vec2): EditorState {
   if (drag.kind === 'rotate') {
     return applyRotateUpdate(state, drag, point);
   }
+  if (drag.kind === 'reshapeExit') {
+    return applyReshapeExit(state, drag, point);
+  }
   if (drag.elementKind === 'wall') {
     return applyWallReshapeUpdate(state, drag, point);
   }
@@ -53,6 +56,34 @@ function applyWallReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   return {
     ...state,
     doc: { ...state.doc, walls },
+    snapHint: snapped.snappedToEndpoint,
+  };
+}
+
+function applyReshapeExit(
+  state: EditorState,
+  drag: Extract<DragState, { kind: 'reshapeExit' }>,
+  point: Vec2,
+): EditorState {
+  const exit = state.doc.exits.find((e) => e.id === drag.exitId);
+  if (!exit) {
+    return state;
+  }
+  const other =
+    drag.handle === 'start' ? { x: exit.endX, y: exit.endY } : { x: exit.startX, y: exit.startY };
+  const exclude = [
+    { x: exit.startX, y: exit.startY },
+    { x: exit.endX, y: exit.endY },
+  ];
+  const snapped = snapPoint(point, other, docSnapSources(state.doc), exclude, state.camera.zoom);
+  const nextExit: Exit =
+    drag.handle === 'start'
+      ? { ...exit, startX: round1(snapped.point.x), startY: round1(snapped.point.y) }
+      : { ...exit, endX: round1(snapped.point.x), endY: round1(snapped.point.y) };
+  const exits = state.doc.exits.map((e) => (e.id === exit.id ? nextExit : e));
+  return {
+    ...state,
+    doc: { ...state.doc, exits },
     snapHint: snapped.snappedToEndpoint,
   };
 }

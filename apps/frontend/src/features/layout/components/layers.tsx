@@ -1,7 +1,7 @@
 import { memo } from 'react';
-import type { BackgroundImage, Fabric, LayoutText, Pillar, Wall } from '../types';
-import { rectCenter } from '../utils/geometry';
-import { ROTATE_HANDLE_OFFSET_PX, textFontPx, textWorldBox } from '../utils/hitTest';
+import type { BackgroundImage, Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
+import { PX_PER_METER, rectCenter } from '../utils/geometry';
+import { ROTATE_HANDLE_OFFSET_PX, TEXT_FONT_PX, textWorldBox } from '../utils/hitTest';
 
 export const MINOR_STEP = 50;
 export const MAJOR_STEP = 250;
@@ -37,7 +37,7 @@ interface GridLayerProps {
 
 export const GridLayer = memo(function GridLayer({ minX, minY, maxX, maxY, zoom }: GridLayerProps) {
   const minor: GridLine[] = [];
-  if (MINOR_STEP * zoom >= 6) {
+  if (MINOR_STEP * zoom * PX_PER_METER >= 6) {
     for (let x = Math.floor(minX / MINOR_STEP) * MINOR_STEP; x <= maxX; x += MINOR_STEP) {
       minor.push({ x1: x, y1: minY, x2: x, y2: maxY });
     }
@@ -117,6 +117,53 @@ export const WallView = memo(function WallView({ wall, selected, s }: WallViewPr
           />
           <circle cx={wall.startX} cy={wall.startY} r={s(3)} fill="var(--layout-accent)" />
           <circle cx={wall.endX} cy={wall.endY} r={s(3)} fill="var(--layout-accent)" />
+        </g>
+      )}
+    </g>
+  );
+});
+
+interface ExitViewProps {
+  exit: Exit;
+  selected: boolean;
+  s: (px: number) => number;
+}
+
+export const ExitView = memo(function ExitView({ exit, selected, s }: ExitViewProps) {
+  const color = selected ? 'var(--layout-exit-strong)' : 'var(--layout-exit)';
+  return (
+    <g>
+      <line
+        x1={exit.startX}
+        y1={exit.startY}
+        x2={exit.endX}
+        y2={exit.endY}
+        stroke={color}
+        strokeWidth={selected ? 3 : 2.5}
+        vectorEffect="non-scaling-stroke"
+      />
+      {selected && (
+        <g>
+          <circle
+            cx={exit.startX}
+            cy={exit.startY}
+            r={s(5)}
+            fill="var(--layout-canvas)"
+            stroke="var(--layout-exit-strong)"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle
+            cx={exit.endX}
+            cy={exit.endY}
+            r={s(5)}
+            fill="var(--layout-canvas)"
+            stroke="var(--layout-exit-strong)"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle cx={exit.startX} cy={exit.startY} r={s(3)} fill="var(--layout-exit-strong)" />
+          <circle cx={exit.endX} cy={exit.endY} r={s(3)} fill="var(--layout-exit-strong)" />
         </g>
       )}
     </g>
@@ -251,16 +298,15 @@ interface TextViewProps {
 }
 
 export const TextView = memo(function TextView({ text, selected, zoom }: TextViewProps) {
-  const fontPx = textFontPx(zoom);
   const box = textWorldBox(text, zoom);
   return (
     <g>
       {selected && (
         <rect
-          x={box.x - fontPx / zoom / 4}
-          y={box.y - fontPx / zoom / 4}
-          width={box.w + fontPx / zoom / 2}
-          height={box.h + fontPx / zoom / 2}
+          x={box.x - TEXT_FONT_PX / (zoom * PX_PER_METER) / 4}
+          y={box.y - TEXT_FONT_PX / (zoom * PX_PER_METER) / 4}
+          width={box.w + TEXT_FONT_PX / (zoom * PX_PER_METER) / 2}
+          height={box.h + TEXT_FONT_PX / (zoom * PX_PER_METER) / 2}
           fill="var(--layout-accent)"
           fillOpacity={0.08}
           stroke="var(--layout-accent)"
@@ -272,7 +318,7 @@ export const TextView = memo(function TextView({ text, selected, zoom }: TextVie
       <text
         x={text.x}
         y={text.y}
-        fontSize={fontPx}
+        fontSize={TEXT_FONT_PX / (zoom * PX_PER_METER)}
         fontFamily="var(--layout-ui)"
         dominantBaseline="hanging"
         fill={selected ? 'var(--layout-accent)' : 'var(--layout-ink)'}

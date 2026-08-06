@@ -112,6 +112,19 @@
         ORDER BY id ASC
     </select>
 
+    <select id="findLayoutExitsByVersionId" resultType="com.hwalro.simulation.drawing.domain.LayoutExit">
+        SELECT id,
+               layout_version_id,
+               name,
+               start_x,
+               start_y,
+               end_x,
+               end_y
+        FROM layout_exits
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
     <insert id="insertFloorPlan" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO floor_plans (name, image_url, width, height)
         VALUES (#{name}, #{imageUrl}, #{width}, #{height})
@@ -176,6 +189,19 @@
         </foreach>
     </insert>
 
+    <insert id="insertLayoutExits">
+        INSERT INTO layout_exits (layout_version_id, name, start_x, start_y, end_x, end_y)
+        VALUES
+        <foreach collection="list" item="layoutExit" separator=",">
+            (#{layoutExit.layoutVersionId},
+             #{layoutExit.name},
+             #{layoutExit.startX},
+             #{layoutExit.startY},
+             #{layoutExit.endX},
+             #{layoutExit.endY})
+        </foreach>
+    </insert>
+
     <update id="updateLayout">
         UPDATE layouts
         SET title = #{title},
@@ -213,6 +239,11 @@
 
     <delete id="deleteLayoutTextsByVersionId">
         DELETE FROM layout_texts
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <delete id="deleteLayoutExitsByVersionId">
+        DELETE FROM layout_exits
         WHERE layout_version_id = #{layoutVersionId}
     </delete>
 

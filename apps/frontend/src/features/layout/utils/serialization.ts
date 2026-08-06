@@ -1,6 +1,7 @@
 import type {
   BackgroundImage,
   DrawingDocument,
+  Exit,
   Fabric,
   Pillar,
   SerializedDocument,
@@ -22,6 +23,11 @@ function toFiniteNumber(value: unknown, key: string): number {
 
 function wallNameIndex(name: string): number | null {
   const match = /^벽 (\d+)$/.exec(name);
+  return match ? Number(match[1]) : null;
+}
+
+function exitNameIndex(name: string): number | null {
+  const match = /^비상구 (\d+)$/.exec(name);
   return match ? Number(match[1]) : null;
 }
 
@@ -105,6 +111,13 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       endX: wall.endX,
       endY: wall.endY,
     })),
+    exits: doc.exits.map((exit) => ({
+      name: exit.name,
+      startX: exit.startX,
+      startY: exit.startY,
+      endX: exit.endX,
+      endY: exit.endY,
+    })),
     pillars: doc.pillars.map((pillar) => ({
       name: pillar.name,
       startX: pillar.startX,
@@ -158,6 +171,9 @@ export function fromSerialized(data: unknown): DrawingDocument {
   if (data.walls !== undefined && !Array.isArray(data.walls)) {
     throw new Error('walls는 배열이어야 합니다');
   }
+  if (data.exits !== undefined && !Array.isArray(data.exits)) {
+    throw new Error('exits는 배열이어야 합니다');
+  }
   if (data.layoutTexts !== undefined && !Array.isArray(data.layoutTexts)) {
     throw new Error('layoutTexts는 배열이어야 합니다');
   }
@@ -196,6 +212,42 @@ export function fromSerialized(data: unknown): DrawingDocument {
   for (const { wall, order } of unnamed) {
     maxIndex += 1;
     walls.splice(order, 0, { ...wall, name: `벽 ${maxIndex}` });
+  }
+
+  const rawExits = (data.exits ?? []) as unknown[];
+  const exits: Exit[] = [];
+  let maxExitIndex = 0;
+  const unnamedExits: Array<{ exit: Exit; order: number }> = [];
+  for (let i = 0; i < rawExits.length; i++) {
+    const entry = rawExits[i];
+    if (!isRecord(entry)) {
+      throw new Error(`exits[${i}]가 객체가 아닙니다`);
+    }
+    const parsedName = parseWallName(entry.name);
+    if (parsedName) {
+      const idx = exitNameIndex(parsedName);
+      if (idx !== null) {
+        maxExitIndex = Math.max(maxExitIndex, idx);
+      }
+    }
+    const exit: Exit = {
+      id: `loaded-exit-${i}`,
+      name: parsedName ?? '',
+      startX: toFiniteNumber(entry.startX ?? entry.start_x, `exits[${i}].startX`),
+      startY: toFiniteNumber(entry.startY ?? entry.start_y, `exits[${i}].startY`),
+      endX: toFiniteNumber(entry.endX ?? entry.end_x, `exits[${i}].endX`),
+      endY: toFiniteNumber(entry.endY ?? entry.end_y, `exits[${i}].endY`),
+    };
+    if (parsedName) {
+      exits.push(exit);
+    } else {
+      unnamedExits.push({ exit, order: i });
+    }
+  }
+
+  for (const { exit, order } of unnamedExits) {
+    maxExitIndex += 1;
+    exits.splice(order, 0, { ...exit, name: `비상구 ${maxExitIndex}` });
   }
 
   const pillars: Pillar[] = parseRects(
@@ -254,7 +306,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     };
   }
 
-  return { name, width, height, walls, pillars, fabrics, layoutTexts, background };
+  return { name, width, height, walls, exits, pillars, fabrics, layoutTexts, background };
 }
 
 export function parseJson(text: string): DrawingDocument {

@@ -1,7 +1,7 @@
 import type { Dispatch } from 'react';
 import type { EditorState } from '../types';
 import type { EditorAction } from '../state/editorReducer';
-import { clampPan, zoomAtPoint } from '../utils/geometry';
+import { clampFitZoom, clampPan, PX_PER_METER, zoomAtPoint } from '../utils/geometry';
 
 interface ZoomControlProps {
   state: EditorState;
@@ -23,8 +23,8 @@ export function ZoomControl({ state, dispatch, size, className }: ZoomControlPro
       { left: 0, top: 0 },
       factor,
     );
-    const viewW = size.w / zoomed.zoom;
-    const viewH = size.h / zoomed.zoom;
+    const viewW = size.w / (zoomed.zoom * PX_PER_METER);
+    const viewH = size.h / (zoomed.zoom * PX_PER_METER);
     dispatch({ type: 'setCamera', camera: clampPan(zoomed, doc.width, doc.height, viewW, viewH) });
   };
 
@@ -32,14 +32,14 @@ export function ZoomControl({ state, dispatch, size, className }: ZoomControlPro
     if (size.w === 0 || size.h === 0) {
       return;
     }
-    const zoom = Math.min(size.w / doc.width, size.h / doc.height) * 0.95;
-    const clamped = Math.min(8, Math.max(0.25, zoom));
+    const zoom = (Math.min(size.w / doc.width, size.h / doc.height) * 0.95) / PX_PER_METER;
+    const clamped = clampFitZoom(zoom);
     dispatch({
       type: 'setCamera',
       camera: {
         zoom: clamped,
-        panX: (doc.width - size.w / clamped) / 2,
-        panY: (doc.height - size.h / clamped) / 2,
+        panX: (doc.width - size.w / (clamped * PX_PER_METER)) / 2,
+        panY: (doc.height - size.h / (clamped * PX_PER_METER)) / 2,
       },
     });
   };

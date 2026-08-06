@@ -1,7 +1,9 @@
 import type { Vec2 } from '../types';
 
 export const MIN_ZOOM = 0.25;
-export const MAX_ZOOM = 8;
+export const MAX_ZOOM = 32;
+export const FIT_MAX_ZOOM = 2;
+export const PX_PER_METER = 7;
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -9,6 +11,10 @@ export function clamp(value: number, min: number, max: number): number {
 
 export function clampZoom(zoom: number): number {
   return clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+}
+
+export function clampFitZoom(zoom: number): number {
+  return clamp(zoom, MIN_ZOOM, FIT_MAX_ZOOM);
 }
 
 export function distance(a: Vec2, b: Vec2): number {
@@ -71,8 +77,8 @@ export function screenToWorld(
   camera: CameraLike,
 ): Vec2 {
   return {
-    x: camera.panX + (screen.x - rect.left) / camera.zoom,
-    y: camera.panY + (screen.y - rect.top) / camera.zoom,
+    x: camera.panX + (screen.x - rect.left) / (camera.zoom * PX_PER_METER),
+    y: camera.panY + (screen.y - rect.top) / (camera.zoom * PX_PER_METER),
   };
 }
 
@@ -88,8 +94,8 @@ export function worldToScreen(
   camera: CameraLike,
 ): Vec2 {
   return {
-    x: rect.left + (world.x - camera.panX) * camera.zoom,
-    y: rect.top + (world.y - camera.panY) * camera.zoom,
+    x: rect.left + (world.x - camera.panX) * camera.zoom * PX_PER_METER,
+    y: rect.top + (world.y - camera.panY) * camera.zoom * PX_PER_METER,
   };
 }
 
@@ -103,8 +109,8 @@ export function zoomAtPoint(
   const zoom = clampZoom(camera.zoom * factor);
   return {
     zoom,
-    panX: anchor.x - (screen.x - rect.left) / zoom,
-    panY: anchor.y - (screen.y - rect.top) / zoom,
+    panX: anchor.x - (screen.x - rect.left) / (zoom * PX_PER_METER),
+    panY: anchor.y - (screen.y - rect.top) / (zoom * PX_PER_METER),
   };
 }
 
@@ -114,11 +120,11 @@ export function fitCamera(
   viewW: number,
   viewH: number,
 ): CameraLike {
-  const zoom = clampZoom(Math.min(viewW / docWidth, viewH / docHeight) * 0.95);
+  const zoom = clampFitZoom((Math.min(viewW / docWidth, viewH / docHeight) * 0.95) / PX_PER_METER);
   return {
     zoom,
-    panX: (docWidth - viewW / zoom) / 2,
-    panY: (docHeight - viewH / zoom) / 2,
+    panX: (docWidth - viewW / (zoom * PX_PER_METER)) / 2,
+    panY: (docHeight - viewH / (zoom * PX_PER_METER)) / 2,
   };
 }
 
