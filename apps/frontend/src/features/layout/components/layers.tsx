@@ -11,23 +11,34 @@ export const MAJOR_STEP = 250;
 const imageCache = new Map<string, HTMLImageElement>();
 
 function useImage(src: string): HTMLImageElement | null {
-  const [image, setImage] = useState<HTMLImageElement | null>(() => imageCache.get(src) ?? null);
+  const [, setLoadNonce] = useState(0);
 
   useEffect(() => {
-    const cached = imageCache.get(src);
-    if (cached) {
-      setImage(cached);
+    if (imageCache.has(src)) {
       return;
     }
+    let cancelled = false;
     const el = new window.Image();
     el.onload = () => {
       imageCache.set(src, el);
-      setImage(el);
+      if (!cancelled) {
+        setLoadNonce((n) => n + 1);
+      }
+    };
+    el.onerror = () => {
+      if (!cancelled) {
+        setLoadNonce((n) => n + 1);
+      }
     };
     el.src = src;
+    return () => {
+      cancelled = true;
+      el.onload = null;
+      el.onerror = null;
+    };
   }, [src]);
 
-  return image;
+  return imageCache.get(src) ?? null;
 }
 
 export const BackgroundLayer = memo(function BackgroundLayer({ bg }: { bg: BackgroundImage }) {

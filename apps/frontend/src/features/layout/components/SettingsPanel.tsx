@@ -225,7 +225,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
   const { doc } = state;
 
   return (
-    <div className="px-3 pb-3">
+    <aside aria-label="도면 설정" className="px-3 pb-3">
       {wall === null && exit === null && pillar === null && fabric === null && text === null ? (
         <section>
           <h3 className="text-[13px] font-bold text-panel-text">도면 정보</h3>
@@ -263,6 +263,6 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
           <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
         </div>
       </section>
-    </div>
+    </aside>
   );
 }
