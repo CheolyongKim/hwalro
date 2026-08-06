@@ -14,6 +14,24 @@ export interface DrawingExit {
   endY: number;
 }
 
+export interface DrawingPillar {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation: number;
+}
+
+export interface DrawingFabric {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation: number;
+}
+
 export interface DrawingLayoutText {
   text: string;
   x: number;
@@ -32,6 +50,8 @@ export interface Drawing extends DrawingSummary {
   width: number;
   height: number;
   walls: DrawingWall[];
+  pillars: DrawingPillar[];
+  fabrics: DrawingFabric[];
   exits: DrawingExit[];
   layoutTexts: DrawingLayoutText[];
   version: number;
@@ -46,6 +66,8 @@ export interface DrawingUpdateRequest {
   title: string;
   description: string | null;
   walls: DrawingWall[];
+  pillars: DrawingPillar[];
+  fabrics: DrawingFabric[];
   exits: DrawingExit[];
   layoutTexts: DrawingLayoutText[];
   expectedVersion: number;

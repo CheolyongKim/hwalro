@@ -3,18 +3,22 @@ import type {
   DrawingDocument,
   EditorState,
   Exit,
+  Fabric,
+  Pillar,
+  RectHandle,
   Tool,
   Vec2,
   Wall,
-  WallHandle,
   LayoutText,
 } from '../types';
 import { round1 } from '../utils/geometry';
-import { snapPoint } from '../utils/snapping';
+import { docSnapSources, snapPoint } from '../utils/snapping';
 import {
   createEmptyDocument,
   emptySelection,
   nextExitName,
+  nextFabricName,
+  nextPillarName,
   nextWallName,
   uid,
 } from '../utils/document';
@@ -39,6 +43,12 @@ export type EditorAction =
   | { type: 'exitStart'; point: Vec2 }
   | { type: 'exitUpdate'; point: Vec2 }
   | { type: 'exitCommit' }
+  | { type: 'pillarStart'; point: Vec2 }
+  | { type: 'pillarUpdate'; point: Vec2 }
+  | { type: 'pillarCommit' }
+  | { type: 'fabricStart'; point: Vec2 }
+  | { type: 'fabricUpdate'; point: Vec2 }
+  | { type: 'fabricCommit' }
   | { type: 'textPlace'; point: Vec2 }
   | { type: 'textCommit'; text: string }
   | { type: 'textCancel' }
@@ -47,11 +57,25 @@ export type EditorAction =
       wallId: string | null;
       exitId: string | null;
       textId: string | null;
+      pillarId: string | null;
+      fabricId: string | null;
       additive: boolean;
     }
   | { type: 'dragStartMove'; point: Vec2 }
-  | { type: 'reshapeStart'; wallId: string; handle: WallHandle; point: Vec2 }
-  | { type: 'reshapeExitStart'; exitId: string; handle: WallHandle; point: Vec2 }
+  | {
+      type: 'reshapeStart';
+      elementKind: 'wall' | 'pillar' | 'fabric';
+      elementId: string;
+      handle: RectHandle;
+      point: Vec2;
+    }
+  | { type: 'reshapeExitStart'; exitId: string; handle: 'start' | 'end'; point: Vec2 }
+  | {
+      type: 'rotateStart';
+      elementKind: 'pillar' | 'fabric';
+      elementId: string;
+      point: Vec2;
+    }
   | { type: 'dragUpdate'; point: Vec2 }
   | { type: 'dragEnd' }
   | { type: 'deleteSelection' }
@@ -78,6 +102,16 @@ export type EditorAction =
       exitId: string;
       patch: Partial<Pick<Exit, 'startX' | 'startY' | 'endX' | 'endY'>>;
     }
+  | {
+      type: 'updatePillar';
+      pillarId: string;
+      patch: Partial<Pick<Pillar, 'startX' | 'startY' | 'endX' | 'endY' | 'rotation'>>;
+    }
+  | {
+      type: 'updateFabric';
+      fabricId: string;
+      patch: Partial<Pick<Fabric, 'startX' | 'startY' | 'endX' | 'endY' | 'rotation'>>;
+    }
   | { type: 'updateText'; textId: string; patch: Partial<Pick<LayoutText, 'x' | 'y'>> };
 
 export function createInitialState(): EditorState {
@@ -99,7 +133,7 @@ export function createInitialState(): EditorState {
 }
 
 function applyDraftStart(state: EditorState, point: Vec2): EditorState {
-  const snapped = snapPoint(point, point, state.doc.walls, [], state.camera.zoom);
+  const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
   return {
     ...state,
     draft: {
@@ -121,7 +155,7 @@ function applyDraftUpdate(state: EditorState, point: Vec2): EditorState {
   const snapped = snapPoint(
     point,
     state.draft.start,
-    state.doc.walls,
+    docSnapSources(state.doc),
     [state.draft.start],
     state.camera.zoom,
   );
@@ -134,6 +168,31 @@ function applyDraftUpdate(state: EditorState, point: Vec2): EditorState {
       snappedToEndpoint: snapped.snappedToEndpoint,
     },
   };
+}
+
+function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
+  const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
+  return {
+    ...state,
+    draft: { start: snapped.point, end: snapped.point },
+    snapHint: snapped.snappedToEndpoint,
+    textDraft: null,
+    error: null,
+  };
+}
+
+function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
+  if (!state.draft) {
+    return state;
+  }
+  const snapped = snapPoint(
+    point,
+    state.draft.start,
+    docSnapSources(state.doc),
+    [state.draft.start],
+    state.camera.zoom,
+  );
+  return { ...state, draft: { ...state.draft, end: snapped.point } };
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -206,6 +265,60 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return commit(state, state.doc, next);
     }
 
+    case 'pillarStart':
+      return applyRectDraftStart(state, action.point);
+
+    case 'pillarUpdate':
+      return applyRectDraftUpdate(state, action.point);
+
+    case 'pillarCommit': {
+      if (!state.draft) {
+        return state;
+      }
+      const { start, end } = state.draft;
+      if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      const pillar: Pillar = {
+        id: uid(),
+        name: nextPillarName(state.doc),
+        startX: round1(start.x),
+        startY: round1(start.y),
+        endX: round1(end.x),
+        endY: round1(end.y),
+        rotation: 0,
+      };
+      const next = { ...state.doc, pillars: [...state.doc.pillars, pillar] };
+      return commit(state, state.doc, next);
+    }
+
+    case 'fabricStart':
+      return applyRectDraftStart(state, action.point);
+
+    case 'fabricUpdate':
+      return applyRectDraftUpdate(state, action.point);
+
+    case 'fabricCommit': {
+      if (!state.draft) {
+        return state;
+      }
+      const { start, end } = state.draft;
+      if (round1(end.x) === round1(start.x) && round1(end.y) === round1(start.y)) {
+        return { ...state, draft: null, snapHint: null };
+      }
+      const fabric: Fabric = {
+        id: uid(),
+        name: nextFabricName(state.doc),
+        startX: round1(start.x),
+        startY: round1(start.y),
+        endX: round1(end.x),
+        endY: round1(end.y),
+        rotation: 0,
+      };
+      const next = { ...state.doc, fabrics: [...state.doc.fabrics, fabric] };
+      return commit(state, state.doc, next);
+    }
+
     case 'textPlace':
       return {
         ...state,
@@ -249,7 +362,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           kind: 'reshape',
           origin: action.point,
           originDoc: state.doc,
-          wallId: action.wallId,
+          elementKind: action.elementKind,
+          elementId: action.elementId,
           handle: action.handle,
         },
       };
@@ -263,6 +377,18 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           originDoc: state.doc,
           exitId: action.exitId,
           handle: action.handle,
+        },
+      };
+
+    case 'rotateStart':
+      return {
+        ...state,
+        drag: {
+          kind: 'rotate',
+          origin: action.point,
+          originDoc: state.doc,
+          elementKind: action.elementKind,
+          elementId: action.elementId,
         },
       };
 
@@ -296,14 +422,18 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (
         selection.wallIds.length === 0 &&
         selection.exitIds.length === 0 &&
-        selection.textIds.length === 0
+        selection.textIds.length === 0 &&
+        selection.pillarIds.length === 0 &&
+        selection.fabricIds.length === 0
       ) {
         return state;
       }
       const walls = state.doc.walls.filter((w) => !selection.wallIds.includes(w.id));
       const exits = state.doc.exits.filter((e) => !selection.exitIds.includes(e.id));
       const layoutTexts = state.doc.layoutTexts.filter((t) => !selection.textIds.includes(t.id));
-      const next = { ...state.doc, walls, exits, layoutTexts };
+      const pillars = state.doc.pillars.filter((p) => !selection.pillarIds.includes(p.id));
+      const fabrics = state.doc.fabrics.filter((f) => !selection.fabricIds.includes(f.id));
+      const next = { ...state.doc, walls, exits, layoutTexts, pillars, fabrics };
       return commit(state, state.doc, next);
     }
 
@@ -347,6 +477,32 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return commit(state, state.doc, next);
     }
 
+    case 'updatePillar': {
+      const pillar = state.doc.pillars.find((p) => p.id === action.pillarId);
+      if (!pillar) {
+        return state;
+      }
+      const nextPillar: Pillar = { ...pillar, ...action.patch };
+      const next = {
+        ...state.doc,
+        pillars: state.doc.pillars.map((p) => (p.id === pillar.id ? nextPillar : p)),
+      };
+      return commit(state, state.doc, next);
+    }
+
+    case 'updateFabric': {
+      const fabric = state.doc.fabrics.find((f) => f.id === action.fabricId);
+      if (!fabric) {
+        return state;
+      }
+      const nextFabric: Fabric = { ...fabric, ...action.patch };
+      const next = {
+        ...state.doc,
+        fabrics: state.doc.fabrics.map((f) => (f.id === fabric.id ? nextFabric : f)),
+      };
+      return commit(state, state.doc, next);
+    }
+
     case 'updateText': {
       const text = state.doc.layoutTexts.find((t) => t.id === action.textId);
       if (!text) {
@@ -382,7 +538,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (
         state.selection.wallIds.length > 0 ||
         state.selection.exitIds.length > 0 ||
-        state.selection.textIds.length > 0
+        state.selection.textIds.length > 0 ||
+        state.selection.pillarIds.length > 0 ||
+        state.selection.fabricIds.length > 0
       ) {
         return { ...state, selection: emptySelection() };
       }

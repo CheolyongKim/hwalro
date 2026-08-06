@@ -14,6 +14,8 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'select', label: '선택' },
   { id: 'wall', label: '벽' },
   { id: 'exit', label: '비상구' },
+  { id: 'pillar', label: '기둥' },
+  { id: 'fabric', label: '구조물' },
   { id: 'text', label: '텍스트' },
   { id: 'erase', label: '삭제' },
 ];

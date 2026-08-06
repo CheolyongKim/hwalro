@@ -1,7 +1,7 @@
 import { memo } from 'react';
-import type { BackgroundImage, Exit, LayoutText, Wall } from '../types';
-import { TEXT_FONT_PX, textWorldBox } from '../utils/hitTest';
-import { PX_PER_METER } from '../utils/geometry';
+import type { BackgroundImage, Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
+import { PX_PER_METER, rectCenter } from '../utils/geometry';
+import { ROTATE_HANDLE_OFFSET_PX, TEXT_FONT_PX, textWorldBox } from '../utils/hitTest';
 
 export const MINOR_STEP = 50;
 export const MAJOR_STEP = 250;
@@ -167,6 +167,127 @@ export const ExitView = memo(function ExitView({ exit, selected, s }: ExitViewPr
         </g>
       )}
     </g>
+  );
+});
+
+interface RectViewProps {
+  selected: boolean;
+  s: (px: number) => number;
+  fill: string;
+  stroke: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation: number;
+}
+
+function RectShape({
+  selected,
+  s,
+  fill,
+  stroke,
+  startX,
+  startY,
+  endX,
+  endY,
+  rotation,
+}: RectViewProps) {
+  const minX = Math.min(startX, endX);
+  const minY = Math.min(startY, endY);
+  const width = Math.abs(endX - startX);
+  const height = Math.abs(endY - startY);
+  const center = rectCenter({ startX, startY, endX, endY });
+  return (
+    <g transform={`rotate(${rotation} ${center.x} ${center.y})`}>
+      <rect
+        x={minX}
+        y={minY}
+        width={width}
+        height={height}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={selected ? 2 : 1}
+        vectorEffect="non-scaling-stroke"
+      />
+      {selected && (
+        <g>
+          <circle
+            cx={startX}
+            cy={startY}
+            r={s(5)}
+            fill="var(--layout-canvas)"
+            stroke="var(--layout-accent)"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle
+            cx={endX}
+            cy={endY}
+            r={s(5)}
+            fill="var(--layout-canvas)"
+            stroke="var(--layout-accent)"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle cx={startX} cy={startY} r={s(3)} fill="var(--layout-accent)" />
+          <circle cx={endX} cy={endY} r={s(3)} fill="var(--layout-accent)" />
+          <circle
+            cx={center.x}
+            cy={minY - s(ROTATE_HANDLE_OFFSET_PX)}
+            r={s(5)}
+            fill="var(--layout-canvas)"
+            stroke="var(--layout-accent)"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
+      )}
+    </g>
+  );
+}
+
+interface PillarViewProps {
+  pillar: Pillar;
+  selected: boolean;
+  s: (px: number) => number;
+}
+
+export const PillarView = memo(function PillarView({ pillar, selected, s }: PillarViewProps) {
+  return (
+    <RectShape
+      selected={selected}
+      s={s}
+      fill="var(--layout-pillar-fill)"
+      stroke={selected ? 'var(--layout-accent)' : 'var(--layout-pillar-stroke)'}
+      startX={pillar.startX}
+      startY={pillar.startY}
+      endX={pillar.endX}
+      endY={pillar.endY}
+      rotation={pillar.rotation}
+    />
+  );
+});
+
+interface FabricViewProps {
+  fabric: Fabric;
+  selected: boolean;
+  s: (px: number) => number;
+}
+
+export const FabricView = memo(function FabricView({ fabric, selected, s }: FabricViewProps) {
+  return (
+    <RectShape
+      selected={selected}
+      s={s}
+      fill={selected ? 'var(--layout-fabric-selected-fill)' : 'var(--layout-fabric-fill)'}
+      stroke={selected ? 'var(--layout-accent)' : 'var(--layout-fabric-stroke)'}
+      startX={fabric.startX}
+      startY={fabric.startY}
+      endX={fabric.endX}
+      endY={fabric.endY}
+      rotation={fabric.rotation}
+    />
   );
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Dispatch } from 'react';
-import type { EditorState, Exit, LayoutText, Wall } from '../types';
+import type { EditorState, Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
 import type { EditorAction } from '../state/editorReducer';
 import { round1 } from '../utils/geometry';
 
@@ -15,6 +15,22 @@ function selectedWall(state: EditorState): Wall | null {
     return null;
   }
   return state.doc.walls.find((wall) => wall.id === id) ?? null;
+}
+
+function selectedPillar(state: EditorState): Pillar | null {
+  const id = state.selection.pillarIds[0];
+  if (!id) {
+    return null;
+  }
+  return state.doc.pillars.find((pillar) => pillar.id === id) ?? null;
+}
+
+function selectedFabric(state: EditorState): Fabric | null {
+  const id = state.selection.fabricIds[0];
+  if (!id) {
+    return null;
+  }
+  return state.doc.fabrics.find((fabric) => fabric.id === id) ?? null;
 }
 
 function selectedText(state: EditorState): LayoutText | null {
@@ -36,10 +52,11 @@ function selectedExit(state: EditorState): Exit | null {
 interface NumberFieldProps {
   label: string;
   value: number;
+  unit?: string;
   onChange: (value: number) => void;
 }
 
-function NumberField({ label, value, onChange }: NumberFieldProps) {
+function NumberField({ label, value, unit = 'm', onChange }: NumberFieldProps) {
   const [draft, setDraft] = useState(String(round1(value)));
 
   useEffect(() => {
@@ -72,7 +89,7 @@ function NumberField({ label, value, onChange }: NumberFieldProps) {
           }}
           className="h-full w-full min-w-0 bg-transparent px-2 font-mono text-[13px] text-text-strong outline-none"
         />
-        <span className="shrink-0 pr-2 font-mono text-[11px] text-text-muted">m</span>
+        <span className="shrink-0 pr-2 font-mono text-[11px] text-text-muted">{unit}</span>
       </span>
     </label>
   );
@@ -122,6 +139,49 @@ function ExitFields({ exit, dispatch }: ExitFieldsProps) {
   );
 }
 
+interface RectFieldsProps {
+  element: Pillar | Fabric;
+  dispatch: Dispatch<EditorAction>;
+  kind: 'pillar' | 'fabric';
+}
+
+function RectFields({ element, dispatch, kind }: RectFieldsProps) {
+  const update = (
+    patch: Partial<Pick<Pillar | Fabric, 'startX' | 'startY' | 'endX' | 'endY' | 'rotation'>>,
+  ) =>
+    dispatch(
+      kind === 'pillar'
+        ? { type: 'updatePillar', pillarId: element.id, patch }
+        : { type: 'updateFabric', fabricId: element.id, patch },
+    );
+  return (
+    <section>
+      <h3 className="text-[13px] font-bold text-text-strong">선택 요소</h3>
+      <p className="mt-0.5 text-[13px] text-text-strong">{element.name}</p>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <NumberField
+          label="시작점 X"
+          value={element.startX}
+          onChange={(x) => update({ startX: x })}
+        />
+        <NumberField
+          label="시작점 Y"
+          value={element.startY}
+          onChange={(y) => update({ startY: y })}
+        />
+        <NumberField label="끝점 X" value={element.endX} onChange={(x) => update({ endX: x })} />
+        <NumberField label="끝점 Y" value={element.endY} onChange={(y) => update({ endY: y })} />
+        <NumberField
+          label="회전"
+          value={element.rotation}
+          unit="°"
+          onChange={(rotation) => update({ rotation })}
+        />
+      </div>
+    </section>
+  );
+}
+
 interface TextFieldsProps {
   text: LayoutText;
   dispatch: Dispatch<EditorAction>;
@@ -159,7 +219,9 @@ function InfoRow({ label, value }: InfoRowProps) {
 export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
   const wall = selectedWall(state);
   const exit = wall === null ? selectedExit(state) : null;
-  const text = wall === null && exit === null ? selectedText(state) : null;
+  const pillar = exit === null ? selectedPillar(state) : null;
+  const fabric = pillar === null ? selectedFabric(state) : null;
+  const text = fabric === null ? selectedText(state) : null;
   const { doc } = state;
 
   return (
@@ -168,7 +230,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
         배치 설정
       </h2>
       <div className="flex-1 px-4 py-4">
-        {wall === null && exit === null && text === null ? (
+        {wall === null && exit === null && pillar === null && fabric === null && text === null ? (
           <section>
             <h3 className="text-[13px] font-bold text-text-strong">도면 정보</h3>
             <div className="mt-2">
@@ -179,6 +241,8 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
               />
               <InfoRow label="벽" value={`${doc.walls.length}개`} />
               <InfoRow label="비상구" value={`${doc.exits.length}개`} />
+              <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
+              <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
               <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
             </div>
           </section>
@@ -186,6 +250,10 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
           <WallFields wall={wall} dispatch={dispatch} />
         ) : exit !== null ? (
           <ExitFields exit={exit} dispatch={dispatch} />
+        ) : pillar !== null ? (
+          <RectFields element={pillar} dispatch={dispatch} kind="pillar" />
+        ) : fabric !== null ? (
+          <RectFields element={fabric} dispatch={dispatch} kind="fabric" />
         ) : (
           <TextFields text={text as LayoutText} dispatch={dispatch} />
         )}
@@ -194,6 +262,8 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
           <div className="mt-2">
             <InfoRow label="벽" value={`${doc.walls.length}개`} />
             <InfoRow label="비상구" value={`${doc.exits.length}개`} />
+            <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
+            <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
             <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
           </div>
         </section>

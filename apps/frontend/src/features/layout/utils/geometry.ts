@@ -41,6 +41,27 @@ export function distanceToSegment(p: Vec2, a: Vec2, b: Vec2): number {
   return distance(p, closest);
 }
 
+export function rotatePoint(p: Vec2, origin: Vec2, angleDeg: number): Vec2 {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = p.x - origin.x;
+  const dy = p.y - origin.y;
+  return {
+    x: origin.x + dx * cos - dy * sin,
+    y: origin.y + dx * sin + dy * cos,
+  };
+}
+
+export function rectCenter(element: {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}): Vec2 {
+  return { x: (element.startX + element.endX) / 2, y: (element.startY + element.endY) / 2 };
+}
+
 export function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }

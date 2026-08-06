@@ -13,6 +13,8 @@ public record DrawingResponse(
         BigDecimal width,
         BigDecimal height,
         List<WallDto> walls,
+        List<PillarDto> pillars,
+        List<FabricDto> fabrics,
         List<LayoutTextDto> layoutTexts,
         List<ExitDto> exits,
         Integer version) {}
