@@ -15,6 +15,7 @@ import type {
 import { round1 } from '../utils/geometry';
 import type { ElementHit } from '../utils/hitTest';
 import { docSnapSources, snapPoint } from '../utils/snapping';
+import { clampLineDraft, clampRectDraft, isInsideObstacleRect } from '../utils/collision';
 import {
   createEmptyDocument,
   emptySelection,
@@ -144,11 +145,20 @@ export function createInitialState(): EditorState {
     cursor: null,
     snapHint: null,
     error: null,
+    errorNonce: 0,
     cameraFitNonce: 0,
   };
 }
 
 function applyDraftStart(state: EditorState, point: Vec2): EditorState {
+  if (isInsideObstacleRect(point, state.doc)) {
+    return {
+      ...state,
+      draft: null,
+      snapHint: null,
+      error: '기둥이나 구조물 안에는 배치할 수 없습니다.',
+    };
+  }
   const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
   return {
     ...state,
@@ -164,7 +174,11 @@ function applyDraftStart(state: EditorState, point: Vec2): EditorState {
   };
 }
 
-function applyDraftUpdate(state: EditorState, point: Vec2): EditorState {
+function applyDraftUpdate(
+  state: EditorState,
+  point: Vec2,
+  kind: 'wall' | 'outsideWall' | 'exit',
+): EditorState {
   if (!state.draft) {
     return state;
   }
@@ -175,11 +189,13 @@ function applyDraftUpdate(state: EditorState, point: Vec2): EditorState {
     [state.draft.start],
     state.camera.zoom,
   );
+  const end =
+    kind === 'exit' ? snapped.point : clampLineDraft(state.draft.start, snapped.point, state.doc);
   return {
     ...state,
     draft: {
       ...state.draft,
-      end: snapped.point,
+      end,
       axisSnapped: snapped.axisSnapped,
       snappedToEndpoint: snapped.snappedToEndpoint,
     },
@@ -187,6 +203,14 @@ function applyDraftUpdate(state: EditorState, point: Vec2): EditorState {
 }
 
 function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
+  if (isInsideObstacleRect(point, state.doc)) {
+    return {
+      ...state,
+      draft: null,
+      snapHint: null,
+      error: '기둥이나 구조물 안에는 배치할 수 없습니다.',
+    };
+  }
   const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
   return {
     ...state,
@@ -208,7 +232,8 @@ function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
     [state.draft.start],
     state.camera.zoom,
   );
-  return { ...state, draft: { ...state.draft, end: snapped.point } };
+  const end = clampRectDraft(state.draft.start, snapped.point, state.doc);
+  return { ...state, draft: { ...state.draft, end } };
 }
 
 function applyEraseAt(state: EditorState, hit: ElementHit): EditorState {
@@ -263,7 +288,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return applyDraftStart(state, action.point);
 
     case 'wallUpdate':
-      return applyDraftUpdate(state, action.point);
+      return applyDraftUpdate(state, action.point, 'wall');
 
     case 'wallCommit': {
       if (!state.draft) {
@@ -292,7 +317,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return applyDraftStart(state, action.point);
 
     case 'outsideWallUpdate':
-      return applyDraftUpdate(state, action.point);
+      return applyDraftUpdate(state, action.point, 'outsideWall');
 
     case 'outsideWallCommit': {
       if (!state.draft) {
@@ -321,7 +346,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return applyDraftStart(state, action.point);
 
     case 'exitUpdate':
-      return applyDraftUpdate(state, action.point);
+      return applyDraftUpdate(state, action.point, 'exit');
 
     case 'exitCommit': {
       if (!state.draft) {
@@ -733,7 +758,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return applyRedo(state);
 
     case 'setError':
-      return { ...state, error: action.message };
+      return { ...state, error: action.message, errorNonce: state.errorNonce + 1 };
 
     case 'clearSelection':
       return { ...state, selection: emptySelection(), snapHint: null };

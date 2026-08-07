@@ -58,10 +58,15 @@ public class DrawingService {
 
     private final DrawingMapper drawingMapper;
     private final DefaultDrawingData defaultDrawingData;
+    private final LayoutGeometryValidator geometryValidator;
 
-    public DrawingService(DrawingMapper drawingMapper, DefaultDrawingData defaultDrawingData) {
+    public DrawingService(
+            DrawingMapper drawingMapper,
+            DefaultDrawingData defaultDrawingData,
+            LayoutGeometryValidator geometryValidator) {
         this.drawingMapper = drawingMapper;
         this.defaultDrawingData = defaultDrawingData;
+        this.geometryValidator = geometryValidator;
     }
 
     public DrawingListResponse list(int page, int size, JwtUser user) {
@@ -138,6 +143,8 @@ public class DrawingService {
         }
         Layout layout = findLayoutOrThrow(id);
         requireAccessible(layout, user);
+        geometryValidator.validate(
+                request.outsideWalls(), request.walls(), request.pillars(), request.fabrics(), request.exits());
 
         layout.setTitle(request.title().trim());
         layout.setDescription(request.description());

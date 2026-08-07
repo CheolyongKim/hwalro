@@ -180,6 +180,7 @@ export interface EditorState {
   cursor: Vec2 | null;
   snapHint: Vec2 | null;
   error: string | null;
+  errorNonce: number;
   cameraFitNonce: number;
 }
 
