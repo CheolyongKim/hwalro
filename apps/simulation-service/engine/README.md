@@ -1,44 +1,35 @@
 # JuPedSim runner
 
-표준 CPython 3.12 이상의 독립 프로세스로 실행하며 데이터베이스에는 접근하지 않는다.
-Windows의 MSYS2 Python은 PyPI의 `win_amd64` wheel과 호환되지 않으므로 사용하지 않는다.
+CPython 3.12 독립 프로세스로 실행하며 데이터베이스에는 접근하지 않는다. 로컬 실행 환경은 저장소
+루트에서 다음 명령 하나로 구성한다.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --no-deps -r requirements.txt
-.\.venv\Scripts\python.exe runner.py --version
-.\.venv\Scripts\python.exe runner.py input.json output_dir
-.\.venv\Scripts\python.exe -m unittest discover -s . -p "test_*.py"
+```bash
+pnpm engine:setup
 ```
 
-## Windows 로컬 JuPedSim 빌드
+설정 스크립트는 프로젝트 내부에 고정 버전 uv를 설치하고, uv가 관리하는 Python 3.12와 `.venv`를
+생성한 뒤 `gugukorn/jupedsim-hwalro`의 플랫폼별 wheel을 설치한다. 사용자 PATH, 기존 Python,
+Visual Studio 또는 Xcode 빌드 도구는 사용하지 않는다.
 
-활로 실행기는 에이전트가 유효 영역을 이탈했을 때 직전 위치로 복원하기 위해 `Agent.position`
-setter가 추가된 로컬 JuPedSim 1.4.2 wheel을 사용한다. `requirements.txt` 설치는 공식 wheel로
-되돌리므로, 의존성을 다시 설치한 뒤에는 아래 로컬 wheel도 다시 강제 설치해야 한다.
+지원 환경:
 
-```powershell
-git clone --branch v1.4.2 https://github.com/PedestrianDynamics/jupedsim.git C:\Dev\Utils\jupedsim-hwalro
-git -C C:\Dev\Utils\jupedsim-hwalro switch -c hwalro/1.4.2-position-reset
-```
+- Windows x64
+- macOS 12 이상 Apple Silicon
+- macOS 12 이상 Intel
 
-로컬 소스에는 native binding과 Python `Agent.position` setter 변경만 적용한다. Visual Studio 2022
-Developer PowerShell에서 다음 명령으로 빌드하고 설치한다.
+플랫폼별 직접 실행도 가능하다.
 
 ```powershell
-$enginePython = "C:\Dev\HDF-3\hwalro\apps\simulation-service\engine\.venv\Scripts\python.exe"
-& $enginePython -m pip install setuptools wheel cmake ninja
-& $enginePython -m pip wheel --no-build-isolation --no-deps `
-  --wheel-dir C:\Dev\Utils\jupedsim-hwalro\dist `
-  C:\Dev\Utils\jupedsim-hwalro
-$localWheel = Get-ChildItem C:\Dev\Utils\jupedsim-hwalro\dist\jupedsim-1.4.2-*.whl |
-  Select-Object -First 1 -ExpandProperty FullName
-& $enginePython -m pip install --force-reinstall --no-deps $localWheel
-& $enginePython runner.py --version
+.\apps\simulation-service\engine\setup-windows.ps1
 ```
 
-마지막 명령은 `jupedsim 1.4.2+hwalro.1`을 출력해야 한다. 공식 2.0.0 소스나 기존
-`C:\Dev\Utils\jupedsim-master\jupedsim-master`는 이 프로젝트에서 사용하지 않는다.
+```bash
+sh ./apps/simulation-service/engine/setup-macos.sh
+```
+
+설치가 끝나면 커스텀 `Agent.position` setter와 `runner.py --version`을 자동 검증한다. 활로 실행기는
+에이전트가 유효 영역을 이탈했을 때 직전 위치로 복원하기 위해 이 커스텀 JuPedSim 1.4.2 wheel을
+사용한다.
 
 simulation-service는 설정된 `SIMULATION_ENGINE_PYTHON`이 없으면 위 프로젝트 venv를 먼저 사용하고,
 venv가 없을 때만 `python` 명령으로 대체한다.
@@ -54,13 +45,18 @@ venv가 없을 때만 `python` 명령으로 대체한다.
     "reactionTime": 0.5
   },
   "drawing": {
-    "outsideBoundary": [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 10, "y": 5}, {"x": 0, "y": 5}],
+    "outsideBoundary": [
+      { "x": 0, "y": 0 },
+      { "x": 10, "y": 0 },
+      { "x": 10, "y": 5 },
+      { "x": 0, "y": 5 }
+    ],
     "walls": [],
     "pillars": [],
     "fabrics": [],
-    "exits": [{"id": 1, "startX": 10, "startY": 2, "endX": 10, "endY": 3}]
+    "exits": [{ "id": 1, "startX": 10, "startY": 2, "endX": 10, "endY": 3 }]
   },
-  "agents": [{"x": 1, "y": 2.5}],
+  "agents": [{ "x": 1, "y": 2.5 }],
   "hazards": [],
   "selectedExitIds": [1],
   "maxSimulationTimeSeconds": 600,
@@ -74,8 +70,8 @@ venv가 없을 때만 `python` 명령으로 대체한다.
 
 ## 배포
 
-`apps/simulation-service`를 build context로 Docker 이미지를 만들면 Python 3.12와 공식
-`jupedsim==1.4.2` wheel이 이미지에 함께 설치된다.
+현재 커스텀 wheel 자동 설치는 로컬 Windows와 macOS만 지원한다. Linux용 커스텀 wheel을
+배포하기 전까지 Docker 이미지는 guarded simulation 실행 환경으로 사용하지 않는다.
 
 ```bash
 docker build -t hwalro-simulation-service apps/simulation-service
