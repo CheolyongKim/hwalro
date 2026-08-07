@@ -154,8 +154,7 @@ class SafetyCheckConcurrencyIntegrationTest {
     }
 
     private void insertArea() {
-        jdbcTemplate.update(
-                "INSERT INTO inspection_areas (id, floor_plan_id, name, active) VALUES (900, 900, '통합 테스트 구역', TRUE)");
+        jdbcTemplate.update("INSERT INTO inspection_areas (id, name, active) VALUES (900, '통합 테스트 구역', TRUE)");
     }
 
     private void insertInspection() {

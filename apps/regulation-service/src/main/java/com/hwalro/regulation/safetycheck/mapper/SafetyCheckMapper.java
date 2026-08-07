@@ -1,6 +1,7 @@
 package com.hwalro.regulation.safetycheck.mapper;
 
 import com.hwalro.regulation.safetycheck.domain.ChecklistTemplate;
+import com.hwalro.regulation.safetycheck.domain.InspectionArea;
 import com.hwalro.regulation.safetycheck.domain.SafetyInspection;
 import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateItemResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse;
@@ -15,6 +16,14 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SafetyCheckMapper {
     List<InspectionAreaResponse> findAreas(@Param("inspectorId") Long inspectorId);
+
+    InspectionAreaResponse findArea(@Param("areaId") Long areaId, @Param("inspectorId") Long inspectorId);
+
+    int insertArea(InspectionArea area);
+
+    int updateArea(InspectionArea area);
+
+    int deactivateArea(@Param("areaId") Long areaId);
 
     boolean areaExists(@Param("areaId") Long areaId);
 

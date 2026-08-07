@@ -16,5 +16,5 @@ INSERT IGNORE INTO users (login_id, password, name, enabled) VALUES
 INSERT IGNORE INTO user_roles (user_id, role_id)
 SELECT u.user_id, r.role_id
 FROM users u
-JOIN roles r ON r.role_name = 'OPERATOR'
+JOIN roles r ON r.role_name IN ('OPERATOR', 'SAFETY_REVIEWER')
 WHERE u.login_id = 'test';

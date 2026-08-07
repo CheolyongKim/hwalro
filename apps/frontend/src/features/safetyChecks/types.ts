@@ -3,11 +3,16 @@ export type InspectionResult = 'PENDING' | 'PASS' | 'REVIEW_REQUIRED' | 'FAIL';
 
 export interface InspectionArea {
   id: number;
-  floorPlanId: number;
   name: string;
   description: string | null;
+  active: boolean;
   inspectionCount: number;
   lastInspectedAt: string | null;
+}
+
+export interface InspectionAreaRequest {
+  name: string;
+  description: string | null;
 }
 
 export interface InspectionHistory {
