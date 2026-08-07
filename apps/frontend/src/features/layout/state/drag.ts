@@ -1,10 +1,4 @@
-import type {
-  DragState,
-  EditorState,
-  Exit,
-  RectHandle,
-  Vec2,
-} from '../types';
+import type { DragState, EditorState, Exit, RectHandle, Vec2 } from '../types';
 import { distance, rectCenter, rotatePoint, round1 } from '../utils/geometry';
 import { docSnapSources, snapPoint } from '../utils/snapping';
 import { isRectInsideBounds, translateDoc } from '../utils/document';
@@ -158,11 +152,7 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
     if (!pillar) {
       return state;
     }
-    const next = reshapeRectElement(
-      pillar,
-      clampToDocBounds(state.doc, point),
-      drag.handle,
-    );
+    const next = reshapeRectElement(pillar, clampToDocBounds(state.doc, point), drag.handle);
     if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
       return state;
     }
@@ -175,11 +165,7 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   if (!fabric) {
     return state;
   }
-  const next = reshapeRectElement(
-    fabric,
-    clampToDocBounds(state.doc, point),
-    drag.handle,
-  );
+  const next = reshapeRectElement(fabric, clampToDocBounds(state.doc, point), drag.handle);
   if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
     return state;
   }

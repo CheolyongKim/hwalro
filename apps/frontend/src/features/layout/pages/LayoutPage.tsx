@@ -125,9 +125,7 @@ function LayoutPage() {
         type: 'setValidationProblems',
         problems: conflict
           ? []
-          : parseValidationProblems(
-              error instanceof AxiosError ? error.response?.data : undefined,
-            ),
+          : parseValidationProblems(error instanceof AxiosError ? error.response?.data : undefined),
       });
       dispatch({
         type: 'setError',
