@@ -82,7 +82,7 @@ public class ImprovementProposalController {
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         try {
             return improvementProposalExecutionService.execute(
-                    simulationId, request == null ? null : request.proposalIds(), user.userId());
+                    simulationId, request == null ? null : request.proposalIds(), user);
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
         }

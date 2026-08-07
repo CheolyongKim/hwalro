@@ -59,18 +59,19 @@ class ImprovementProposalControllerTest {
     @Test
     void executesSelectedProposalsForTheAuthenticatedUser() {
         ImprovementProposalExecutionResponse expected = new ImprovementProposalExecutionResponse(List.of());
-        when(improvementProposalExecutionService.execute(1L, List.of(11L), 9L)).thenReturn(expected);
+        when(improvementProposalExecutionService.execute(1L, List.of(11L), user()))
+                .thenReturn(expected);
 
         ImprovementProposalExecutionResponse result =
                 controller().execute(1L, new ImprovementProposalExecutionRequest(List.of(11L)), user());
 
         assertEquals(expected, result);
-        verify(improvementProposalExecutionService).execute(1L, List.of(11L), 9L);
+        verify(improvementProposalExecutionService).execute(1L, List.of(11L), user());
     }
 
     @Test
     void reportsInvalidExecutionRequestAsBadRequest() {
-        when(improvementProposalExecutionService.execute(1L, List.of(), 9L))
+        when(improvementProposalExecutionService.execute(1L, List.of(), user()))
                 .thenThrow(new IllegalArgumentException("개선안은 1개 이상 3개 이하로 선택해야 합니다."));
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> controller()

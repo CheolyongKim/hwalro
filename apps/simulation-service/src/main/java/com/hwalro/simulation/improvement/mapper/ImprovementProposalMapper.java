@@ -15,6 +15,10 @@ public interface ImprovementProposalMapper {
     /** 개선안 한 건을 조회합니다. */
     ImprovementProposal findById(@Param("id") Long id);
 
+    Long findCreatedByBySimulationId(@Param("simulationId") Long simulationId);
+
+    Long lockProposalId(@Param("proposalId") Long proposalId);
+
     Long findSimulationIdByProposalId(@Param("proposalId") Long proposalId);
 
     int insertSimulationLink(

@@ -18,6 +18,19 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findCreatedByBySimulationId" resultType="long">
+        SELECT created_by
+        FROM simulations
+        WHERE id = #{simulationId}
+    </select>
+
+    <select id="lockProposalId" resultType="long">
+        SELECT id
+        FROM improvement_proposals
+        WHERE id = #{proposalId}
+        FOR UPDATE
+    </select>
+
     <select id="findSimulationIdByProposalId" resultType="long">
         SELECT simulation_id
         FROM proposal_simulations
