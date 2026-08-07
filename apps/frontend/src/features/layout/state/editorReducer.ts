@@ -152,7 +152,12 @@ export function createInitialState(): EditorState {
 
 function applyDraftStart(state: EditorState, point: Vec2): EditorState {
   if (isInsideObstacleRect(point, state.doc)) {
-    return { ...state, draft: null, snapHint: null, error: '기둥이나 구조물 안에는 배치할 수 없습니다.' };
+    return {
+      ...state,
+      draft: null,
+      snapHint: null,
+      error: '기둥이나 구조물 안에는 배치할 수 없습니다.',
+    };
   }
   const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
   return {
@@ -199,7 +204,12 @@ function applyDraftUpdate(
 
 function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
   if (isInsideObstacleRect(point, state.doc)) {
-    return { ...state, draft: null, snapHint: null, error: '기둥이나 구조물 안에는 배치할 수 없습니다.' };
+    return {
+      ...state,
+      draft: null,
+      snapHint: null,
+      error: '기둥이나 구조물 안에는 배치할 수 없습니다.',
+    };
   }
   const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
   return {
