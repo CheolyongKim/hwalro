@@ -53,10 +53,7 @@ function SimulationListPage() {
     initialPageParam: 1,
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.page + 1 : undefined),
   });
-  const items = useMemo(
-    () => query.data?.pages.flatMap((page) => page.items) ?? [],
-    [query.data],
-  );
+  const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
   const hasRunning = items.some(
     (simulation) => simulation.status === 'REQUESTED' || simulation.status === 'RUNNING',
   );
@@ -121,7 +118,10 @@ function SimulationListPage() {
                   </thead>
                   <tbody className="divide-y divide-line">
                     {items.map((simulation) => (
-                      <tr key={simulation.id} className="transition-colors hover:bg-primary-soft/30">
+                      <tr
+                        key={simulation.id}
+                        className="transition-colors hover:bg-primary-soft/30"
+                      >
                         <td className="px-6 py-4">
                           <Link
                             to={destination(simulation)}
