@@ -56,10 +56,53 @@ export interface SimulationSetup {
   walkingSpeed: number;
   reactionTime: number;
   modelProfile: string;
+  routingProfile: string;
   agentPositions: SimulationPoint[];
   hazardZones: SimulationHazardZone[];
   selectedExitIds: number[];
   drawing: SimulationDrawing;
+}
+
+export type SimulationExecutionStatus = 'DRAFT' | 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export type SimulationTerminationReason = 'ALL_EVACUATED' | 'MAX_DURATION';
+
+export interface SimulationMetric {
+  metricType: string;
+  unit: string;
+  metricValue: number;
+}
+
+export interface SimulationResultSummary {
+  id: number;
+  engineVersion: string;
+  terminationReason: SimulationTerminationReason;
+  simulationDurationSeconds: number;
+  frameIntervalSeconds: number;
+  timelineChunkCount: number;
+  metrics: SimulationMetric[];
+}
+
+export interface SimulationExecution {
+  simulationId: number;
+  status: SimulationExecutionStatus;
+  requestedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  failureMessage: string | null;
+  result: SimulationResultSummary | null;
+}
+
+export type TimelineAgent = [agentIndex: number, x: number, y: number];
+
+export interface SimulationTimelineFrame {
+  timeSeconds: number;
+  agents: TimelineAgent[];
+}
+
+export interface SimulationTimelineChunk {
+  sequence: number;
+  frames: SimulationTimelineFrame[];
 }
 
 export interface SimulationSummary {

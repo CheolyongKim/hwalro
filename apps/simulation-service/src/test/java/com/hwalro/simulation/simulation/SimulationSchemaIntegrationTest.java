@@ -38,6 +38,49 @@ class SimulationSchemaIntegrationTest {
             assertThat(columns.next()).isTrue();
             assertThat(columns.getString("Default")).isEqualTo("SFM_DEFAULT_V1");
         }
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement();
+                ResultSet columns =
+                        statement.executeQuery("SHOW COLUMNS FROM simulation_options LIKE 'routing_profile'")) {
+            assertThat(columns.next()).isTrue();
+            assertThat(columns.getString("Default")).isEqualTo("HAZARD_RADIAL_EXP_V2");
+        }
+    }
+
+    @Test
+    void parentSimulationMustBelongToSameLayoutVersion() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO floor_plans (id, name, width, height) VALUES (911, 'parent', 10, 10)");
+            statement.executeUpdate(
+                    "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (912, 911, 7, 'parent')");
+            statement.executeUpdate("INSERT INTO layout_versions (id, layout_id, version, status) VALUES "
+                    + "(913, 912, 1, '잠금'), (914, 912, 2, '잠금')");
+            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, status) "
+                    + "VALUES (915, 913, 7, 'DRAFT')");
+
+            assertThatThrownBy(() -> statement.executeUpdate("INSERT INTO simulations "
+                            + "(id, layout_version_id, parent_simulation_id, created_by, status) "
+                            + "VALUES (916, 914, 915, 7, 'DRAFT')"))
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void simulationStatusIsConstrained() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO floor_plans (id, name, width, height) VALUES (921, 'status', 10, 10)");
+            statement.executeUpdate(
+                    "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (922, 921, 7, 'status')");
+            statement.executeUpdate(
+                    "INSERT INTO layout_versions (id, layout_id, version, status) VALUES (923, 922, 1, '잠금')");
+
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "INSERT INTO simulations (id, layout_version_id, created_by, status) "
+                                    + "VALUES (924, 923, 7, 'UNKNOWN')"))
+                    .isInstanceOf(SQLException.class);
+        }
     }
 
     @Test

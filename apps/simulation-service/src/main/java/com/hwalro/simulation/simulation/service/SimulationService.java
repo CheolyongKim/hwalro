@@ -44,6 +44,7 @@ public class SimulationService {
     private static final String LAYOUT_STATUS_LOCKED = "잠금";
     private static final String SIMULATION_STATUS_DRAFT = "DRAFT";
     private static final String MODEL_PROFILE = "SFM_DEFAULT_V1";
+    private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V2";
     private static final BigDecimal DEFAULT_WALKING_SPEED = BigDecimal.valueOf(1.25);
     private static final BigDecimal DEFAULT_REACTION_TIME = BigDecimal.valueOf(0.5);
     private static final BigDecimal MIN_REACTION_TIME = BigDecimal.valueOf(0.1);
@@ -127,6 +128,7 @@ public class SimulationService {
         option.setSimulationId(simulation.getId());
         option.setRandomSeed(ThreadLocalRandom.current().nextInt());
         option.setModelProfile(MODEL_PROFILE);
+        option.setRoutingProfile(ROUTING_PROFILE);
         option.setTotalPeople(agents.size());
         option.setWalkingSpeed(DEFAULT_WALKING_SPEED);
         option.setReactionTime(DEFAULT_REACTION_TIME);
@@ -142,6 +144,12 @@ public class SimulationService {
 
     public SimulationSetupResponse getSetup(Long id, JwtUser user) {
         return getSetupInternal(id, user);
+    }
+
+    Simulation getAccessibleSimulation(Long id, JwtUser user) {
+        Simulation simulation = findSimulation(id);
+        requireAccessible(simulation.getCreatedBy(), user);
+        return simulation;
     }
 
     @Transactional
@@ -226,6 +234,7 @@ public class SimulationService {
                 simulation.getCreatedAt(),
                 option.getRandomSeed(),
                 option.getModelProfile(),
+                option.getRoutingProfile(),
                 option.getTotalPeople(),
                 option.getWalkingSpeed(),
                 option.getReactionTime(),

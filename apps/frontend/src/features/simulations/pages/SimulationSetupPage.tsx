@@ -37,6 +37,7 @@ function SimulationSetupPage() {
   const navigate = useNavigate();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [executing, setExecuting] = useState(false);
   const [setup, setSetup] = useState<SimulationSetup | null>(null);
   const [agents, setAgents] = useState<SimulationPoint[]>([]);
   const [hazards, setHazards] = useState<EditableHazardZone[]>([]);
@@ -265,18 +266,24 @@ function SimulationSetupPage() {
     commitPlacement({ ...placementRef.current, agents: result.positions });
   };
 
-  const handleSave = async () => {
-    if (!editable || saveState === 'saving') return;
+  const validateOptions = (): string | null => {
     if (reactionTime < 0.1 || reactionTime > 2) {
-      setMessage('초기 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.');
-      return;
+      return '초기 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
     }
     if (walkingSpeed <= 0 || walkingSpeed > 3) {
-      setMessage('평균 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.');
-      return;
+      return '평균 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.';
     }
+    return null;
+  };
+
+  const saveCurrentSetup = async (): Promise<SimulationSetup | null> => {
+    const validationMessage = validateOptions();
+    if (validationMessage) {
+      setMessage(validationMessage);
+      return null;
+    }
+
     setMessage(null);
-    setSaveState('saving');
     try {
       const saved = await simulationApi.updateSetup(setup.simulationId, {
         walkingSpeed,
@@ -286,11 +293,51 @@ function SimulationSetupPage() {
         selectedExitIds,
       });
       loadSetup(saved);
+      return saved;
+    } catch (error) {
+      setMessage(getSimulationErrorMessage(error));
+      return null;
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editable || saveState === 'saving' || executing) return;
+    setSaveState('saving');
+    const saved = await saveCurrentSetup();
+    if (saved) {
       setSaveState('saved');
       window.setTimeout(() => setSaveState('idle'), 1800);
+    } else {
+      setSaveState('error');
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!editable || executing || saveState === 'saving') return;
+    if (agents.length === 0) {
+      setMessage('시뮬레이션을 실행하려면 에이전트를 1명 이상 배치해 주세요.');
+      return;
+    }
+    if (selectedExitIds.length === 0) {
+      setMessage('시뮬레이션을 실행하려면 출입구를 1개 이상 선택해 주세요.');
+      return;
+    }
+
+    setExecuting(true);
+    setSaveState('saving');
+    try {
+      const saved = await saveCurrentSetup();
+      if (!saved) {
+        setSaveState('error');
+        return;
+      }
+      await simulationApi.execute(saved.simulationId);
+      navigate(`/simulations/${saved.simulationId}/result`);
     } catch (error) {
       setSaveState('error');
       setMessage(getSimulationErrorMessage(error));
+    } finally {
+      setExecuting(false);
     }
   };
 
@@ -334,7 +381,7 @@ function SimulationSetupPage() {
           <button
             type="button"
             onClick={() => void handleSave()}
-            disabled={!editable || saveState === 'saving'}
+            disabled={!editable || saveState === 'saving' || executing}
             className="h-9 rounded-lg border border-primary px-4 text-sm font-bold text-primary disabled:opacity-50"
           >
             {saveState === 'saving'
@@ -345,11 +392,18 @@ function SimulationSetupPage() {
           </button>
           <button
             type="button"
-            disabled
-            title="JuPedSim 실행 연동 후 사용할 수 있습니다."
-            className="h-9 cursor-not-allowed rounded-lg bg-primary px-4 text-sm font-bold text-white opacity-45"
+            onClick={() => void handleExecute()}
+            disabled={!editable || executing || saveState === 'saving'}
+            title={
+              agents.length === 0
+                ? '에이전트를 1명 이상 배치해 주세요.'
+                : selectedExitIds.length === 0
+                  ? '출입구를 1개 이상 선택해 주세요.'
+                  : undefined
+            }
+            className="h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"
           >
-            시뮬레이션 실행
+            {executing ? '실행 요청 중...' : '시뮬레이션 실행'}
           </button>
         </div>
       </header>

@@ -3,7 +3,9 @@ package com.hwalro.simulation.simulation.mapper;
 import com.hwalro.simulation.simulation.domain.HazardZone;
 import com.hwalro.simulation.simulation.domain.LayoutSimulationContext;
 import com.hwalro.simulation.simulation.domain.Simulation;
+import com.hwalro.simulation.simulation.domain.SimulationMetric;
 import com.hwalro.simulation.simulation.domain.SimulationOption;
+import com.hwalro.simulation.simulation.domain.SimulationResult;
 import java.math.BigDecimal;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
@@ -29,6 +31,12 @@ public interface SimulationMapper {
     List<HazardZone> findHazardZones(@Param("simulationId") Long simulationId);
 
     List<Long> findSelectedExitIds(@Param("simulationId") Long simulationId);
+
+    SimulationResult findSimulationResult(@Param("simulationId") Long simulationId);
+
+    List<SimulationMetric> findSimulationMetrics(@Param("simulationResultId") Long simulationResultId);
+
+    String findTimelineJson(@Param("simulationId") Long simulationId, @Param("chunkSequence") int chunkSequence);
 
     int insertSimulation(Simulation simulation);
 
@@ -56,4 +64,23 @@ public interface SimulationMapper {
     int deleteSimulationExits(@Param("simulationId") Long simulationId);
 
     int lockLayoutVersion(@Param("layoutVersionId") Long layoutVersionId);
+
+    int requestExecution(@Param("simulationId") Long simulationId);
+
+    int markExecutionRunning(@Param("simulationId") Long simulationId);
+
+    int markExecutionCompleted(@Param("simulationId") Long simulationId);
+
+    int markExecutionFailed(@Param("simulationId") Long simulationId, @Param("message") String message);
+
+    int markInterruptedExecutionsFailed(@Param("message") String message);
+
+    int insertSimulationResult(SimulationResult result);
+
+    int insertSimulationMetrics(List<SimulationMetric> metrics);
+
+    int insertTimeline(
+            @Param("simulationResultId") Long simulationResultId,
+            @Param("chunkSequence") int chunkSequence,
+            @Param("frameData") String frameData);
 }

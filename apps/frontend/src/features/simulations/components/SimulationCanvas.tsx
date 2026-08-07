@@ -391,7 +391,18 @@ export function SimulationCanvas({
                 x={hazard.centerX}
                 y={hazard.centerY}
                 radius={hazard.radius}
-                fill="rgba(225, 75, 75, 0.14)"
+                fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                fillRadialGradientStartRadius={0}
+                fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                fillRadialGradientEndRadius={hazard.radius}
+                fillRadialGradientColorStops={[
+                  0,
+                  'rgba(177, 32, 32, 0.58)',
+                  0.5,
+                  'rgba(225, 75, 75, 0.28)',
+                  1,
+                  'rgba(239, 119, 119, 0.08)',
+                ]}
                 stroke={hazard.clientId === selectedHazardId ? '#d14343' : '#ef7777'}
                 strokeWidth={s(hazard.clientId === selectedHazardId ? 2 : 1.3)}
                 dash={[s(5), s(4)]}

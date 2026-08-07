@@ -34,7 +34,11 @@
                parent_simulation_id,
                created_by,
                status,
-               created_at
+               created_at,
+               requested_at,
+               started_at,
+               finished_at,
+               failure_message
         FROM simulations
         WHERE id = #{id}
     </select>
@@ -45,7 +49,11 @@
                parent_simulation_id,
                created_by,
                status,
-               created_at
+               created_at,
+               requested_at,
+               started_at,
+               finished_at,
+               failure_message
         FROM simulations
         WHERE id = #{id}
         FOR UPDATE
@@ -73,6 +81,7 @@
                simulation_id,
                random_seed,
                model_profile,
+               routing_profile,
                total_people,
                walking_speed,
                reaction_time
@@ -104,6 +113,37 @@
         ORDER BY layout_exit_id ASC
     </select>
 
+    <select id="findSimulationResult" resultType="com.hwalro.simulation.simulation.domain.SimulationResult">
+        SELECT sr.id,
+               sr.simulation_id,
+               sr.engine_version,
+               sr.termination_reason,
+               sr.frame_interval_seconds,
+               sr.created_at,
+               (SELECT COUNT(*) FROM timelines t WHERE t.simulation_result_id = sr.id) AS timeline_chunk_count
+        FROM simulation_results sr
+        WHERE sr.simulation_id = #{simulationId}
+    </select>
+
+    <select id="findSimulationMetrics" resultType="com.hwalro.simulation.simulation.domain.SimulationMetric">
+        SELECT id,
+               simulation_result_id,
+               unit,
+               metric_type,
+               metric_value
+        FROM simulation_metrics
+        WHERE simulation_result_id = #{simulationResultId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findTimelineJson" resultType="string">
+        SELECT t.frame_data
+        FROM timelines t
+        JOIN simulation_results sr ON sr.id = t.simulation_result_id
+        WHERE sr.simulation_id = #{simulationId}
+          AND t.chunk_sequence = #{chunkSequence}
+    </select>
+
     <insert id="insertSimulation" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, status)
         VALUES (#{layoutVersionId}, #{parentSimulationId}, #{createdBy}, #{status})
@@ -111,9 +151,9 @@
 
     <insert id="insertSimulationOption" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO simulation_options
-            (simulation_id, random_seed, model_profile, total_people, walking_speed, reaction_time)
+            (simulation_id, random_seed, model_profile, routing_profile, total_people, walking_speed, reaction_time)
         VALUES
-            (#{simulationId}, #{randomSeed}, #{modelProfile}, #{totalPeople}, #{walkingSpeed}, #{reactionTime})
+            (#{simulationId}, #{randomSeed}, #{modelProfile}, #{routingProfile}, #{totalPeople}, #{walkingSpeed}, #{reactionTime})
     </insert>
 
     <insert id="insertInitialState">
@@ -167,5 +207,71 @@
         WHERE id = #{layoutVersionId}
           AND status = '초안'
     </update>
+
+    <update id="requestExecution">
+        UPDATE simulations
+        SET status = 'REQUESTED',
+            requested_at = CURRENT_TIMESTAMP(6),
+            started_at = NULL,
+            finished_at = NULL,
+            failure_message = NULL
+        WHERE id = #{simulationId}
+          AND status IN ('DRAFT', 'FAILED')
+    </update>
+
+    <update id="markExecutionRunning">
+        UPDATE simulations
+        SET status = 'RUNNING',
+            started_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{simulationId}
+          AND status = 'REQUESTED'
+    </update>
+
+    <update id="markExecutionCompleted">
+        UPDATE simulations
+        SET status = 'COMPLETED',
+            finished_at = CURRENT_TIMESTAMP(6),
+            failure_message = NULL
+        WHERE id = #{simulationId}
+          AND status = 'RUNNING'
+    </update>
+
+    <update id="markExecutionFailed">
+        UPDATE simulations
+        SET status = 'FAILED',
+            finished_at = CURRENT_TIMESTAMP(6),
+            failure_message = #{message}
+        WHERE id = #{simulationId}
+          AND status IN ('REQUESTED', 'RUNNING')
+    </update>
+
+    <update id="markInterruptedExecutionsFailed">
+        UPDATE simulations
+        SET status = 'FAILED',
+            finished_at = CURRENT_TIMESTAMP(6),
+            failure_message = #{message}
+        WHERE status IN ('REQUESTED', 'RUNNING')
+    </update>
+
+    <insert id="insertSimulationResult" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO simulation_results
+            (simulation_id, engine_version, termination_reason, frame_interval_seconds)
+        VALUES
+            (#{simulationId}, #{engineVersion}, #{terminationReason}, #{frameIntervalSeconds})
+    </insert>
+
+    <insert id="insertSimulationMetrics">
+        INSERT INTO simulation_metrics
+            (simulation_result_id, unit, metric_type, metric_value)
+        VALUES
+        <foreach collection="list" item="metric" separator=",">
+            (#{metric.simulationResultId}, #{metric.unit}, #{metric.metricType}, #{metric.metricValue})
+        </foreach>
+    </insert>
+
+    <insert id="insertTimeline">
+        INSERT INTO timelines (simulation_result_id, chunk_sequence, frame_data)
+        VALUES (#{simulationResultId}, #{chunkSequence}, CAST(#{frameData} AS JSON))
+    </insert>
 
 </mapper>

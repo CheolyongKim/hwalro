@@ -8,6 +8,7 @@ import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
+import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -89,6 +90,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(SimulationConflictException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public Map<String, String> handleSimulationConflict(SimulationConflictException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(SimulationEngineUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public Map<String, String> handleSimulationEngineUnavailable(SimulationEngineUnavailableException exception) {
         return Map.of("message", exception.getMessage());
     }
 

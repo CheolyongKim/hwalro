@@ -58,6 +58,7 @@ public final class SimulationDtos {
             LocalDateTime createdAt,
             Integer randomSeed,
             String modelProfile,
+            String routingProfile,
             Integer totalPeople,
             BigDecimal walkingSpeed,
             BigDecimal reactionTime,
@@ -65,4 +66,28 @@ public final class SimulationDtos {
             List<HazardZoneDto> hazardZones,
             List<Long> selectedExitIds,
             DrawingGeometryDto drawing) {}
+
+    public record SimulationMetricResponse(String metricType, String unit, double metricValue) {}
+
+    public record SimulationResultResponse(
+            Long id,
+            String engineVersion,
+            String terminationReason,
+            BigDecimal simulationDurationSeconds,
+            BigDecimal frameIntervalSeconds,
+            Integer timelineChunkCount,
+            List<SimulationMetricResponse> metrics) {}
+
+    public record SimulationExecutionResponse(
+            Long simulationId,
+            String status,
+            LocalDateTime requestedAt,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            String failureMessage,
+            SimulationResultResponse result) {}
+
+    public record TimelineFrameResponse(BigDecimal timeSeconds, List<List<BigDecimal>> agents) {}
+
+    public record TimelineChunkResponse(Integer sequence, List<TimelineFrameResponse> frames) {}
 }

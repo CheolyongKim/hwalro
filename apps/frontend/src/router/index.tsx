@@ -19,6 +19,7 @@ import DrawingListPage from '../features/drawings/pages/DrawingListPage';
 import CreateDrawingPage from '../features/drawings/pages/CreateDrawingPage';
 import LayoutPage from '../features/layout/pages/LayoutPage';
 import SimulationSetupPage from '../features/simulations/pages/SimulationSetupPage';
+import SimulationResultPage from '../features/simulations/pages/SimulationResultPage';
 
 function DrawingEditRedirect() {
   const { drawingId } = useParams();
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
           },
           { path: 'layout/:drawingId', element: <LayoutPage /> },
           { path: 'simulations/:simulationId/setup', element: <SimulationSetupPage /> },
+          { path: 'simulations/:simulationId/result', element: <SimulationResultPage /> },
         ],
       },
       { path: 'login', element: <LoginPage /> },

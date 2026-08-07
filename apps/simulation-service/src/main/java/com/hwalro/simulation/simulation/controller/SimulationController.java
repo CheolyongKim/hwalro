@@ -5,8 +5,11 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationExecutionResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineChunkResponse;
+import com.hwalro.simulation.simulation.service.SimulationExecutionService;
 import com.hwalro.simulation.simulation.service.SimulationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,9 +32,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
 public class SimulationController {
     private final SimulationService simulationService;
+    private final SimulationExecutionService simulationExecutionService;
 
-    public SimulationController(SimulationService simulationService) {
+    public SimulationController(
+            SimulationService simulationService, SimulationExecutionService simulationExecutionService) {
         this.simulationService = simulationService;
+        this.simulationExecutionService = simulationExecutionService;
     }
 
     @GetMapping
@@ -65,5 +71,29 @@ public class SimulationController {
             @RequestBody SetupUpdateRequest request,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationService.updateSetup(id, request, user);
+    }
+
+    @PostMapping("/{id}/execute")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(summary = "시뮬레이션 실행 요청")
+    public SimulationExecutionResponse execute(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationExecutionService.execute(id, user);
+    }
+
+    @GetMapping("/{id}/execution")
+    @Operation(summary = "시뮬레이션 실행 상태 및 결과 조회")
+    public SimulationExecutionResponse getExecution(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationExecutionService.getExecution(id, user);
+    }
+
+    @GetMapping("/{id}/timeline/{chunkSequence}")
+    @Operation(summary = "시뮬레이션 타임라인 청크 조회")
+    public TimelineChunkResponse getTimeline(
+            @PathVariable Long id,
+            @PathVariable int chunkSequence,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationExecutionService.getTimeline(id, chunkSequence, user);
     }
 }

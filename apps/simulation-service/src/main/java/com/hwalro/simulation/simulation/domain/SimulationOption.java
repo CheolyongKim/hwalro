@@ -7,6 +7,7 @@ public class SimulationOption {
     private Long simulationId;
     private Integer randomSeed;
     private String modelProfile;
+    private String routingProfile;
     private Integer totalPeople;
     private BigDecimal walkingSpeed;
     private BigDecimal reactionTime;
@@ -41,6 +42,14 @@ public class SimulationOption {
 
     public void setModelProfile(String modelProfile) {
         this.modelProfile = modelProfile;
+    }
+
+    public String getRoutingProfile() {
+        return routingProfile;
+    }
+
+    public void setRoutingProfile(String routingProfile) {
+        this.routingProfile = routingProfile;
     }
 
     public Integer getTotalPeople() {

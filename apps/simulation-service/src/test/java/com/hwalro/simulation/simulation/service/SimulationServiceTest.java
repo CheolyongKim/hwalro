@@ -77,6 +77,7 @@ class SimulationServiceTest {
         ArgumentCaptor<SimulationOption> optionCaptor = ArgumentCaptor.forClass(SimulationOption.class);
         verify(simulationMapper).insertSimulationOption(optionCaptor.capture());
         assertThat(optionCaptor.getValue().getModelProfile()).isEqualTo("SFM_DEFAULT_V1");
+        assertThat(optionCaptor.getValue().getRoutingProfile()).isEqualTo("HAZARD_RADIAL_EXP_V2");
         assertThat(optionCaptor.getValue().getTotalPeople()).isEqualTo(2);
     }
 
@@ -164,6 +165,7 @@ class SimulationServiceTest {
         option.setSimulationId(21L);
         option.setRandomSeed(1);
         option.setModelProfile("SFM_DEFAULT_V1");
+        option.setRoutingProfile("HAZARD_RADIAL_EXP_V2");
         option.setTotalPeople(2);
         option.setWalkingSpeed(BigDecimal.valueOf(1.25));
         option.setReactionTime(BigDecimal.valueOf(0.5));

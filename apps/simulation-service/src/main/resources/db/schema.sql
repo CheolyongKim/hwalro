@@ -169,15 +169,18 @@ CREATE TABLE IF NOT EXISTS simulations (
     requested_at DATETIME(6) NULL,
     started_at DATETIME(6) NULL,
     finished_at DATETIME(6) NULL,
+    failure_message VARCHAR(1000) NULL,
     CONSTRAINT pk_simulations PRIMARY KEY (id),
     CONSTRAINT uk_simulations_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT uk_simulations_id_parent UNIQUE (id, parent_simulation_id),
+    CONSTRAINT ck_simulations_status CHECK (status IN ('DRAFT', 'REQUESTED', 'RUNNING', 'COMPLETED', 'FAILED')),
     CONSTRAINT fk_simulations_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
         ON DELETE RESTRICT,
     CONSTRAINT fk_simulations_parent_simulation
-        FOREIGN KEY (parent_simulation_id) REFERENCES simulations (id)
+        FOREIGN KEY (parent_simulation_id, layout_version_id)
+        REFERENCES simulations (id, layout_version_id)
         ON UPDATE CASCADE
         ON DELETE RESTRICT,
     INDEX idx_simulations_created_by (created_by)
@@ -190,6 +193,7 @@ CREATE TABLE IF NOT EXISTS simulation_options (
     simulation_id BIGINT UNSIGNED NOT NULL,
     random_seed INT NOT NULL,
     model_profile VARCHAR(50) NOT NULL DEFAULT 'SFM_DEFAULT_V1',
+    routing_profile VARCHAR(50) NOT NULL DEFAULT 'HAZARD_RADIAL_EXP_V2',
     total_people INT UNSIGNED NOT NULL,
     walking_speed DECIMAL(8, 4) NOT NULL,
     reaction_time DECIMAL(8, 4) NOT NULL,
@@ -259,6 +263,8 @@ CREATE TABLE IF NOT EXISTS simulation_results (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     simulation_id BIGINT UNSIGNED NOT NULL,
     engine_version VARCHAR(100) NOT NULL,
+    termination_reason VARCHAR(30) NOT NULL,
+    frame_interval_seconds DECIMAL(8, 3) NOT NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_simulation_results PRIMARY KEY (id),
     CONSTRAINT uk_simulation_results_simulation UNIQUE (simulation_id),

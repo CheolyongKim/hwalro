@@ -3021,36 +3021,7 @@
       "endY": 40.22
     }
   ],
-  "outsideWalls": [
-    {
-      "name": "임시 외곽선 상단",
-      "startX": 0,
-      "startY": 0,
-      "endX": 170,
-      "endY": 0
-    },
-    {
-      "name": "임시 외곽선 우측",
-      "startX": 170,
-      "startY": 0,
-      "endX": 170,
-      "endY": 100
-    },
-    {
-      "name": "임시 외곽선 하단",
-      "startX": 170,
-      "startY": 100,
-      "endX": 0,
-      "endY": 100
-    },
-    {
-      "name": "임시 외곽선 좌측",
-      "startX": 0,
-      "startY": 100,
-      "endX": 0,
-      "endY": 0
-    }
-  ],
+  "outsideWalls": [],
   "exits": [
     {
       "name": "비상구 1",
