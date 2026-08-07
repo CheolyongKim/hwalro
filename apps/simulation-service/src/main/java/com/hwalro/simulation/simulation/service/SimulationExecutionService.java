@@ -1,16 +1,21 @@
 package com.hwalro.simulation.simulation.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.simulation.domain.Simulation;
 import com.hwalro.simulation.simulation.domain.SimulationMetric;
 import com.hwalro.simulation.simulation.domain.SimulationResult;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitEventResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.HeatmapChunkResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationExecutionResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationMetricResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationResultResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineAgentResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineChunkResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineFrameResponse;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineResult;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRun;
@@ -22,6 +27,7 @@ import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
@@ -42,6 +48,8 @@ public class SimulationExecutionService {
     private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 1000;
     private static final double MAX_SIMULATION_DURATION_SECONDS = 600.0;
+    private static final int LEGACY_TIMELINE_FRAMES_PER_CHUNK = 10;
+    private static final int TIMELINE_FRAMES_PER_CHUNK = 20;
 
     private final SimulationMapper simulationMapper;
     private final SimulationService simulationService;
@@ -127,6 +135,12 @@ public class SimulationExecutionService {
                     duration,
                     result.getFrameIntervalSeconds(),
                     result.getTimelineChunkCount(),
+                    result.getFrameIntervalSeconds()
+                            .multiply(BigDecimal.valueOf(
+                                    result.getTimelineSchemaVersion() != null && result.getTimelineSchemaVersion() >= 1
+                                            ? TIMELINE_FRAMES_PER_CHUNK
+                                            : LEGACY_TIMELINE_FRAMES_PER_CHUNK)),
+                    result.getHeatmapChunkCount(),
                     metrics.stream()
                             .map(metric -> new SimulationMetricResponse(
                                     metric.getMetricType(), metric.getUnit(), metric.getMetricValue()))
@@ -155,9 +169,32 @@ public class SimulationExecutionService {
             throw new SimulationNotFoundException("타임라인 청크를 찾을 수 없습니다: " + chunkSequence);
         }
         try {
-            return objectMapper.readValue(json, TimelineChunkResponse.class);
+            JsonNode root = objectMapper.readTree(json);
+            if (root.path("schemaVersion").asInt(0) >= 1) {
+                return objectMapper.treeToValue(root, TimelineChunkResponse.class);
+            }
+            return normalizeLegacyTimeline(root, chunkSequence, simulationId);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("저장된 타임라인을 읽을 수 없습니다.", exception);
+        }
+    }
+
+    public HeatmapChunkResponse getHeatmap(Long simulationId, int chunkSequence, JwtUser user) {
+        if (chunkSequence < 0) {
+            throw new IllegalArgumentException("chunkSequence는 0 이상이어야 합니다.");
+        }
+        Simulation simulation = simulationService.getAccessibleSimulation(simulationId, user);
+        if (!STATUS_COMPLETED.equals(simulation.getStatus())) {
+            throw new SimulationConflictException("완료된 시뮬레이션의 히트맵만 조회할 수 있습니다.");
+        }
+        String json = simulationMapper.findHeatmapJson(simulationId, chunkSequence);
+        if (json == null) {
+            throw new SimulationNotFoundException("히트맵 청크를 찾을 수 없습니다: " + chunkSequence);
+        }
+        try {
+            return objectMapper.readValue(json, HeatmapChunkResponse.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("저장된 히트맵을 읽을 수 없습니다.", exception);
         }
     }
 
@@ -193,6 +230,10 @@ public class SimulationExecutionService {
         if (output.timelineChunkCount() != run.timelineChunks().size()) {
             throw new IllegalStateException("타임라인 청크 수가 결과 요약과 일치하지 않습니다.");
         }
+        if (output.heatmapChunkCount() != run.heatmapChunks().size()
+                || output.heatmapChunkCount() != output.timelineChunkCount()) {
+            throw new IllegalStateException("히트맵 청크 수가 타임라인과 일치하지 않습니다.");
+        }
 
         SimulationResult result = new SimulationResult();
         result.setSimulationId(simulationId);
@@ -217,9 +258,13 @@ public class SimulationExecutionService {
         }
         metrics.add(metric(result.getId(), "EVACUATED_PEOPLE", "people", output.evacuatedPeople()));
         metrics.add(metric(result.getId(), "REMAINING_PEOPLE", "people", output.remainingPeople()));
+        metrics.add(metric(result.getId(), "MAX_DENSITY", "PERSON_PER_M2", output.maxDensity()));
         simulationMapper.insertSimulationMetrics(metrics);
         for (var chunk : run.timelineChunks()) {
             simulationMapper.insertTimeline(result.getId(), chunk.sequence(), chunk.frameData());
+        }
+        for (var chunk : run.heatmapChunks()) {
+            simulationMapper.insertHeatmap(result.getId(), chunk.sequence(), chunk.densityData());
         }
         if (simulationMapper.markExecutionCompleted(simulationId) != 1) {
             throw new IllegalStateException("시뮬레이션 완료 상태를 저장하지 못했습니다.");
@@ -260,6 +305,10 @@ public class SimulationExecutionService {
         if (output.timelineChunkCount() == null || output.timelineChunkCount() < 1) {
             throw new IllegalStateException("타임라인 청크가 누락되었습니다.");
         }
+        if (output.heatmapChunkCount() == null || output.heatmapChunkCount() < 1) {
+            throw new IllegalStateException("히트맵 청크가 누락되었습니다.");
+        }
+        requireFiniteRange(output.maxDensity(), 0, setup.agentPositions().size(), "최대 밀도");
         if (output.averageEvacuationTimeSeconds() != null) {
             requireFiniteRange(output.averageEvacuationTimeSeconds(), 0, output.simulationDurationSeconds(), "평균 대피시간");
         } else if (output.evacuatedPeople() > 0) {
@@ -301,5 +350,54 @@ public class SimulationExecutionService {
         if (setup.drawing().outsideBoundary().size() < 3) {
             throw new InvalidSimulationGeometryException("유효한 외곽 영역이 필요합니다.");
         }
+    }
+
+    private TimelineChunkResponse normalizeLegacyTimeline(JsonNode root, int chunkSequence, Long simulationId) {
+        JsonNode storedFrames = root.path("frames");
+        if (!storedFrames.isArray() || storedFrames.isEmpty()) {
+            throw new IllegalStateException("저장된 타임라인 프레임 형식이 올바르지 않습니다.");
+        }
+        var option = simulationMapper.findSimulationOption(simulationId);
+        SimulationResult result = simulationMapper.findSimulationResult(simulationId);
+        if (option == null || result == null || result.getFrameIntervalSeconds() == null) {
+            throw new IllegalStateException("레거시 타임라인 메타데이터가 없습니다.");
+        }
+        int firstFrame = chunkSequence * LEGACY_TIMELINE_FRAMES_PER_CHUNK;
+        List<TimelineFrameResponse> frames = new ArrayList<>();
+        int localIndex = 0;
+        for (JsonNode storedFrame : storedFrames) {
+            List<TimelineAgentResponse> agents = new ArrayList<>();
+            JsonNode storedAgents = storedFrame.path("agents");
+            if (!storedAgents.isArray()) {
+                throw new IllegalStateException("저장된 레거시 에이전트 형식이 올바르지 않습니다.");
+            }
+            for (JsonNode storedAgent : storedAgents) {
+                if (!storedAgent.isArray() || storedAgent.size() != 3) {
+                    throw new IllegalStateException("저장된 레거시 에이전트 좌표가 올바르지 않습니다.");
+                }
+                agents.add(new TimelineAgentResponse(
+                        storedAgent.get(0).longValue() + 1,
+                        storedAgent.get(1).decimalValue(),
+                        storedAgent.get(2).decimalValue()));
+            }
+            int active = agents.size();
+            frames.add(new TimelineFrameResponse(
+                    firstFrame + localIndex,
+                    storedFrame.path("timeSeconds").decimalValue(),
+                    active,
+                    option.getTotalPeople() - active,
+                    List.copyOf(agents)));
+            localIndex++;
+        }
+        return new TimelineChunkResponse(
+                1,
+                "FLOOR_PLAN",
+                "METER",
+                BigDecimal.valueOf(1.0 / result.getFrameIntervalSeconds().doubleValue()),
+                chunkSequence,
+                firstFrame,
+                firstFrame + frames.size() - 1,
+                List.copyOf(frames),
+                Collections.<ExitEventResponse>emptyList());
     }
 }

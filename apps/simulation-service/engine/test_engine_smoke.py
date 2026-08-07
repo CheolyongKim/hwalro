@@ -50,12 +50,17 @@ class JuPedSimSmokeTest(unittest.TestCase):
 
             result = run(input_path, output_path)
 
-            self.assertEqual(result["engineVersion"], "1.4.2+hwalro.1")
+            self.assertEqual(result["engineVersion"], "1.4.2+hwalro.2")
             self.assertEqual(result["terminationReason"], "ALL_EVACUATED")
             self.assertEqual(result["evacuatedPeople"], 1)
             self.assertEqual(result["remainingPeople"], 0)
             self.assertIsNotNone(result["totalEvacuationTimeSeconds"])
             self.assertTrue((output_path / "result.json").is_file())
+            self.assertEqual(result["heatmapChunkCount"], result["timelineChunkCount"])
+            heatmap = json.loads(
+                (output_path / "heatmap" / "000000.json").read_text("utf-8")
+            )
+            self.assertEqual(heatmap["densityMethod"], "GRID_COUNT")
             timeline = json.loads(
                 (output_path / "timeline" / f"{result['timelineChunkCount'] - 1:06d}.json").read_text(
                     "utf-8"
@@ -128,11 +133,12 @@ class JuPedSimSmokeTest(unittest.TestCase):
             for chunk_path in sorted((output_path / "timeline").glob("*.json")):
                 chunk = json.loads(chunk_path.read_text("utf-8"))
                 for frame in chunk["frames"]:
-                    for index, x, y in frame["agents"]:
-                        point = (x, y)
-                        if index in previous:
-                            self.assertFalse(LineString((previous[index], point)).crosses(wall))
-                        previous[index] = point
+                    for agent in frame["agents"]:
+                        agent_id = agent["agentId"]
+                        point = (agent["x"], agent["y"])
+                        if agent_id in previous:
+                            self.assertFalse(LineString((previous[agent_id], point)).crosses(wall))
+                        previous[agent_id] = point
 
     def test_local_wheel_can_restore_agent_position_and_velocity(self):
         import jupedsim as jps
@@ -201,7 +207,10 @@ class JuPedSimSmokeTest(unittest.TestCase):
             self.assertEqual(result["terminationReason"], "MAX_DURATION")
             self.assertEqual(result["evacuatedPeople"], 1)
             self.assertEqual(result["remainingPeople"], 1)
-            self.assertEqual(last_chunk["frames"][-1]["agents"], [[1, 5.0, 2.0]])
+            self.assertEqual(
+                last_chunk["frames"][-1]["agents"],
+                [{"agentId": 2, "x": 5.0, "y": 2.0}],
+            )
 
 
 if __name__ == "__main__":

@@ -80,6 +80,8 @@ export interface SimulationResultSummary {
   simulationDurationSeconds: number;
   frameIntervalSeconds: number;
   timelineChunkCount: number;
+  timelineChunkDurationSeconds: number;
+  heatmapChunkCount: number;
   metrics: SimulationMetric[];
 }
 
@@ -93,16 +95,61 @@ export interface SimulationExecution {
   result: SimulationResultSummary | null;
 }
 
-export type TimelineAgent = [agentIndex: number, x: number, y: number];
+export interface TimelineAgent {
+  agentId: number;
+  x: number;
+  y: number;
+}
 
 export interface SimulationTimelineFrame {
+  frameIndex: number;
   timeSeconds: number;
+  activeAgentCount: number;
+  evacuatedCount: number;
   agents: TimelineAgent[];
 }
 
 export interface SimulationTimelineChunk {
-  sequence: number;
+  schemaVersion: number;
+  coordinateSystem: 'FLOOR_PLAN';
+  coordinateUnit: 'METER';
+  frameRate: number;
+  chunkSequence: number;
+  startFrame: number;
+  endFrame: number;
   frames: SimulationTimelineFrame[];
+  exitEvents: Array<{
+    frameIndex: number;
+    timeSeconds: number;
+    agentId: number;
+    exitId: number;
+  }>;
+}
+
+export interface SimulationHeatmapChunk {
+  schemaVersion: number;
+  analysisVersion: 'GRID_COUNT_V1';
+  coordinateSystem: 'FLOOR_PLAN';
+  coordinateUnit: 'METER';
+  densityMethod: 'GRID_COUNT';
+  densityUnit: 'PERSON_PER_M2';
+  frameRate: number;
+  chunkSequence: number;
+  startFrame: number;
+  endFrame: number;
+  grid: {
+    originX: number;
+    originY: number;
+    cellSize: number;
+    rows: number;
+    columns: number;
+    cellOrder: 'ROW_COLUMN_VALUE';
+  };
+  frames: Array<{
+    frameIndex: number;
+    timeSeconds: number;
+    cells: Array<[row: number, column: number, density: number]>;
+  }>;
 }
 
 export interface SimulationSummary {
@@ -110,6 +157,30 @@ export interface SimulationSummary {
   status: string;
   createdAt: string;
   totalPeople: number;
+}
+
+export interface SimulationOverview {
+  id: number;
+  layoutVersionId: number;
+  layoutId: number;
+  layoutTitle: string;
+  layoutVersionNumber: number;
+  createdBy: number;
+  status: SimulationExecutionStatus;
+  createdAt: string;
+  requestedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  totalPeople: number;
+  terminationReason: SimulationTerminationReason | null;
+}
+
+export interface SimulationOverviewPage {
+  totalCount: number;
+  page: number;
+  size: number;
+  hasNext: boolean;
+  items: SimulationOverview[];
 }
 
 export interface CreateSimulationDraftRequest {

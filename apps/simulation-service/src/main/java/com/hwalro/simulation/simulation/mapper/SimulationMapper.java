@@ -24,6 +24,11 @@ public interface SimulationMapper {
     List<Simulation> findSimulationsByLayoutVersion(
             @Param("layoutVersionId") Long layoutVersionId, @Param("createdBy") Long createdBy);
 
+    List<Simulation> findSimulationOverviewPage(
+            @Param("offset") int offset, @Param("size") int size, @Param("createdBy") Long createdBy);
+
+    long countSimulationOverview(@Param("createdBy") Long createdBy);
+
     SimulationOption findSimulationOption(@Param("simulationId") Long simulationId);
 
     String findInitialStateJson(@Param("simulationId") Long simulationId);
@@ -37,6 +42,8 @@ public interface SimulationMapper {
     List<SimulationMetric> findSimulationMetrics(@Param("simulationResultId") Long simulationResultId);
 
     String findTimelineJson(@Param("simulationId") Long simulationId, @Param("chunkSequence") int chunkSequence);
+
+    String findHeatmapJson(@Param("simulationId") Long simulationId, @Param("chunkSequence") int chunkSequence);
 
     int insertSimulation(Simulation simulation);
 
@@ -88,4 +95,9 @@ public interface SimulationMapper {
             @Param("simulationResultId") Long simulationResultId,
             @Param("chunkSequence") int chunkSequence,
             @Param("frameData") String frameData);
+
+    int insertHeatmap(
+            @Param("simulationResultId") Long simulationResultId,
+            @Param("chunkSequence") int chunkSequence,
+            @Param("densityData") String densityData);
 }

@@ -23,7 +23,10 @@ const navigationItems: NavigationItem[] = [
   {
     label: '시뮬레이션 검토',
     icon: 'review',
-    children: [{ label: '도면 목록', to: '/drawings' }, { label: '시뮬레이션 목록' }],
+    children: [
+      { label: '도면 목록', to: '/drawings' },
+      { label: '시뮬레이션 목록', to: '/simulations' },
+    ],
   },
   { label: '보고서 관리', icon: 'report', to: '/reports' },
   { label: '위험 예상 항목 관리', icon: 'risk', to: '/risk-management' },
@@ -117,7 +120,7 @@ function Sidebar() {
   );
 
   useEffect(() => {
-    if (pathname.startsWith('/drawings')) {
+    if (pathname.startsWith('/drawings') || pathname.startsWith('/simulations')) {
       setIsSimulationMenuOpen(true);
     }
   }, [pathname]);

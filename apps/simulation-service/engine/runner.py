@@ -13,14 +13,15 @@ from typing import Any, Callable, Sequence
 
 
 REQUIRED_JUPEDSIM_VERSION = "1.4.2"
-ENGINE_VERSION = "1.4.2+hwalro.1"
+ENGINE_VERSION = "1.4.2+hwalro.2"
 REQUIRED_MODEL_PROFILE = "SFM_DEFAULT_V2"
 REQUIRED_ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3"
 DT_SECONDS = 0.01
 AGENT_RADIUS_METERS = 0.3
 MAX_SIMULATION_TIME_SECONDS = 600.0
 MAX_AGENTS = 5000
-TIMELINE_FRAMES_PER_CHUNK = 10
+FRAMES_PER_CHUNK = 20
+HEATMAP_CELL_SIZE_METERS = 1.0
 WAYPOINT_REACHED_DISTANCE_METERS = max(AGENT_RADIUS_METERS, 0.25 * math.sqrt(2.0))
 
 
@@ -30,7 +31,8 @@ class RunnerError(RuntimeError):
 
 @dataclass
 class AgentRouteState:
-    index: int
+    stable_id: int
+    exit_id: Any
     waypoints: tuple[tuple[float, float], ...]
     terminal_point: tuple[float, float]
     exit_start: tuple[float, float]
@@ -46,19 +48,107 @@ class SimulationContext:
 
 
 class TimelineWriter:
-    def __init__(self, output_dir: Path) -> None:
+    def __init__(self, output_dir: Path, total_agents: int = 0, frame_interval: float = 1.0) -> None:
         self.directory = output_dir / "timeline"
         self.directory.mkdir(parents=True, exist_ok=True)
         self.sequence = 0
         self.frames: list[dict[str, Any]] = []
+        self.exit_events: dict[int, list[dict[str, Any]]] = {}
+        self.total_agents = total_agents
+        self.frame_interval = frame_interval
+        self.frame_rate = 1.0 / frame_interval
+        self.next_frame_index = 0
         self.last_time_seconds: float | None = None
         self.last_agent_count: int | None = None
 
-    def add(self, frame: dict[str, Any]) -> None:
+    def add(self, frame: dict[str, Any]) -> dict[str, Any]:
+        active = len(frame["agents"])
+        frame = {
+            "frameIndex": self.next_frame_index,
+            "timeSeconds": frame["timeSeconds"],
+            "activeAgentCount": active,
+            "evacuatedCount": self.total_agents - active,
+            "agents": frame["agents"],
+        }
+        self.next_frame_index += 1
         self.frames.append(frame)
         self.last_time_seconds = float(frame["timeSeconds"])
-        self.last_agent_count = len(frame["agents"])
-        if len(self.frames) == TIMELINE_FRAMES_PER_CHUNK:
+        self.last_agent_count = active
+        if len(self.frames) == FRAMES_PER_CHUNK:
+            self.flush()
+        return frame
+
+    def add_exit_event(self, time_seconds: float, stable_id: int, exit_id: Any) -> None:
+        frame_index = max(0, math.ceil(time_seconds / self.frame_interval - 1e-9))
+        sequence = frame_index // FRAMES_PER_CHUNK
+        self.exit_events.setdefault(sequence, []).append(
+            {
+                "frameIndex": frame_index,
+                "timeSeconds": _rounded(time_seconds),
+                "agentId": stable_id,
+                "exitId": exit_id,
+            }
+        )
+
+    def flush(self) -> None:
+        if not self.frames:
+            return
+        events = self.exit_events.pop(self.sequence, [])
+        events.sort(key=lambda item: (item["timeSeconds"], item["agentId"]))
+        _write_json(
+            self.directory / f"{self.sequence:06d}.json",
+            {
+                "schemaVersion": 1,
+                "coordinateSystem": "FLOOR_PLAN",
+                "coordinateUnit": "METER",
+                "frameRate": _rounded(self.frame_rate),
+                "chunkSequence": self.sequence,
+                "startFrame": self.frames[0]["frameIndex"],
+                "endFrame": self.frames[-1]["frameIndex"],
+                "frames": self.frames,
+                "exitEvents": events,
+            },
+        )
+        self.sequence += 1
+        self.frames = []
+
+
+class HeatmapWriter:
+    def __init__(self, output_dir: Path, bounds, frame_interval: float = 1.0) -> None:
+        self.directory = output_dir / "heatmap"
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.sequence = 0
+        self.frames: list[dict[str, Any]] = []
+        self.frame_rate = 1.0 / frame_interval
+        min_x, min_y, max_x, max_y = bounds
+        self.origin_x = math.floor(min_x / HEATMAP_CELL_SIZE_METERS) * HEATMAP_CELL_SIZE_METERS
+        self.origin_y = math.floor(min_y / HEATMAP_CELL_SIZE_METERS) * HEATMAP_CELL_SIZE_METERS
+        self.columns = max(1, math.ceil((max_x - self.origin_x) / HEATMAP_CELL_SIZE_METERS))
+        self.rows = max(1, math.ceil((max_y - self.origin_y) / HEATMAP_CELL_SIZE_METERS))
+        self.max_density = 0.0
+
+    def add(self, timeline_frame: dict[str, Any]) -> None:
+        counts: dict[tuple[int, int], int] = {}
+        for agent in timeline_frame["agents"]:
+            column = math.floor((float(agent["x"]) - self.origin_x) / HEATMAP_CELL_SIZE_METERS)
+            row = math.floor((float(agent["y"]) - self.origin_y) / HEATMAP_CELL_SIZE_METERS)
+            column = min(self.columns - 1, max(0, column))
+            row = min(self.rows - 1, max(0, row))
+            counts[(row, column)] = counts.get((row, column), 0) + 1
+        cells = [
+            [row, column, _rounded(count / (HEATMAP_CELL_SIZE_METERS**2))]
+            for (row, column), count in sorted(counts.items())
+        ]
+        if counts:
+            self.max_density = max(self.max_density, max(counts.values()) / (HEATMAP_CELL_SIZE_METERS**2))
+        self.frames.append(
+            {
+                "frameIndex": timeline_frame["frameIndex"],
+                "timeSeconds": timeline_frame["timeSeconds"],
+                "cells": cells,
+            }
+        )
+        if len(self.frames) == FRAMES_PER_CHUNK:
             self.flush()
 
     def flush(self) -> None:
@@ -66,7 +156,27 @@ class TimelineWriter:
             return
         _write_json(
             self.directory / f"{self.sequence:06d}.json",
-            {"sequence": self.sequence, "frames": self.frames},
+            {
+                "schemaVersion": 1,
+                "analysisVersion": "GRID_COUNT_V1",
+                "coordinateSystem": "FLOOR_PLAN",
+                "coordinateUnit": "METER",
+                "densityMethod": "GRID_COUNT",
+                "densityUnit": "PERSON_PER_M2",
+                "frameRate": _rounded(self.frame_rate),
+                "chunkSequence": self.sequence,
+                "startFrame": self.frames[0]["frameIndex"],
+                "endFrame": self.frames[-1]["frameIndex"],
+                "grid": {
+                    "originX": _rounded(self.origin_x),
+                    "originY": _rounded(self.origin_y),
+                    "cellSize": HEATMAP_CELL_SIZE_METERS,
+                    "rows": self.rows,
+                    "columns": self.columns,
+                    "cellOrder": "ROW_COLUMN_VALUE",
+                },
+                "frames": self.frames,
+            },
         )
         self.sequence += 1
         self.frames = []
@@ -191,7 +301,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         except ValueError as exc:
             if str(exc) != "no selected exit is reachable from this walkable component":
                 raise RunnerError(str(exc)) from exc
-            trapped.update(indexed_agents)
+            trapped.update((index + 1, position) for index, position in indexed_agents)
             continue
         routes = [router.plan(position) for _, position in indexed_agents]
         contexts.append(
@@ -208,14 +318,16 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         )
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    timeline = TimelineWriter(output_dir)
-    timeline.add(_snapshot(contexts, trapped, 0.0))
+    timeline = TimelineWriter(output_dir, len(agents), frame_interval)
+    heatmap = HeatmapWriter(output_dir, walkable.bounds, frame_interval)
+    heatmap.add(timeline.add(_snapshot(contexts, trapped, 0.0)))
     evacuation_times: list[float] = []
     maximum_iterations = int(math.floor(max_time / DT_SECONDS + 1e-9))
     for context in contexts:
         for agent_id in _update_targets(context):
-            context.states.pop(agent_id)
+            state = context.states.pop(agent_id)
             evacuation_times.append(0.0)
+            timeline.add_exit_event(0.0, state.stable_id, state.exit_id)
 
     iteration = 0
     while (trapped or any(context.states for context in contexts)) and iteration < maximum_iterations:
@@ -231,10 +343,12 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 raise RunnerError(f"JuPedSim iteration {iteration} failed: {exc}") from exc
             _rollback_invalid_moves(context, previous)
             for agent_id in _update_targets(context, previous):
-                if context.states.pop(agent_id, None) is not None:
+                state = context.states.pop(agent_id, None)
+                if state is not None:
                     evacuation_times.append(elapsed)
+                    timeline.add_exit_event(elapsed, state.stable_id, state.exit_id)
         if iteration % frame_steps == 0:
-            timeline.add(_snapshot(contexts, trapped, elapsed))
+            heatmap.add(timeline.add(_snapshot(contexts, trapped, elapsed)))
 
     remaining = len(trapped) + sum(len(context.states) for context in contexts)
     evacuated = len(agents) - remaining
@@ -245,8 +359,9 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         or not math.isclose(timeline.last_time_seconds, simulation_duration, abs_tol=1e-9)
         or timeline.last_agent_count != remaining
     ):
-        timeline.add(_snapshot(contexts, trapped, simulation_duration))
+        heatmap.add(timeline.add(_snapshot(contexts, trapped, simulation_duration)))
     timeline.flush()
+    heatmap.flush()
     result = {
         "engineVersion": engine_version,
         "terminationReason": termination_reason,
@@ -261,6 +376,8 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         ),
         "frameIntervalSeconds": _rounded(frame_interval),
         "timelineChunkCount": timeline.sequence,
+        "heatmapChunkCount": heatmap.sequence,
+        "maxDensity": _rounded(heatmap.max_density),
     }
     _write_json(output_dir / "result.json", result)
     return result
@@ -302,7 +419,8 @@ def _create_context(
         except Exception as exc:
             raise RunnerError(f"could not add agent {index}: {exc}") from exc
         states[agent_id] = AgentRouteState(
-            index=index,
+            stable_id=index + 1,
+            exit_id=route.exit_id,
             waypoints=route.waypoints,
             terminal_point=route.terminal_point,
             exit_start=route.exit_start,
@@ -316,19 +434,22 @@ def _capture_states(context: SimulationContext):
     captured = {}
     for agent_id in context.states:
         agent = context.simulation.agent(agent_id)
-        captured[agent_id] = (
-            (float(agent.position[0]), float(agent.position[1])),
-            (float(agent.model.velocity[0]), float(agent.model.velocity[1])),
-        )
+        captured[agent_id] = (float(agent.position[0]), float(agent.position[1]))
     return captured
 
 
 def _rollback_invalid_moves(context: SimulationContext, previous) -> None:
-    for agent_id, (position, _velocity) in previous.items():
-        agent = context.simulation.agent(agent_id)
-        current = (float(agent.position[0]), float(agent.position[1]))
-        if context.router.contains(current) and context.router.can_connect(position, current):
+    agent_ids = list(previous)
+    current = []
+    for agent_id in agent_ids:
+        position = context.simulation.agent(agent_id).position
+        current.append((float(position[0]), float(position[1])))
+    valid = context.router.valid_moves([previous[agent_id] for agent_id in agent_ids], current)
+    for agent_id, is_valid in zip(agent_ids, valid, strict=True):
+        if is_valid:
             continue
+        agent = context.simulation.agent(agent_id)
+        position = previous[agent_id]
         agent.position = position
         agent.model.velocity = (0.0, 0.0)
 
@@ -353,7 +474,7 @@ def _update_targets(context: SimulationContext, previous=None) -> list[int]:
                 or (
                     previous is not None
                     and context.router.crossed_exit(
-                        previous[agent_id][0], position, state.exit_start, state.exit_end
+                        previous[agent_id], position, state.exit_start, state.exit_end
                     )
                 )
             )
@@ -389,12 +510,21 @@ def _snapshot(
     trapped: dict[int, tuple[float, float]],
     elapsed: float,
 ) -> dict[str, Any]:
-    agents = [[index, _rounded(point[0]), _rounded(point[1])] for index, point in trapped.items()]
+    agents = [
+        {"agentId": stable_id, "x": _rounded(point[0]), "y": _rounded(point[1])}
+        for stable_id, point in trapped.items()
+    ]
     for context in contexts:
         for agent_id, state in context.states.items():
             agent = context.simulation.agent(agent_id)
-            agents.append([state.index, _rounded(agent.position[0]), _rounded(agent.position[1])])
-    agents.sort(key=lambda value: value[0])
+            agents.append(
+                {
+                    "agentId": state.stable_id,
+                    "x": _rounded(agent.position[0]),
+                    "y": _rounded(agent.position[1]),
+                }
+            )
+    agents.sort(key=lambda value: value["agentId"])
     return {"timeSeconds": _rounded(elapsed), "agents": agents}
 
 

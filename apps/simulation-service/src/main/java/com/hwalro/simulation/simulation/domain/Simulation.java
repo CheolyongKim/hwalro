@@ -14,6 +14,10 @@ public class Simulation {
     private LocalDateTime finishedAt;
     private String failureMessage;
     private Integer totalPeople;
+    private Long layoutId;
+    private String layoutTitle;
+    private Integer layoutVersionNumber;
+    private String terminationReason;
 
     public Long getId() {
         return id;
@@ -101,5 +105,37 @@ public class Simulation {
 
     public void setTotalPeople(Integer totalPeople) {
         this.totalPeople = totalPeople;
+    }
+
+    public Long getLayoutId() {
+        return layoutId;
+    }
+
+    public void setLayoutId(Long layoutId) {
+        this.layoutId = layoutId;
+    }
+
+    public String getLayoutTitle() {
+        return layoutTitle;
+    }
+
+    public void setLayoutTitle(String layoutTitle) {
+        this.layoutTitle = layoutTitle;
+    }
+
+    public Integer getLayoutVersionNumber() {
+        return layoutVersionNumber;
+    }
+
+    public void setLayoutVersionNumber(Integer layoutVersionNumber) {
+        this.layoutVersionNumber = layoutVersionNumber;
+    }
+
+    public String getTerminationReason() {
+        return terminationReason;
+    }
+
+    public void setTerminationReason(String terminationReason) {
+        this.terminationReason = terminationReason;
     }
 }

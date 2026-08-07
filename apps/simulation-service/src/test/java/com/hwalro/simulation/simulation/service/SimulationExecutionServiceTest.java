@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.simulation.domain.Simulation;
+import com.hwalro.simulation.simulation.domain.SimulationOption;
 import com.hwalro.simulation.simulation.domain.SimulationResult;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
@@ -23,6 +24,7 @@ import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineResult;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRun;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.HeatmapChunk;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.TimelineChunk;
 import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
@@ -85,8 +87,9 @@ class SimulationExecutionServiceTest {
         when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
         when(engineRunner.run(eq(21L), any()))
                 .thenReturn(new EngineRun(
-                        new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1),
-                        List.of(new TimelineChunk(0, "{\"sequence\":0,\"frames\":[]}"))));
+                        new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0),
+                        List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                        List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}"))));
         when(simulationMapper.insertSimulationResult(any())).thenAnswer(invocation -> {
             SimulationResult result = invocation.getArgument(0);
             result.setId(31L);
@@ -99,7 +102,8 @@ class SimulationExecutionServiceTest {
 
         assertThat(response.status()).isEqualTo("REQUESTED");
         verify(simulationMapper).insertSimulationMetrics(any());
-        verify(simulationMapper).insertTimeline(31L, 0, "{\"sequence\":0,\"frames\":[]}");
+        verify(simulationMapper).insertTimeline(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
+        verify(simulationMapper).insertHeatmap(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
         verify(simulationMapper).markExecutionCompleted(21L);
     }
 
@@ -171,13 +175,42 @@ class SimulationExecutionServiceTest {
         when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(simulation("COMPLETED"));
         when(simulationMapper.findTimelineJson(21L, 0))
                 .thenReturn("{\"sequence\":0,\"frames\":[{\"timeSeconds\":0,\"agents\":[[0,1,2]]}]}");
+        SimulationOption option = new SimulationOption();
+        option.setTotalPeople(1);
+        when(simulationMapper.findSimulationOption(21L)).thenReturn(option);
+        SimulationResult result = new SimulationResult();
+        result.setFrameIntervalSeconds(BigDecimal.ONE);
+        when(simulationMapper.findSimulationResult(21L)).thenReturn(result);
 
         var chunk = service.getTimeline(21L, 0, user);
 
-        assertThat(chunk.sequence()).isZero();
+        assertThat(chunk.schemaVersion()).isEqualTo(1);
+        assertThat(chunk.chunkSequence()).isZero();
         assertThat(chunk.frames()).hasSize(1);
-        assertThat(chunk.frames().get(0).agents().get(0))
-                .containsExactly(BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.valueOf(2));
+        assertThat(chunk.frames().get(0).agents().get(0).agentId()).isEqualTo(1L);
+        assertThat(chunk.frames().get(0).agents().get(0).x()).isEqualByComparingTo(BigDecimal.ONE);
+    }
+
+    @Test
+    void readsSparseGridHeatmapChunk() {
+        when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(simulation("COMPLETED"));
+        when(simulationMapper.findHeatmapJson(21L, 0))
+                .thenReturn(
+                        """
+                        {"schemaVersion":1,"analysisVersion":"GRID_COUNT_V1",\
+                        "coordinateSystem":"FLOOR_PLAN","coordinateUnit":"METER",\
+                        "densityMethod":"GRID_COUNT","densityUnit":"PERSON_PER_M2",\
+                        "frameRate":1,"chunkSequence":0,"startFrame":0,"endFrame":0,\
+                        "grid":{"originX":0,"originY":0,"cellSize":1,"rows":10,"columns":10,\
+                        "cellOrder":"ROW_COLUMN_VALUE"},\
+                        "frames":[{"frameIndex":0,"timeSeconds":0,"cells":[[1,2,3.0]]}]}
+                        """);
+
+        var chunk = service.getHeatmap(21L, 0, user);
+
+        assertThat(chunk.densityMethod()).isEqualTo("GRID_COUNT");
+        assertThat(chunk.frames().get(0).cells().get(0))
+                .containsExactly(BigDecimal.ONE, BigDecimal.valueOf(2), BigDecimal.valueOf(3.0));
     }
 
     private static SimulationSetupResponse validSetup() {

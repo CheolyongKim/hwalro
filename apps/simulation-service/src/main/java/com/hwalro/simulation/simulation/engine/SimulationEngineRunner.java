@@ -117,8 +117,9 @@ public class SimulationEngineRunner {
 
             EngineResult result = objectMapper.readValue(
                     outputDirectory.resolve("result.json").toFile(), EngineResult.class);
-            List<TimelineChunk> chunks = readTimeline(outputDirectory, result.timelineChunkCount());
-            return new EngineRun(result, chunks);
+            List<TimelineChunk> timeline = readTimeline(outputDirectory, result.timelineChunkCount());
+            List<HeatmapChunk> heatmaps = readHeatmaps(outputDirectory, result.heatmapChunkCount());
+            return new EngineRun(result, timeline, heatmaps);
         } catch (EngineRunException exception) {
             throw exception;
         } catch (IOException exception) {
@@ -161,6 +162,19 @@ public class SimulationEngineRunner {
             Path path = outputDirectory.resolve("timeline").resolve(String.format("%06d.json", sequence));
             String json = Files.readString(path, StandardCharsets.UTF_8);
             chunks.add(new TimelineChunk(sequence, json));
+        }
+        return List.copyOf(chunks);
+    }
+
+    private List<HeatmapChunk> readHeatmaps(Path outputDirectory, int count) throws IOException {
+        if (count < 1) {
+            throw new IOException("엔진이 히트맵을 생성하지 않았습니다.");
+        }
+        java.util.ArrayList<HeatmapChunk> chunks = new java.util.ArrayList<>(count);
+        for (int sequence = 0; sequence < count; sequence++) {
+            Path path = outputDirectory.resolve("heatmap").resolve(String.format("%06d.json", sequence));
+            String json = Files.readString(path, StandardCharsets.UTF_8);
+            chunks.add(new HeatmapChunk(sequence, json));
         }
         return List.copyOf(chunks);
     }
@@ -248,9 +262,12 @@ public class SimulationEngineRunner {
         }
     }
 
-    public record EngineRun(EngineResult result, List<TimelineChunk> timelineChunks) {}
+    public record EngineRun(
+            EngineResult result, List<TimelineChunk> timelineChunks, List<HeatmapChunk> heatmapChunks) {}
 
     public record TimelineChunk(int sequence, String frameData) {}
+
+    public record HeatmapChunk(int sequence, String densityData) {}
 
     public record EngineResult(
             String engineVersion,
@@ -261,7 +278,9 @@ public class SimulationEngineRunner {
             Double totalEvacuationTimeSeconds,
             Double averageEvacuationTimeSeconds,
             Double frameIntervalSeconds,
-            Integer timelineChunkCount) {}
+            Integer timelineChunkCount,
+            Integer heatmapChunkCount,
+            Double maxDensity) {}
 
     public static class EngineRunException extends Exception {
         private final boolean timeout;

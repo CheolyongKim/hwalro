@@ -3,8 +3,20 @@ import { findTimelineFrames, interpolateTimeline } from './timeline';
 
 describe('simulation timeline', () => {
   const frames = [
-    { timeSeconds: 0, agents: [[7, 0, 0] as [number, number, number]] },
-    { timeSeconds: 1, agents: [[7, 2, 4] as [number, number, number]] },
+    {
+      frameIndex: 0,
+      timeSeconds: 0,
+      activeAgentCount: 1,
+      evacuatedCount: 0,
+      agents: [{ agentId: 7, x: 0, y: 0 }],
+    },
+    {
+      frameIndex: 1,
+      timeSeconds: 1,
+      activeAgentCount: 1,
+      evacuatedCount: 0,
+      agents: [{ agentId: 7, x: 2, y: 4 }],
+    },
   ];
 
   it('finds adjacent frames and interpolates agent positions', () => {
@@ -15,8 +27,18 @@ describe('simulation timeline', () => {
   });
 
   it('keeps an agent until the frame where it leaves the simulation', () => {
-    expect(interpolateTimeline(frames[0], { timeSeconds: 1, agents: [] }, 0.5)).toEqual([
-      { x: 0, y: 0 },
-    ]);
+    expect(
+      interpolateTimeline(
+        frames[0],
+        {
+          frameIndex: 1,
+          timeSeconds: 1,
+          activeAgentCount: 0,
+          evacuatedCount: 1,
+          agents: [],
+        },
+        0.5,
+      ),
+    ).toEqual([{ x: 0, y: 0 }]);
   });
 });

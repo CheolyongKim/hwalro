@@ -11,7 +11,6 @@ import type {
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
 import { findTimelineFrames, interpolateTimeline } from '../utils/timeline';
 
-const FRAMES_PER_CHUNK = 10;
 const NOOP = () => undefined;
 
 function formatSeconds(value: number | undefined): string {
@@ -103,10 +102,10 @@ function SimulationResultPage() {
 
   const result = execution?.result ?? null;
   const duration = result?.simulationDurationSeconds ?? 0;
-  const frameInterval = result?.frameIntervalSeconds ?? 1;
+  const chunkDuration = result?.timelineChunkDurationSeconds ?? 20;
   const chunkSequence = Math.min(
     Math.max(0, (result?.timelineChunkCount ?? 1) - 1),
-    Math.floor(currentTime / (frameInterval * FRAMES_PER_CHUNK)),
+    Math.floor(currentTime / Math.max(chunkDuration, 0.001)),
   );
 
   useEffect(() => {

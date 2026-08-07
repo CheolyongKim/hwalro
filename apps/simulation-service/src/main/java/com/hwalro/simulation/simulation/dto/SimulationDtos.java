@@ -50,6 +50,24 @@ public final class SimulationDtos {
             LocalDateTime createdAt,
             Integer totalPeople) {}
 
+    public record SimulationOverviewResponse(
+            Long id,
+            Long layoutVersionId,
+            Long layoutId,
+            String layoutTitle,
+            Integer layoutVersionNumber,
+            Long createdBy,
+            String status,
+            LocalDateTime createdAt,
+            LocalDateTime requestedAt,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            Integer totalPeople,
+            String terminationReason) {}
+
+    public record SimulationOverviewPageResponse(
+            int totalCount, int page, int size, boolean hasNext, List<SimulationOverviewResponse> items) {}
+
     public record SimulationSetupResponse(
             Long simulationId,
             Long layoutVersionId,
@@ -76,6 +94,8 @@ public final class SimulationDtos {
             BigDecimal simulationDurationSeconds,
             BigDecimal frameIntervalSeconds,
             Integer timelineChunkCount,
+            BigDecimal timelineChunkDurationSeconds,
+            Integer heatmapChunkCount,
             List<SimulationMetricResponse> metrics) {}
 
     public record SimulationExecutionResponse(
@@ -87,7 +107,49 @@ public final class SimulationDtos {
             String failureMessage,
             SimulationResultResponse result) {}
 
-    public record TimelineFrameResponse(BigDecimal timeSeconds, List<List<BigDecimal>> agents) {}
+    public record TimelineAgentResponse(Long agentId, BigDecimal x, BigDecimal y) {}
 
-    public record TimelineChunkResponse(Integer sequence, List<TimelineFrameResponse> frames) {}
+    public record TimelineFrameResponse(
+            Integer frameIndex,
+            BigDecimal timeSeconds,
+            Integer activeAgentCount,
+            Integer evacuatedCount,
+            List<TimelineAgentResponse> agents) {}
+
+    public record ExitEventResponse(Integer frameIndex, BigDecimal timeSeconds, Long agentId, Long exitId) {}
+
+    public record TimelineChunkResponse(
+            Integer schemaVersion,
+            String coordinateSystem,
+            String coordinateUnit,
+            BigDecimal frameRate,
+            Integer chunkSequence,
+            Integer startFrame,
+            Integer endFrame,
+            List<TimelineFrameResponse> frames,
+            List<ExitEventResponse> exitEvents) {}
+
+    public record HeatmapGridResponse(
+            BigDecimal originX,
+            BigDecimal originY,
+            BigDecimal cellSize,
+            Integer rows,
+            Integer columns,
+            String cellOrder) {}
+
+    public record HeatmapFrameResponse(Integer frameIndex, BigDecimal timeSeconds, List<List<BigDecimal>> cells) {}
+
+    public record HeatmapChunkResponse(
+            Integer schemaVersion,
+            String analysisVersion,
+            String coordinateSystem,
+            String coordinateUnit,
+            String densityMethod,
+            String densityUnit,
+            BigDecimal frameRate,
+            Integer chunkSequence,
+            Integer startFrame,
+            Integer endFrame,
+            HeatmapGridResponse grid,
+            List<HeatmapFrameResponse> frames) {}
 }

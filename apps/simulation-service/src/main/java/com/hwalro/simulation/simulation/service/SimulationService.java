@@ -23,6 +23,8 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.RectDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SegmentDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPageResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TextDto;
@@ -53,6 +55,8 @@ public class SimulationService {
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_OPERATOR = "OPERATOR";
     private static final String ROLE_REVIEWER = "SAFETY_REVIEWER";
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_PAGE = 100_000;
 
     private final SimulationMapper simulationMapper;
     private final DrawingMapper drawingMapper;
@@ -78,6 +82,33 @@ public class SimulationService {
                         simulation.getCreatedAt(),
                         simulation.getTotalPeople()))
                 .toList();
+    }
+
+    public SimulationOverviewPageResponse listOverview(int page, int size, JwtUser user) {
+        if (page < 1 || page > MAX_PAGE || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("page는 1 이상, size는 1~100이어야 합니다.");
+        }
+        Long createdBy = canSeeAll(user.roles()) ? null : user.userId();
+        long totalCount = simulationMapper.countSimulationOverview(createdBy);
+        List<SimulationOverviewResponse> items =
+                simulationMapper.findSimulationOverviewPage((page - 1) * size, size, createdBy).stream()
+                        .map(simulation -> new SimulationOverviewResponse(
+                                simulation.getId(),
+                                simulation.getLayoutVersionId(),
+                                simulation.getLayoutId(),
+                                simulation.getLayoutTitle(),
+                                simulation.getLayoutVersionNumber(),
+                                simulation.getCreatedBy(),
+                                simulation.getStatus(),
+                                simulation.getCreatedAt(),
+                                simulation.getRequestedAt(),
+                                simulation.getStartedAt(),
+                                simulation.getFinishedAt(),
+                                simulation.getTotalPeople(),
+                                simulation.getTerminationReason()))
+                        .toList();
+        return new SimulationOverviewPageResponse(
+                Math.toIntExact(totalCount), page, size, page * size < totalCount, items);
     }
 
     @Transactional

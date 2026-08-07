@@ -1,7 +1,7 @@
 import type { SimulationPoint, SimulationTimelineFrame, TimelineAgent } from '../types';
 
 function toPoint(agent: TimelineAgent): SimulationPoint {
-  return { x: agent[1], y: agent[2] };
+  return { x: agent.x, y: agent.y };
 }
 
 export function interpolateTimeline(
@@ -17,14 +17,14 @@ export function interpolateTimeline(
     1,
     Math.max(0, (timeSeconds - previous.timeSeconds) / (next.timeSeconds - previous.timeSeconds)),
   );
-  const nextById = new Map(next.agents.map((agent) => [agent[0], agent]));
+  const nextById = new Map(next.agents.map((agent) => [agent.agentId, agent]));
 
   return previous.agents.map((agent) => {
-    const target = nextById.get(agent[0]);
+    const target = nextById.get(agent.agentId);
     if (!target) return toPoint(agent);
     return {
-      x: agent[1] + (target[1] - agent[1]) * ratio,
-      y: agent[2] + (target[2] - agent[2]) * ratio,
+      x: agent.x + (target.x - agent.x) * ratio,
+      y: agent.y + (target.y - agent.y) * ratio,
     };
   });
 }

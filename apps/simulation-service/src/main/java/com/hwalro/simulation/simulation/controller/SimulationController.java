@@ -4,8 +4,10 @@ import com.hwalro.simulation.common.jwt.JwtAuthInterceptor;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.HeatmapChunkResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationExecutionResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPageResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineChunkResponse;
@@ -46,6 +48,15 @@ public class SimulationController {
             @RequestParam Long layoutVersionId,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationService.list(layoutVersionId, user);
+    }
+
+    @GetMapping("/overview")
+    @Operation(summary = "접근 가능한 전체 시뮬레이션 목록 조회")
+    public SimulationOverviewPageResponse overview(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.listOverview(page, size, user);
     }
 
     @PostMapping("/drafts")
@@ -95,5 +106,14 @@ public class SimulationController {
             @PathVariable int chunkSequence,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationExecutionService.getTimeline(id, chunkSequence, user);
+    }
+
+    @GetMapping("/{id}/heatmap/{chunkSequence}")
+    @Operation(summary = "시뮬레이션 히트맵 청크 조회")
+    public HeatmapChunkResponse getHeatmap(
+            @PathVariable Long id,
+            @PathVariable int chunkSequence,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationExecutionService.getHeatmap(id, chunkSequence, user);
     }
 }

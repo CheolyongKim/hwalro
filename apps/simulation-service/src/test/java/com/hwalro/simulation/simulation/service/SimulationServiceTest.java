@@ -120,6 +120,24 @@ class SimulationServiceTest {
         verifyNoInteractions(drawingMapper);
     }
 
+    @Test
+    void listsOnlyOperatorsOwnSimulationsWithPaging() {
+        Simulation item = simulation();
+        item.setLayoutId(3L);
+        item.setLayoutTitle("test");
+        item.setLayoutVersionNumber(1);
+        item.setTotalPeople(12);
+        when(simulationMapper.countSimulationOverview(7L)).thenReturn(1L);
+        when(simulationMapper.findSimulationOverviewPage(0, 20, 7L)).thenReturn(List.of(item));
+
+        var response = service.listOverview(1, 20, user);
+
+        assertThat(response.totalCount()).isEqualTo(1);
+        assertThat(response.hasNext()).isFalse();
+        assertThat(response.items().get(0).layoutTitle()).isEqualTo("test");
+        assertThat(response.items().get(0).totalPeople()).isEqualTo(12);
+    }
+
     private void stubDrawing() {
         when(drawingMapper.findWallsByVersionId(11L)).thenReturn(List.of());
         when(drawingMapper.findOutsideWallsByVersionId(11L))

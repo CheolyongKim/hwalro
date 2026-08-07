@@ -2,6 +2,8 @@ import { apiClient } from '../../../api/client';
 import type {
   CreateSimulationDraftRequest,
   SimulationExecution,
+  SimulationHeatmapChunk,
+  SimulationOverviewPage,
   SimulationSetup,
   SimulationSummary,
   SimulationTimelineChunk,
@@ -9,6 +11,11 @@ import type {
 } from '../types';
 
 export const simulationApi = {
+  listOverview: (page: number, size: number) =>
+    apiClient
+      .get<SimulationOverviewPage>('/api/simulations/overview', { params: { page, size } })
+      .then((response) => response.data),
+
   listByLayoutVersion: (layoutVersionId: number) =>
     apiClient
       .get<SimulationSummary[]>('/api/simulations', { params: { layoutVersionId } })
@@ -42,5 +49,10 @@ export const simulationApi = {
   getTimelineChunk: (simulationId: number, sequence: number) =>
     apiClient
       .get<SimulationTimelineChunk>(`/api/simulations/${simulationId}/timeline/${sequence}`)
+      .then((response) => response.data),
+
+  getHeatmapChunk: (simulationId: number, sequence: number) =>
+    apiClient
+      .get<SimulationHeatmapChunk>(`/api/simulations/${simulationId}/heatmap/${sequence}`)
       .then((response) => response.data),
 };

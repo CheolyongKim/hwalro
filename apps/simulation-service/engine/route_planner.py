@@ -80,6 +80,8 @@ def edge_cost(start: Point, end: Point, hazards: Iterable[Hazard]) -> float:
     """Integrate the radial cost over one short grid edge with Simpson's rule."""
     hazards = tuple(hazards)
     length = math.dist(start, end)
+    if not hazards:
+        return length
     midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
     return length / 6.0 * (
         hazard_multiplier(start, hazards)
@@ -258,6 +260,15 @@ class GridRouter:
         self.physical_walkable = physical_walkable if physical_walkable is not None else walkable
         self._prepared_physical_walkable = prep(self.physical_walkable)
         self.hazards = tuple(hazards)
+        self._edge_cost = (
+            (lambda start, end: edge_cost(start, end, self.hazards))
+            if self.hazards
+            else math.dist
+        )
+        self._move_costs = {
+            move: step * (math.sqrt(2.0) if move[0] and move[1] else 1.0)
+            for move in _MOVES
+        }
         self.exits = tuple(exits)
         self.step = step
         self.exit_clearance = exit_clearance
@@ -312,7 +323,7 @@ class GridRouter:
             node_point = self._point(node)
             if not self.can_connect(point, node_point):
                 continue
-            total = edge_cost(point, node_point, self.hazards) + float(self.distance[node])
+            total = self._edge_cost(point, node_point) + float(self.distance[node])
             candidate = (total, int(self.exit_label[node]), node)
             if best is None or candidate < best:
                 best = candidate
@@ -352,7 +363,7 @@ class GridRouter:
         for label, exit_ in enumerate(self.exits):
             for node, target, approach in self._exit_seeds(exit_):
                 seed_count += 1
-                seed_cost = edge_cost(self._point(node), target, self.hazards)
+                seed_cost = self._edge_cost(self._point(node), target)
                 current = (float(self.distance[node]), int(self.exit_label[node]))
                 if seed_cost + _EPSILON < current[0] or (
                     abs(seed_cost - current[0]) <= _EPSILON
@@ -386,10 +397,12 @@ class GridRouter:
                     vertical = next_row * self.width + column
                     if not self.valid[horizontal] or not self.valid[vertical]:
                         continue
-                neighbor_point, node_point = self._point(neighbor), self._point(node)
-                if not self._grid_edge_is_walkable(neighbor, node):
+                if not self._grid_edge_is_walkable(node, neighbor, dx, dy):
                     continue
-                next_cost = current_cost + edge_cost(neighbor_point, node_point, self.hazards)
+                step_cost = self._move_costs[(dx, dy)]
+                if self.hazards:
+                    step_cost = self._edge_cost(self._point(neighbor), self._point(node))
+                next_cost = current_cost + step_cost
                 old_cost = float(self.distance[neighbor])
                 old_label = int(self.exit_label[neighbor])
                 old_next = int(self.next_node[neighbor])
@@ -460,6 +473,20 @@ class GridRouter:
     def can_connect(self, start: Point, end: Point) -> bool:
         return self._prepared_walkable.covers(LineString((start, end)))
 
+    def valid_moves(self, starts: Sequence[Point], ends: Sequence[Point]) -> np.ndarray:
+        if len(starts) != len(ends):
+            raise ValueError("movement start and end counts must match")
+        if not starts:
+            return np.empty(0, dtype=bool)
+        start_values = np.asarray(starts, dtype=float)
+        end_values = np.asarray(ends, dtype=float)
+        coordinates = np.stack((start_values, end_values), axis=1)
+        end_points = points(end_values[:, 0], end_values[:, 1])
+        return np.asarray(
+            covers(self.walkable, end_points) & covers(self.walkable, linestrings(coordinates)),
+            dtype=bool,
+        )
+
     def can_reach_exit(self, start: Point, end: Point) -> bool:
         return self._physical_edge_is_walkable(start, end)
 
@@ -496,10 +523,10 @@ class GridRouter:
             result[(dx, dy)] = clear
         return result
 
-    def _grid_edge_is_walkable(self, start: int, end: int) -> bool:
-        start_row, start_column = divmod(start, self.width)
-        end_row, end_column = divmod(end, self.width)
-        direction = (end_column - start_column, end_row - start_row)
+    def _grid_edge_is_walkable(
+        self, start: int, end: int, dx: int, dy: int
+    ) -> bool:
+        direction = (dx, dy)
         if direction in self._grid_edges:
             return bool(self._grid_edges[direction][start])
         reverse = (-direction[0], -direction[1])

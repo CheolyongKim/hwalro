@@ -11,6 +11,8 @@ public class SimulationResult {
     private BigDecimal frameIntervalSeconds;
     private LocalDateTime createdAt;
     private Integer timelineChunkCount;
+    private Integer heatmapChunkCount;
+    private Integer timelineSchemaVersion;
 
     public Long getId() {
         return id;
@@ -66,5 +68,21 @@ public class SimulationResult {
 
     public void setTimelineChunkCount(Integer timelineChunkCount) {
         this.timelineChunkCount = timelineChunkCount;
+    }
+
+    public Integer getHeatmapChunkCount() {
+        return heatmapChunkCount;
+    }
+
+    public void setHeatmapChunkCount(Integer heatmapChunkCount) {
+        this.heatmapChunkCount = heatmapChunkCount;
+    }
+
+    public Integer getTimelineSchemaVersion() {
+        return timelineSchemaVersion;
+    }
+
+    public void setTimelineSchemaVersion(Integer timelineSchemaVersion) {
+        this.timelineSchemaVersion = timelineSchemaVersion;
     }
 }
