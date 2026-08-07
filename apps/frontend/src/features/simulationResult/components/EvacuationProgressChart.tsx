@@ -39,7 +39,9 @@ export function EvacuationProgressChart({
     >
       <div className="floating-title-row">
         <strong>시간별 대피 인원</strong>
-        <span>{current.toLocaleString()}명 · {Math.round((current / totalPeople) * 100)}%</span>
+        <span>
+          {current.toLocaleString()}명 · {Math.round((current / totalPeople) * 100)}%
+        </span>
       </div>
       <svg viewBox="0 0 280 92" role="img" aria-label={`현재 ${current}명 대피`}>
         <path d="M10 82H270 M10 49H270 M10 16H270" className="chart-grid" />

@@ -276,11 +276,7 @@ export function updatePixiSimulationScene(
 ) {
   const heatmapFrame = selectFramePair(result.heatmap.frames, currentTimeSeconds).previous;
   if (scene.lastHeatmapTime !== heatmapFrame.timeSeconds) {
-    scene.lastHeatmapTime = updateHeatmap(
-      scene.heatmapLayer,
-      result.heatmap,
-      currentTimeSeconds,
-    );
+    scene.lastHeatmapTime = updateHeatmap(scene.heatmapLayer, result.heatmap, currentTimeSeconds);
   }
   const pair = selectFramePair(result.agentFrames, currentTimeSeconds);
   interpolatePositions(

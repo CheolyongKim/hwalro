@@ -103,7 +103,15 @@ export function SimulationPlaybackStage(props: Props) {
       props.riskZones,
       draftZone,
     );
-  }, [draftZone, props.currentTimeSeconds, props.result, props.riskZones, props.selectedBottleneckId, props.showBottlenecks, sceneVersion]);
+  }, [
+    draftZone,
+    props.currentTimeSeconds,
+    props.result,
+    props.riskZones,
+    props.selectedBottleneckId,
+    props.showBottlenecks,
+    sceneVersion,
+  ]);
 
   const pointerPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
