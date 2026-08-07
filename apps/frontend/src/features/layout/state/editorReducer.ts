@@ -183,7 +183,8 @@ function applyDraftUpdate(
     [state.draft.start],
     state.camera.zoom,
   );
-  const end = kind === 'exit' ? snapped.point : clampLineDraft(state.draft.start, snapped.point, state.doc);
+  const end =
+    kind === 'exit' ? snapped.point : clampLineDraft(state.draft.start, snapped.point, state.doc);
   return {
     ...state,
     draft: {

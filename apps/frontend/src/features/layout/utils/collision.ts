@@ -50,7 +50,11 @@ export function clampLineDraft(start: Vec2, end: Vec2, doc: DrawingDocument): Ve
       }
     } else if (hit.t > START_TOUCH_EPS && hit.t < minDist) {
       minDist = hit.t;
-    } else if (hit.t <= START_TOUCH_EPS && distanceToSegment(start, a, b) > BOUNDARY_EPS && hit.t < minDist) {
+    } else if (
+      hit.t <= START_TOUCH_EPS &&
+      distanceToSegment(start, a, b) > BOUNDARY_EPS &&
+      hit.t < minDist
+    ) {
       minDist = hit.t;
     }
   }
@@ -69,7 +73,11 @@ export function clampLineDraft(start: Vec2, end: Vec2, doc: DrawingDocument): Ve
       }
       if (hit.t > START_TOUCH_EPS && hit.t < minDist) {
         minDist = hit.t;
-      } else if (hit.t <= START_TOUCH_EPS && distanceToSegment(start, edgeA, edgeB) > BOUNDARY_EPS && hit.t < minDist) {
+      } else if (
+        hit.t <= START_TOUCH_EPS &&
+        distanceToSegment(start, edgeA, edgeB) > BOUNDARY_EPS &&
+        hit.t < minDist
+      ) {
         minDist = hit.t;
       }
     }
@@ -148,7 +156,12 @@ function rectCorners(element: Pillar | Fabric): Vec2[] {
   ];
 }
 
-function startBlockedByRect(rect: Pillar | Fabric, corners: Vec2[], start: Vec2, dir: Vec2): boolean {
+function startBlockedByRect(
+  rect: Pillar | Fabric,
+  corners: Vec2[],
+  start: Vec2,
+  dir: Vec2,
+): boolean {
   let onBoundary = false;
   for (let i = 0; i < 4; i++) {
     if (distanceToSegment(start, corners[i], corners[(i + 1) % 4]) <= BOUNDARY_EPS) {
@@ -163,7 +176,14 @@ function startBlockedByRect(rect: Pillar | Fabric, corners: Vec2[], start: Vec2,
   return hitTestRect(rect, probe, 0);
 }
 
-function rectSegmentTouchT(sx: number, sy: number, dx: number, dy: number, a: Vec2, b: Vec2): number {
+function rectSegmentTouchT(
+  sx: number,
+  sy: number,
+  dx: number,
+  dy: number,
+  a: Vec2,
+  b: Vec2,
+): number {
   let best = Infinity;
   best = Math.min(best, pointEnterT(sx, sy, dx, dy, a), pointEnterT(sx, sy, dx, dy, b));
   const rays: Vec2[] = [];
@@ -234,11 +254,7 @@ function segmentEntersQuadrant(start: Vec2, a: Vec2, b: Vec2, dx: number, dy: nu
   return false;
 }
 
-export function clampMoveDelta(
-  doc: DrawingDocument,
-  selection: PointSelection,
-  delta: Vec2,
-): Vec2 {
+export function clampMoveDelta(doc: DrawingDocument, selection: PointSelection, delta: Vec2): Vec2 {
   if (Math.hypot(delta.x, delta.y) < GEOM_EPS) {
     return delta;
   }
@@ -503,7 +519,14 @@ function rayHitS(
 }
 
 export function clampRotate(
-  element: { startX: number; startY: number; endX: number; endY: number; rotation: number; id: string },
+  element: {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    rotation: number;
+    id: string;
+  },
   candidateRotation: number,
   doc: DrawingDocument,
 ): number {
@@ -529,7 +552,12 @@ export function clampRotate(
     return candidateRotation;
   }
   const probeDelta = Math.sign(sweep) * PROBE_EPS;
-  if (overlapsAny(localCorners.map((u) => add(center, rotateOffset(u, r0 + probeDelta))), obstacles)) {
+  if (
+    overlapsAny(
+      localCorners.map((u) => add(center, rotateOffset(u, r0 + probeDelta))),
+      obstacles,
+    )
+  ) {
     return element.rotation;
   }
   let bestDelta = Math.abs(sweep);
@@ -542,7 +570,14 @@ export function clampRotate(
     }
     for (const p of [a, b]) {
       for (let i = 0; i < 4; i++) {
-        const delta = vertexEdgeDelta(p, localCorners[i], localCorners[(i + 1) % 4], center, r0, sweep);
+        const delta = vertexEdgeDelta(
+          p,
+          localCorners[i],
+          localCorners[(i + 1) % 4],
+          center,
+          r0,
+          sweep,
+        );
         if (delta !== null && delta < bestDelta) {
           bestDelta = delta;
         }
@@ -561,7 +596,14 @@ export function clampRotate(
     }
     for (let j = 0; j < 4; j++) {
       for (let i = 0; i < 4; i++) {
-        const delta = vertexEdgeDelta(corners[j], localCorners[i], localCorners[(i + 1) % 4], center, r0, sweep);
+        const delta = vertexEdgeDelta(
+          corners[j],
+          localCorners[i],
+          localCorners[(i + 1) % 4],
+          center,
+          r0,
+          sweep,
+        );
         if (delta !== null && delta < bestDelta) {
           bestDelta = delta;
         }
@@ -818,7 +860,7 @@ function pointStrictlyInRect(corners: Vec2[], point: Vec2): boolean {
     if (Math.abs(c) <= GEOM_EPS) {
       return false;
     }
-    if (prev !== 0 && (c > 0) !== (prev > 0)) {
+    if (prev !== 0 && c > 0 !== prev > 0) {
       return false;
     }
     prev = c;
