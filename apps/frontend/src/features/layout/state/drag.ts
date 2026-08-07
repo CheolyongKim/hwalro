@@ -172,9 +172,18 @@ function elementLocalDoc(
     return { ...wall, startX: a.x, startY: a.y, endX: b.x, endY: b.y };
   };
   const mapRect = (rect: Pillar | Fabric): Pillar | Fabric => {
-    const a = rot({ x: rect.startX, y: rect.startY });
-    const b = rot({ x: rect.endX, y: rect.endY });
-    return { ...rect, startX: a.x, startY: a.y, endX: b.x, endY: b.y };
+    const worldCenter = rectCenter(rect);
+    const localCenter = rot(worldCenter);
+    const dx = localCenter.x - worldCenter.x;
+    const dy = localCenter.y - worldCenter.y;
+    return {
+      ...rect,
+      startX: rect.startX + dx,
+      startY: rect.startY + dy,
+      endX: rect.endX + dx,
+      endY: rect.endY + dy,
+      rotation: rect.rotation - element.rotation,
+    };
   };
   return {
     ...doc,

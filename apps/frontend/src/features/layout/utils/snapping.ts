@@ -97,13 +97,23 @@ export function endpointMagnet(
   return best;
 }
 
-export function surfaceSnap(point: Vec2, sources: SnapSources, zoom: number): Vec2 | null {
+export function surfaceSnap(
+  point: Vec2,
+  sources: SnapSources,
+  zoom: number,
+  exclude: Vec2[] = [],
+): Vec2 | null {
   const radius = ENDPOINT_MAGNET_PX / (zoom * PX_PER_METER);
   let best: Vec2 | null = null;
   let bestDist = radius;
   const consider = (wall: Wall | OutsideWall) => {
     const a = { x: wall.startX, y: wall.startY };
     const b = { x: wall.endX, y: wall.endY };
+    const startExcluded = exclude.some((e) => e.x === a.x && e.y === a.y);
+    const endExcluded = exclude.some((e) => e.x === b.x && e.y === b.y);
+    if (startExcluded && endExcluded) {
+      return;
+    }
     const closest = closestPointOnSegment(point, a, b);
     const dist = distance(point, closest);
     if (dist < bestDist) {
@@ -131,7 +141,7 @@ export function snapPoint(
   if (magnet) {
     return { point: magnet, snappedToEndpoint: magnet, axisSnapped: false };
   }
-  const surface = surfaceSnap(raw, sources, zoom);
+  const surface = surfaceSnap(raw, sources, zoom, exclude);
   if (surface) {
     return { point: surface, snappedToEndpoint: surface, axisSnapped: false };
   }

@@ -121,7 +121,7 @@ function LayoutPage() {
       dispatch({ type: 'setError', message: null });
     }, 5000);
     return () => window.clearTimeout(timer);
-  }, [state.error]);
+  }, [state.error, state.errorNonce]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

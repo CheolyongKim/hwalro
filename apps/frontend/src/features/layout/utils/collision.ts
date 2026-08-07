@@ -564,8 +564,8 @@ export function clampRotate(
   for (const [a, b] of obstacles.segments) {
     for (const u of localCorners) {
       const delta = cornerArcDelta(center, u, a, b, r0, sweep);
-      if (delta !== null && delta < bestDelta) {
-        bestDelta = delta;
+      if (delta !== null && Math.abs(delta) < bestDelta) {
+        bestDelta = Math.abs(delta);
       }
     }
     for (const p of [a, b]) {
@@ -578,8 +578,8 @@ export function clampRotate(
           r0,
           sweep,
         );
-        if (delta !== null && delta < bestDelta) {
-          bestDelta = delta;
+        if (delta !== null && Math.abs(delta) < bestDelta) {
+          bestDelta = Math.abs(delta);
         }
       }
     }
@@ -589,8 +589,8 @@ export function clampRotate(
     for (const u of localCorners) {
       for (let i = 0; i < 4; i++) {
         const delta = cornerArcDelta(center, u, corners[i], corners[(i + 1) % 4], r0, sweep);
-        if (delta !== null && delta < bestDelta) {
-          bestDelta = delta;
+        if (delta !== null && Math.abs(delta) < bestDelta) {
+          bestDelta = Math.abs(delta);
         }
       }
     }
@@ -604,8 +604,8 @@ export function clampRotate(
           r0,
           sweep,
         );
-        if (delta !== null && delta < bestDelta) {
-          bestDelta = delta;
+        if (delta !== null && Math.abs(delta) < bestDelta) {
+          bestDelta = Math.abs(delta);
         }
       }
     }
@@ -716,7 +716,10 @@ function vertexEdgeDelta(
   if (r < GEOM_EPS) {
     return null;
   }
-  const ratio = Math.max(-1, Math.min(1, d / r));
+  if (Math.abs(d) > r) {
+    return null;
+  }
+  const ratio = d / r;
   const phi = Math.atan2(b, a);
   const acosValue = Math.acos(ratio);
   let best: number | null = null;

@@ -138,13 +138,13 @@ public class DrawingService {
                 request.fabrics(),
                 request.layoutTexts(),
                 request.exits());
-        geometryValidator.validate(
-                request.outsideWalls(), request.walls(), request.pillars(), request.fabrics(), request.exits());
         if (request.expectedVersion() == null) {
             throw new IllegalArgumentException("도면 버전이 필요합니다.");
         }
         Layout layout = findLayoutOrThrow(id);
         requireAccessible(layout, user);
+        geometryValidator.validate(
+                request.outsideWalls(), request.walls(), request.pillars(), request.fabrics(), request.exits());
 
         layout.setTitle(request.title().trim());
         layout.setDescription(request.description());

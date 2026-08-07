@@ -21,6 +21,7 @@ public class LayoutGeometryValidator {
     private static final double EPSILON = 0.1;
     private static final double EXACT_EPSILON = 1e-6;
     private static final double MIN_POLYGON_AREA = EPSILON * EPSILON;
+    private static final int MAX_VALIDATION_SEGMENTS = 3000;
 
     public void validate(
             List<OutsideWallDto> outsideWalls,
@@ -30,6 +31,10 @@ public class LayoutGeometryValidator {
             List<ExitDto> exits) {
         if (exits.isEmpty()) {
             throw new IllegalArgumentException("도면에 비상구가 없습니다. 비상구를 배치해 주세요.");
+        }
+        if (walls.size() + outsideWalls.size() > MAX_VALIDATION_SEGMENTS) {
+            throw new IllegalArgumentException(
+                    "벽과 외각벽의 총 개수가 " + MAX_VALIDATION_SEGMENTS + "개를 초과하여 기하 검증을 수행할 수 없습니다.");
         }
         List<Walk> frameCandidates = findBoundedWalks(outsideWalls, List.of()).stream()
                 .filter(walk -> walk.area() > 0)
@@ -190,23 +195,21 @@ public class LayoutGeometryValidator {
             if (pillar == null) {
                 continue;
             }
-            for (Point corner :
-                    rectCorners(pillar.startX(), pillar.startY(), pillar.endX(), pillar.endY(), pillar.rotation())) {
-                if (!contains(frame, corner)) {
-                    throw new IllegalArgumentException("외각벽 밖에 위치한 시설물이 있습니다: " + describe(pillar.name(), "기둥"));
-                }
-            }
+            validateRectInsideFrame(
+                    frame,
+                    rectCorners(pillar.startX(), pillar.startY(), pillar.endX(), pillar.endY(), pillar.rotation()),
+                    pillar.name(),
+                    "기둥");
         }
         for (FabricDto fabric : fabrics) {
             if (fabric == null) {
                 continue;
             }
-            for (Point corner :
-                    rectCorners(fabric.startX(), fabric.startY(), fabric.endX(), fabric.endY(), fabric.rotation())) {
-                if (!contains(frame, corner)) {
-                    throw new IllegalArgumentException("외각벽 밖에 위치한 시설물이 있습니다: " + describe(fabric.name(), "구조물"));
-                }
-            }
+            validateRectInsideFrame(
+                    frame,
+                    rectCorners(fabric.startX(), fabric.startY(), fabric.endX(), fabric.endY(), fabric.rotation()),
+                    fabric.name(),
+                    "구조물");
         }
         for (ExitDto exit : exits) {
             if (exit == null) {
@@ -217,7 +220,34 @@ public class LayoutGeometryValidator {
             if (!contains(frame, start) || !contains(frame, end)) {
                 throw new IllegalArgumentException("외각벽 밖에 위치한 비상구가 있습니다: " + describe(exit.name(), "비상구"));
             }
+            if (crossesFrame(frame, start, end)) {
+                throw new IllegalArgumentException("외각벽 밖에 위치한 비상구가 있습니다: " + describe(exit.name(), "비상구"));
+            }
         }
+    }
+
+    private void validateRectInsideFrame(Walk frame, List<Point> corners, String name, String label) {
+        for (Point corner : corners) {
+            if (!contains(frame, corner)) {
+                throw new IllegalArgumentException("외각벽 밖에 위치한 시설물이 있습니다: " + describe(name, label));
+            }
+        }
+        for (int i = 0; i < 4; i++) {
+            if (crossesFrame(frame, corners.get(i), corners.get((i + 1) % 4))) {
+                throw new IllegalArgumentException("외각벽 밖에 위치한 시설물이 있습니다: " + describe(name, label));
+            }
+        }
+    }
+
+    private boolean crossesFrame(Walk frame, Point a, Point b) {
+        List<Point> vertices = frame.points();
+        for (int i = 0; i < vertices.size(); i++) {
+            if (properCrossing(new Segment(a, b), new Segment(vertices.get(i), vertices.get((i + 1) % vertices.size())))
+                    != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String describe(String name, String fallback) {
@@ -306,16 +336,18 @@ public class LayoutGeometryValidator {
 
     private boolean pointInRect(Point point, List<Point> rect) {
         double prev = 0;
+        boolean nonDegenerate = false;
         for (int i = 0; i < 4; i++) {
             double c = cross(rect.get(i), rect.get((i + 1) % 4), point);
             if (Math.abs(c) > EXACT_EPSILON) {
+                nonDegenerate = true;
                 if (prev != 0 && (c > 0) != (prev > 0)) {
                     return false;
                 }
                 prev = c;
             }
         }
-        return true;
+        return nonDegenerate;
     }
 
     private boolean segmentsIntersect(Point a1, Point a2, Point b1, Point b2) {
@@ -340,7 +372,11 @@ public class LayoutGeometryValidator {
     }
 
     private boolean onSegmentExact(Point point, Point a, Point b) {
-        if (Math.abs(cross(a, b, point)) > EXACT_EPSILON) {
+        double length = a.distanceTo(b);
+        if (length < EXACT_EPSILON) {
+            return point.distanceTo(a) <= EXACT_EPSILON;
+        }
+        if (Math.abs(cross(a, b, point)) / length > EXACT_EPSILON) {
             return false;
         }
         return point.x() >= Math.min(a.x(), b.x()) - EXACT_EPSILON
@@ -360,7 +396,11 @@ public class LayoutGeometryValidator {
     }
 
     private boolean onSegment(Point point, Point a, Point b) {
-        if (Math.abs(cross(a, b, point)) > EPSILON) {
+        double length = a.distanceTo(b);
+        if (length < EXACT_EPSILON) {
+            return point.distanceTo(a) <= EPSILON;
+        }
+        if (Math.abs(cross(a, b, point)) / length > EPSILON) {
             return false;
         }
         return point.x() >= Math.min(a.x(), b.x()) - EPSILON
@@ -476,7 +516,7 @@ public class LayoutGeometryValidator {
     private record Walk(List<Point> points, List<Edge> edges, double area, boolean hasOutsideEdge) {}
 
     private static final class PointIndex {
-        private final Map<Long, Integer> cellToPoint = new HashMap<>();
+        private final Map<Long, List<Integer>> cellToPointIds = new HashMap<>();
         private final List<Point> points = new ArrayList<>();
 
         int add(Point point) {
@@ -486,7 +526,9 @@ public class LayoutGeometryValidator {
             }
             int id = points.size();
             points.add(point);
-            cellToPoint.put(cellKey(point), id);
+            cellToPointIds
+                    .computeIfAbsent(cellKey(point), unused -> new ArrayList<>())
+                    .add(id);
             return id;
         }
 
@@ -504,9 +546,10 @@ public class LayoutGeometryValidator {
             int cy = (int) Math.floor(point.y() / EPSILON);
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
-                    Integer id = cellToPoint.get(cellKey(cx + dx, cy + dy));
-                    if (id != null && points.get(id).distanceTo(point) <= EPSILON) {
-                        return id;
+                    for (Integer id : cellToPointIds.getOrDefault(cellKey(cx + dx, cy + dy), List.of())) {
+                        if (points.get(id).distanceTo(point) <= EPSILON) {
+                            return id;
+                        }
                     }
                 }
             }

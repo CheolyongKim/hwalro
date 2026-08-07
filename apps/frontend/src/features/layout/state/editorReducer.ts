@@ -145,13 +145,14 @@ export function createInitialState(): EditorState {
     cursor: null,
     snapHint: null,
     error: null,
+    errorNonce: 0,
     cameraFitNonce: 0,
   };
 }
 
 function applyDraftStart(state: EditorState, point: Vec2): EditorState {
   if (isInsideObstacleRect(point, state.doc)) {
-    return { ...state, draft: null, snapHint: null, error: null };
+    return { ...state, draft: null, snapHint: null, error: '기둥이나 구조물 안에는 배치할 수 없습니다.' };
   }
   const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
   return {
@@ -198,7 +199,7 @@ function applyDraftUpdate(
 
 function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
   if (isInsideObstacleRect(point, state.doc)) {
-    return { ...state, draft: null, snapHint: null, error: null };
+    return { ...state, draft: null, snapHint: null, error: '기둥이나 구조물 안에는 배치할 수 없습니다.' };
   }
   const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
   return {
@@ -747,7 +748,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return applyRedo(state);
 
     case 'setError':
-      return { ...state, error: action.message };
+      return { ...state, error: action.message, errorNonce: state.errorNonce + 1 };
 
     case 'clearSelection':
       return { ...state, selection: emptySelection(), snapHint: null };
