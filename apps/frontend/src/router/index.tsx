@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { Navigate, useParams } from 'react-router-dom';
 import App from '../App';
@@ -17,10 +18,22 @@ import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
 import CreateDrawingPage from '../features/drawings/pages/CreateDrawingPage';
-import LayoutPage from '../features/layout/pages/LayoutPage';
 import SimulationSetupPage from '../features/simulations/pages/SimulationSetupPage';
-import SimulationResultPage from '../features/simulations/pages/SimulationResultPage';
+import SimulationExecutionResultPage from '../features/simulations/pages/SimulationResultPage';
 import SimulationListPage from '../features/simulations/pages/SimulationListPage';
+
+const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
+const SimulationAnalysisResultPage = lazy(
+  () => import('../features/simulationResult/pages/SimulationResultPage'),
+);
+
+function FullscreenRouteFallback() {
+  return (
+    <div className="flex h-dvh items-center justify-center bg-background text-sm text-text-muted">
+      화면을 준비하고 있습니다.
+    </div>
+  );
+}
 
 function DrawingEditRedirect() {
   const { drawingId } = useParams();
@@ -69,9 +82,27 @@ export const router = createBrowserRouter([
               },
             ],
           },
-          { path: 'layout/:drawingId', element: <LayoutPage /> },
+          {
+            path: 'layout/:drawingId',
+            element: (
+              <Suspense fallback={<FullscreenRouteFallback />}>
+                <LayoutPage />
+              </Suspense>
+            ),
+          },
           { path: 'simulations/:simulationId/setup', element: <SimulationSetupPage /> },
-          { path: 'simulations/:simulationId/result', element: <SimulationResultPage /> },
+          {
+            path: 'simulations/:simulationId/result',
+            element: <SimulationExecutionResultPage />,
+          },
+          {
+            path: 'simulations/:simulationId/results',
+            element: (
+              <Suspense fallback={<FullscreenRouteFallback />}>
+                <SimulationAnalysisResultPage />
+              </Suspense>
+            ),
+          },
         ],
       },
       { path: 'login', element: <LoginPage /> },
