@@ -5,10 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hwalro.simulation.common.jwt.JwtUser;
+import com.hwalro.simulation.improvement.dto.ImprovementProposalExecutionRequest;
+import com.hwalro.simulation.improvement.dto.ImprovementProposalExecutionResponse;
 import com.hwalro.simulation.improvement.dto.ImprovementProposalResponse;
+import com.hwalro.simulation.improvement.service.ImprovementProposalExecutionService;
 import com.hwalro.simulation.improvement.service.ImprovementProposalGenerationService;
 import com.hwalro.simulation.improvement.service.ImprovementProposalQueryService;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -23,6 +28,9 @@ class ImprovementProposalControllerTest {
 
     @Mock
     private ImprovementProposalGenerationService improvementProposalGenerationService;
+
+    @Mock
+    private ImprovementProposalExecutionService improvementProposalExecutionService;
 
     @Test
     void regeneratesThenReturnsTheLatestProposalList() {
@@ -48,7 +56,37 @@ class ImprovementProposalControllerTest {
         assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
     }
 
+    @Test
+    void executesSelectedProposalsForTheAuthenticatedUser() {
+        ImprovementProposalExecutionResponse expected = new ImprovementProposalExecutionResponse(List.of());
+        when(improvementProposalExecutionService.execute(1L, List.of(11L), 9L)).thenReturn(expected);
+
+        ImprovementProposalExecutionResponse result =
+                controller().execute(1L, new ImprovementProposalExecutionRequest(List.of(11L)), user());
+
+        assertEquals(expected, result);
+        verify(improvementProposalExecutionService).execute(1L, List.of(11L), 9L);
+    }
+
+    @Test
+    void reportsInvalidExecutionRequestAsBadRequest() {
+        when(improvementProposalExecutionService.execute(1L, List.of(), 9L))
+                .thenThrow(new IllegalArgumentException("개선안은 1개 이상 3개 이하로 선택해야 합니다."));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> controller()
+                .execute(1L, new ImprovementProposalExecutionRequest(List.of()), user()));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
     private ImprovementProposalController controller() {
-        return new ImprovementProposalController(improvementProposalQueryService, improvementProposalGenerationService);
+        return new ImprovementProposalController(
+                improvementProposalQueryService,
+                improvementProposalGenerationService,
+                improvementProposalExecutionService);
+    }
+
+    private JwtUser user() {
+        return new JwtUser(9L, Set.of("OPERATOR"));
     }
 }
