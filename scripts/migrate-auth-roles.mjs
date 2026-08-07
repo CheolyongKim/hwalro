@@ -6,7 +6,8 @@ const scriptPath = fileURLToPath(new URL(`./${script}`, import.meta.url));
 const command = process.platform === "win32" ? "powershell.exe" : "bash";
 const args =
   process.platform === "win32" ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath] : [scriptPath];
-const maxAttempts = process.argv.includes("--retry") ? 60 : 1;
+const retry = process.argv.includes("--retry");
+const maxAttempts = retry ? 60 : 1;
 let attempt = 0;
 
 function run() {
@@ -19,6 +20,13 @@ function run() {
   });
 
   child.on("exit", (code) => {
+    if (code === 0) {
+      if (retry) {
+        console.log("\n========== SUCCESS ==========");
+      }
+      return;
+    }
+
     if (code !== 0 && attempt < maxAttempts) {
       console.error(`MySQL is not ready; retrying role migration (${attempt}/${maxAttempts})...`);
       setTimeout(run, 1000);
