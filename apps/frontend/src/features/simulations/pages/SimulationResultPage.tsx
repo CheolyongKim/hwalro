@@ -37,6 +37,8 @@ function SimulationResultPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [pollingStopped, setPollingStopped] = useState(false);
+  const [refreshingStatus, setRefreshingStatus] = useState(false);
   const lastAnimationTimeRef = useRef<number | null>(null);
   const requestedChunksRef = useRef(new Set<number>());
   const activeChunkSequenceRef = useRef(0);
@@ -44,6 +46,7 @@ function SimulationResultPage() {
   const refreshExecution = useCallback(() => simulationApi.getExecution(id), [id]);
 
   useEffect(() => {
+    setPollingStopped(false);
     if (!Number.isSafeInteger(id) || id < 1) {
       setMessage('올바르지 않은 시뮬레이션 번호입니다.');
       setLoading(false);
@@ -68,7 +71,8 @@ function SimulationResultPage() {
   }, [id]);
 
   useEffect(() => {
-    if (execution?.status !== 'REQUESTED' && execution?.status !== 'RUNNING') return;
+    if (pollingStopped || (execution?.status !== 'REQUESTED' && execution?.status !== 'RUNNING'))
+      return;
     let cancelled = false;
     let timer = 0;
     let consecutiveFailures = 0;
@@ -88,6 +92,8 @@ function SimulationResultPage() {
         setMessage(getSimulationErrorMessage(error));
         if (consecutiveFailures < MAX_EXECUTION_POLL_FAILURES) {
           timer = window.setTimeout(() => void poll(), executionPollDelay(consecutiveFailures));
+        } else {
+          setPollingStopped(true);
         }
       }
     };
@@ -96,7 +102,7 @@ function SimulationResultPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [execution?.status, refreshExecution]);
+  }, [execution?.status, pollingStopped, refreshExecution]);
 
   const loadChunk = useCallback(
     async (sequence: number) => {
@@ -201,10 +207,24 @@ function SimulationResultPage() {
       requestedChunksRef.current.clear();
       setCurrentTime(0);
       setPlaying(false);
+      setPollingStopped(false);
     } catch (error) {
       setMessage(getSimulationErrorMessage(error));
     } finally {
       setRetrying(false);
+    }
+  };
+
+  const refreshStoppedPolling = async () => {
+    setRefreshingStatus(true);
+    setMessage(null);
+    try {
+      setExecution(await refreshExecution());
+      setPollingStopped(false);
+    } catch (error) {
+      setMessage(getSimulationErrorMessage(error));
+    } finally {
+      setRefreshingStatus(false);
     }
   };
 
@@ -315,8 +335,20 @@ function SimulationResultPage() {
               <div className="rounded-xl border border-line bg-white px-6 py-5 text-center shadow-xl">
                 <p className="font-black text-ink">{statusLabel}</p>
                 <p className="mt-2 text-sm text-text-muted">
-                  JuPedSim이 대피 경로를 계산하고 있습니다.
+                  {pollingStopped
+                    ? '자동 상태 확인이 중단되었습니다.'
+                    : 'JuPedSim이 대피 경로를 계산하고 있습니다.'}
                 </p>
+                {pollingStopped && (
+                  <button
+                    type="button"
+                    onClick={() => void refreshStoppedPolling()}
+                    disabled={refreshingStatus}
+                    className="mt-4 h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {refreshingStatus ? '확인 중…' : '상태 다시 확인'}
+                  </button>
+                )}
               </div>
             </div>
           )}

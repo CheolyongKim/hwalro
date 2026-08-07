@@ -3,7 +3,9 @@ package com.hwalro.simulation.simulation.engine;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,20 +61,20 @@ public class SimulationEngineRunner {
             throw new SimulationEngineUnavailableException("JuPedSim runner를 찾을 수 없습니다.");
         }
         Process process = null;
-        Path logPath = null;
+        ProcessOutputCapture output = null;
         try {
             Files.createDirectories(workRoot);
-            logPath = Files.createTempFile(workRoot, "engine-version-", ".log");
             process = new ProcessBuilder(pythonCommand, scriptPath.toString(), "--version")
                     .redirectErrorStream(true)
-                    .redirectOutput(logPath.toFile())
                     .start();
+            output = new ProcessOutputCapture(process.getInputStream());
             if (!process.waitFor(READINESS_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
                 stop(process);
                 throw new SimulationEngineUnavailableException("JuPedSim 설치 확인 시간이 초과되었습니다.");
             }
+            String diagnostic = output.await();
             if (process.exitValue() != 0) {
-                log.warn("JuPedSim readiness check failed: {}", readDiagnostic(logPath));
+                log.warn("JuPedSim readiness check failed: {}", diagnostic);
                 throw new SimulationEngineUnavailableException("JuPedSim을 실행할 수 없습니다.");
             }
         } catch (IOException exception) {
@@ -84,20 +86,13 @@ public class SimulationEngineRunner {
             }
             Thread.currentThread().interrupt();
             throw new SimulationEngineUnavailableException("JuPedSim 설치 확인이 중단되었습니다.", exception);
-        } finally {
-            if (logPath != null) {
-                try {
-                    Files.deleteIfExists(logPath);
-                } catch (IOException ignored) {
-                    // Temporary diagnostic files are removed on a best-effort basis.
-                }
-            }
         }
     }
 
     public EngineRun run(Long simulationId, SimulationSetupResponse setup) throws EngineRunException {
         Path jobDirectory = null;
         Process process = null;
+        ProcessOutputCapture output = null;
         try {
             Files.createDirectories(workRoot);
             jobDirectory = Files.createTempDirectory(workRoot, "simulation-" + simulationId + "-")
@@ -105,20 +100,20 @@ public class SimulationEngineRunner {
                     .normalize();
             Path inputPath = jobDirectory.resolve("input.json");
             Path outputDirectory = jobDirectory.resolve("output");
-            Path logPath = jobDirectory.resolve("engine.log");
             objectMapper.writeValue(inputPath.toFile(), createInput(setup));
 
             process = new ProcessBuilder(
                             pythonCommand, scriptPath.toString(), inputPath.toString(), outputDirectory.toString())
                     .redirectErrorStream(true)
-                    .redirectOutput(logPath.toFile())
                     .start();
+            output = new ProcessOutputCapture(process.getInputStream());
             if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 stop(process);
                 throw new EngineRunException("ENGINE_TIMEOUT: 실제 실행시간 제한을 초과했습니다.", true);
             }
+            String diagnostic = output.await();
             if (process.exitValue() != 0) {
-                log.warn("Simulation {} engine process failed: {}", simulationId, readDiagnostic(logPath));
+                log.warn("Simulation {} engine process failed: {}", simulationId, diagnostic);
                 throw new EngineRunException("ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.", false);
             }
 
@@ -248,17 +243,45 @@ public class SimulationEngineRunner {
         }
     }
 
-    private static String readDiagnostic(Path path) {
-        try {
-            String message = Files.readString(path, StandardCharsets.UTF_8)
+    static String readDiagnostic(InputStream input) throws IOException {
+        try (input;
+                var captured = new ByteArrayOutputStream(MAX_ENGINE_MESSAGE_LENGTH)) {
+            byte[] buffer = new byte[4096];
+            int length;
+            while ((length = input.read(buffer)) != -1) {
+                int remaining = MAX_ENGINE_MESSAGE_LENGTH - captured.size();
+                if (remaining > 0) {
+                    captured.write(buffer, 0, Math.min(length, remaining));
+                }
+            }
+            String message = captured.toString(StandardCharsets.UTF_8)
                     .replaceAll("\\p{Cntrl}", " ")
                     .replaceAll("\\s+", " ")
                     .trim();
-            return message.isEmpty()
-                    ? "no diagnostic output"
-                    : message.substring(0, Math.min(message.length(), MAX_ENGINE_MESSAGE_LENGTH));
-        } catch (IOException exception) {
-            return "diagnostic output unavailable";
+            return message.isEmpty() ? "no diagnostic output" : message;
+        }
+    }
+
+    private static final class ProcessOutputCapture {
+        private String diagnostic = "diagnostic output unavailable";
+        private final Thread reader;
+
+        private ProcessOutputCapture(InputStream input) {
+            reader = new Thread(() -> {
+                try {
+                    diagnostic = readDiagnostic(input);
+                } catch (IOException ignored) {
+                    // The public error remains generic when diagnostic capture fails.
+                }
+            });
+            reader.setName("simulation-engine-output");
+            reader.setDaemon(true);
+            reader.start();
+        }
+
+        private String await() throws InterruptedException {
+            reader.join();
+            return diagnostic;
         }
     }
 

@@ -1,9 +1,12 @@
 package com.hwalro.simulation.simulation.engine;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineResult;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 class SimulationEngineRunnerTest {
@@ -14,5 +17,14 @@ class SimulationEngineRunnerTest {
         assertThatThrownBy(() -> SimulationEngineRunner.validateChunkCounts(result))
                 .isInstanceOf(EngineRunException.class)
                 .hasMessageContaining("청크 개수");
+    }
+
+    @Test
+    void capturesOnlyTheFirstThousandDiagnosticBytes() throws Exception {
+        byte[] output = "x".repeat(5_000).getBytes(StandardCharsets.UTF_8);
+
+        String diagnostic = SimulationEngineRunner.readDiagnostic(new ByteArrayInputStream(output));
+
+        assertThat(diagnostic).hasSize(1_000);
     }
 }
