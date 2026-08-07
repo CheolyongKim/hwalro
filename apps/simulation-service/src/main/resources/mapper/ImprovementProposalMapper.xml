@@ -18,6 +18,17 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findSimulationIdByProposalId" resultType="long">
+        SELECT simulation_id
+        FROM proposal_simulations
+        WHERE improvement_proposal_id = #{proposalId}
+    </select>
+
+    <insert id="insertSimulationLink">
+        INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id, source_simulation_id)
+        VALUES (#{proposalId}, #{simulationId}, #{sourceSimulationId})
+    </insert>
+
     <select id="existsSavedBySourceSimulationId" resultType="boolean">
         SELECT EXISTS(
             SELECT 1
