@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { Navigate, useParams } from 'react-router-dom';
 import App from '../App';
@@ -17,7 +18,19 @@ import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
 import CreateDrawingPage from '../features/drawings/pages/CreateDrawingPage';
-import LayoutPage from '../features/layout/pages/LayoutPage';
+
+const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
+const SimulationResultPage = lazy(
+  () => import('../features/simulationResult/pages/SimulationResultPage'),
+);
+
+function FullscreenRouteFallback() {
+  return (
+    <div className="flex h-dvh items-center justify-center bg-background text-sm text-text-muted">
+      화면을 준비하고 있습니다.
+    </div>
+  );
+}
 
 function DrawingEditRedirect() {
   const { drawingId } = useParams();
@@ -65,7 +78,22 @@ export const router = createBrowserRouter([
               },
             ],
           },
-          { path: 'layout/:drawingId', element: <LayoutPage /> },
+          {
+            path: 'layout/:drawingId',
+            element: (
+              <Suspense fallback={<FullscreenRouteFallback />}>
+                <LayoutPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'simulations/:simulationId/results',
+            element: (
+              <Suspense fallback={<FullscreenRouteFallback />}>
+                <SimulationResultPage />
+              </Suspense>
+            ),
+          },
         ],
       },
       { path: 'login', element: <LoginPage /> },
