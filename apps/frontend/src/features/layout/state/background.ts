@@ -41,6 +41,21 @@ export function applyBackgroundDragStart(state: EditorState, point: Vec2): Edito
   };
 }
 
+export function applyBackgroundResizeStart(state: EditorState, point: Vec2): EditorState {
+  if (!state.doc.background) {
+    return state;
+  }
+  return {
+    ...state,
+    drag: {
+      kind: 'backgroundResize',
+      origin: point,
+      originBg: state.doc.background,
+      originDoc: state.doc,
+    },
+  };
+}
+
 export function applyBackgroundResize(state: EditorState, width: number): EditorState {
   const bg = state.doc.background;
   if (!bg) {

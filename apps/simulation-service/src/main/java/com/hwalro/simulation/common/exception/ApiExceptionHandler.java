@@ -5,6 +5,7 @@ import com.hwalro.simulation.common.jwt.InvalidTokenException;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
+import com.hwalro.simulation.drawing.exception.DrawingValidationException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> handleBadRequest(IllegalArgumentException exception) {
         return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(DrawingValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleDrawingValidation(DrawingValidationException exception) {
+        return Map.of("message", exception.getMessage(), "problems", exception.getProblems());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

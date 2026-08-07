@@ -10,11 +10,34 @@ import { InlineTextInput } from '../components/InlineTextInput';
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
+import type { ValidationProblem, ValidationProblemKind } from '../types';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+const VALIDATION_KINDS: ValidationProblemKind[] = [
+  'wall',
+  'outsideWall',
+  'exit',
+  'pillar',
+  'fabric',
+];
+
+function parseValidationProblems(data: unknown): ValidationProblem[] {
+  const raw = (data as { problems?: unknown } | undefined)?.problems;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter(
+    (entry): entry is ValidationProblem =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as ValidationProblem).name === 'string' &&
+      (VALIDATION_KINDS as string[]).includes((entry as ValidationProblem).kind),
+  );
+}
 
 function LayoutPage() {
   const { drawingId = '' } = useParams();
@@ -86,6 +109,7 @@ function LayoutPage() {
         doc: stateRef.current.doc,
         version,
       };
+      dispatch({ type: 'setValidationProblems', problems: [] });
       setSaveStatus('saved');
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -97,6 +121,14 @@ function LayoutPage() {
     } catch (error) {
       setSaveStatus('error');
       const conflict = error instanceof AxiosError && error.response?.status === 409;
+      dispatch({
+        type: 'setValidationProblems',
+        problems: conflict
+          ? []
+          : parseValidationProblems(
+              error instanceof AxiosError ? error.response?.data : undefined,
+            ),
+      });
       dispatch({
         type: 'setError',
         message: conflict
@@ -122,6 +154,16 @@ function LayoutPage() {
     }, 5000);
     return () => window.clearTimeout(timer);
   }, [state.error, state.errorNonce]);
+
+  useEffect(() => {
+    if (state.validationProblems.length === 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'setValidationProblems', problems: [] });
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [state.validationProblems]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

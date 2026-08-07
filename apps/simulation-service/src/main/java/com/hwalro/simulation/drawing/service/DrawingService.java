@@ -119,6 +119,8 @@ public class DrawingService {
         drawingMapper.insertLayoutVersion(version);
 
         insertWallsIfPresent(toWallsFromDefault(defaultDrawing.walls(), version.getId()));
+        insertOutsideWallsIfPresent(toOutsideWallsFromDefault(defaultDrawing.outsideWalls(), version.getId()));
+        insertFabricsIfPresent(toFabricsFromDefault(defaultDrawing.fabrics(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
         insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
 
@@ -354,6 +356,38 @@ public class DrawingService {
                     domainOutsideWall.setEndX(outsideWall.endX());
                     domainOutsideWall.setEndY(outsideWall.endY());
                     return domainOutsideWall;
+                })
+                .toList();
+    }
+
+    private List<OutsideWall> toOutsideWallsFromDefault(
+            List<DefaultDrawingData.DefaultOutsideWall> outsideWalls, Long layoutVersionId) {
+        return outsideWalls.stream()
+                .map(outsideWall -> {
+                    OutsideWall domainOutsideWall = new OutsideWall();
+                    domainOutsideWall.setLayoutVersionId(layoutVersionId);
+                    domainOutsideWall.setName(outsideWall.name());
+                    domainOutsideWall.setStartX(outsideWall.startX());
+                    domainOutsideWall.setStartY(outsideWall.startY());
+                    domainOutsideWall.setEndX(outsideWall.endX());
+                    domainOutsideWall.setEndY(outsideWall.endY());
+                    return domainOutsideWall;
+                })
+                .toList();
+    }
+
+    private List<Fabric> toFabricsFromDefault(List<DefaultDrawingData.DefaultFabric> fabrics, Long layoutVersionId) {
+        return fabrics.stream()
+                .map(fabric -> {
+                    Fabric domainFabric = new Fabric();
+                    domainFabric.setLayoutVersionId(layoutVersionId);
+                    domainFabric.setName(fabric.name());
+                    domainFabric.setStartX(fabric.startX());
+                    domainFabric.setStartY(fabric.startY());
+                    domainFabric.setEndX(fabric.endX());
+                    domainFabric.setEndY(fabric.endY());
+                    domainFabric.setRotation(fabric.rotation());
+                    return domainFabric;
                 })
                 .toList();
     }

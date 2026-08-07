@@ -2,7 +2,7 @@ export const CANVAS_COLORS = {
   accent: '#168f80',
   canvas: '#ffffff',
   ink: '#0d1917',
-  outsideWall: '#3a5a8c',
+  outsideWall: '#2f6bdb',
   exit: '#c94f47',
   exitStrong: '#a83d36',
   gridMinor: '#eef1f0',
@@ -13,6 +13,8 @@ export const CANVAS_COLORS = {
   fabricFill: '#e8f0ee',
   fabricSelectedFill: '#dcebe7',
   fabricStroke: '#93aca6',
+  problem: '#f97316',
+  problemFill: 'rgba(249, 115, 22, 0.18)',
 } as const;
 
 export const ACCENT_ALPHA_8 = 'rgba(22, 143, 128, 0.08)';

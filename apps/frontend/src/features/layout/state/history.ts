@@ -16,6 +16,7 @@ export function commit(
     drag: null,
     snapHint: null,
     error: null,
+    validationProblems: [],
   };
 }
 

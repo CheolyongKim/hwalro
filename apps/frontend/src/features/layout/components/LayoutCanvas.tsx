@@ -1,7 +1,14 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Dispatch, PointerEvent as ReactPointerEvent } from 'react';
 import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
-import type { Camera, EditorState, RectHandle, Vec2 } from '../types';
+import type {
+  Camera,
+  EditorState,
+  RectHandle,
+  ValidationProblem,
+  ValidationProblemKind,
+  Vec2,
+} from '../types';
 import type { EditorAction } from '../state/editorReducer';
 import {
   clampPan,
@@ -71,7 +78,23 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     cameraFitNonce: state.cameraFitNonce,
   });
 
-  const { doc, camera, tool, selection, draft, snapHint, cursor } = state;
+  const { doc, camera, tool, selection, draft, snapHint, cursor, validationProblems } = state;
+
+  const problemNames = useMemo(() => {
+    const byKind = (kind: ValidationProblemKind) =>
+      new Set(
+        validationProblems
+          .filter((problem: ValidationProblem) => problem.kind === kind)
+          .map((problem) => problem.name),
+      );
+    return {
+      wall: byKind('wall'),
+      outsideWall: byKind('outsideWall'),
+      exit: byKind('exit'),
+      pillar: byKind('pillar'),
+      fabric: byKind('fabric'),
+    };
+  }, [validationProblems]);
 
   const hitAt = useCallback(
     (world: Vec2) =>
@@ -175,17 +198,22 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
     }
     if (tool === 'background') {
       const bg = doc.background;
-      const onImage =
-        bg !== null &&
-        world.x >= bg.x &&
-        world.x <= bg.x + bg.width &&
-        world.y >= bg.y &&
-        world.y <= bg.y + bg.height;
-      if (onImage) {
-        dispatch({ type: 'backgroundDragStart', point: world });
-      } else {
-        startPan({ x: event.clientX, y: event.clientY }, camera);
+      if (bg !== null) {
+        const cornerX = bg.x + bg.width;
+        const cornerY = bg.y + bg.height;
+        const handleR = 10 / (camera.zoom * PX_PER_METER);
+        if (Math.abs(world.x - cornerX) <= handleR && Math.abs(world.y - cornerY) <= handleR) {
+          dispatch({ type: 'backgroundResizeStart', point: world });
+          return;
+        }
+        const onImage =
+          world.x >= bg.x && world.x <= cornerX && world.y >= bg.y && world.y <= cornerY;
+        if (onImage) {
+          dispatch({ type: 'backgroundDragStart', point: world });
+          return;
+        }
       }
+      startPan({ x: event.clientX, y: event.clientY }, camera);
       return;
     }
 
@@ -482,6 +510,17 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
           <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             <Rect x={0} y={0} width={doc.width} height={doc.height} fill={CANVAS_COLORS.canvas} />
             {doc.background && <BackgroundLayer bg={doc.background} />}
+            {doc.background && tool === 'background' && (
+              <Rect
+                x={doc.background.x + doc.background.width - s(7)}
+                y={doc.background.y + doc.background.height - s(7)}
+                width={s(14)}
+                height={s(14)}
+                fill={CANVAS_COLORS.canvas}
+                stroke={CANVAS_COLORS.ink}
+                strokeWidth={s(1.5)}
+              />
+            )}
             <GridLayer
               minX={camera.panX}
               minY={camera.panY}
@@ -502,6 +541,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 key={wall.id}
                 wall={wall}
                 selected={selection.wallIds.includes(wall.id)}
+                problem={problemNames.wall.has(wall.name)}
                 s={s}
               />
             ))}
@@ -510,6 +550,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 key={wall.id}
                 wall={wall}
                 selected={selection.outsideWallIds.includes(wall.id)}
+                problem={problemNames.outsideWall.has(wall.name)}
                 s={s}
               />
             ))}
@@ -518,6 +559,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 key={exit.id}
                 exit={exit}
                 selected={selection.exitIds.includes(exit.id)}
+                problem={problemNames.exit.has(exit.name)}
                 s={s}
               />
             ))}
@@ -526,6 +568,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 key={pillar.id}
                 pillar={pillar}
                 selected={selection.pillarIds.includes(pillar.id)}
+                problem={problemNames.pillar.has(pillar.name)}
                 s={s}
               />
             ))}
@@ -534,6 +577,7 @@ export function LayoutCanvas({ state, dispatch, size, onSizeChange }: LayoutCanv
                 key={fabric.id}
                 fabric={fabric}
                 selected={selection.fabricIds.includes(fabric.id)}
+                problem={problemNames.fabric.has(fabric.name)}
                 s={s}
               />
             ))}
