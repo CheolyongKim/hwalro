@@ -4,7 +4,7 @@ $dmlPath = Join-Path $PSScriptRoot '..\apps\auth-service\src\main\resources\db\d
 
 $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
 $processInfo.FileName = 'docker'
-$processInfo.Arguments = "exec -i hwalro-mysql mysql -uhwalro_auth `"-p$authDbPassword`" hwalro_auth"
+$processInfo.Arguments = "exec -i hwalro-mysql mysql --default-character-set=utf8mb4 -uhwalro_auth `"-p$authDbPassword`" hwalro_auth"
 $processInfo.UseShellExecute = $false
 $processInfo.RedirectStandardInput = $true
 
