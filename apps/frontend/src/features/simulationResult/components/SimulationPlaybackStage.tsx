@@ -10,6 +10,7 @@ import {
   type PixiSimulationScene,
 } from '../rendering/pixiSimulationRenderer';
 import type { Bounds, RiskZone, SimulationResultViewModel } from '../types';
+import './SimulationPlaybackStage.css';
 
 interface Props {
   result: SimulationResultViewModel;
@@ -40,6 +41,8 @@ export function SimulationPlaybackStage(props: Props) {
   const [draftZone, setDraftZone] = useState<Bounds | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [sceneVersion, setSceneVersion] = useState(0);
+  const [sceneError, setSceneError] = useState(false);
+  const [sceneRetry, setSceneRetry] = useState(0);
 
   const transform = useMemo(
     () =>
@@ -71,21 +74,28 @@ export function SimulationPlaybackStage(props: Props) {
     if (!host) return;
     let disposed = false;
     let createdScene: PixiSimulationScene | null = null;
-    void createPixiSimulationScene(host, props.result).then((scene) => {
-      if (disposed) {
-        destroyPixiSimulationScene(scene);
-        return;
-      }
-      createdScene = scene;
-      sceneRef.current = scene;
-      setSceneVersion((version) => version + 1);
-    });
+    setSceneError(false);
+    void createPixiSimulationScene(host, props.result)
+      .then((scene) => {
+        if (disposed) {
+          destroyPixiSimulationScene(scene);
+          return;
+        }
+        createdScene = scene;
+        sceneRef.current = scene;
+        setSceneVersion((version) => version + 1);
+      })
+      .catch((error: unknown) => {
+        if (disposed) return;
+        console.error('Pixi simulation scene initialization failed.', error);
+        setSceneError(true);
+      });
     return () => {
       disposed = true;
       if (createdScene) destroyPixiSimulationScene(createdScene);
       if (sceneRef.current === createdScene) sceneRef.current = null;
     };
-  }, [props.result]);
+  }, [props.result, sceneRetry]);
 
   useEffect(() => {
     if (!sceneRef.current) return;
@@ -119,6 +129,7 @@ export function SimulationPlaybackStage(props: Props) {
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (sceneError) return;
     if (props.riskDrawingMode) {
       dragStartRef.current = pointerPoint(event);
     } else {
@@ -208,6 +219,16 @@ export function SimulationPlaybackStage(props: Props) {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onWheel={onWheel}
-    />
+    >
+      {sceneError && (
+        <div className="simulation-canvas-error" role="alert" aria-live="assertive">
+          <strong>시뮬레이션 화면을 불러오지 못했습니다.</strong>
+          <span>그래픽 화면을 초기화하는 중 문제가 발생했습니다.</span>
+          <button type="button" onClick={() => setSceneRetry((retry) => retry + 1)}>
+            다시 시도
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

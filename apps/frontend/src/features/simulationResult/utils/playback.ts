@@ -38,9 +38,14 @@ export function interpolatePositions(
 ) {
   const length = Math.min(previous.length, next.length, destination.length);
   for (let index = 0; index < length; index += 2) {
-    if (previous[index] < -1000 || next[index] < -1000) {
+    const previousInactive = previous[index] < -1000 || previous[index + 1] < -1000;
+    const nextInactive = next[index] < -1000 || next[index + 1] < -1000;
+    if (previousInactive) {
       destination[index] = -10_000;
       destination[index + 1] = -10_000;
+    } else if (nextInactive) {
+      destination[index] = previous[index];
+      destination[index + 1] = previous[index + 1];
     } else {
       destination[index] = previous[index] + (next[index] - previous[index]) * ratio;
       destination[index + 1] =
