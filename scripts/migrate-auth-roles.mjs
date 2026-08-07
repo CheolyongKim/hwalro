@@ -6,14 +6,27 @@ const scriptPath = fileURLToPath(new URL(`./${script}`, import.meta.url));
 const command = process.platform === "win32" ? "powershell.exe" : "bash";
 const args =
   process.platform === "win32" ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath] : [scriptPath];
+const maxAttempts = process.argv.includes("--retry") ? 60 : 1;
+let attempt = 0;
 
-const child = spawn(command, args, { stdio: "inherit" });
+function run() {
+  attempt += 1;
+  const child = spawn(command, args, { stdio: "inherit" });
 
-child.on("error", (error) => {
-  console.error(`Failed to start ${command}: ${error.message}`);
-  process.exitCode = 1;
-});
+  child.on("error", (error) => {
+    console.error(`Failed to start ${command}: ${error.message}`);
+    process.exitCode = 1;
+  });
 
-child.on("exit", (code) => {
-  process.exitCode = code ?? 1;
-});
+  child.on("exit", (code) => {
+    if (code !== 0 && attempt < maxAttempts) {
+      console.error(`MySQL is not ready; retrying role migration (${attempt}/${maxAttempts})...`);
+      setTimeout(run, 1000);
+      return;
+    }
+
+    process.exitCode = code ?? 1;
+  });
+}
+
+run();
