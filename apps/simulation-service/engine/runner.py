@@ -112,6 +112,12 @@ class TimelineWriter:
         self.sequence += 1
         self.frames = []
 
+    def finish(self) -> None:
+        self.flush()
+        if self.exit_events:
+            sequences = ", ".join(str(sequence) for sequence in sorted(self.exit_events))
+            raise RunnerError(f"exit events have no matching timeline frame in chunks: {sequences}")
+
 
 class HeatmapWriter:
     def __init__(self, output_dir: Path, bounds, frame_interval: float = 1.0) -> None:
@@ -360,7 +366,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         or timeline.last_agent_count != remaining
     ):
         heatmap.add(timeline.add(_snapshot(contexts, trapped, simulation_duration)))
-    timeline.flush()
+    timeline.finish()
     heatmap.flush()
     result = {
         "engineVersion": engine_version,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import heapq
 import math
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 import numpy as np
 from shapely import contains_xy, covers, linestrings, points
@@ -350,7 +350,7 @@ class GridRouter:
         )
         return Route(
             exit_id=self.exits[exit_label].id,
-            waypoints=tuple(_simplify_collinear(path)),
+            waypoints=tuple(_simplify_collinear(path, self.can_connect)),
             terminal_point=(float(self.terminal_x[route_node]), float(self.terminal_y[route_node])),
             exit_start=exit_start,
             exit_end=exit_end,
@@ -622,18 +622,25 @@ def usable_exit_segment(exit_: Exit, clearance: float) -> tuple[Point, Point]:
     return start, end
 
 
-def _simplify_collinear(path: Sequence[Point]) -> list[Point]:
+def _simplify_collinear(
+    path: Sequence[Point], can_connect: Callable[[Point, Point], bool]
+) -> list[Point]:
     if len(path) < 3:
         return list(path)
     result = [path[0]]
-    previous_direction: tuple[int, int] | None = None
-    for index in range(1, len(path)):
-        dx = path[index][0] - path[index - 1][0]
-        dy = path[index][1] - path[index - 1][1]
-        scale = max(abs(dx), abs(dy), _EPSILON)
-        direction = (round(dx / scale), round(dy / scale))
-        if previous_direction is not None and direction != previous_direction:
-            result.append(path[index - 1])
-        previous_direction = direction
+    for index in range(1, len(path) - 1):
+        previous = result[-1]
+        current = path[index]
+        following = path[index + 1]
+        first = (current[0] - previous[0], current[1] - previous[1])
+        second = (following[0] - current[0], following[1] - current[1])
+        cross = first[0] * second[1] - first[1] * second[0]
+        scale = max(math.hypot(*first) * math.hypot(*second), _EPSILON)
+        same_direction = (
+            abs(cross) <= _EPSILON * scale
+            and first[0] * second[0] + first[1] * second[1] > 0
+        )
+        if not same_direction or not can_connect(previous, following):
+            result.append(current)
     result.append(path[-1])
     return result

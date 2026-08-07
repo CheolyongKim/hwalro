@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -97,18 +96,19 @@ public class SimulationExecutionService {
                 validateExecutionSetup(requestedSetup);
                 return requestedSetup;
             });
-            submitted = true;
-            executor.execute(() -> {
-                try {
-                    runJob(simulationId, setup);
-                } finally {
-                    executionCapacity.release();
-                }
-            });
-        } catch (TaskRejectedException exception) {
-            submitted = false;
-            markFailed(simulationId, "SERVICE_UNAVAILABLE: 실행 작업을 대기열에 등록하지 못했습니다.");
-            throw new SimulationEngineUnavailableException("시뮬레이션 실행 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.", exception);
+            try {
+                executor.execute(() -> {
+                    try {
+                        runJob(simulationId, setup);
+                    } finally {
+                        executionCapacity.release();
+                    }
+                });
+                submitted = true;
+            } catch (RuntimeException exception) {
+                markFailed(simulationId, "SERVICE_UNAVAILABLE: 실행 작업을 대기열에 등록하지 못했습니다.");
+                throw new SimulationEngineUnavailableException("시뮬레이션 실행 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.", exception);
+            }
         } finally {
             if (!submitted) {
                 executionCapacity.release();
@@ -217,7 +217,12 @@ public class SimulationExecutionService {
             EngineRun run = engineRunner.run(simulationId, setup);
             transactionTemplate.executeWithoutResult(status -> persistResult(simulationId, setup, run));
         } catch (EngineRunException exception) {
-            markFailed(simulationId, exception.getMessage());
+            log.warn("Simulation {} engine execution failed (timeout={})", simulationId, exception.isTimeout());
+            markFailed(
+                    simulationId,
+                    exception.isTimeout()
+                            ? "ENGINE_TIMEOUT: 실제 실행시간 제한을 초과했습니다."
+                            : "ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.");
         } catch (RuntimeException exception) {
             log.error("Simulation {} execution failed", simulationId, exception);
             markFailed(simulationId, "ENGINE_ERROR: 시뮬레이션 실행 또는 결과 저장에 실패했습니다.");

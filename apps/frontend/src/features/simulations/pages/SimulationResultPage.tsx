@@ -9,7 +9,13 @@ import type {
   SimulationTimelineChunk,
 } from '../types';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
-import { findTimelineFrames, interpolateTimeline } from '../utils/timeline';
+import {
+  executionPollDelay,
+  findTimelineFrames,
+  interpolateTimeline,
+  MAX_EXECUTION_POLL_FAILURES,
+  timelineChunkWindow,
+} from '../utils/timeline';
 
 const NOOP = () => undefined;
 
@@ -33,6 +39,7 @@ function SimulationResultPage() {
   const [retrying, setRetrying] = useState(false);
   const lastAnimationTimeRef = useRef<number | null>(null);
   const requestedChunksRef = useRef(new Set<number>());
+  const activeChunkSequenceRef = useRef(0);
 
   const refreshExecution = useCallback(() => simulationApi.getExecution(id), [id]);
 
@@ -64,18 +71,24 @@ function SimulationResultPage() {
     if (execution?.status !== 'REQUESTED' && execution?.status !== 'RUNNING') return;
     let cancelled = false;
     let timer = 0;
+    let consecutiveFailures = 0;
     const poll = async () => {
       try {
         const next = await refreshExecution();
         if (cancelled) return;
+        consecutiveFailures = 0;
+        setMessage(null);
         setExecution(next);
         if (next.status === 'REQUESTED' || next.status === 'RUNNING') {
           timer = window.setTimeout(() => void poll(), 1000);
         }
       } catch (error) {
         if (cancelled) return;
+        consecutiveFailures += 1;
         setMessage(getSimulationErrorMessage(error));
-        timer = window.setTimeout(() => void poll(), 1000);
+        if (consecutiveFailures < MAX_EXECUTION_POLL_FAILURES) {
+          timer = window.setTimeout(() => void poll(), executionPollDelay(consecutiveFailures));
+        }
       }
     };
     timer = window.setTimeout(() => void poll(), 1000);
@@ -91,7 +104,11 @@ function SimulationResultPage() {
       requestedChunksRef.current.add(sequence);
       try {
         const chunk = await simulationApi.getTimelineChunk(id, sequence);
-        setChunks((current) => ({ ...current, [sequence]: chunk }));
+        if (Math.abs(sequence - activeChunkSequenceRef.current) <= 1) {
+          setChunks((current) => ({ ...current, [sequence]: chunk }));
+        } else {
+          requestedChunksRef.current.delete(sequence);
+        }
       } catch (error) {
         requestedChunksRef.current.delete(sequence);
         throw error;
@@ -107,10 +124,22 @@ function SimulationResultPage() {
     Math.max(0, (result?.timelineChunkCount ?? 1) - 1),
     Math.floor(currentTime / Math.max(chunkDuration, 0.001)),
   );
+  activeChunkSequenceRef.current = chunkSequence;
 
   useEffect(() => {
     if (execution?.status !== 'COMPLETED' || !result || result.timelineChunkCount === 0) return;
-    for (const sequence of [chunkSequence - 1, chunkSequence, chunkSequence + 1]) {
+    const windowSequences = timelineChunkWindow(chunkSequence, result.timelineChunkCount);
+    const retained = new Set(windowSequences);
+    setChunks((current) => {
+      const entries = Object.entries(current).filter(([sequence]) =>
+        retained.has(Number(sequence)),
+      );
+      return entries.length === Object.keys(current).length ? current : Object.fromEntries(entries);
+    });
+    for (const sequence of requestedChunksRef.current) {
+      if (!retained.has(sequence)) requestedChunksRef.current.delete(sequence);
+    }
+    for (const sequence of windowSequences) {
       if (sequence >= 0 && sequence < result.timelineChunkCount && !chunks[sequence]) {
         void loadChunk(sequence).catch((error: unknown) => {
           setMessage(getSimulationErrorMessage(error));
@@ -141,10 +170,10 @@ function SimulationResultPage() {
 
   const visibleFrames = useMemo(
     () =>
-      Object.values(chunks)
-        .flatMap((chunk) => chunk.frames)
-        .sort((a, b) => a.timeSeconds - b.timeSeconds),
-    [chunks],
+      timelineChunkWindow(chunkSequence, result?.timelineChunkCount ?? 0).flatMap(
+        (sequence) => chunks[sequence]?.frames ?? [],
+      ),
+    [chunkSequence, chunks, result?.timelineChunkCount],
   );
   const renderedAgents = useMemo(() => {
     const [previous, next] = findTimelineFrames(visibleFrames, currentTime);

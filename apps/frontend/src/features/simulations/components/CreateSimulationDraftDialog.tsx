@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { simulationApi } from '../api/simulationApi';
 import type { SimulationSummary } from '../types';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
@@ -21,13 +21,66 @@ export function CreateSimulationDraftDialog({
   onClose,
   onConfirm,
 }: CreateSimulationDraftDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const pendingRef = useRef(pending);
   const [summaries, setSummaries] = useState<SimulationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<number | null>(null);
+  onCloseRef.current = onClose;
+  pendingRef.current = pending;
+
+  useEffect(() => {
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusable = () =>
+      Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+    focusable()[0]?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (!pendingRef.current) onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const items = focusable();
+      if (items.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    return () => {
+      dialog.removeEventListener('keydown', handleKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    setSummaries([]);
+    setLoading(true);
+    setError(null);
+    setSelectedParentId(null);
     simulationApi
       .listByLayoutVersion(layoutVersionId)
       .then((items) => {
@@ -46,6 +99,7 @@ export function CreateSimulationDraftDialog({
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4"
       role="dialog"
       aria-modal="true"

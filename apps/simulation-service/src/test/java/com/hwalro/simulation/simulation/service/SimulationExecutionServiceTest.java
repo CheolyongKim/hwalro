@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
@@ -159,6 +161,41 @@ class SimulationExecutionServiceTest {
         assertThatThrownBy(() -> service.execute(21L, user)).isInstanceOf(SimulationEngineUnavailableException.class);
 
         verify(simulationMapper).markExecutionFailed(eq(21L), contains("SERVICE_UNAVAILABLE"));
+    }
+
+    @Test
+    void releasesCapacityWhenExecutorThrowsAnotherRuntimeException() {
+        stubDraftAndRequestedStatus();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        doAnswer(invocation -> {
+                    throw new IllegalStateException("executor stopped");
+                })
+                .when(executor)
+                .execute(any(Runnable.class));
+        Semaphore capacity = (Semaphore) ReflectionTestUtils.getField(service, "executionCapacity");
+        int availableBefore = capacity.availablePermits();
+
+        assertThatThrownBy(() -> service.execute(21L, user)).isInstanceOf(SimulationEngineUnavailableException.class);
+
+        assertThat(capacity.availablePermits()).isEqualTo(availableBefore);
+        verify(simulationMapper).markExecutionFailed(eq(21L), contains("SERVICE_UNAVAILABLE"));
+    }
+
+    @Test
+    void doesNotPersistRawEngineDiagnostics() throws Exception {
+        stubDraftAndRequestedStatus();
+        captureWorker();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
+        when(engineRunner.run(eq(21L), any()))
+                .thenThrow(new EngineRunException("runner error: C:\\private\\input.json", false));
+
+        service.execute(21L, user);
+        queued.get().run();
+
+        verify(simulationMapper).markExecutionFailed(21L, "ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.");
     }
 
     @Test

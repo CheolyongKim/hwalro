@@ -71,7 +71,10 @@ venv가 없을 때만 `python` 명령으로 대체한다.
 ## 배포
 
 현재 커스텀 wheel 자동 설치는 로컬 Windows와 macOS만 지원한다. Linux용 커스텀 wheel을
-배포하기 전까지 Docker 이미지는 guarded simulation 실행 환경으로 사용하지 않는다.
+배포하기 전까지 Linux와 Docker 이미지는 guarded simulation 실행 환경으로 사용하지 않는다.
+`requirements.txt`도 writable `Agent.position`이 없는 공식 Linux wheel을 설치하지 않으며,
+`pnpm engine:setup`은 Linux에서 실행 전에 지원하지 않는 플랫폼 오류를 반환한다. 현재 Dockerfile은
+애플리케이션 이미지를 만들 수 있지만 JuPedSim 실행 요청은 지원하지 않는다.
 
 ```bash
 docker build -t hwalro-simulation-service apps/simulation-service

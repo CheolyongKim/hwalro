@@ -14,6 +14,7 @@ from route_planner import (
     select_agent_component,
     split_agent_components,
     usable_exit_segment,
+    _simplify_collinear,
 )
 
 
@@ -165,6 +166,16 @@ class GeometryTest(unittest.TestCase):
 
 
 class GridRoutingTest(unittest.TestCase):
+    def test_path_simplification_keeps_bends_and_blocked_shortcuts(self):
+        bent = [(0.0, 0.0), (1.0, 0.6), (2.0, 1.0)]
+        self.assertEqual(_simplify_collinear(bent, lambda _start, _end: True), bent)
+
+        collinear = [(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]
+        self.assertEqual(
+            _simplify_collinear(collinear, lambda start, end: (start, end) != (collinear[0], collinear[2])),
+            collinear,
+        )
+
     def test_exit_seed_has_bounded_distance_and_clear_physical_connector(self):
         routing = box(0, 0, 1, 1)
         physical = box(0, 0, 1.2, 1)

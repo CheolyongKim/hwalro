@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { findTimelineFrames, interpolateTimeline } from './timeline';
+import {
+  executionPollDelay,
+  findTimelineFrames,
+  interpolateTimeline,
+  timelineChunkWindow,
+} from './timeline';
 
 describe('simulation timeline', () => {
   const frames = [
@@ -40,5 +45,12 @@ describe('simulation timeline', () => {
         0.5,
       ),
     ).toEqual([{ x: 0, y: 0 }]);
+  });
+
+  it('backs off polling and keeps only adjacent timeline chunks', () => {
+    expect([1, 2, 3, 4, 5].map(executionPollDelay)).toEqual([1000, 2000, 4000, 8000, 8000]);
+    expect(timelineChunkWindow(0, 5)).toEqual([0, 1]);
+    expect(timelineChunkWindow(2, 5)).toEqual([1, 2, 3]);
+    expect(timelineChunkWindow(4, 5)).toEqual([3, 4]);
   });
 });

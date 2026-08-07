@@ -55,6 +55,15 @@ class TimelineWriterTest(unittest.TestCase):
             )
             self.assertEqual(chunk["frames"][-1]["evacuatedCount"], 1)
 
+    def test_finish_rejects_exit_events_without_a_matching_frame(self):
+        with tempfile.TemporaryDirectory() as directory:
+            writer = TimelineWriter(Path(directory), total_agents=1)
+            writer.add({"timeSeconds": 0, "agents": [{"agentId": 1, "x": 1.0, "y": 1.0}]})
+            writer.add_exit_event(20.0, stable_id=1, exit_id=501)
+
+            with self.assertRaisesRegex(RuntimeError, "no matching timeline frame"):
+                writer.finish()
+
 
 class HeatmapWriterTest(unittest.TestCase):
     def test_writes_sparse_grid_cells_matching_timeline_frames(self):

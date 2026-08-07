@@ -141,6 +141,7 @@ export function SimulationCanvas({
   const beginBrush = (point: SimulationPoint, apply: (point: SimulationPoint) => void) => {
     beginGesture();
     apply(point);
+    if (intervalRef.current !== null) window.clearInterval(intervalRef.current);
     intervalRef.current = window.setInterval(() => {
       if (cursorRef.current) apply(cursorRef.current);
     }, 100);

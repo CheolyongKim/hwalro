@@ -1,5 +1,17 @@
 import type { SimulationPoint, SimulationTimelineFrame, TimelineAgent } from '../types';
 
+export const MAX_EXECUTION_POLL_FAILURES = 5;
+
+export function executionPollDelay(failureCount: number): number {
+  return Math.min(8_000, 1_000 * 2 ** Math.max(0, failureCount - 1));
+}
+
+export function timelineChunkWindow(current: number, count: number): number[] {
+  return [current - 1, current, current + 1].filter(
+    (sequence) => sequence >= 0 && sequence < count,
+  );
+}
+
 function toPoint(agent: TimelineAgent): SimulationPoint {
   return { x: agent.x, y: agent.y };
 }

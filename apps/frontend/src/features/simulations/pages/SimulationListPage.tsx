@@ -85,7 +85,7 @@ function SimulationListPage() {
             <div className="flex min-h-64 items-center justify-center text-sm text-text-muted">
               시뮬레이션을 불러오는 중입니다.
             </div>
-          ) : query.isError ? (
+          ) : query.isError && items.length === 0 ? (
             <div className="flex min-h-64 items-center justify-center px-6 text-center">
               <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
                 {getSimulationErrorMessage(query.error)}
@@ -168,6 +168,24 @@ function SimulationListPage() {
                 >
                   {query.isFetchingNextPage ? '불러오는 중...' : '더 보기'}
                 </button>
+              )}
+              {query.isError && (
+                <div
+                  role="alert"
+                  className="flex items-center justify-between gap-4 border-t border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700"
+                >
+                  <span>{getSimulationErrorMessage(query.error)}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch())
+                    }
+                    disabled={query.isFetching}
+                    className="shrink-0 rounded-lg border border-red-300 px-3 py-1.5 font-bold disabled:opacity-50"
+                  >
+                    다시 시도
+                  </button>
+                </div>
               )}
             </>
           )}

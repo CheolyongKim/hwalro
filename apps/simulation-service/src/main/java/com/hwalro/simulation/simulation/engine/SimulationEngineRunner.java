@@ -13,11 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SimulationEngineRunner {
+    private static final Logger log = LoggerFactory.getLogger(SimulationEngineRunner.class);
     private static final Duration READINESS_TIMEOUT = Duration.ofSeconds(15);
     private static final int MAX_ENGINE_MESSAGE_LENGTH = 1000;
 
@@ -52,25 +55,28 @@ public class SimulationEngineRunner {
 
     public void assertAvailable() {
         if (!Files.isRegularFile(scriptPath)) {
-            throw new SimulationEngineUnavailableException("JuPedSim runner를 찾을 수 없습니다: " + scriptPath);
+            log.warn("JuPedSim runner is missing at {}", scriptPath);
+            throw new SimulationEngineUnavailableException("JuPedSim runner를 찾을 수 없습니다.");
         }
         Process process = null;
-        Path log = null;
+        Path logPath = null;
         try {
             Files.createDirectories(workRoot);
-            log = Files.createTempFile(workRoot, "engine-version-", ".log");
+            logPath = Files.createTempFile(workRoot, "engine-version-", ".log");
             process = new ProcessBuilder(pythonCommand, scriptPath.toString(), "--version")
                     .redirectErrorStream(true)
-                    .redirectOutput(log.toFile())
+                    .redirectOutput(logPath.toFile())
                     .start();
             if (!process.waitFor(READINESS_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
                 stop(process);
                 throw new SimulationEngineUnavailableException("JuPedSim 설치 확인 시간이 초과되었습니다.");
             }
             if (process.exitValue() != 0) {
-                throw new SimulationEngineUnavailableException(readMessage(log, "JuPedSim을 실행할 수 없습니다."));
+                log.warn("JuPedSim readiness check failed: {}", readDiagnostic(logPath));
+                throw new SimulationEngineUnavailableException("JuPedSim을 실행할 수 없습니다.");
             }
         } catch (IOException exception) {
+            log.warn("Could not start the JuPedSim readiness check", exception);
             throw new SimulationEngineUnavailableException("Python 또는 JuPedSim runner를 실행할 수 없습니다.", exception);
         } catch (InterruptedException exception) {
             if (process != null) {
@@ -79,9 +85,9 @@ public class SimulationEngineRunner {
             Thread.currentThread().interrupt();
             throw new SimulationEngineUnavailableException("JuPedSim 설치 확인이 중단되었습니다.", exception);
         } finally {
-            if (log != null) {
+            if (logPath != null) {
                 try {
-                    Files.deleteIfExists(log);
+                    Files.deleteIfExists(logPath);
                 } catch (IOException ignored) {
                     // Temporary diagnostic files are removed on a best-effort basis.
                 }
@@ -112,7 +118,8 @@ public class SimulationEngineRunner {
                 throw new EngineRunException("ENGINE_TIMEOUT: 실제 실행시간 제한을 초과했습니다.", true);
             }
             if (process.exitValue() != 0) {
-                throw new EngineRunException(readMessage(logPath, "JuPedSim 실행에 실패했습니다."), false);
+                log.warn("Simulation {} engine process failed: {}", simulationId, readDiagnostic(logPath));
+                throw new EngineRunException("ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.", false);
             }
 
             EngineResult result = objectMapper.readValue(
@@ -123,7 +130,8 @@ public class SimulationEngineRunner {
         } catch (EngineRunException exception) {
             throw exception;
         } catch (IOException exception) {
-            throw new EngineRunException("엔진 입출력 처리에 실패했습니다: " + exception.getMessage(), false, exception);
+            log.warn("Simulation {} engine I/O failed", simulationId, exception);
+            throw new EngineRunException("ENGINE_ERROR: 시뮬레이션 엔진 입출력 처리에 실패했습니다.", false, exception);
         } catch (InterruptedException exception) {
             if (process != null) {
                 stop(process);
@@ -233,15 +241,17 @@ public class SimulationEngineRunner {
         }
     }
 
-    private static String readMessage(Path path, String fallback) {
+    private static String readDiagnostic(Path path) {
         try {
-            String message = Files.readString(path, StandardCharsets.UTF_8).trim();
-            if (message.isEmpty()) {
-                return fallback;
-            }
-            return message.substring(0, Math.min(message.length(), MAX_ENGINE_MESSAGE_LENGTH));
+            String message = Files.readString(path, StandardCharsets.UTF_8)
+                    .replaceAll("\\p{Cntrl}", " ")
+                    .replaceAll("\\s+", " ")
+                    .trim();
+            return message.isEmpty()
+                    ? "no diagnostic output"
+                    : message.substring(0, Math.min(message.length(), MAX_ENGINE_MESSAGE_LENGTH));
         } catch (IOException exception) {
-            return fallback;
+            return "diagnostic output unavailable";
         }
     }
 
