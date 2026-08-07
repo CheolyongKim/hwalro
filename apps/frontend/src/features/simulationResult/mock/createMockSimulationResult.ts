@@ -107,6 +107,7 @@ export function createMockSimulationResult(simulationId: string): SimulationResu
   const rows = 40;
   return {
     simulationId,
+    simulationResultId: Number(simulationId) || 1,
     title: '더현대 서울 B2 · 팝업 행사장',
     subtitle: '시뮬레이션 결과 분석',
     durationSeconds: DURATION_SECONDS,

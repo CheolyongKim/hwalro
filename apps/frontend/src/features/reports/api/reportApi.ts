@@ -13,6 +13,11 @@ interface ReportListParams {
   size: number;
 }
 
+export interface AiReportDraftCreateRequest {
+  sourceSimulationResultId: number;
+  comparisonSimulationResultIds: number[];
+}
+
 export const reportApi = {
   list: (params: ReportListParams) =>
     apiClient.get<ReportListResponse>('/api/reports', { params }).then((response) => response.data),
@@ -21,5 +26,9 @@ export const reportApi = {
   update: (id: string, request: ReportUpdateRequest) =>
     apiClient
       .put<ReportDetailResponse>(`/api/reports/${id}`, request)
+      .then((response) => response.data),
+  createAiDraft: (request: AiReportDraftCreateRequest) =>
+    apiClient
+      .post<ReportDetailResponse>('/api/reports/ai-drafts', request)
       .then((response) => response.data),
 };

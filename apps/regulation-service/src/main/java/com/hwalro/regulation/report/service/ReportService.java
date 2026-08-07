@@ -9,6 +9,7 @@ import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.dto.ReportContent;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
+import com.hwalro.regulation.report.dto.ReportDraftInsert;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.dto.ReportUpdateRequest;
@@ -85,6 +86,25 @@ public class ReportService {
         String updatedStatus = requireEditableStatus(request.status());
         reportMapper.updateReport(reportId, request.title().trim(), serializeContent(request.content()), updatedStatus);
         return getReport(user, reportId);
+    }
+
+    @Transactional
+    public ReportDetailResponse createDraft(
+            Long authorId, String title, ReportContent content, List<Long> simulationResultIds) {
+        if (authorId == null || authorId <= 0 || !StringUtils.hasText(title) || content == null) {
+            throw new IllegalArgumentException("보고서 초안 저장 정보가 올바르지 않습니다.");
+        }
+        if (simulationResultIds == null || simulationResultIds.isEmpty()) {
+            throw new IllegalArgumentException("연결할 시뮬레이션 결과가 필요합니다.");
+        }
+        ReportDraftInsert draft =
+                new ReportDraftInsert(authorId, title, serializeContent(content), ReportStatus.DRAFT.value());
+        reportMapper.insertDraft(draft);
+        if (draft.getId() == null) {
+            throw new IllegalStateException("보고서 초안 ID를 생성하지 못했습니다.");
+        }
+        reportMapper.insertSimulationLinks(draft.getId(), simulationResultIds);
+        return toDetailResponse(findReport(draft.getId()));
     }
 
     private Long resolveAuthorId(JwtUser user) {

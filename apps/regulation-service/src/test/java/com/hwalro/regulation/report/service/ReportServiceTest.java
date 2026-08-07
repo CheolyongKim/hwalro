@@ -3,12 +3,17 @@ package com.hwalro.regulation.report.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
+import com.hwalro.regulation.report.dto.ReportContent;
+import com.hwalro.regulation.report.dto.ReportDetailRow;
+import com.hwalro.regulation.report.dto.ReportDraftInsert;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.mapper.ReportMapper;
@@ -17,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -78,5 +84,40 @@ class ReportServiceTest {
 
         assertThat(response.totalCount()).isEqualTo(2);
         verify(reportMapper).findReports(eq(null), eq(null), eq(null), eq(5), eq(0L));
+    }
+
+    @Test
+    void createsDraftAndLinksSimulationResultsWithoutStartingEditing() {
+        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
+        ReportContent content = new ReportContent("개요", "분석", "개선");
+        LocalDateTime now = LocalDateTime.now();
+        doAnswer(invocation -> {
+                    invocation.<ReportDraftInsert>getArgument(0).setId(30L);
+                    return 1;
+                })
+                .when(reportMapper)
+                .insertDraft(org.mockito.ArgumentMatchers.any());
+        when(reportMapper.findDetailById(30L))
+                .thenReturn(new ReportDetailRow(
+                        30L,
+                        7L,
+                        "현재 배치안 안전 검토 보고서",
+                        "{\"overview\":\"개요\",\"analysis\":\"분석\",\"improvements\":\"개선\"}",
+                        "초안",
+                        now,
+                        now));
+        when(reportMapper.findSimulationResultIds(30L)).thenReturn(List.of(10L, 20L));
+
+        var response = reportService.createDraft(7L, "현재 배치안 안전 검토 보고서", content, List.of(10L, 20L));
+
+        assertThat(response.id()).isEqualTo(30L);
+        assertThat(response.status()).isEqualTo("초안");
+        assertThat(response.content()).isEqualTo(content);
+        ArgumentCaptor<ReportDraftInsert> insertCaptor = ArgumentCaptor.forClass(ReportDraftInsert.class);
+        verify(reportMapper).insertDraft(insertCaptor.capture());
+        assertThat(insertCaptor.getValue().getAuthorId()).isEqualTo(7L);
+        assertThat(insertCaptor.getValue().getStatus()).isEqualTo("초안");
+        verify(reportMapper).insertSimulationLinks(30L, List.of(10L, 20L));
+        verify(reportMapper, never()).startEditing(30L);
     }
 }

@@ -5,6 +5,7 @@ import com.hwalro.simulation.common.jwt.InvalidTokenException;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
+import com.hwalro.simulation.result.exception.SimulationResultNotFoundException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +56,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(DrawingNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, String> handleDrawingNotFound(DrawingNotFoundException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(SimulationResultNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleSimulationResultNotFound(SimulationResultNotFoundException exception) {
         return Map.of("message", exception.getMessage());
     }
 

@@ -22,7 +22,40 @@ configurations {
 
 repositories {
     mavenCentral()
-    maven { url 'https://repo.spring.io/milestone' }
+}
+
+def readDotEnv = { File envFile ->
+    def values = [:]
+    if (!envFile.exists()) {
+        return values
+    }
+
+    envFile.eachLine('UTF-8') { rawLine ->
+        def line = rawLine.trim()
+        if (!line || line.startsWith('#')) {
+            return
+        }
+
+        def separatorIndex = line.indexOf('=')
+        if (separatorIndex <= 0) {
+            return
+        }
+
+        def key = line.substring(0, separatorIndex).trim()
+        def value = line.substring(separatorIndex + 1).trim()
+        if (value.size() >= 2
+                && ((value.startsWith('"') && value.endsWith('"'))
+                        || (value.startsWith("'") && value.endsWith("'")))) {
+            value = value.substring(1, value.size() - 1)
+        }
+        values[key] = value
+    }
+    return values
+}
+
+def localEnvironment = readDotEnv(rootProject.file('../../.env'))
+def resolveEnvironment = { String name, String defaultValue = '' ->
+    return System.getenv(name) ?: localEnvironment[name] ?: defaultValue
 }
 
 dependencies {
@@ -45,10 +78,7 @@ dependencies {
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
     // Spring AI
-    implementation('org.springframework.ai:spring-ai-spring-boot-autoconfigure') {
-        exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
-    }
-    implementation('org.springframework.ai:spring-ai-openai-spring-boot-starter') {
+    implementation('org.springframework.ai:spring-ai-starter-model-openai') {
         exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
     }
 
@@ -60,12 +90,51 @@ dependencies {
 
 dependencyManagement {
     imports {
-        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.0-M5'
+        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.9'
     }
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'openai'
+    }
+}
+
+tasks.register('openAiSmokeTest', Test) {
+    group = 'verification'
+    description = 'Calls OpenAI once and prints a structured AI report draft.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags 'openai'
+    }
+
+    environment 'OPENAI_API_KEY', resolveEnvironment('OPENAI_API_KEY')
+    environment 'OPENAI_MODEL', resolveEnvironment('OPENAI_MODEL', 'gpt-5.4-nano')
+    environment 'OPENAI_MAX_COMPLETION_TOKENS', resolveEnvironment('OPENAI_MAX_COMPLETION_TOKENS', '1800')
+
+    doFirst {
+        if (!resolveEnvironment('OPENAI_API_KEY')) {
+            throw new GradleException('Set OPENAI_API_KEY in the root .env file or current shell environment.')
+        }
+    }
+
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = true
+    }
+}
+
+tasks.named('bootRun') {
+    def openAiApiKey = resolveEnvironment('OPENAI_API_KEY')
+    if (openAiApiKey) {
+        environment 'OPENAI_API_KEY', openAiApiKey
+        environment 'OPENAI_MODEL', resolveEnvironment('OPENAI_MODEL', 'gpt-5.4-nano')
+        environment 'OPENAI_MAX_COMPLETION_TOKENS', resolveEnvironment('OPENAI_MAX_COMPLETION_TOKENS', '1800')
+        environment 'OPENAI_RETRY_MAX_ATTEMPTS', resolveEnvironment('OPENAI_RETRY_MAX_ATTEMPTS', '3')
+        environment 'SPRING_PROFILES_ACTIVE', resolveEnvironment('SPRING_PROFILES_ACTIVE', 'ai')
+    }
 }
 
 spotless {

@@ -302,6 +302,15 @@
 .dialog-actions {
   margin-top: 18px;
 }
+.report-dialog-error {
+  margin: 12px 0 0;
+  border-radius: 10px;
+  background: #fff0ee;
+  padding: 10px 12px;
+  color: #b53a30;
+  font-size: 12px;
+  line-height: 1.45;
+}
 .result-state {
   display: flex;
   height: 100dvh;

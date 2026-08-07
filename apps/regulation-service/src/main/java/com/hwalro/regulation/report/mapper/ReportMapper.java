@@ -1,6 +1,7 @@
 package com.hwalro.regulation.report.mapper;
 
 import com.hwalro.regulation.report.dto.ReportDetailRow;
+import com.hwalro.regulation.report.dto.ReportDraftInsert;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
@@ -28,4 +29,9 @@ public interface ReportMapper {
             @Param("status") String status);
 
     int startEditing(@Param("id") Long id);
+
+    int insertDraft(ReportDraftInsert draft);
+
+    int insertSimulationLinks(
+            @Param("reportId") Long reportId, @Param("simulationResultIds") List<Long> simulationResultIds);
 }
