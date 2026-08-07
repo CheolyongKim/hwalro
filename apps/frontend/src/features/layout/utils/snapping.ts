@@ -1,5 +1,5 @@
 import type { DrawingDocument, Fabric, OutsideWall, Pillar, Vec2, Wall } from '../types';
-import { PX_PER_METER, rectCenter, rotatePoint } from './geometry';
+import { closestPointOnSegment, distance, PX_PER_METER, rectCenter, rotatePoint } from './geometry';
 
 export const ANGLE_SNAP_DEG = 4;
 export const ENDPOINT_MAGNET_PX = 10;
@@ -97,6 +97,29 @@ export function endpointMagnet(
   return best;
 }
 
+export function surfaceSnap(point: Vec2, sources: SnapSources, zoom: number): Vec2 | null {
+  const radius = ENDPOINT_MAGNET_PX / (zoom * PX_PER_METER);
+  let best: Vec2 | null = null;
+  let bestDist = radius;
+  const consider = (wall: Wall | OutsideWall) => {
+    const a = { x: wall.startX, y: wall.startY };
+    const b = { x: wall.endX, y: wall.endY };
+    const closest = closestPointOnSegment(point, a, b);
+    const dist = distance(point, closest);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = closest;
+    }
+  };
+  for (const wall of sources.walls) {
+    consider(wall);
+  }
+  for (const wall of sources.outsideWalls) {
+    consider(wall);
+  }
+  return best;
+}
+
 export function snapPoint(
   raw: Vec2,
   origin: Vec2,
@@ -107,6 +130,10 @@ export function snapPoint(
   const magnet = endpointMagnet(raw, allEndpoints(sources), exclude, zoom);
   if (magnet) {
     return { point: magnet, snappedToEndpoint: magnet, axisSnapped: false };
+  }
+  const surface = surfaceSnap(raw, sources, zoom);
+  if (surface) {
+    return { point: surface, snappedToEndpoint: surface, axisSnapped: false };
   }
   const axis = axisSnap(origin, raw);
   if (axis) {

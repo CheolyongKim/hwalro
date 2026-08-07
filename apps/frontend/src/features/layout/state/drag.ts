@@ -1,7 +1,8 @@
-import type { DragState, EditorState, Exit, RectHandle, Vec2 } from '../types';
+import type { DragState, DrawingDocument, EditorState, Exit, Fabric, Pillar, RectHandle, Vec2, Wall } from '../types';
 import { rectCenter, rotatePoint, round1 } from '../utils/geometry';
 import { docSnapSources, snapPoint } from '../utils/snapping';
 import { isRectInsideBounds, translateDoc } from '../utils/document';
+import { clampLineDraft, clampMoveDelta, clampRectDraft, clampRotate } from '../utils/collision';
 
 type ReshapeDrag = Extract<DragState, { kind: 'reshape' }>;
 type RotateDrag = Extract<DragState, { kind: 'rotate' }>;
@@ -20,7 +21,8 @@ export function applyDragUpdate(state: EditorState, point: Vec2): EditorState {
   }
   if (drag.kind === 'move') {
     const delta = { x: point.x - drag.origin.x, y: point.y - drag.origin.y };
-    return { ...state, doc: translateDoc(drag.originDoc, state.selection, delta) };
+    const clampedDelta = clampMoveDelta(drag.originDoc, state.selection, delta);
+    return { ...state, doc: translateDoc(drag.originDoc, state.selection, clampedDelta) };
   }
   if (drag.kind === 'erase') {
     return state;
@@ -62,10 +64,15 @@ function applyLineReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   ];
   const snapped = snapPoint(point, other, docSnapSources(state.doc), exclude, state.camera.zoom);
   const clamped = clampToDocBounds(state.doc, snapped.point);
+  const elementExcluded =
+    drag.elementKind === 'wall'
+      ? { ...state.doc, walls: state.doc.walls.filter((w) => w.id !== wall.id) }
+      : { ...state.doc, outsideWalls: state.doc.outsideWalls.filter((w) => w.id !== wall.id) };
+  const collisionClamped = clampLineDraft(other, clamped, elementExcluded);
   const nextWall =
     drag.handle === 'start'
-      ? { ...wall, startX: round1(clamped.x), startY: round1(clamped.y) }
-      : { ...wall, endX: round1(clamped.x), endY: round1(clamped.y) };
+      ? { ...wall, startX: round1(collisionClamped.x), startY: round1(collisionClamped.y) }
+      : { ...wall, endX: round1(collisionClamped.x), endY: round1(collisionClamped.y) };
   const doc =
     drag.elementKind === 'wall'
       ? {
@@ -113,15 +120,43 @@ function applyReshapeExit(
 }
 
 function reshapeRectElement<
-  T extends { startX: number; startY: number; endX: number; endY: number; rotation: number },
->(element: T, point: Vec2, handle: RectHandle): T {
+  T extends { startX: number; startY: number; endX: number; endY: number; rotation: number; id: string },
+>(element: T, point: Vec2, handle: RectHandle, doc: DrawingDocument): T {
   const center = rectCenter(element);
-  const local = rotatePoint(point, center, -element.rotation);
+  const localPoint = rotatePoint(point, center, -element.rotation);
+  const fixed =
+    handle === 'start' ? { x: element.endX, y: element.endY } : { x: element.startX, y: element.startY };
+  const clamped = clampRectDraft(fixed, localPoint, elementLocalDoc(doc, element));
   const patch =
     handle === 'start'
-      ? { startX: round1(local.x), startY: round1(local.y) }
-      : { endX: round1(local.x), endY: round1(local.y) };
+      ? { startX: round1(clamped.x), startY: round1(clamped.y) }
+      : { endX: round1(clamped.x), endY: round1(clamped.y) };
   return { ...element, ...patch };
+}
+
+function elementLocalDoc(
+  doc: DrawingDocument,
+  element: { startX: number; startY: number; endX: number; endY: number; rotation: number; id: string },
+): DrawingDocument {
+  const center = rectCenter(element);
+  const rot = (p: Vec2) => rotatePoint(p, center, -element.rotation);
+  const mapWall = (wall: Wall): Wall => {
+    const a = rot({ x: wall.startX, y: wall.startY });
+    const b = rot({ x: wall.endX, y: wall.endY });
+    return { ...wall, startX: a.x, startY: a.y, endX: b.x, endY: b.y };
+  };
+  const mapRect = (rect: Pillar | Fabric): Pillar | Fabric => {
+    const a = rot({ x: rect.startX, y: rect.startY });
+    const b = rot({ x: rect.endX, y: rect.endY });
+    return { ...rect, startX: a.x, startY: a.y, endX: b.x, endY: b.y };
+  };
+  return {
+    ...doc,
+    walls: doc.walls.filter((w) => w.id !== element.id).map(mapWall),
+    outsideWalls: doc.outsideWalls.filter((w) => w.id !== element.id).map(mapWall),
+    pillars: doc.pillars.filter((p) => p.id !== element.id).map(mapRect),
+    fabrics: doc.fabrics.filter((f) => f.id !== element.id).map(mapRect),
+  };
 }
 
 function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Vec2): EditorState {
@@ -130,7 +165,7 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
     if (!pillar) {
       return state;
     }
-    const next = reshapeRectElement(pillar, clampToDocBounds(state.doc, point), drag.handle);
+    const next = reshapeRectElement(pillar, clampToDocBounds(state.doc, point), drag.handle, state.doc);
     if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
       return state;
     }
@@ -143,7 +178,7 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   if (!fabric) {
     return state;
   }
-  const next = reshapeRectElement(fabric, clampToDocBounds(state.doc, point), drag.handle);
+  const next = reshapeRectElement(fabric, clampToDocBounds(state.doc, point), drag.handle, state.doc);
   if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
     return state;
   }
@@ -173,9 +208,10 @@ function applyRotateUpdate(state: EditorState, drag: RotateDrag, point: Vec2): E
       return state;
     }
     const next = rotateRectElement(pillar, point);
+    const clamped = { ...next, rotation: clampRotate(pillar, next.rotation, state.doc) };
     return {
       ...state,
-      doc: { ...state.doc, pillars: state.doc.pillars.map((p) => (p.id === pillar.id ? next : p)) },
+      doc: { ...state.doc, pillars: state.doc.pillars.map((p) => (p.id === pillar.id ? clamped : p)) },
     };
   }
   const fabric = state.doc.fabrics.find((f) => f.id === drag.elementId);
@@ -183,8 +219,9 @@ function applyRotateUpdate(state: EditorState, drag: RotateDrag, point: Vec2): E
     return state;
   }
   const next = rotateRectElement(fabric, point);
+  const clamped = { ...next, rotation: clampRotate(fabric, next.rotation, state.doc) };
   return {
     ...state,
-    doc: { ...state.doc, fabrics: state.doc.fabrics.map((f) => (f.id === fabric.id ? next : f)) },
+    doc: { ...state.doc, fabrics: state.doc.fabrics.map((f) => (f.id === fabric.id ? clamped : f)) },
   };
 }
