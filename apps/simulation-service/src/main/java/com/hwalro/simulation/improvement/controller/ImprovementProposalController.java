@@ -1,7 +1,12 @@
 package com.hwalro.simulation.improvement.controller;
 
+import com.hwalro.simulation.common.jwt.JwtAuthInterceptor;
+import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
+import com.hwalro.simulation.improvement.dto.ImprovementProposalExecutionRequest;
+import com.hwalro.simulation.improvement.dto.ImprovementProposalExecutionResponse;
 import com.hwalro.simulation.improvement.dto.ImprovementProposalResponse;
+import com.hwalro.simulation.improvement.service.ImprovementProposalExecutionService;
 import com.hwalro.simulation.improvement.service.ImprovementProposalGenerationService;
 import com.hwalro.simulation.improvement.service.ImprovementProposalQueryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,12 +33,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class ImprovementProposalController {
     private final ImprovementProposalQueryService improvementProposalQueryService;
     private final ImprovementProposalGenerationService improvementProposalGenerationService;
+    private final ImprovementProposalExecutionService improvementProposalExecutionService;
 
     public ImprovementProposalController(
             ImprovementProposalQueryService improvementProposalQueryService,
-            ImprovementProposalGenerationService improvementProposalGenerationService) {
+            ImprovementProposalGenerationService improvementProposalGenerationService,
+            ImprovementProposalExecutionService improvementProposalExecutionService) {
         this.improvementProposalQueryService = improvementProposalQueryService;
         this.improvementProposalGenerationService = improvementProposalGenerationService;
+        this.improvementProposalExecutionService = improvementProposalExecutionService;
     }
 
     @GetMapping
@@ -62,5 +72,19 @@ public class ImprovementProposalController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
         }
         return improvementProposalQueryService.list(simulationId);
+    }
+
+    @PostMapping("/executions")
+    @Operation(summary = "선택 개선안 결과 생성", description = "선택한 개선안을 최대 3개까지 병렬로 실행합니다.")
+    public ImprovementProposalExecutionResponse execute(
+            @PathVariable long simulationId,
+            @RequestBody ImprovementProposalExecutionRequest request,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        try {
+            return improvementProposalExecutionService.execute(
+                    simulationId, request == null ? null : request.proposalIds(), user);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+        }
     }
 }
