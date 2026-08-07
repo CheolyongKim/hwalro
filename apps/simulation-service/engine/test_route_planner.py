@@ -12,6 +12,8 @@ from route_planner import (
     hazard_multiplier,
     select_accessible_component,
     select_agent_component,
+    split_agent_components,
+    usable_exit_segment,
 )
 
 
@@ -131,6 +133,17 @@ class GeometryTest(unittest.TestCase):
                 [Exit(1, (0.0, 2.5), (0.0, 3.5))],
             )
 
+    def test_groups_agents_in_disconnected_components(self):
+        walkable = build_walkable_geometry(self._drawing_with_enclosed_room())
+
+        groups = split_agent_components(walkable, [(1.0, 1.0), (3.0, 3.0)])
+
+        self.assertEqual(len(groups), 2)
+        self.assertEqual(
+            sorted(index for _component, agents in groups for index, _position in agents),
+            [0, 1],
+        )
+
     @staticmethod
     def _drawing_with_enclosed_room():
         return {
@@ -158,21 +171,24 @@ class GridRoutingTest(unittest.TestCase):
         router = GridRouter(
             routing,
             [],
-            [Exit(1, (1.2, 0.4), (1.2, 0.6))],
+            [Exit(1, (1.2, 0.1), (1.2, 0.9))],
             physical_walkable=physical,
         )
 
         route = router.plan((0.25, 0.5))
 
-        self.assertLessEqual(LineString((route.waypoints[-1], (1.2, 0.5))).length, 0.5)
-        self.assertTrue(physical.covers(LineString((route.waypoints[-1], (1.2, 0.5)))))
+        self.assertLessEqual(LineString((route.waypoints[-1], route.terminal_point)).length, 0.25 * 2**0.5)
+        self.assertTrue(physical.covers(LineString((route.waypoints[-1], route.terminal_point))))
+        self.assertAlmostEqual(route.waypoints[-1][1], route.terminal_point[1])
+        self.assertGreaterEqual(route.terminal_point[1], 0.4)
+        self.assertLessEqual(route.terminal_point[1], 0.6)
 
     def test_exit_seed_does_not_fall_back_to_a_distant_grid_point(self):
-        with self.assertRaisesRegex(ValueError, "within 0.5m"):
+        with self.assertRaisesRegex(ValueError, "reachable from this walkable component"):
             GridRouter(
                 box(0, 0, 1, 1),
                 [],
-                [Exit(1, (1.4, 0.4), (1.4, 0.6))],
+                [Exit(1, (1.4, 0.1), (1.4, 0.9))],
                 physical_walkable=box(0, 0, 1.4, 1),
             )
 
@@ -181,13 +197,25 @@ class GridRoutingTest(unittest.TestCase):
             LineString(((1, 0), (1, 1))).buffer(0.01, cap_style="flat")
         )
 
-        with self.assertRaisesRegex(ValueError, "clear physical connector"):
+        with self.assertRaisesRegex(ValueError, "reachable from this walkable component"):
             GridRouter(
                 box(0, 0, 0.9, 1),
                 [],
-                [Exit(1, (1.2, 0.4), (1.2, 0.6))],
+                [Exit(1, (1.2, 0.1), (1.2, 0.9))],
                 physical_walkable=physical,
             )
+
+    def test_exit_must_be_wider_than_agent_diameter(self):
+        with self.assertRaisesRegex(ValueError, "wider than 0.6m"):
+            usable_exit_segment(Exit(1, (1, 0.2), (1, 0.8)), 0.3)
+
+    def test_exit_crossing_uses_only_the_trimmed_gate(self):
+        exit_ = Exit(1, (2, 0.5), (2, 3.5))
+        router = GridRouter(box(0, 0, 4, 4), [], [exit_])
+        start, end = usable_exit_segment(exit_, 0.3)
+
+        self.assertTrue(router.crossed_exit((1.9, 2), (2.1, 2), start, end))
+        self.assertFalse(router.crossed_exit((1.9, 0.6), (2.1, 0.6), start, end))
 
     def test_route_avoids_hazard_when_lower_total_cost_exists(self):
         walkable = Polygon(((0, 0), (6, 0), (6, 4), (0, 4)))
@@ -215,7 +243,7 @@ class GridRoutingTest(unittest.TestCase):
     def test_unavoidable_hazard_crossing_stays_away_from_center(self):
         walkable = Polygon(((0, 0), (6, 0), (6, 2), (0, 2)))
         hazard = Hazard(3.0, 1.0, 2.0)
-        router = GridRouter(walkable, [hazard], [Exit(1, (6, 0.8), (6, 1.2))])
+        router = GridRouter(walkable, [hazard], [Exit(1, (6, 0.6), (6, 1.4))])
 
         route = router.plan((0.5, 1.0))
 
@@ -250,7 +278,7 @@ class GridRoutingTest(unittest.TestCase):
         right_block = box(0.375, 0.1, 0.625, 0.4)
         upper_block = box(0.1, 0.375, 0.4, 0.625)
         walkable = outer.difference(right_block.union(upper_block))
-        router = GridRouter(walkable, [], [Exit(1, (1, 0.75), (1, 0.9))])
+        router = GridRouter(walkable, [], [Exit(1, (1, 0.1), (1, 0.9))])
 
         with self.assertRaisesRegex(ValueError, "cannot connect|reachable"):
             router.plan((0.25, 0.25))

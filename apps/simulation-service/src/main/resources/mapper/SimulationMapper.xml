@@ -185,6 +185,13 @@
         WHERE simulation_id = #{simulationId}
     </update>
 
+    <update id="updateExecutionProfiles">
+        UPDATE simulation_options
+        SET model_profile = #{modelProfile},
+            routing_profile = #{routingProfile}
+        WHERE simulation_id = #{simulationId}
+    </update>
+
     <update id="updateInitialState">
         UPDATE simulation_initial_states
         SET agent_positions = CAST(#{agentPositions} AS JSON)

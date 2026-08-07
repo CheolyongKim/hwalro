@@ -38,6 +38,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class SimulationExecutionService {
     private static final Logger log = LoggerFactory.getLogger(SimulationExecutionService.class);
     private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String MODEL_PROFILE = "SFM_DEFAULT_V2";
+    private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 1000;
     private static final double MAX_SIMULATION_DURATION_SECONDS = 600.0;
 
@@ -77,6 +79,9 @@ public class SimulationExecutionService {
         boolean submitted = false;
         try {
             SimulationSetupResponse setup = transactionTemplate.execute(status -> {
+                if (simulationMapper.updateExecutionProfiles(simulationId, MODEL_PROFILE, ROUTING_PROFILE) != 1) {
+                    throw new IllegalStateException("시뮬레이션 실행 프로필을 갱신하지 못했습니다.");
+                }
                 if (simulationMapper.requestExecution(simulationId) != 1) {
                     throw new SimulationConflictException("DRAFT 또는 FAILED 상태에서만 실행할 수 있습니다.");
                 }

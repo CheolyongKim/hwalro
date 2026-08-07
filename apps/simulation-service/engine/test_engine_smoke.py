@@ -14,8 +14,8 @@ class JuPedSimSmokeTest(unittest.TestCase):
 
         payload = {
             "model": {
-                "modelProfile": "SFM_DEFAULT_V1",
-                "routingProfile": "HAZARD_RADIAL_EXP_V2",
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
                 "walkingSpeed": 1.2,
                 "reactionTime": 0.5,
             },
@@ -50,7 +50,7 @@ class JuPedSimSmokeTest(unittest.TestCase):
 
             result = run(input_path, output_path)
 
-            self.assertEqual(result["engineVersion"], "1.4.2")
+            self.assertEqual(result["engineVersion"], "1.4.2+hwalro.1")
             self.assertEqual(result["terminationReason"], "ALL_EVACUATED")
             self.assertEqual(result["evacuatedPeople"], 1)
             self.assertEqual(result["remainingPeople"], 0)
@@ -85,8 +85,8 @@ class JuPedSimSmokeTest(unittest.TestCase):
 
         payload = {
             "model": {
-                "modelProfile": "SFM_DEFAULT_V1",
-                "routingProfile": "HAZARD_RADIAL_EXP_V2",
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
                 "walkingSpeed": 1.2,
                 "reactionTime": 0.5,
             },
@@ -100,7 +100,7 @@ class JuPedSimSmokeTest(unittest.TestCase):
                 "walls": [{"startX": 3, "startY": 0, "endX": 3, "endY": 4}],
                 "pillars": [],
                 "fabrics": [],
-                "exits": [{"id": 1, "startX": 6, "startY": 4.1, "endX": 6, "endY": 4.7}],
+                "exits": [{"id": 1, "startX": 6, "startY": 4.0, "endX": 6, "endY": 4.8}],
             },
             "agents": [
                 {"x": 1, "y": 1.5},
@@ -133,6 +133,75 @@ class JuPedSimSmokeTest(unittest.TestCase):
                         if index in previous:
                             self.assertFalse(LineString((previous[index], point)).crosses(wall))
                         previous[index] = point
+
+    def test_local_wheel_can_restore_agent_position_and_velocity(self):
+        import jupedsim as jps
+
+        simulation = jps.Simulation(
+            model=jps.SocialForceModel(),
+            geometry=[(0, 0), (4, 0), (4, 4), (0, 4)],
+            dt=0.01,
+        )
+        stage_id = simulation.add_direct_steering_stage()
+        journey_id = simulation.add_journey(jps.JourneyDescription([stage_id]))
+        agent_id = simulation.add_agent(
+            jps.SocialForceModelAgentParameters(
+                position=(1, 1), journey_id=journey_id, stage_id=stage_id
+            )
+        )
+        agent = simulation.agent(agent_id)
+
+        agent.position = (2, 2)
+        agent.model.velocity = (0, 0)
+
+        self.assertEqual(agent.position, (2.0, 2.0))
+        self.assertEqual(agent.model.velocity, (0.0, 0.0))
+
+    def test_agent_without_connected_exit_remains_in_timeline(self):
+        from runner import run
+
+        payload = {
+            "model": {
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
+                "walkingSpeed": 1.2,
+                "reactionTime": 0.5,
+            },
+            "drawing": {
+                "outsideBoundary": [
+                    {"x": 0, "y": 0},
+                    {"x": 6, "y": 0},
+                    {"x": 6, "y": 4},
+                    {"x": 0, "y": 4},
+                ],
+                "walls": [{"startX": 3, "startY": 0, "endX": 3, "endY": 4}],
+                "pillars": [],
+                "fabrics": [],
+                "exits": [{"id": 1, "startX": 0, "startY": 1.5, "endX": 0, "endY": 2.5}],
+            },
+            "agents": [{"x": 0.5, "y": 2}, {"x": 5, "y": 2}],
+            "hazards": [],
+            "selectedExitIds": [1],
+            "maxSimulationTimeSeconds": 0.05,
+            "frameIntervalSeconds": 0.01,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_path = root / "output"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = run(input_path, output_path)
+            last_chunk = json.loads(
+                (output_path / "timeline" / f"{result['timelineChunkCount'] - 1:06d}.json").read_text(
+                    "utf-8"
+                )
+            )
+
+            self.assertEqual(result["terminationReason"], "MAX_DURATION")
+            self.assertEqual(result["evacuatedPeople"], 1)
+            self.assertEqual(result["remainingPeople"], 1)
+            self.assertEqual(last_chunk["frames"][-1]["agents"], [[1, 5.0, 2.0]])
 
 
 if __name__ == "__main__":

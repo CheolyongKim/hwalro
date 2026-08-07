@@ -57,6 +57,11 @@ public interface SimulationMapper {
             @Param("walkingSpeed") BigDecimal walkingSpeed,
             @Param("reactionTime") BigDecimal reactionTime);
 
+    int updateExecutionProfiles(
+            @Param("simulationId") Long simulationId,
+            @Param("modelProfile") String modelProfile,
+            @Param("routingProfile") String routingProfile);
+
     int updateInitialState(@Param("simulationId") Long simulationId, @Param("agentPositions") String agentPositions);
 
     int deleteHazardZones(@Param("simulationId") Long simulationId);

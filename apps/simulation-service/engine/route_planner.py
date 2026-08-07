@@ -17,7 +17,7 @@ from shapely.prepared import prep
 
 GRID_STEP_METERS = 0.25
 WALL_TOTAL_WIDTH_METERS = 0.02
-EXIT_SEED_MAX_DISTANCE_METERS = 0.5
+EXIT_SEED_MAX_DISTANCE_METERS = GRID_STEP_METERS * math.sqrt(2.0)
 HAZARD_BOUNDARY_MULTIPLIER = 5.0
 HAZARD_CENTER_MULTIPLIER = 500.0
 _EPSILON = 1e-9
@@ -53,6 +53,9 @@ class Exit:
 class Route:
     exit_id: Any
     waypoints: tuple[Point, ...]
+    terminal_point: Point
+    exit_start: Point
+    exit_end: Point
     total_cost: float
 
 
@@ -170,6 +173,33 @@ def select_agent_component(area, agents: Sequence[Point]):
     return components[agent_component_indexes.pop()]
 
 
+def split_agent_components(area, agents: Sequence[Point]):
+    """Group indexed agents by the one routing component containing each center."""
+    components = list(area.geoms) if area.geom_type == "MultiPolygon" else [area]
+    grouped: dict[int, list[tuple[int, Point]]] = {}
+    for index, position in enumerate(agents):
+        point = ShapelyPoint(position)
+        matches = [
+            component_index
+            for component_index, component in enumerate(components)
+            if component.covers(point)
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"agent {index} is outside the walkable area")
+        grouped.setdefault(matches[0], []).append((index, position))
+    return tuple((components[index], tuple(grouped[index])) for index in sorted(grouped))
+
+
+def containing_component(area, contained):
+    """Return the physical component containing a routing component."""
+    components = list(area.geoms) if area.geom_type == "MultiPolygon" else [area]
+    marker = contained.representative_point()
+    matches = [component for component in components if component.covers(marker)]
+    if len(matches) != 1:
+        raise ValueError("routing area is not contained in exactly one physical walkable area")
+    return matches[0]
+
+
 def parse_hazards(items: Sequence[dict[str, Any]]) -> tuple[Hazard, ...]:
     hazards = []
     for index, item in enumerate(items):
@@ -217,6 +247,7 @@ class GridRouter:
         exits: Sequence[Exit],
         step: float = GRID_STEP_METERS,
         physical_walkable=None,
+        exit_clearance: float = 0.3,
     ) -> None:
         if not math.isfinite(step) or step <= 0:
             raise ValueError("grid step must be positive")
@@ -229,6 +260,7 @@ class GridRouter:
         self.hazards = tuple(hazards)
         self.exits = tuple(exits)
         self.step = step
+        self.exit_clearance = exit_clearance
 
         min_x, min_y, max_x, max_y = walkable.bounds
         self.origin_x = math.floor(min_x / step) * step
@@ -251,6 +283,10 @@ class GridRouter:
         self.distance = np.full(self.width * self.height, np.inf, dtype=float)
         self.next_node = np.full(self.width * self.height, -1, dtype=np.int64)
         self.exit_label = np.full(self.width * self.height, -1, dtype=np.int32)
+        self.terminal_x = np.full(self.width * self.height, np.nan, dtype=float)
+        self.terminal_y = np.full(self.width * self.height, np.nan, dtype=float)
+        self.approach_x = np.full(self.width * self.height, np.nan, dtype=float)
+        self.approach_y = np.full(self.width * self.height, np.nan, dtype=float)
         self._grid_edges = self._build_grid_edges()
         self._build_cost_field()
 
@@ -284,6 +320,7 @@ class GridRouter:
             raise ValueError(f"agent at {point} cannot connect to the routing grid")
 
         total_cost, exit_label, node = best
+        route_node = node
         path = [point]
         visited = set()
         while node >= 0:
@@ -294,16 +331,27 @@ class GridRouter:
             if math.dist(path[-1], node_point) > _EPSILON:
                 path.append(node_point)
             node = int(self.next_node[node])
+        approach = (float(self.approach_x[route_node]), float(self.approach_y[route_node]))
+        if math.dist(path[-1], approach) > _EPSILON:
+            path.append(approach)
+        exit_start, exit_end = usable_exit_segment(
+            self.exits[exit_label], self.exit_clearance
+        )
         return Route(
             exit_id=self.exits[exit_label].id,
             waypoints=tuple(_simplify_collinear(path)),
+            terminal_point=(float(self.terminal_x[route_node]), float(self.terminal_y[route_node])),
+            exit_start=exit_start,
+            exit_end=exit_end,
             total_cost=total_cost,
         )
 
     def _build_cost_field(self) -> None:
         heap: list[tuple[float, int, int]] = []
+        seed_count = 0
         for label, exit_ in enumerate(self.exits):
-            for node, target in self._exit_seeds(exit_):
+            for node, target, approach in self._exit_seeds(exit_):
+                seed_count += 1
                 seed_cost = edge_cost(self._point(node), target, self.hazards)
                 current = (float(self.distance[node]), int(self.exit_label[node]))
                 if seed_cost + _EPSILON < current[0] or (
@@ -312,7 +360,14 @@ class GridRouter:
                 ):
                     self.distance[node] = seed_cost
                     self.exit_label[node] = label
+                    self.terminal_x[node] = target[0]
+                    self.terminal_y[node] = target[1]
+                    self.approach_x[node] = approach[0]
+                    self.approach_y[node] = approach[1]
                     heapq.heappush(heap, (seed_cost, label, node))
+
+        if seed_count == 0:
+            raise ValueError("no selected exit is reachable from this walkable component")
 
         while heap:
             current_cost, label, node = heapq.heappop(heap)
@@ -346,14 +401,21 @@ class GridRouter:
                     self.distance[neighbor] = next_cost
                     self.exit_label[neighbor] = label
                     self.next_node[neighbor] = node
+                    self.terminal_x[neighbor] = self.terminal_x[node]
+                    self.terminal_y[neighbor] = self.terminal_y[node]
+                    self.approach_x[neighbor] = self.approach_x[node]
+                    self.approach_y[neighbor] = self.approach_y[node]
                     heapq.heappush(heap, (next_cost, label, neighbor))
 
-    def _exit_seeds(self, exit_: Exit) -> list[tuple[int, Point]]:
+    def _exit_seeds(self, exit_: Exit) -> list[tuple[int, Point, Point]]:
         candidates = np.flatnonzero(self.valid)
-        ax, ay = exit_.start
-        bx, by = exit_.end
+        start, end = usable_exit_segment(exit_, self.exit_clearance)
+        ax, ay = start
+        bx, by = end
         vx, vy = bx - ax, by - ay
         length_squared = vx * vx + vy * vy
+        length = math.sqrt(length_squared)
+        normal = (-vy / length, vx / length)
         projection = np.clip(
             ((self._x[candidates] - ax) * vx + (self._y[candidates] - ay) * vy) / length_squared,
             0.0,
@@ -362,22 +424,50 @@ class GridRouter:
         target_x = ax + projection * vx
         target_y = ay + projection * vy
         squared = (self._x[candidates] - target_x) ** 2 + (self._y[candidates] - target_y) ** 2
-        nearby = np.flatnonzero(squared <= (EXIT_SEED_MAX_DISTANCE_METERS + _EPSILON) ** 2)
+        maximum_seed_distance = self.exit_clearance + EXIT_SEED_MAX_DISTANCE_METERS
+        nearby = np.flatnonzero(squared <= (maximum_seed_distance + _EPSILON) ** 2)
         seeds = []
         for offset in nearby:
             node = int(candidates[offset])
             target = (float(target_x[offset]), float(target_y[offset]))
-            if self._physical_edge_is_walkable(self._point(node), target):
-                seeds.append((node, target))
-        if seeds:
-            return seeds
-        raise ValueError(
-            f"exit {exit_.id!r} has no routing point within "
-            f"{EXIT_SEED_MAX_DISTANCE_METERS}m with a clear physical connector"
-        )
+            node_point = self._point(node)
+            distance = math.dist(node_point, target)
+            if distance <= _EPSILON or not self._physical_edge_is_walkable(node_point, target):
+                continue
+            approaches = (
+                (
+                    target[0] + normal[0] * self.exit_clearance,
+                    target[1] + normal[1] * self.exit_clearance,
+                ),
+                (
+                    target[0] - normal[0] * self.exit_clearance,
+                    target[1] - normal[1] * self.exit_clearance,
+                ),
+            )
+            valid_approaches = [
+                approach
+                for approach in approaches
+                if self.contains(approach) and self.can_connect(node_point, approach)
+            ]
+            if valid_approaches:
+                approach = min(valid_approaches, key=lambda item: (math.dist(node_point, item), item))
+                seeds.append((node, target, approach))
+        return seeds
+
+    def contains(self, point: Point) -> bool:
+        return self._prepared_walkable.covers(ShapelyPoint(point))
 
     def can_connect(self, start: Point, end: Point) -> bool:
         return self._prepared_walkable.covers(LineString((start, end)))
+
+    def can_reach_exit(self, start: Point, end: Point) -> bool:
+        return self._physical_edge_is_walkable(start, end)
+
+    def crossed_exit(self, start: Point, end: Point, exit_start: Point, exit_end: Point) -> bool:
+        movement = LineString((start, end))
+        return self._prepared_physical_walkable.covers(movement) and movement.intersects(
+            LineString((exit_start, exit_end))
+        )
 
     def _physical_edge_is_walkable(self, start: Point, end: Point) -> bool:
         return self._prepared_physical_walkable.covers(LineString((start, end)))
@@ -483,6 +573,26 @@ def _id_key(value: Any) -> str:
         if value.is_integer():
             value = int(value)
     return str(value)
+
+
+def usable_exit_segment(exit_: Exit, clearance: float) -> tuple[Point, Point]:
+    if not math.isfinite(clearance) or clearance <= 0:
+        raise ValueError("exit clearance must be positive")
+    length = math.dist(exit_.start, exit_.end)
+    if length <= 2.0 * clearance + _EPSILON:
+        raise ValueError(
+            f"exit {exit_.id!r} must be wider than {2.0 * clearance:g}m for agent clearance"
+        )
+    ratio = clearance / length
+    start = (
+        exit_.start[0] + (exit_.end[0] - exit_.start[0]) * ratio,
+        exit_.start[1] + (exit_.end[1] - exit_.start[1]) * ratio,
+    )
+    end = (
+        exit_.end[0] + (exit_.start[0] - exit_.end[0]) * ratio,
+        exit_.end[1] + (exit_.start[1] - exit_.end[1]) * ratio,
+    )
+    return start, end
 
 
 def _simplify_collinear(path: Sequence[Point]) -> list[Point]:

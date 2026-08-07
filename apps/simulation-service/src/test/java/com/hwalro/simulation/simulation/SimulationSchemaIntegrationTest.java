@@ -36,14 +36,14 @@ class SimulationSchemaIntegrationTest {
                 ResultSet columns =
                         statement.executeQuery("SHOW COLUMNS FROM simulation_options LIKE 'model_profile'")) {
             assertThat(columns.next()).isTrue();
-            assertThat(columns.getString("Default")).isEqualTo("SFM_DEFAULT_V1");
+            assertThat(columns.getString("Default")).isEqualTo("SFM_DEFAULT_V2");
         }
         try (Connection connection = connection();
                 Statement statement = connection.createStatement();
                 ResultSet columns =
                         statement.executeQuery("SHOW COLUMNS FROM simulation_options LIKE 'routing_profile'")) {
             assertThat(columns.next()).isTrue();
-            assertThat(columns.getString("Default")).isEqualTo("HAZARD_RADIAL_EXP_V2");
+            assertThat(columns.getString("Default")).isEqualTo("HAZARD_RADIAL_EXP_V3");
         }
     }
 

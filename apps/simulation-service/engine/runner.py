@@ -13,11 +13,11 @@ from typing import Any, Callable, Sequence
 
 
 REQUIRED_JUPEDSIM_VERSION = "1.4.2"
-REQUIRED_MODEL_PROFILE = "SFM_DEFAULT_V1"
-REQUIRED_ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V2"
+ENGINE_VERSION = "1.4.2+hwalro.1"
+REQUIRED_MODEL_PROFILE = "SFM_DEFAULT_V2"
+REQUIRED_ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3"
 DT_SECONDS = 0.01
 AGENT_RADIUS_METERS = 0.3
-EXIT_REACHED_DISTANCE_METERS = 0.5
 MAX_SIMULATION_TIME_SECONDS = 600.0
 MAX_AGENTS = 5000
 TIMELINE_FRAMES_PER_CHUNK = 10
@@ -32,9 +32,17 @@ class RunnerError(RuntimeError):
 class AgentRouteState:
     index: int
     waypoints: tuple[tuple[float, float], ...]
+    terminal_point: tuple[float, float]
     exit_start: tuple[float, float]
     exit_end: tuple[float, float]
     cursor: int = 0
+
+
+@dataclass
+class SimulationContext:
+    simulation: Any
+    router: Any
+    states: dict[int, AgentRouteState]
 
 
 class TimelineWriter:
@@ -84,32 +92,38 @@ def _load_dependencies():
         raise RunnerError(
             f"jupedsim {REQUIRED_JUPEDSIM_VERSION} is required, found {installed_version}"
         )
-    return jps, np, shapely, installed_version
+    position_property = getattr(getattr(jps, "Agent", None), "position", None)
+    if position_property is None or position_property.fset is None:
+        raise RunnerError(
+            "the local JuPedSim wheel with writable Agent.position is required; "
+            "follow apps/simulation-service/engine/README.md"
+        )
+    return jps, np, shapely, ENGINE_VERSION
 
 
 def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     jps, np, _shapely, engine_version = _load_dependencies()
     try:
         from route_planner import (
-            GRID_STEP_METERS,
             GridRouter,
             build_routing_geometry,
             build_walkable_geometry,
+            containing_component,
             parse_exits,
             parse_hazards,
-            select_accessible_component,
-            select_agent_component,
+            split_agent_components,
+            usable_exit_segment,
         )
     except ModuleNotFoundError:
         from .route_planner import (  # type: ignore[no-redef]
-            GRID_STEP_METERS,
             GridRouter,
             build_routing_geometry,
             build_walkable_geometry,
+            containing_component,
             parse_exits,
             parse_hazards,
-            select_accessible_component,
-            select_agent_component,
+            split_agent_components,
+            usable_exit_segment,
         )
 
     payload = _read_input(input_path)
@@ -154,91 +168,84 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     try:
         hazards = parse_hazards(hazards_value)
         exits = parse_exits(drawing, selected_exit_ids)
+        for exit_ in exits:
+            usable_exit_segment(exit_, AGENT_RADIUS_METERS)
         walkable = build_walkable_geometry(drawing)
-        walkable = select_accessible_component(walkable, agents, exits)
         routing_area = build_routing_geometry(drawing, AGENT_RADIUS_METERS)
-        routing_area = select_agent_component(routing_area, agents)
-        router = GridRouter(
-            routing_area,
-            hazards,
-            exits,
-            physical_walkable=walkable,
-        )
-        routes = [router.plan(position) for position in agents]
+        groups = split_agent_components(routing_area, agents)
     except ValueError as exc:
         raise RunnerError(str(exc)) from exc
 
-    exits_by_id = {_exit_key(exit_.id): exit_ for exit_ in exits}
-    simulation = jps.Simulation(model=jps.SocialForceModel(), geometry=walkable, dt=DT_SECONDS)
-    stage_id = simulation.add_direct_steering_stage()
-    journey_id = simulation.add_journey(jps.JourneyDescription([stage_id]))
-    states: dict[int, AgentRouteState] = {}
-    for index, (position, route) in enumerate(zip(agents, routes, strict=True)):
-        target = route.waypoints[1] if len(route.waypoints) > 1 else route.waypoints[0]
-        direction = np.asarray(target, dtype=float) - np.asarray(position, dtype=float)
-        norm = float(np.linalg.norm(direction))
-        orientation = (1.0, 0.0) if norm <= 1e-12 else tuple((direction / norm).tolist())
+    contexts: list[SimulationContext] = []
+    trapped: dict[int, tuple[float, float]] = {}
+    for component, indexed_agents in groups:
         try:
-            agent_id = simulation.add_agent(
-                jps.SocialForceModelAgentParameters(
-                    position=position,
-                    orientation=orientation,
-                    journey_id=journey_id,
-                    stage_id=stage_id,
-                    desired_speed=walking_speed,
-                    reaction_time=reaction_time,
-                    radius=AGENT_RADIUS_METERS,
-                )
+            physical_component = containing_component(walkable, component)
+            router = GridRouter(
+                component,
+                hazards,
+                exits,
+                physical_walkable=physical_component,
+                exit_clearance=AGENT_RADIUS_METERS,
             )
-        except Exception as exc:
-            raise RunnerError(f"could not add agent {index}: {exc}") from exc
-        exit_ = exits_by_id[_exit_key(route.exit_id)]
-        states[agent_id] = AgentRouteState(
-            index=index,
-            waypoints=route.waypoints,
-            exit_start=exit_.start,
-            exit_end=exit_.end,
-            cursor=1 if len(route.waypoints) > 1 else 0,
+        except ValueError as exc:
+            if str(exc) != "no selected exit is reachable from this walkable component":
+                raise RunnerError(str(exc)) from exc
+            trapped.update(indexed_agents)
+            continue
+        routes = [router.plan(position) for _, position in indexed_agents]
+        contexts.append(
+            _create_context(
+                jps,
+                np,
+                physical_component,
+                router,
+                indexed_agents,
+                routes,
+                walking_speed,
+                reaction_time,
+            )
         )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     timeline = TimelineWriter(output_dir)
-    timeline.add(_snapshot(simulation, states, 0.0))
+    timeline.add(_snapshot(contexts, trapped, 0.0))
     evacuation_times: list[float] = []
     maximum_iterations = int(math.floor(max_time / DT_SECONDS + 1e-9))
-    exit_reached_distance = max(EXIT_REACHED_DISTANCE_METERS, GRID_STEP_METERS * math.sqrt(2.0))
+    for context in contexts:
+        for agent_id in _update_targets(context):
+            context.states.pop(agent_id)
+            evacuation_times.append(0.0)
 
-    initially_evacuated = _update_targets(
-        simulation, states, exit_reached_distance, router.can_connect
-    )
-    for agent_id in initially_evacuated:
-        states.pop(agent_id)
-        evacuation_times.append(0.0)
-    while states and simulation.iteration_count() < maximum_iterations:
-        try:
-            simulation.iterate()
-        except Exception as exc:
-            raise RunnerError(f"JuPedSim iteration {simulation.iteration_count()} failed: {exc}") from exc
-        elapsed = float(simulation.elapsed_time())
-        evacuated_ids = _update_targets(
-            simulation, states, exit_reached_distance, router.can_connect
-        )
-        for agent_id in evacuated_ids:
-            if states.pop(agent_id, None) is not None:
-                evacuation_times.append(elapsed)
-        if simulation.iteration_count() % frame_steps == 0:
-            timeline.add(_snapshot(simulation, states, elapsed))
+    iteration = 0
+    while (trapped or any(context.states for context in contexts)) and iteration < maximum_iterations:
+        iteration += 1
+        elapsed = iteration * DT_SECONDS
+        for context in contexts:
+            if not context.states:
+                continue
+            previous = _capture_states(context)
+            try:
+                context.simulation.iterate()
+            except Exception as exc:
+                raise RunnerError(f"JuPedSim iteration {iteration} failed: {exc}") from exc
+            _rollback_invalid_moves(context, previous)
+            for agent_id in _update_targets(context, previous):
+                if context.states.pop(agent_id, None) is not None:
+                    evacuation_times.append(elapsed)
+        if iteration % frame_steps == 0:
+            timeline.add(_snapshot(contexts, trapped, elapsed))
 
-    remaining = len(states)
+    remaining = len(trapped) + sum(len(context.states) for context in contexts)
     evacuated = len(agents) - remaining
     termination_reason = "ALL_EVACUATED" if remaining == 0 else "MAX_DURATION"
-    simulation_duration = min(float(simulation.elapsed_time()), max_time)
+    simulation_duration = min(iteration * DT_SECONDS, max_time)
     if (
         timeline.last_time_seconds is None
         or not math.isclose(timeline.last_time_seconds, simulation_duration, abs_tol=1e-9)
         or timeline.last_agent_count != remaining
     ):
-        timeline.add(_snapshot(simulation, states, simulation_duration))
+        timeline.add(_snapshot(contexts, trapped, simulation_duration))
     timeline.flush()
     result = {
         "engineVersion": engine_version,
@@ -259,25 +266,101 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     return result
 
 
-def _update_targets(
-    simulation,
-    states: dict[int, AgentRouteState],
-    exit_distance: float,
-    can_connect: Callable[[tuple[float, float], tuple[float, float]], bool],
-) -> list[int]:
-    evacuated = []
-    for agent_id, state in states.items():
-        agent = simulation.agent(agent_id)
-        position = (float(agent.position[0]), float(agent.position[1]))
-        if _distance_to_segment(position, state.exit_start, state.exit_end) <= exit_distance:
-            if simulation.mark_agent_for_removal(agent_id):
-                evacuated.append(agent_id)
+def _create_context(
+    jps,
+    np,
+    physical_component,
+    router,
+    indexed_agents,
+    routes,
+    walking_speed: float,
+    reaction_time: float,
+) -> SimulationContext:
+    simulation = jps.Simulation(
+        model=jps.SocialForceModel(), geometry=physical_component, dt=DT_SECONDS
+    )
+    stage_id = simulation.add_direct_steering_stage()
+    journey_id = simulation.add_journey(jps.JourneyDescription([stage_id]))
+    states: dict[int, AgentRouteState] = {}
+    for (index, position), route in zip(indexed_agents, routes, strict=True):
+        target = route.waypoints[1] if len(route.waypoints) > 1 else route.waypoints[0]
+        direction = np.asarray(target, dtype=float) - np.asarray(position, dtype=float)
+        norm = float(np.linalg.norm(direction))
+        orientation = (1.0, 0.0) if norm <= 1e-12 else tuple((direction / norm).tolist())
+        try:
+            agent_id = simulation.add_agent(
+                jps.SocialForceModelAgentParameters(
+                    position=position,
+                    orientation=orientation,
+                    journey_id=journey_id,
+                    stage_id=stage_id,
+                    desired_speed=walking_speed,
+                    reaction_time=reaction_time,
+                    radius=AGENT_RADIUS_METERS,
+                )
+            )
+        except Exception as exc:
+            raise RunnerError(f"could not add agent {index}: {exc}") from exc
+        states[agent_id] = AgentRouteState(
+            index=index,
+            waypoints=route.waypoints,
+            terminal_point=route.terminal_point,
+            exit_start=route.exit_start,
+            exit_end=route.exit_end,
+            cursor=1 if len(route.waypoints) > 1 else 0,
+        )
+    return SimulationContext(simulation, router, states)
+
+
+def _capture_states(context: SimulationContext):
+    captured = {}
+    for agent_id in context.states:
+        agent = context.simulation.agent(agent_id)
+        captured[agent_id] = (
+            (float(agent.position[0]), float(agent.position[1])),
+            (float(agent.model.velocity[0]), float(agent.model.velocity[1])),
+        )
+    return captured
+
+
+def _rollback_invalid_moves(context: SimulationContext, previous) -> None:
+    for agent_id, (position, _velocity) in previous.items():
+        agent = context.simulation.agent(agent_id)
+        current = (float(agent.position[0]), float(agent.position[1]))
+        if context.router.contains(current) and context.router.can_connect(position, current):
             continue
+        agent.position = position
+        agent.model.velocity = (0.0, 0.0)
+
+
+def _update_targets(context: SimulationContext, previous=None) -> list[int]:
+    evacuated = []
+    for agent_id, state in context.states.items():
+        agent = context.simulation.agent(agent_id)
+        position = (float(agent.position[0]), float(agent.position[1]))
         while (
             state.cursor + 1 < len(state.waypoints)
-            and _waypoint_reached(position, state, can_connect)
+            and _waypoint_reached(position, state, context.router.can_connect)
         ):
             state.cursor += 1
+        if (
+            state.cursor + 1 == len(state.waypoints)
+            and (
+                (
+                    _waypoint_reached(position, state, context.router.can_connect)
+                    and context.router.can_reach_exit(position, state.terminal_point)
+                )
+                or (
+                    previous is not None
+                    and context.router.crossed_exit(
+                        previous[agent_id][0], position, state.exit_start, state.exit_end
+                    )
+                )
+            )
+        ):
+            if context.simulation.mark_agent_for_removal(agent_id):
+                evacuated.append(agent_id)
+            continue
         agent.target = state.waypoints[state.cursor]
     return evacuated
 
@@ -301,26 +384,18 @@ def _waypoint_reached(
     return passed > 1e-9 and can_connect(position, state.waypoints[state.cursor + 1])
 
 
-def _snapshot(simulation, states: dict[int, AgentRouteState], elapsed: float) -> dict[str, Any]:
-    agents = []
-    for agent_id, state in states.items():
-        agent = simulation.agent(agent_id)
-        agents.append([state.index, _rounded(agent.position[0]), _rounded(agent.position[1])])
+def _snapshot(
+    contexts: Sequence[SimulationContext],
+    trapped: dict[int, tuple[float, float]],
+    elapsed: float,
+) -> dict[str, Any]:
+    agents = [[index, _rounded(point[0]), _rounded(point[1])] for index, point in trapped.items()]
+    for context in contexts:
+        for agent_id, state in context.states.items():
+            agent = context.simulation.agent(agent_id)
+            agents.append([state.index, _rounded(agent.position[0]), _rounded(agent.position[1])])
     agents.sort(key=lambda value: value[0])
     return {"timeSeconds": _rounded(elapsed), "agents": agents}
-
-
-def _distance_to_segment(point, start, end) -> float:
-    vx, vy = end[0] - start[0], end[1] - start[1]
-    length_squared = vx * vx + vy * vy
-    if length_squared <= 0:
-        return math.dist(point, start)
-    ratio = max(
-        0.0,
-        min(1.0, ((point[0] - start[0]) * vx + (point[1] - start[1]) * vy) / length_squared),
-    )
-    closest = (start[0] + ratio * vx, start[1] + ratio * vy)
-    return math.dist(point, closest)
 
 
 def _read_input(path: Path) -> dict[str, Any]:
@@ -366,12 +441,6 @@ def _agents(value: Any) -> list[tuple[float, float]]:
             raise RunnerError(f"agents[{index}] coordinates must be finite")
         result.append(point)
     return result
-
-
-def _exit_key(value: Any) -> str:
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    return str(value)
 
 
 def _rounded(value: Any) -> float:

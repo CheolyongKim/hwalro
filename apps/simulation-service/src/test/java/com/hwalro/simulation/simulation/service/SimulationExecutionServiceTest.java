@@ -194,6 +194,8 @@ class SimulationExecutionServiceTest {
     }
 
     private void stubDraftAndRequestedStatus() {
+        when(simulationMapper.updateExecutionProfiles(21L, "SFM_DEFAULT_V2", "HAZARD_RADIAL_EXP_V3"))
+                .thenReturn(1);
         when(simulationService.getAccessibleSimulation(21L, user))
                 .thenReturn(simulation("DRAFT"), simulation("REQUESTED"));
     }
@@ -222,8 +224,8 @@ class SimulationExecutionServiceTest {
                 "REQUESTED",
                 LocalDateTime.now(),
                 1,
-                "SFM_DEFAULT_V1",
-                "HAZARD_RADIAL_EXP_V2",
+                "SFM_DEFAULT_V2",
+                "HAZARD_RADIAL_EXP_V3",
                 agents.size(),
                 BigDecimal.valueOf(1.25),
                 BigDecimal.valueOf(0.5),

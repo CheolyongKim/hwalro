@@ -8,8 +8,9 @@ from shapely.geometry import LineString, box
 from runner import (
     WAYPOINT_REACHED_DISTANCE_METERS,
     AgentRouteState,
+    SimulationContext,
     TimelineWriter,
-    _distance_to_segment,
+    _rollback_invalid_moves,
     _waypoint_reached,
 )
 
@@ -29,16 +30,12 @@ class TimelineWriterTest(unittest.TestCase):
             self.assertEqual(second, {"sequence": 1, "frames": [{"timeSeconds": 10, "agents": []}]})
             self.assertEqual(writer.last_time_seconds, 10.0)
 
-    def test_distance_to_exit_segment_clamps_to_endpoints(self):
-        self.assertAlmostEqual(_distance_to_segment((1, 1), (0, 0), (2, 0)), 1.0)
-        self.assertAlmostEqual(_distance_to_segment((3, 0), (0, 0), (2, 0)), 1.0)
-
-
 class WaypointProgressTest(unittest.TestCase):
     def setUp(self):
         self.state = AgentRouteState(
             index=0,
             waypoints=((0, 0), (1, 0), (2, 1)),
+            terminal_point=(3, 0.5),
             exit_start=(3, 0),
             exit_end=(3, 1),
             cursor=1,
@@ -70,6 +67,7 @@ class WaypointProgressTest(unittest.TestCase):
         other = AgentRouteState(
             index=1,
             waypoints=self.state.waypoints,
+            terminal_point=self.state.terminal_point,
             exit_start=self.state.exit_start,
             exit_end=self.state.exit_end,
             cursor=1,
@@ -77,6 +75,53 @@ class WaypointProgressTest(unittest.TestCase):
 
         self.assertTrue(_waypoint_reached((1.1, 0.2), self.state, lambda _a, _b: True))
         self.assertTrue(_waypoint_reached((1.2, -0.2), other, lambda _a, _b: True))
+
+
+class MovementGuardTest(unittest.TestCase):
+    class Model:
+        velocity = (3.0, 0.0)
+
+    class Agent:
+        position = (2.0, 1.0)
+        model = None
+
+        def __init__(self):
+            self.model = MovementGuardTest.Model()
+
+    class Simulation:
+        def __init__(self, agent):
+            self._agent = agent
+
+        def agent(self, _agent_id):
+            return self._agent
+
+    class Router:
+        def __init__(self, valid):
+            self.valid = valid
+
+        def contains(self, _point):
+            return self.valid
+
+        def can_connect(self, _start, _end):
+            return self.valid
+
+    def test_invalid_move_rolls_back_position_and_zeroes_velocity(self):
+        agent = self.Agent()
+        context = SimulationContext(self.Simulation(agent), self.Router(False), {})
+
+        _rollback_invalid_moves(context, {1: ((1.0, 1.0), (1.0, 0.0))})
+
+        self.assertEqual(agent.position, (1.0, 1.0))
+        self.assertEqual(agent.model.velocity, (0.0, 0.0))
+
+    def test_valid_move_is_not_changed(self):
+        agent = self.Agent()
+        context = SimulationContext(self.Simulation(agent), self.Router(True), {})
+
+        _rollback_invalid_moves(context, {1: ((1.0, 1.0), (1.0, 0.0))})
+
+        self.assertEqual(agent.position, (2.0, 1.0))
+        self.assertEqual(agent.model.velocity, (3.0, 0.0))
 
 
 if __name__ == "__main__":

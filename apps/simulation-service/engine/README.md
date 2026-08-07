@@ -11,6 +11,35 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m unittest discover -s . -p "test_*.py"
 ```
 
+## Windows 로컬 JuPedSim 빌드
+
+활로 실행기는 에이전트가 유효 영역을 이탈했을 때 직전 위치로 복원하기 위해 `Agent.position`
+setter가 추가된 로컬 JuPedSim 1.4.2 wheel을 사용한다. `requirements.txt` 설치는 공식 wheel로
+되돌리므로, 의존성을 다시 설치한 뒤에는 아래 로컬 wheel도 다시 강제 설치해야 한다.
+
+```powershell
+git clone --branch v1.4.2 https://github.com/PedestrianDynamics/jupedsim.git C:\Dev\Utils\jupedsim-hwalro
+git -C C:\Dev\Utils\jupedsim-hwalro switch -c hwalro/1.4.2-position-reset
+```
+
+로컬 소스에는 native binding과 Python `Agent.position` setter 변경만 적용한다. Visual Studio 2022
+Developer PowerShell에서 다음 명령으로 빌드하고 설치한다.
+
+```powershell
+$enginePython = "C:\Dev\HDF-3\hwalro\apps\simulation-service\engine\.venv\Scripts\python.exe"
+& $enginePython -m pip install setuptools wheel cmake ninja
+& $enginePython -m pip wheel --no-build-isolation --no-deps `
+  --wheel-dir C:\Dev\Utils\jupedsim-hwalro\dist `
+  C:\Dev\Utils\jupedsim-hwalro
+$localWheel = Get-ChildItem C:\Dev\Utils\jupedsim-hwalro\dist\jupedsim-1.4.2-*.whl |
+  Select-Object -First 1 -ExpandProperty FullName
+& $enginePython -m pip install --force-reinstall --no-deps $localWheel
+& $enginePython runner.py --version
+```
+
+마지막 명령은 `jupedsim 1.4.2+hwalro.1`을 출력해야 한다. 공식 2.0.0 소스나 기존
+`C:\Dev\Utils\jupedsim-master\jupedsim-master`는 이 프로젝트에서 사용하지 않는다.
+
 simulation-service는 설정된 `SIMULATION_ENGINE_PYTHON`이 없으면 위 프로젝트 venv를 먼저 사용하고,
 venv가 없을 때만 `python` 명령으로 대체한다.
 
@@ -19,8 +48,8 @@ venv가 없을 때만 `python` 명령으로 대체한다.
 ```json
 {
   "model": {
-    "modelProfile": "SFM_DEFAULT_V1",
-    "routingProfile": "HAZARD_RADIAL_EXP_V2",
+    "modelProfile": "SFM_DEFAULT_V2",
+    "routingProfile": "HAZARD_RADIAL_EXP_V3",
     "walkingSpeed": 1.2,
     "reactionTime": 0.5
   },
