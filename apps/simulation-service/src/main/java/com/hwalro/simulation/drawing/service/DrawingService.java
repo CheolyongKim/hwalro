@@ -58,10 +58,15 @@ public class DrawingService {
 
     private final DrawingMapper drawingMapper;
     private final DefaultDrawingData defaultDrawingData;
+    private final LayoutGeometryValidator geometryValidator;
 
-    public DrawingService(DrawingMapper drawingMapper, DefaultDrawingData defaultDrawingData) {
+    public DrawingService(
+            DrawingMapper drawingMapper,
+            DefaultDrawingData defaultDrawingData,
+            LayoutGeometryValidator geometryValidator) {
         this.drawingMapper = drawingMapper;
         this.defaultDrawingData = defaultDrawingData;
+        this.geometryValidator = geometryValidator;
     }
 
     public DrawingListResponse list(int page, int size, JwtUser user) {
@@ -133,6 +138,8 @@ public class DrawingService {
                 request.fabrics(),
                 request.layoutTexts(),
                 request.exits());
+        geometryValidator.validate(
+                request.outsideWalls(), request.walls(), request.pillars(), request.fabrics(), request.exits());
         if (request.expectedVersion() == null) {
             throw new IllegalArgumentException("도면 버전이 필요합니다.");
         }

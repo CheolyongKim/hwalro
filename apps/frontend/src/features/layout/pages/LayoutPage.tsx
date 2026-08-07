@@ -10,6 +10,7 @@ import { InlineTextInput } from '../components/InlineTextInput';
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
+import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
@@ -100,7 +101,7 @@ function LayoutPage() {
         type: 'setError',
         message: conflict
           ? '다른 사용자가 이 도면을 수정했습니다. 새로고침 후 다시 시도해 주세요.'
-          : '저장에 실패했습니다',
+          : getDrawingErrorMessage(error),
       });
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -111,6 +112,16 @@ function LayoutPage() {
       }, 2000);
     }
   }, [saveStatus, loadStatus, drawingId]);
+
+  useEffect(() => {
+    if (state.error === null) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'setError', message: null });
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [state.error]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
