@@ -91,6 +91,19 @@ class ImprovementProposalExecutionServiceTest {
         assertEquals("REQUESTED", response.results().get(0).status());
     }
 
+    @Test
+    void hidesInternalExecutionErrorsFromThePublicResult() {
+        when(improvementProposalMapper.findCreatedByBySimulationId(10L)).thenReturn(9L);
+        when(improvementProposalMapper.findBySourceSimulationId(10L)).thenReturn(List.of(proposal(1L, 101L)));
+        when(reservationService.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(9L)))
+                .thenThrow(new IllegalStateException("database host and credentials"));
+
+        ImprovementProposalExecutionResponse response = service().execute(10L, List.of(1L), operator());
+
+        assertEquals("FAILED", response.results().get(0).status());
+        assertEquals("시뮬레이션 실행을 시작할 수 없습니다.", response.results().get(0).errorMessage());
+    }
+
     private ImprovementProposalExecutionService service() {
         return new ImprovementProposalExecutionService(improvementProposalMapper, reservationService);
     }

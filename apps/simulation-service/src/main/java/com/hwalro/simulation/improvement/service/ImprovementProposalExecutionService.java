@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class ImprovementProposalExecutionService {
     private static final int MAX_PROPOSALS = 3;
+    private static final String EXECUTION_START_FAILED_MESSAGE = "시뮬레이션 실행을 시작할 수 없습니다.";
 
     private final ImprovementProposalMapper improvementProposalMapper;
     private final ImprovementProposalExecutionReservationService improvementProposalExecutionReservationService;
@@ -63,7 +64,8 @@ public class ImprovementProposalExecutionService {
         try {
             return improvementProposalExecutionReservationService.execute(proposal, requestedBy);
         } catch (RuntimeException exception) {
-            return new ImprovementProposalExecutionResult(proposal.getId(), null, "FAILED", exception.getMessage());
+            return new ImprovementProposalExecutionResult(
+                    proposal.getId(), null, "FAILED", EXECUTION_START_FAILED_MESSAGE);
         }
     }
 
