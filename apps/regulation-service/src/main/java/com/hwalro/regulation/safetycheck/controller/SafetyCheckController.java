@@ -5,6 +5,7 @@ import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.common.jwt.RequireRole;
 import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateResponse;
 import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateUpdateRequest;
+import com.hwalro.regulation.safetycheck.dto.InspectionAreaRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionCreateRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionDetailResponse;
@@ -40,6 +41,32 @@ public class SafetyCheckController {
     public List<InspectionAreaResponse> getAreas(
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return safetyCheckService.getAreas(user);
+    }
+
+    @GetMapping("/areas/{areaId}")
+    public InspectionAreaResponse getArea(
+            @PathVariable Long areaId, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return safetyCheckService.getArea(areaId, user);
+    }
+
+    @PostMapping("/areas")
+    @RequireRole({"ADMIN", "SAFETY_REVIEWER"})
+    @ResponseStatus(HttpStatus.CREATED)
+    public InspectionAreaResponse createArea(@RequestBody InspectionAreaRequest request) {
+        return safetyCheckService.createArea(request);
+    }
+
+    @PutMapping("/areas/{areaId}")
+    @RequireRole({"ADMIN", "SAFETY_REVIEWER"})
+    public InspectionAreaResponse updateArea(@PathVariable Long areaId, @RequestBody InspectionAreaRequest request) {
+        return safetyCheckService.updateArea(areaId, request);
+    }
+
+    @DeleteMapping("/areas/{areaId}")
+    @RequireRole({"ADMIN", "SAFETY_REVIEWER"})
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteArea(@PathVariable Long areaId) {
+        safetyCheckService.deleteArea(areaId);
     }
 
     @GetMapping("/areas/{areaId}/inspections")

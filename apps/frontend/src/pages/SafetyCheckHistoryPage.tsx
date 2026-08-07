@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
-import type { InspectionArea, InspectionHistory } from '../features/safetyChecks/types';
+import type {
+  ChecklistTemplate,
+  InspectionArea,
+  InspectionHistory,
+} from '../features/safetyChecks/types';
 import {
   formatInspectionDate,
   getInspectionSummary,
@@ -16,6 +20,7 @@ function SafetyCheckHistoryPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [area, setArea] = useState<InspectionArea | null>(null);
+  const [template, setTemplate] = useState<ChecklistTemplate | null>(null);
   const [inspections, setInspections] = useState<InspectionHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -24,6 +29,7 @@ function SafetyCheckHistoryPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const canManageTemplate =
     user?.roles.includes('ADMIN') || user?.roles.includes('SAFETY_REVIEWER');
+  const canStartInspection = area?.active === true && template?.id != null;
 
   useEffect(() => {
     let active = true;
@@ -32,11 +38,16 @@ function SafetyCheckHistoryPage() {
       setIsLoading(false);
       return;
     }
-    void Promise.all([safetyCheckApi.getAreas(), safetyCheckApi.getHistory(areaId)])
-      .then(([areas, history]) => {
+    void Promise.all([
+      safetyCheckApi.getArea(areaId),
+      safetyCheckApi.getHistory(areaId),
+      safetyCheckApi.getChecklistTemplate(areaId),
+    ])
+      .then(([inspectionArea, history, checklistTemplate]) => {
         if (!active) return;
-        setArea(areas.find((item) => item.id === areaId) ?? null);
+        setArea(inspectionArea);
         setInspections(history);
+        setTemplate(checklistTemplate);
       })
       .catch((requestError: unknown) => {
         if (active) setError(getSafetyCheckError(requestError));
@@ -93,7 +104,7 @@ function SafetyCheckHistoryPage() {
               <button
                 type="button"
                 onClick={() => navigate(`/safety-checklists/areas/${areaId}/template`)}
-                disabled={!area}
+                disabled={!area?.active}
                 className="h-11 rounded-lg border border-line-strong bg-white px-5 text-sm font-bold text-text-strong hover:bg-surface disabled:opacity-50"
               >
                 점검 항목 관리
@@ -102,7 +113,7 @@ function SafetyCheckHistoryPage() {
             <button
               type="button"
               onClick={() => void createInspection()}
-              disabled={isCreating || !area}
+              disabled={isCreating || !canStartInspection}
               className="h-11 shrink-0 rounded-lg bg-primary px-5 text-sm font-bold text-white transition hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCreating ? '생성 중...' : '새 점검 시작'}
@@ -117,6 +128,18 @@ function SafetyCheckHistoryPage() {
           className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
         >
           {actionError}
+        </div>
+      )}
+
+      {!isLoading && area && !area.active && (
+        <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+          삭제된 점검 구역입니다. 기존 점검 이력만 조회할 수 있습니다.
+        </div>
+      )}
+
+      {!isLoading && area?.active && template?.id == null && (
+        <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+          활성 체크리스트가 없어 새 점검을 시작할 수 없습니다. 점검 항목 관리에서 항목을 저장하세요.
         </div>
       )}
 

@@ -50,7 +50,9 @@ function SafetyCheckTemplatePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const canManage = user?.roles.includes('ADMIN') || user?.roles.includes('SAFETY_REVIEWER');
+  const hasManagePermission =
+    user?.roles.includes('ADMIN') || user?.roles.includes('SAFETY_REVIEWER');
+  const canManage = hasManagePermission && area?.active === true;
 
   useEffect(() => {
     let active = true;
@@ -60,10 +62,10 @@ function SafetyCheckTemplatePage() {
       return;
     }
 
-    void Promise.all([safetyCheckApi.getAreas(), safetyCheckApi.getChecklistTemplate(areaId)])
-      .then(([areas, template]) => {
+    void Promise.all([safetyCheckApi.getArea(areaId), safetyCheckApi.getChecklistTemplate(areaId)])
+      .then(([inspectionArea, template]) => {
         if (!active) return;
-        setArea(areas.find((item) => item.id === areaId) ?? null);
+        setArea(inspectionArea);
         setVersion(template.version);
         setItems(
           template.items.length > 0
@@ -185,9 +187,15 @@ function SafetyCheckTemplatePage() {
         </div>
       )}
 
-      {!canManage && (
+      {!hasManagePermission && (
         <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
           점검 항목을 수정할 권한이 없습니다.
+        </div>
+      )}
+
+      {hasManagePermission && area && !area.active && (
+        <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+          삭제된 점검 구역의 항목은 수정할 수 없습니다.
         </div>
       )}
 

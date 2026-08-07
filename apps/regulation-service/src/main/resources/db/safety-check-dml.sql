@@ -1,11 +1,13 @@
--- 안전 체크리스트 화면 확인용 수동 DML이다. 자동 실행하지 않는다.
--- 현재 auth DB의 admin 사용자(ID 1)를 점검 담당자로 사용한다.
--- floor_plan_id, simulation_result_id, and inspector_id are external identifiers owned by other services.
+-- 신규 개발 DB에 안전 체크리스트 예시 구역, 템플릿, 점검 이력을 적재한다.
+-- 개발용 test 사용자(ID 1)를 점검 담당자로 사용한다.
+-- simulation_result_id and inspector_id are external identifiers owned by other services.
 
-INSERT IGNORE INTO inspection_areas (id, floor_plan_id, name, description) VALUES
-    (1, 101, '더현대서울 지하 1층', '식품관 및 공용 통로 점검 구역'),
-    (2, 102, '더현대서울 지하 2층', '팝업·전시 운영 구역'),
-    (3, 103, '더현대서울 1층', '주 출입구 및 행사 운영 구역');
+USE hwalro_regulation;
+
+INSERT IGNORE INTO inspection_areas (id, name, description) VALUES
+    (1, '더현대서울 지하 1층', '식품관 및 공용 통로 점검 구역'),
+    (2, '더현대서울 지하 2층', '팝업·전시 운영 구역'),
+    (3, '더현대서울 1층', '주 출입구 및 행사 운영 구역');
 
 INSERT IGNORE INTO checklist_templates (id, inspection_area_id, version, status) VALUES
     (1, 1, 1, 'ACTIVE'),

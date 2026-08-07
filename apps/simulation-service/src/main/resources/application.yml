@@ -31,6 +31,15 @@ jwt:
   secret: ${JWT_SECRET:}
   issuer: ${JWT_ISSUER:hwalro-auth-service}
 
+simulation:
+  engine:
+    python: ${SIMULATION_ENGINE_PYTHON:python}
+    script: ${SIMULATION_ENGINE_SCRIPT:engine/runner.py}
+    work-directory: ${SIMULATION_ENGINE_WORK_DIRECTORY:}
+    timeout: ${SIMULATION_ENGINE_TIMEOUT:30m}
+    max-simulation-time: 600
+    frame-interval: 1
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

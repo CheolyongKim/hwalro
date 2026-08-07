@@ -6,9 +6,9 @@
     <select id="findAreas"
             resultType="com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse">
         SELECT area.id,
-               area.floor_plan_id,
                area.name,
                area.description,
+               area.active,
                COUNT(inspection.id) AS inspection_count,
                MAX(inspection.created_at) AS last_inspected_at
         FROM inspection_areas area
@@ -19,11 +19,52 @@
         </if>
         WHERE area.active = TRUE
         GROUP BY area.id,
-                 area.floor_plan_id,
                  area.name,
-                 area.description
+                 area.description,
+                 area.active
         ORDER BY area.name, area.id
     </select>
+
+    <select id="findArea"
+            resultType="com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse">
+        SELECT area.id,
+               area.name,
+               area.description,
+               area.active,
+               COUNT(inspection.id) AS inspection_count,
+               MAX(inspection.created_at) AS last_inspected_at
+        FROM inspection_areas area
+        LEFT JOIN safety_inspections inspection
+               ON inspection.inspection_area_id = area.id
+        <if test="inspectorId != null">
+           AND inspection.inspector_id = #{inspectorId}
+        </if>
+        WHERE area.id = #{areaId}
+        GROUP BY area.id,
+                 area.name,
+                 area.description,
+                 area.active
+    </select>
+
+    <insert id="insertArea" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO inspection_areas (name, description)
+        VALUES (#{name}, #{description})
+    </insert>
+
+    <update id="updateArea">
+        UPDATE inspection_areas
+        SET name = #{name},
+            description = #{description}
+        WHERE id = #{id}
+          AND active = TRUE
+    </update>
+
+    <update id="deactivateArea">
+        UPDATE inspection_areas
+        SET active = FALSE
+        WHERE id = #{areaId}
+          AND active = TRUE
+    </update>
 
     <select id="areaExists" resultType="boolean">
         SELECT COUNT(*) &gt; 0

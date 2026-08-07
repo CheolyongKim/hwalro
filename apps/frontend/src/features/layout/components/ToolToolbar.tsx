@@ -6,6 +6,7 @@ interface ToolToolbarProps {
   state: EditorState;
   dispatch: Dispatch<EditorAction>;
   className?: string;
+  disabled?: boolean;
 }
 
 const TOOLS: Array<{ id: Tool; label: string }> = [
@@ -19,7 +20,7 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'erase', label: '지우개' },
 ];
 
-export function ToolToolbar({ state, dispatch, className }: ToolToolbarProps) {
+export function ToolToolbar({ state, dispatch, className, disabled = false }: ToolToolbarProps) {
   return (
     <div
       className={`flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border border-panel-divider bg-panel p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${className ?? ''}`}
@@ -31,8 +32,9 @@ export function ToolToolbar({ state, dispatch, className }: ToolToolbarProps) {
             key={tool.id}
             type="button"
             aria-pressed={active}
+            disabled={disabled}
             onClick={() => dispatch({ type: 'setTool', tool: tool.id })}
-            className={`h-9 min-w-14 rounded-lg px-2 text-[13px] transition-colors ${
+            className={`h-9 min-w-14 rounded-lg px-2 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
               active
                 ? 'bg-panel-accent font-bold text-ink'
                 : 'bg-panel-soft font-semibold text-panel-text hover:bg-panel-border'

@@ -25,6 +25,7 @@ import com.hwalro.simulation.drawing.dto.PillarDto;
 import com.hwalro.simulation.drawing.dto.WallDto;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
+import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import java.math.BigDecimal;
@@ -119,6 +120,7 @@ public class DrawingService {
         drawingMapper.insertLayoutVersion(version);
 
         insertWallsIfPresent(toWallsFromDefault(defaultDrawing.walls(), version.getId()));
+        insertOutsideWallsIfPresent(toOutsideWallsFromDefault(defaultDrawing.outsideWalls(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
         insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
 
@@ -146,11 +148,15 @@ public class DrawingService {
         geometryValidator.validate(
                 request.outsideWalls(), request.walls(), request.pillars(), request.fabrics(), request.exits());
 
+        LayoutVersion version = findVersionOrThrow(layout.getCurrentVersionId());
+        if (!LAYOUT_STATUS_DRAFT.equals(version.getStatus())) {
+            throw new DrawingLockedException();
+        }
+
         layout.setTitle(request.title().trim());
         layout.setDescription(request.description());
         drawingMapper.updateLayout(layout);
 
-        LayoutVersion version = findVersionOrThrow(layout.getCurrentVersionId());
         int updated = drawingMapper.updateLayoutVersionLock(
                 version.getId(), request.expectedVersion(), version.getOptimisticLock() + 1);
         if (updated == 0) {
@@ -278,7 +284,10 @@ public class DrawingService {
                 fabrics,
                 layoutTexts,
                 exits,
-                version.getOptimisticLock());
+                version.getOptimisticLock(),
+                version.getId(),
+                version.getVersion(),
+                version.getStatus());
     }
 
     private List<Wall> toWallsFromDefault(List<DefaultDrawingData.DefaultWall> walls, Long layoutVersionId) {
@@ -349,6 +358,25 @@ public class DrawingService {
                     OutsideWall domainOutsideWall = new OutsideWall();
                     domainOutsideWall.setLayoutVersionId(layoutVersionId);
                     domainOutsideWall.setName(outsideWall.name() == null ? "" : outsideWall.name());
+                    domainOutsideWall.setStartX(outsideWall.startX());
+                    domainOutsideWall.setStartY(outsideWall.startY());
+                    domainOutsideWall.setEndX(outsideWall.endX());
+                    domainOutsideWall.setEndY(outsideWall.endY());
+                    return domainOutsideWall;
+                })
+                .toList();
+    }
+
+    private List<OutsideWall> toOutsideWallsFromDefault(
+            List<DefaultDrawingData.DefaultOutsideWall> outsideWalls, Long layoutVersionId) {
+        if (outsideWalls == null) {
+            return List.of();
+        }
+        return outsideWalls.stream()
+                .map(outsideWall -> {
+                    OutsideWall domainOutsideWall = new OutsideWall();
+                    domainOutsideWall.setLayoutVersionId(layoutVersionId);
+                    domainOutsideWall.setName(outsideWall.name());
                     domainOutsideWall.setStartX(outsideWall.startX());
                     domainOutsideWall.setStartY(outsideWall.startY());
                     domainOutsideWall.setEndX(outsideWall.endX());

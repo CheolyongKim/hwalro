@@ -3,9 +3,11 @@ package com.hwalro.regulation.safetycheck.service;
 import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.safetycheck.domain.ChecklistTemplate;
+import com.hwalro.regulation.safetycheck.domain.InspectionArea;
 import com.hwalro.regulation.safetycheck.domain.SafetyInspection;
 import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateResponse;
 import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateUpdateRequest;
+import com.hwalro.regulation.safetycheck.dto.InspectionAreaRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionCreateRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionDetailHeader;
@@ -26,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SafetyCheckService {
+    private static final int MAX_AREA_NAME_LENGTH = 200;
+    private static final int MAX_AREA_DESCRIPTION_LENGTH = 1_000;
     private static final Set<String> ITEM_RESULTS = Set.of("PENDING", "PASS", "REVIEW_REQUIRED", "FAIL");
     private static final Set<String> INSPECTION_STATUSES = Set.of("DRAFT", "COMPLETED");
 
@@ -39,8 +43,36 @@ public class SafetyCheckService {
         return safetyCheckMapper.findAreas(resolveInspectorFilter(user));
     }
 
+    public InspectionAreaResponse getArea(Long areaId, JwtUser user) {
+        return findArea(areaId, resolveInspectorFilter(user));
+    }
+
+    @Transactional
+    public InspectionAreaResponse createArea(InspectionAreaRequest request) {
+        InspectionArea area = toArea(request);
+        safetyCheckMapper.insertArea(area);
+        return findArea(area.getId(), null);
+    }
+
+    @Transactional
+    public InspectionAreaResponse updateArea(Long areaId, InspectionAreaRequest request) {
+        InspectionArea area = toArea(request);
+        area.setId(areaId);
+        if (safetyCheckMapper.updateArea(area) != 1) {
+            throw new InspectionAreaNotFoundException(areaId);
+        }
+        return findArea(areaId, null);
+    }
+
+    @Transactional
+    public void deleteArea(Long areaId) {
+        if (safetyCheckMapper.deactivateArea(areaId) != 1) {
+            throw new InspectionAreaNotFoundException(areaId);
+        }
+    }
+
     public List<InspectionHistoryResponse> getInspectionHistory(Long areaId, JwtUser user) {
-        requireArea(areaId);
+        requireExistingArea(areaId);
         return safetyCheckMapper.findInspectionHistory(areaId, resolveInspectorFilter(user));
     }
 
@@ -51,7 +83,7 @@ public class SafetyCheckService {
     }
 
     public ChecklistTemplateResponse getChecklistTemplate(Long areaId) {
-        requireArea(areaId);
+        requireExistingArea(areaId);
         Long templateId = safetyCheckMapper.findActiveTemplateId(areaId);
         if (templateId == null) {
             return new ChecklistTemplateResponse(null, 0, List.of());
@@ -108,6 +140,7 @@ public class SafetyCheckService {
     @Transactional
     public InspectionDetailResponse updateInspection(Long inspectionId, InspectionUpdateRequest request, JwtUser user) {
         InspectionDetailHeader header = findHeader(inspectionId);
+        requireArea(header.inspectionAreaId());
         if ("COMPLETED".equals(header.status())) {
             throw new IllegalArgumentException("Completed inspections cannot be modified.");
         }
@@ -163,6 +196,36 @@ public class SafetyCheckService {
         if (!safetyCheckMapper.areaExists(areaId)) {
             throw new InspectionAreaNotFoundException(areaId);
         }
+    }
+
+    private void requireExistingArea(Long areaId) {
+        findArea(areaId, null);
+    }
+
+    private InspectionAreaResponse findArea(Long areaId, Long inspectorId) {
+        InspectionAreaResponse area = safetyCheckMapper.findArea(areaId, inspectorId);
+        if (area == null) {
+            throw new InspectionAreaNotFoundException(areaId);
+        }
+        return area;
+    }
+
+    private InspectionArea toArea(InspectionAreaRequest request) {
+        if (request == null || request.name() == null || request.name().isBlank()) {
+            throw new IllegalArgumentException("Inspection area name is required.");
+        }
+        String name = request.name().trim();
+        if (name.length() > MAX_AREA_NAME_LENGTH) {
+            throw new IllegalArgumentException("Inspection area name must be 200 characters or fewer.");
+        }
+        String description = normalizeComment(request.description());
+        if (description != null && description.length() > MAX_AREA_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException("Inspection area description must be 1000 characters or fewer.");
+        }
+        InspectionArea area = new InspectionArea();
+        area.setName(name);
+        area.setDescription(description);
+        return area;
     }
 
     private void lockArea(Long areaId) {

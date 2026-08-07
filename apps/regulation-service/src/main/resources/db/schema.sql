@@ -26,19 +26,16 @@ CREATE TABLE IF NOT EXISTS risks (
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
--- A floor or zone selected for regulation-service safety inspections.
--- floor_plan_id is an external identifier owned by simulation-service, so it has no cross-database FK.
+-- An independently managed area selected for regulation-service safety inspections.
 CREATE TABLE IF NOT EXISTS inspection_areas (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    floor_plan_id BIGINT UNSIGNED NOT NULL,
     name VARCHAR(200) NOT NULL,
     description TEXT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
         ON UPDATE CURRENT_TIMESTAMP(6),
-    CONSTRAINT pk_inspection_areas PRIMARY KEY (id),
-    CONSTRAINT uk_inspection_areas_floor_plan UNIQUE (floor_plan_id)
+    CONSTRAINT pk_inspection_areas PRIMARY KEY (id)
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

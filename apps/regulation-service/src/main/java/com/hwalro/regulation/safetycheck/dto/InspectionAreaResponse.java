@@ -3,9 +3,4 @@ package com.hwalro.regulation.safetycheck.dto;
 import java.time.LocalDateTime;
 
 public record InspectionAreaResponse(
-        Long id,
-        Long floorPlanId,
-        String name,
-        String description,
-        int inspectionCount,
-        LocalDateTime lastInspectedAt) {}
+        Long id, String name, String description, boolean active, int inspectionCount, LocalDateTime lastInspectedAt) {}

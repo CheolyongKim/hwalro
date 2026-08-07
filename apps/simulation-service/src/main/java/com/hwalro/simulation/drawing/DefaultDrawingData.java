@@ -16,10 +16,14 @@ public class DefaultDrawingData {
             BigDecimal width,
             BigDecimal height,
             List<DefaultWall> walls,
+            List<DefaultOutsideWall> outsideWalls,
             List<DefaultExit> exits,
             List<DefaultLayoutText> layoutTexts) {}
 
     public record DefaultWall(String name, BigDecimal startX, BigDecimal startY, BigDecimal endX, BigDecimal endY) {}
+
+    public record DefaultOutsideWall(
+            String name, BigDecimal startX, BigDecimal startY, BigDecimal endX, BigDecimal endY) {}
 
     public record DefaultExit(String name, BigDecimal startX, BigDecimal startY, BigDecimal endX, BigDecimal endY) {}
 
