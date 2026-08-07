@@ -13,6 +13,8 @@ pnpm infra
 
 `pnpm infra`는 MySQL 컨테이너 초기화 과정에서 스키마, 서비스별 DB 사용자 및 초기 역할 데이터를 적용합니다.
 
+위 과정을 한 번에 실행하려면 `pnpm reset`을 사용합니다. 이 명령은 기존 Docker 볼륨을 삭제하고 MySQL healthcheck가 완료될 때까지 대기한 뒤 역할 DML을 적용합니다.
+
 기존 MySQL 볼륨에 역할 DML만 다시 적용하려면 Docker 인프라가 실행 중인 상태에서 다음 명령을 사용합니다. Windows와 macOS/Linux 모두 같은 명령을 사용하며, 내부에서 운영체제에 맞는 스크립트를 실행합니다.
 
 ```bash

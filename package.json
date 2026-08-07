@@ -10,7 +10,8 @@
     "infra": "docker compose up -d",
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v",
-    "infra:migrate:auth-roles": "node ./scripts/migrate-auth-roles.mjs"
+    "infra:migrate:auth-roles": "node ./scripts/migrate-auth-roles.mjs",
+    "reset": "pnpm infra:reset && docker compose up -d --wait && pnpm infra:migrate:auth-roles"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",
