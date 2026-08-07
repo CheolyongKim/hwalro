@@ -124,6 +124,7 @@ public class SimulationEngineRunner {
 
             EngineResult result = objectMapper.readValue(
                     outputDirectory.resolve("result.json").toFile(), EngineResult.class);
+            validateChunkCounts(result);
             List<TimelineChunk> timeline = readTimeline(outputDirectory, result.timelineChunkCount());
             List<HeatmapChunk> heatmaps = readHeatmaps(outputDirectory, result.heatmapChunkCount());
             return new EngineRun(result, timeline, heatmaps);
@@ -172,6 +173,12 @@ public class SimulationEngineRunner {
             chunks.add(new TimelineChunk(sequence, json));
         }
         return List.copyOf(chunks);
+    }
+
+    static void validateChunkCounts(EngineResult result) throws EngineRunException {
+        if (result.timelineChunkCount() == null || result.heatmapChunkCount() == null) {
+            throw new EngineRunException("ENGINE_ERROR: 엔진 결과의 청크 개수가 누락되었습니다.", false);
+        }
     }
 
     private List<HeatmapChunk> readHeatmaps(Path outputDirectory, int count) throws IOException {
