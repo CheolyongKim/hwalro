@@ -209,6 +209,10 @@ export const ExitView = memo(function ExitView({ exit, selected, s, problem }: E
         points={[exit.startX, exit.startY, exit.endX, exit.endY]}
         stroke={color}
         strokeWidth={strokeWidth}
+        shadowColor={color}
+        shadowBlur={s(22)}
+        shadowOpacity={0.5}
+        shadowOffset={{ x: 0, y: 0 }}
       />
       {selected && (
         <Group>
