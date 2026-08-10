@@ -8,6 +8,7 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.HeatmapChunkResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationExecutionResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPageResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineChunkResponse;
@@ -57,6 +58,13 @@ public class SimulationController {
             @RequestParam(defaultValue = "20") int size,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationService.listOverview(page, size, user);
+    }
+
+    @GetMapping("/monitor")
+    @Operation(summary = "현재 사용자의 실행 중 및 최근 완료 시뮬레이션 조회")
+    public List<SimulationOverviewResponse> monitor(
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.listMonitor(user);
     }
 
     @PostMapping("/drafts")

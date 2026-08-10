@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import type { SimulationTool } from '../components/SimulationCanvas';
@@ -21,12 +21,41 @@ interface PlacementSnapshot {
 type LoadState = 'loading' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+interface InfoTooltipProps {
+  id: string;
+  label: string;
+  align?: 'left' | 'right';
+  children: ReactNode;
+}
+
 const TOOL_LABELS: Array<{ value: SimulationTool; label: string }> = [
   { value: 'select', label: '선택' },
   { value: 'spray', label: '에이전트 배치' },
   { value: 'erase', label: '지우개' },
   { value: 'hazard', label: '위험구역' },
 ];
+
+function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label={label}
+        aria-describedby={id}
+        className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px] leading-none outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        i
+      </button>
+      <span
+        id={id}
+        role="tooltip"
+        className={`pointer-events-none invisible absolute top-full z-30 mt-2 w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${align === 'right' ? 'right-0' : 'left-0'}`}
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
 
 function sameSnapshot(a: PlacementSnapshot, b: PlacementSnapshot): boolean {
   return a.agents === b.agents && a.hazards === b.hazards;
@@ -42,6 +71,7 @@ function SimulationSetupPage() {
   const [agents, setAgents] = useState<SimulationPoint[]>([]);
   const [hazards, setHazards] = useState<EditableHazardZone[]>([]);
   const [selectedExitIds, setSelectedExitIds] = useState<number[]>([]);
+  const [highlightedExitId, setHighlightedExitId] = useState<number | null>(null);
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
   const [reactionTime, setReactionTime] = useState(0.5);
   const [tool, setTool] = useState<SimulationTool>('spray');
@@ -82,6 +112,7 @@ function SimulationSetupPage() {
       }));
       setSetup(data);
       setSelectedExitIds(data.selectedExitIds);
+      setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
       setReactionTime(data.reactionTime);
       setSelectedHazardId(null);
@@ -189,6 +220,9 @@ function SimulationSetupPage() {
   }
 
   const editable = setup.status === 'DRAFT';
+  const allExitsSelected =
+    setup.drawing.exits.length > 0 &&
+    setup.drawing.exits.every((exit) => selectedExitIds.includes(exit.id));
   const selectedHazard = hazards.find((hazard) => hazard.clientId === selectedHazardId) ?? null;
 
   const beginGesture = () => {
@@ -268,10 +302,10 @@ function SimulationSetupPage() {
 
   const validateOptions = (): string | null => {
     if (reactionTime < 0.1 || reactionTime > 2) {
-      return '초기 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
+      return '속도 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
     }
     if (walkingSpeed <= 0 || walkingSpeed > 3) {
-      return '평균 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.';
+      return '희망 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.';
     }
     return null;
   };
@@ -332,7 +366,7 @@ function SimulationSetupPage() {
         return;
       }
       await simulationApi.execute(saved.simulationId);
-      navigate(`/simulations/${saved.simulationId}/result`);
+      navigate('/simulations');
     } catch (error) {
       setSaveState('error');
       setMessage(getSimulationErrorMessage(error));
@@ -417,6 +451,8 @@ function SimulationSetupPage() {
             tool={editable ? tool : 'select'}
             brushRadius={brushRadius}
             selectedHazardId={selectedHazardId}
+            selectedExitIds={selectedExitIds}
+            highlightedExitId={highlightedExitId}
             onSpray={applySpray}
             onErase={applyErase}
             onCreateHazard={createHazard}
@@ -515,9 +551,20 @@ function SimulationSetupPage() {
           <section className="mt-6 border-t border-line pt-5">
             <h2 className="text-sm font-black">시뮬레이션 조건</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-xs font-bold text-text-muted">
-                평균 이동속도 (m/s)
+              <div className="text-xs font-bold text-text-muted">
+                <div className="flex items-center gap-1">
+                  <label htmlFor="walking-speed">희망 이동속도 (m/s)</label>
+                  <InfoTooltip id="walking-speed-help" label="희망 이동속도 안내">
+                    에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표 평균은
+                    약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제 속도는
+                    혼잡도와 상호작용에 따라 달라집니다.
+                    <span className="mt-1 block text-white/70">
+                      출처: Weidmann (1993), ETH Zürich
+                    </span>
+                  </InfoTooltip>
+                </div>
                 <input
+                  id="walking-speed"
                   type="number"
                   min={0.1}
                   max={3}
@@ -527,10 +574,24 @@ function SimulationSetupPage() {
                   disabled={!editable}
                   className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
                 />
-              </label>
-              <label className="text-xs font-bold text-text-muted">
-                초기 반응시간 (초)
+              </div>
+              <div className="text-xs font-bold text-text-muted">
+                <div className="flex items-center gap-1">
+                  <label htmlFor="reaction-time">속도 반응시간 (초)</label>
+                  <InfoTooltip id="reaction-time-help" label="속도 반응시간 안내" align="right">
+                    현재 속도가 희망속도와 방향에 적응하는 시간상수 τ입니다. 값이 작을수록 속도가 더
+                    빠르게 변하며, 출발 전 대기시간은 아닙니다.
+                    <span className="my-1 block font-mono text-[10px] text-white">
+                      Fdrv = (희망속도 벡터 - 현재속도 벡터) / τ
+                    </span>
+                    JuPedSim SFM 기본값은 0.5초이고, 시스템 허용 범위는 0.1~2.0초입니다.
+                    <span className="mt-1 block text-white/70">
+                      출처: JuPedSim SFM, Helbing et al. (2000)
+                    </span>
+                  </InfoTooltip>
+                </div>
                 <input
+                  id="reaction-time"
                   type="number"
                   min={0.1}
                   max={2}
@@ -540,16 +601,30 @@ function SimulationSetupPage() {
                   disabled={!editable}
                   className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
                 />
-              </label>
+              </div>
             </div>
           </section>
 
           <section className="mt-6 border-t border-line pt-5">
-            <h2 className="text-sm font-black">사용 출입구</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black">사용 출입구</h2>
+              <button
+                type="button"
+                disabled={!editable || setup.drawing.exits.length === 0}
+                onClick={() =>
+                  setSelectedExitIds(
+                    allExitsSelected ? [] : setup.drawing.exits.map((exit) => exit.id),
+                  )
+                }
+                className="rounded-lg border border-primary px-2.5 py-1 text-xs font-bold text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {allExitsSelected ? '전체 해제' : '전체 선택'}
+              </button>
+            </div>
             <p className="mt-1 text-xs leading-5 text-text-muted">
               DRAFT 저장은 출입구를 선택하지 않아도 가능합니다.
             </p>
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
               {setup.drawing.exits.length === 0 ? (
                 <p className="rounded-lg bg-surface px-3 py-3 text-xs text-text-muted">
                   등록된 출입구가 없습니다.
@@ -558,7 +633,25 @@ function SimulationSetupPage() {
                 setup.drawing.exits.map((exit) => (
                   <label
                     key={exit.id}
-                    className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm"
+                    onMouseEnter={() => setHighlightedExitId(exit.id)}
+                    onMouseLeave={(event) => {
+                      if (!event.currentTarget.contains(document.activeElement)) {
+                        setHighlightedExitId(null);
+                      }
+                    }}
+                    onFocus={() => setHighlightedExitId(exit.id)}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) {
+                        setHighlightedExitId(null);
+                      }
+                    }}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      highlightedExitId === exit.id
+                        ? 'border-amber-400 bg-amber-50'
+                        : selectedExitIds.includes(exit.id)
+                          ? 'border-blue-500 bg-blue-50 text-blue-800'
+                          : 'border-line'
+                    }`}
                   >
                     <input
                       type="checkbox"
@@ -571,7 +664,7 @@ function SimulationSetupPage() {
                             : ids.filter((id) => id !== exit.id),
                         )
                       }
-                      className="accent-primary"
+                      className="accent-blue-600"
                     />
                     <span>{exit.name}</span>
                   </label>
@@ -582,7 +675,25 @@ function SimulationSetupPage() {
 
           <section className="mt-6 border-t border-line pt-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black">위험구역</h2>
+              <div className="flex items-center gap-1">
+                <h2 className="text-sm font-black">위험구역</h2>
+                <InfoTooltip id="hazard-cost-help" label="위험구역 경로 비용 안내">
+                  에이전트의 대피 경로를 비교할 때 사용하는 상대 비용입니다.
+                  <span className="my-1 block font-mono text-[10px] leading-4 text-white">
+                    depth = clamp(1 - 중심거리 / 반지름, 0, 1)
+                    <br />원 밖: M = 1
+                    <br />원 안: M = 5 × 100^depth
+                    <br />
+                    간선 비용 = 길이 / 6 × (시작점 M + 4 × 중간점 M + 끝점 M)
+                  </span>
+                  경계는 5, 반지름 중간은 50, 중심은 500입니다. 전체 경로는 모든 간선 비용을
+                  합산하고, 위험구역이 겹치면 가장 큰 M만 적용합니다.
+                  <span className="mt-1 block text-white/70">
+                    HAZARD_RADIAL_EXP_V3 · 활로가 정의한 상대 비용이며 공인 위험도나 사망확률이
+                    아닙니다.
+                  </span>
+                </InfoTooltip>
+              </div>
               <span className="text-xs text-text-muted">{hazards.length}개</span>
             </div>
             {selectedHazard ? (

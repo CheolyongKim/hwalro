@@ -3,6 +3,7 @@ import type {
   CreateSimulationDraftRequest,
   SimulationExecution,
   SimulationHeatmapChunk,
+  SimulationOverview,
   SimulationOverviewPage,
   SimulationSetup,
   SimulationSummary,
@@ -11,6 +12,11 @@ import type {
 } from '../types';
 
 export const simulationApi = {
+  listMonitor: () =>
+    apiClient
+      .get<SimulationOverview[]>('/api/simulations/monitor')
+      .then((response) => response.data),
+
   listOverview: (page: number, size: number) =>
     apiClient
       .get<SimulationOverviewPage>('/api/simulations/overview', { params: { page, size } })

@@ -22,6 +22,8 @@ interface SimulationCanvasProps {
   tool: SimulationTool;
   brushRadius: number;
   selectedHazardId: string | null;
+  selectedExitIds?: readonly number[];
+  highlightedExitId?: number | null;
   onSpray: (point: SimulationPoint) => void;
   onErase: (point: SimulationPoint) => void;
   onCreateHazard: (point: SimulationPoint) => void;
@@ -47,6 +49,8 @@ export function SimulationCanvas({
   tool,
   brushRadius,
   selectedHazardId,
+  selectedExitIds = [],
+  highlightedExitId = null,
   onSpray,
   onErase,
   onCreateHazard,
@@ -372,15 +376,23 @@ export function SimulationCanvas({
                 listening={false}
               />
             ))}
-            {drawing.exits.map((exit) => (
-              <Line
-                key={exit.id}
-                points={[exit.startX, exit.startY, exit.endX, exit.endY]}
-                stroke="#078f7e"
-                strokeWidth={s(5)}
-                lineCap="round"
-              />
-            ))}
+            {drawing.exits.map((exit) => {
+              const highlighted = exit.id === highlightedExitId;
+              const selected = selectedExitIds.includes(exit.id);
+              return (
+                <Line
+                  key={exit.id}
+                  points={[exit.startX, exit.startY, exit.endX, exit.endY]}
+                  stroke={highlighted ? '#f59e0b' : selected ? '#2563eb' : '#078f7e'}
+                  strokeWidth={s(highlighted ? 8 : selected ? 7 : 5)}
+                  lineCap="round"
+                  shadowColor={highlighted ? '#fbbf24' : '#60a5fa'}
+                  shadowBlur={highlighted ? s(18) : selected ? s(10) : 0}
+                  shadowOpacity={highlighted ? 0.9 : selected ? 0.6 : 0}
+                  shadowEnabled={highlighted || selected}
+                />
+              );
+            })}
           </Layer>
           <Layer x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             {agentShape}

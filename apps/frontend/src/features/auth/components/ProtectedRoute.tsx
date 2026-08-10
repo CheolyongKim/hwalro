@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import SimulationCompletionNotifier from '../../simulations/components/SimulationCompletionNotifier';
 import { useAuth } from '../context/AuthContext';
 
 function ProtectedRoute() {
@@ -17,7 +18,12 @@ function ProtectedRoute() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <SimulationCompletionNotifier userId={user.id} />
+      <Outlet />
+    </>
+  );
 }
 
 export default ProtectedRoute;

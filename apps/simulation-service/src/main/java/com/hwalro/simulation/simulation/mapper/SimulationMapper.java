@@ -27,6 +27,8 @@ public interface SimulationMapper {
     List<Simulation> findSimulationOverviewPage(
             @Param("offset") int offset, @Param("size") int size, @Param("createdBy") Long createdBy);
 
+    List<Simulation> findSimulationMonitor(@Param("createdBy") Long createdBy);
+
     long countSimulationOverview(@Param("createdBy") Long createdBy);
 
     SimulationOption findSimulationOption(@Param("simulationId") Long simulationId);
