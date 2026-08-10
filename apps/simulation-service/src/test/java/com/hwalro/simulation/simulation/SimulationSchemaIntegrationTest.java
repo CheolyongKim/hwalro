@@ -48,6 +48,41 @@ class SimulationSchemaIntegrationTest {
     }
 
     @Test
+    void densityThresholdSettingAllowsOnlyOnePositivePersonPerSquareMeterValue() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            statement.executeUpdate("INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                    + "VALUES (1, 3.500, 'PERSON_PER_M2')");
+
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                                    + "VALUES (2, 3.500, 'PERSON_PER_M2')"))
+                    .isInstanceOf(SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "UPDATE density_threshold_settings SET threshold_value = 0 WHERE id = 1"))
+                    .isInstanceOf(SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "UPDATE density_threshold_settings SET unit = 'PEOPLE' WHERE id = 1"))
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void densityThresholdDmlInitializesButDoesNotOverwriteExistingValue() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
+            assertThat(densityThreshold(statement)).isEqualByComparingTo("3.500");
+
+            statement.executeUpdate("UPDATE density_threshold_settings SET threshold_value = 4.200 WHERE id = 1");
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
+            assertThat(densityThreshold(statement)).isEqualByComparingTo("4.200");
+        }
+    }
+
+    @Test
     void parentSimulationMustBelongToSameLayoutVersion() throws SQLException {
         try (Connection connection = connection();
                 Statement statement = connection.createStatement()) {
@@ -107,5 +142,13 @@ class SimulationSchemaIntegrationTest {
 
     private static Connection connection() throws SQLException {
         return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+    }
+
+    private static java.math.BigDecimal densityThreshold(Statement statement) throws SQLException {
+        try (ResultSet resultSet =
+                statement.executeQuery("SELECT threshold_value FROM density_threshold_settings WHERE id = 1")) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getBigDecimal("threshold_value");
+        }
     }
 }
