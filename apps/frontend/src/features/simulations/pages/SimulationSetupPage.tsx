@@ -366,7 +366,7 @@ function SimulationSetupPage() {
         return;
       }
       await simulationApi.execute(saved.simulationId);
-      navigate(`/simulations/${saved.simulationId}/result`);
+      navigate('/simulations');
     } catch (error) {
       setSaveState('error');
       setMessage(getSimulationErrorMessage(error));
