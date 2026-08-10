@@ -22,6 +22,7 @@ interface SimulationCanvasProps {
   tool: SimulationTool;
   brushRadius: number;
   selectedHazardId: string | null;
+  highlightedExitId?: number | null;
   onSpray: (point: SimulationPoint) => void;
   onErase: (point: SimulationPoint) => void;
   onCreateHazard: (point: SimulationPoint) => void;
@@ -47,6 +48,7 @@ export function SimulationCanvas({
   tool,
   brushRadius,
   selectedHazardId,
+  highlightedExitId = null,
   onSpray,
   onErase,
   onCreateHazard,
@@ -372,15 +374,22 @@ export function SimulationCanvas({
                 listening={false}
               />
             ))}
-            {drawing.exits.map((exit) => (
-              <Line
-                key={exit.id}
-                points={[exit.startX, exit.startY, exit.endX, exit.endY]}
-                stroke="#078f7e"
-                strokeWidth={s(5)}
-                lineCap="round"
-              />
-            ))}
+            {drawing.exits.map((exit) => {
+              const highlighted = exit.id === highlightedExitId;
+              return (
+                <Line
+                  key={exit.id}
+                  points={[exit.startX, exit.startY, exit.endX, exit.endY]}
+                  stroke={highlighted ? '#f59e0b' : '#078f7e'}
+                  strokeWidth={s(highlighted ? 8 : 5)}
+                  lineCap="round"
+                  shadowColor="#fbbf24"
+                  shadowBlur={highlighted ? s(18) : 0}
+                  shadowOpacity={highlighted ? 0.9 : 0}
+                  shadowEnabled={highlighted}
+                />
+              );
+            })}
           </Layer>
           <Layer x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             {agentShape}

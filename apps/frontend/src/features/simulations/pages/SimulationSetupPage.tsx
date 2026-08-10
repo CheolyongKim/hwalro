@@ -42,6 +42,7 @@ function SimulationSetupPage() {
   const [agents, setAgents] = useState<SimulationPoint[]>([]);
   const [hazards, setHazards] = useState<EditableHazardZone[]>([]);
   const [selectedExitIds, setSelectedExitIds] = useState<number[]>([]);
+  const [highlightedExitId, setHighlightedExitId] = useState<number | null>(null);
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
   const [reactionTime, setReactionTime] = useState(0.5);
   const [tool, setTool] = useState<SimulationTool>('spray');
@@ -82,6 +83,7 @@ function SimulationSetupPage() {
       }));
       setSetup(data);
       setSelectedExitIds(data.selectedExitIds);
+      setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
       setReactionTime(data.reactionTime);
       setSelectedHazardId(null);
@@ -417,6 +419,7 @@ function SimulationSetupPage() {
             tool={editable ? tool : 'select'}
             brushRadius={brushRadius}
             selectedHazardId={selectedHazardId}
+            highlightedExitId={highlightedExitId}
             onSpray={applySpray}
             onErase={applyErase}
             onCreateHazard={createHazard}
@@ -583,7 +586,21 @@ function SimulationSetupPage() {
                 setup.drawing.exits.map((exit) => (
                   <label
                     key={exit.id}
-                    className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm"
+                    onMouseEnter={() => setHighlightedExitId(exit.id)}
+                    onMouseLeave={(event) => {
+                      if (!event.currentTarget.contains(document.activeElement)) {
+                        setHighlightedExitId(null);
+                      }
+                    }}
+                    onFocus={() => setHighlightedExitId(exit.id)}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) {
+                        setHighlightedExitId(null);
+                      }
+                    }}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      highlightedExitId === exit.id ? 'border-amber-400 bg-amber-50' : 'border-line'
+                    }`}
                   >
                     <input
                       type="checkbox"
