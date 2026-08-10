@@ -29,7 +29,8 @@ export function ReportDraftDialog({
 
   useEffect(() => {
     if (!open) return;
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const animationFrame = window.requestAnimationFrame(() => {
       const firstControl = dialogRef.current?.querySelector<HTMLElement>(
         'input:not([disabled]), button:not([disabled])',
