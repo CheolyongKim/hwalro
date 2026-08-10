@@ -127,6 +127,13 @@ export interface TextDraft {
   point: Vec2;
 }
 
+export type ValidationProblemKind = 'wall' | 'outsideWall' | 'exit' | 'pillar' | 'fabric';
+
+export interface ValidationProblem {
+  kind: ValidationProblemKind;
+  name: string;
+}
+
 export type DragState =
   | {
       kind: 'move';
@@ -162,6 +169,12 @@ export type DragState =
       originDoc: DrawingDocument;
     }
   | {
+      kind: 'backgroundResize';
+      origin: Vec2;
+      originBg: BackgroundImage;
+      originDoc: DrawingDocument;
+    }
+  | {
       kind: 'erase';
       origin: Vec2;
       originDoc: DrawingDocument;
@@ -179,6 +192,7 @@ export interface EditorState {
   drag: DragState | null;
   cursor: Vec2 | null;
   snapHint: Vec2 | null;
+  validationProblems: ValidationProblem[];
   error: string | null;
   errorNonce: number;
   cameraFitNonce: number;

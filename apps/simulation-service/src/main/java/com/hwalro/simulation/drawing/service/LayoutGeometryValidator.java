@@ -4,12 +4,15 @@ import com.hwalro.simulation.drawing.dto.ExitDto;
 import com.hwalro.simulation.drawing.dto.FabricDto;
 import com.hwalro.simulation.drawing.dto.OutsideWallDto;
 import com.hwalro.simulation.drawing.dto.PillarDto;
+import com.hwalro.simulation.drawing.dto.ValidationProblem;
 import com.hwalro.simulation.drawing.dto.WallDto;
+import com.hwalro.simulation.drawing.exception.DrawingValidationException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,20 +43,29 @@ public class LayoutGeometryValidator {
                 .filter(walk -> walk.area() > 0)
                 .toList();
         if (frameCandidates.isEmpty()) {
-            throw new IllegalArgumentException("외각벽으로 둘러싸인 닫힌 다각형이 없습니다. 외각벽을 이어 하나의 닫힌 틀을 만들어 주세요.");
+            throw new DrawingValidationException(
+                    "외각벽으로 둘러싸인 닫힌 다각형이 없습니다. 외각벽을 이어 하나의 닫힌 틀을 만들어 주세요.", allOutsideWallProblems(outsideWalls));
         }
         if (frameCandidates.size() > 1) {
-            throw new IllegalArgumentException("외각벽으로 둘러싸인 닫힌 다각형이 2개 이상입니다. 외각벽 틀은 정확히 1개만 있어야 합니다.");
+            throw new DrawingValidationException(
+                    "외각벽으로 둘러싸인 닫힌 다각형이 2개 이상입니다. 외각벽 틀은 정확히 1개만 있어야 합니다.", allOutsideWallProblems(outsideWalls));
         }
         Walk frame = frameCandidates.get(0);
+        List<String> messages = new ArrayList<>();
+        List<ValidationProblem> problems = new ArrayList<>();
+        Set<String> reportedWalls = new HashSet<>();
         List<Walk> regionWalks = findBoundedWalks(outsideWalls, walls);
         for (Walk walk : regionWalks) {
             if (!walk.hasOutsideEdge()) {
-                throw new IllegalArgumentException("내부 벽이 닫힌 다각형을 만들어 벽으로 둘러싸인 공간이 생겼습니다. 내부 벽이 다각형을 만들지 않도록 수정해 주세요.");
+                messages.add("내부 벽이 닫힌 다각형을 만들어 벽으로 둘러싸인 공간이 생겼습니다. 내부 벽이 다각형을 만들지 않도록 수정해 주세요.");
+                addWallProblems(problems, reportedWalls, walk.innerNames());
             }
         }
-        validateInsideFrame(frame, pillars, fabrics, exits);
-        validateExitReachability(regionWalks, pillars, fabrics, exits);
+        collectInsideFrameProblems(frame, pillars, fabrics, exits, messages, problems);
+        collectExitReachabilityProblems(regionWalks, pillars, fabrics, exits, messages, problems);
+        if (!messages.isEmpty()) {
+            throw new DrawingValidationException(String.join(" ", messages), problems);
+        }
     }
 
     private List<Walk> findBoundedWalks(List<OutsideWallDto> outsideWalls, List<WallDto> walls) {
@@ -67,7 +79,7 @@ public class LayoutGeometryValidator {
             Point b = new Point(
                     outsideWall.endX().doubleValue(), outsideWall.endY().doubleValue());
             if (a.distanceTo(b) >= EPSILON) {
-                taggedSegments.add(new TaggedSegment(new Segment(a, b), true));
+                taggedSegments.add(new TaggedSegment(new Segment(a, b), true, outsideWall.name()));
             }
         }
         for (WallDto wall : walls) {
@@ -77,7 +89,7 @@ public class LayoutGeometryValidator {
             Point a = new Point(wall.startX().doubleValue(), wall.startY().doubleValue());
             Point b = new Point(wall.endX().doubleValue(), wall.endY().doubleValue());
             if (a.distanceTo(b) >= EPSILON) {
-                taggedSegments.add(new TaggedSegment(new Segment(a, b), false));
+                taggedSegments.add(new TaggedSegment(new Segment(a, b), false, wall.name()));
             }
         }
         if (taggedSegments.isEmpty()) {
@@ -123,16 +135,23 @@ public class LayoutGeometryValidator {
                 Point from = onSegment.get(i);
                 Point to = onSegment.get(i + 1);
                 if (from.distanceTo(to) >= EPSILON) {
-                    subSegments.add(new TaggedSegment(new Segment(from, to), tagged.outside()));
+                    subSegments.add(new TaggedSegment(new Segment(from, to), tagged.outside(), tagged.sourceName()));
                 }
             }
         }
         Map<Edge, Boolean> edgeOutside = new HashMap<>();
+        Map<Edge, String> edgeInnerNames = new HashMap<>();
         for (TaggedSegment sub : subSegments) {
             int a = pointIndex.idOf(sub.segment().a());
             int b = pointIndex.idOf(sub.segment().b());
             if (a != b) {
-                edgeOutside.merge(new Edge(Math.min(a, b), Math.max(a, b)), sub.outside(), Boolean::logicalOr);
+                Edge edge = new Edge(Math.min(a, b), Math.max(a, b));
+                edgeOutside.merge(edge, sub.outside(), Boolean::logicalOr);
+                if (!sub.outside()
+                        && sub.sourceName() != null
+                        && !sub.sourceName().isBlank()) {
+                    edgeInnerNames.putIfAbsent(edge, sub.sourceName());
+                }
             }
         }
         if (edgeOutside.isEmpty()) {
@@ -163,11 +182,17 @@ public class LayoutGeometryValidator {
                 }
                 List<Point> walkPoints = new ArrayList<>();
                 List<Edge> walkEdges = new ArrayList<>();
+                Set<String> walkInnerNames = new LinkedHashSet<>();
                 int u = startU;
                 int v = startV;
                 while (true) {
                     walkPoints.add(points.get(u));
-                    walkEdges.add(new Edge(Math.min(u, v), Math.max(u, v)));
+                    Edge edge = new Edge(Math.min(u, v), Math.max(u, v));
+                    walkEdges.add(edge);
+                    String innerName = edgeInnerNames.get(edge);
+                    if (innerName != null) {
+                        walkInnerNames.add(innerName);
+                    }
                     visited.add(directedKey(u, v));
                     List<Integer> neighbors = adjacency.get(v);
                     int pos = neighbors.indexOf(u);
@@ -182,34 +207,41 @@ public class LayoutGeometryValidator {
                 if (Math.abs(area) >= MIN_POLYGON_AREA) {
                     boolean hasOutsideEdge =
                             walkEdges.stream().anyMatch(edge -> Boolean.TRUE.equals(edgeOutside.get(edge)));
-                    walks.add(new Walk(walkPoints, walkEdges, area, hasOutsideEdge));
+                    walks.add(new Walk(walkPoints, walkEdges, area, hasOutsideEdge, List.copyOf(walkInnerNames)));
                 }
             }
         }
         return walks;
     }
 
-    private void validateInsideFrame(
-            Walk frame, List<PillarDto> pillars, List<FabricDto> fabrics, List<ExitDto> exits) {
+    private void collectInsideFrameProblems(
+            Walk frame,
+            List<PillarDto> pillars,
+            List<FabricDto> fabrics,
+            List<ExitDto> exits,
+            List<String> messages,
+            List<ValidationProblem> problems) {
         for (PillarDto pillar : pillars) {
             if (pillar == null) {
                 continue;
             }
-            validateRectInsideFrame(
+            if (!rectInsideFrame(
                     frame,
-                    rectCorners(pillar.startX(), pillar.startY(), pillar.endX(), pillar.endY(), pillar.rotation()),
-                    pillar.name(),
-                    "기둥");
+                    rectCorners(pillar.startX(), pillar.startY(), pillar.endX(), pillar.endY(), pillar.rotation()))) {
+                messages.add("외각벽 밖에 위치한 시설물이 있습니다: " + describe(pillar.name(), "기둥"));
+                addProblem(problems, "pillar", pillar.name());
+            }
         }
         for (FabricDto fabric : fabrics) {
             if (fabric == null) {
                 continue;
             }
-            validateRectInsideFrame(
+            if (!rectInsideFrame(
                     frame,
-                    rectCorners(fabric.startX(), fabric.startY(), fabric.endX(), fabric.endY(), fabric.rotation()),
-                    fabric.name(),
-                    "구조물");
+                    rectCorners(fabric.startX(), fabric.startY(), fabric.endX(), fabric.endY(), fabric.rotation()))) {
+                messages.add("외각벽 밖에 위치한 시설물이 있습니다: " + describe(fabric.name(), "구조물"));
+                addProblem(problems, "fabric", fabric.name());
+            }
         }
         for (ExitDto exit : exits) {
             if (exit == null) {
@@ -217,26 +249,25 @@ public class LayoutGeometryValidator {
             }
             Point start = new Point(exit.startX().doubleValue(), exit.startY().doubleValue());
             Point end = new Point(exit.endX().doubleValue(), exit.endY().doubleValue());
-            if (!contains(frame, start) || !contains(frame, end)) {
-                throw new IllegalArgumentException("외각벽 밖에 위치한 비상구가 있습니다: " + describe(exit.name(), "비상구"));
-            }
-            if (crossesFrame(frame, start, end)) {
-                throw new IllegalArgumentException("외각벽 밖에 위치한 비상구가 있습니다: " + describe(exit.name(), "비상구"));
+            if (!contains(frame, start) || !contains(frame, end) || crossesFrame(frame, start, end)) {
+                messages.add("외각벽 밖에 위치한 비상구가 있습니다: " + describe(exit.name(), "비상구"));
+                addProblem(problems, "exit", exit.name());
             }
         }
     }
 
-    private void validateRectInsideFrame(Walk frame, List<Point> corners, String name, String label) {
+    private boolean rectInsideFrame(Walk frame, List<Point> corners) {
         for (Point corner : corners) {
             if (!contains(frame, corner)) {
-                throw new IllegalArgumentException("외각벽 밖에 위치한 시설물이 있습니다: " + describe(name, label));
+                return false;
             }
         }
         for (int i = 0; i < 4; i++) {
             if (crossesFrame(frame, corners.get(i), corners.get((i + 1) % 4))) {
-                throw new IllegalArgumentException("외각벽 밖에 위치한 시설물이 있습니다: " + describe(name, label));
+                return false;
             }
         }
+        return true;
     }
 
     private boolean crossesFrame(Walk frame, Point a, Point b) {
@@ -257,25 +288,36 @@ public class LayoutGeometryValidator {
         return fallback + " '" + name + "'";
     }
 
-    private void validateExitReachability(
-            List<Walk> regionWalks, List<PillarDto> pillars, List<FabricDto> fabrics, List<ExitDto> exits) {
+    private void collectExitReachabilityProblems(
+            List<Walk> regionWalks,
+            List<PillarDto> pillars,
+            List<FabricDto> fabrics,
+            List<ExitDto> exits,
+            List<String> messages,
+            List<ValidationProblem> problems) {
+        Set<String> reportedWalls = new HashSet<>();
         for (Walk region : regionWalks) {
             boolean reachable =
                     exits.stream().filter(exit -> exit != null).anyMatch(exit -> contains(region, midpoint(exit)));
             if (!reachable) {
-                throw new IllegalArgumentException("비상구로 갈 수 없는 공간이 있습니다. 벽으로 나뉜 모든 공간에서 비상구에 닿도록 배치해 주세요.");
+                messages.add("비상구로 갈 수 없는 공간이 있습니다. 벽으로 나뉜 모든 공간에서 비상구에 닿도록 배치해 주세요.");
+                addWallProblems(problems, reportedWalls, region.innerNames());
             }
         }
+        List<PillarDto> pillarList = new ArrayList<>();
         List<List<Point>> pillarRects = new ArrayList<>();
         for (PillarDto pillar : pillars) {
             if (pillar != null) {
+                pillarList.add(pillar);
                 pillarRects.add(
                         rectCorners(pillar.startX(), pillar.startY(), pillar.endX(), pillar.endY(), pillar.rotation()));
             }
         }
+        List<FabricDto> fabricList = new ArrayList<>();
         List<List<Point>> fabricRects = new ArrayList<>();
         for (FabricDto fabric : fabrics) {
             if (fabric != null) {
+                fabricList.add(fabric);
                 fabricRects.add(
                         rectCorners(fabric.startX(), fabric.startY(), fabric.endX(), fabric.endY(), fabric.rotation()));
             }
@@ -286,17 +328,47 @@ public class LayoutGeometryValidator {
             }
             Point start = new Point(exit.startX().doubleValue(), exit.startY().doubleValue());
             Point end = new Point(exit.endX().doubleValue(), exit.endY().doubleValue());
-            for (List<Point> rect : pillarRects) {
-                if (exitBlockedByRect(start, end, rect)) {
-                    throw new IllegalArgumentException("비상구가 기둥에 막혀 있습니다: " + describe(exit.name(), "비상구"));
+            for (int i = 0; i < pillarList.size(); i++) {
+                if (exitBlockedByRect(start, end, pillarRects.get(i))) {
+                    messages.add("비상구가 기둥에 막혀 있습니다: " + describe(exit.name(), "비상구"));
+                    addProblem(problems, "exit", exit.name());
+                    addProblem(problems, "pillar", pillarList.get(i).name());
                 }
             }
-            for (List<Point> rect : fabricRects) {
-                if (exitBlockedByRect(start, end, rect)) {
-                    throw new IllegalArgumentException("비상구가 구조물에 막혀 있습니다: " + describe(exit.name(), "비상구"));
+            for (int i = 0; i < fabricList.size(); i++) {
+                if (exitBlockedByRect(start, end, fabricRects.get(i))) {
+                    messages.add("비상구가 구조물에 막혀 있습니다: " + describe(exit.name(), "비상구"));
+                    addProblem(problems, "exit", exit.name());
+                    addProblem(problems, "fabric", fabricList.get(i).name());
                 }
             }
         }
+    }
+
+    private void addWallProblems(List<ValidationProblem> problems, Set<String> reported, List<String> names) {
+        for (String name : names) {
+            if (name != null && !name.isBlank() && reported.add(name)) {
+                problems.add(new ValidationProblem("wall", name));
+            }
+        }
+    }
+
+    private void addProblem(List<ValidationProblem> problems, String kind, String name) {
+        if (name != null && !name.isBlank()) {
+            problems.add(new ValidationProblem(kind, name));
+        }
+    }
+
+    private List<ValidationProblem> allOutsideWallProblems(List<OutsideWallDto> outsideWalls) {
+        List<ValidationProblem> problems = new ArrayList<>();
+        for (OutsideWallDto outsideWall : outsideWalls) {
+            if (outsideWall != null
+                    && outsideWall.name() != null
+                    && !outsideWall.name().isBlank()) {
+                problems.add(new ValidationProblem("outsideWall", outsideWall.name()));
+            }
+        }
+        return problems;
     }
 
     private Point midpoint(ExitDto exit) {
@@ -509,11 +581,12 @@ public class LayoutGeometryValidator {
 
     private record Segment(Point a, Point b) {}
 
-    private record TaggedSegment(Segment segment, boolean outside) {}
+    private record TaggedSegment(Segment segment, boolean outside, String sourceName) {}
 
     private record Edge(int a, int b) {}
 
-    private record Walk(List<Point> points, List<Edge> edges, double area, boolean hasOutsideEdge) {}
+    private record Walk(
+            List<Point> points, List<Edge> edges, double area, boolean hasOutsideEdge, List<String> innerNames) {}
 
     private static final class PointIndex {
         private final Map<Long, List<Integer>> cellToPointIds = new HashMap<>();

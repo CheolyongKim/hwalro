@@ -6,6 +6,7 @@ import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
 import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
+import com.hwalro.simulation.drawing.exception.DrawingValidationException;
 import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
@@ -29,6 +30,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> handleBadRequest(IllegalArgumentException exception) {
         return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(DrawingValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleDrawingValidation(DrawingValidationException exception) {
+        return Map.of("message", exception.getMessage(), "problems", exception.getProblems());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

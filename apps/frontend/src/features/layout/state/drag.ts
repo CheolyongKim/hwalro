@@ -1,21 +1,13 @@
-import type {
-  DragState,
-  DrawingDocument,
-  EditorState,
-  Exit,
-  Fabric,
-  Pillar,
-  RectHandle,
-  Vec2,
-  Wall,
-} from '../types';
-import { rectCenter, rotatePoint, round1 } from '../utils/geometry';
+import type { DragState, EditorState, Exit, RectHandle, Vec2 } from '../types';
+import { distance, rectCenter, rotatePoint, round1 } from '../utils/geometry';
 import { docSnapSources, snapPoint } from '../utils/snapping';
 import { isRectInsideBounds, translateDoc } from '../utils/document';
-import { clampLineDraft, clampMoveDelta, clampRectDraft, clampRotate } from '../utils/collision';
+import { clampMoveDelta, clampRotate } from '../utils/collision';
 
 type ReshapeDrag = Extract<DragState, { kind: 'reshape' }>;
 type RotateDrag = Extract<DragState, { kind: 'rotate' }>;
+
+const MIN_LINE_LENGTH = 0.1;
 
 function clampToDocBounds(doc: { width: number; height: number }, point: Vec2): Vec2 {
   return {
@@ -46,6 +38,11 @@ export function applyDragUpdate(state: EditorState, point: Vec2): EditorState {
     const moved = { ...drag.originBg, x: drag.originBg.x + dx, y: drag.originBg.y + dy };
     return { ...state, doc: { ...state.doc, background: moved } };
   }
+  if (drag.kind === 'backgroundResize') {
+    const width = Math.max(1, point.x - drag.originBg.x);
+    const resized = { ...drag.originBg, width, height: width / drag.originBg.aspect };
+    return { ...state, doc: { ...state.doc, background: resized } };
+  }
   if (drag.kind === 'rotate') {
     return applyRotateUpdate(state, drag, point);
   }
@@ -74,15 +71,13 @@ function applyLineReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   ];
   const snapped = snapPoint(point, other, docSnapSources(state.doc), exclude, state.camera.zoom);
   const clamped = clampToDocBounds(state.doc, snapped.point);
-  const elementExcluded =
-    drag.elementKind === 'wall'
-      ? { ...state.doc, walls: state.doc.walls.filter((w) => w.id !== wall.id) }
-      : { ...state.doc, outsideWalls: state.doc.outsideWalls.filter((w) => w.id !== wall.id) };
-  const collisionClamped = clampLineDraft(other, clamped, elementExcluded);
+  if (distance(clamped, other) < MIN_LINE_LENGTH) {
+    return { ...state, snapHint: null };
+  }
   const nextWall =
     drag.handle === 'start'
-      ? { ...wall, startX: round1(collisionClamped.x), startY: round1(collisionClamped.y) }
-      : { ...wall, endX: round1(collisionClamped.x), endY: round1(collisionClamped.y) };
+      ? { ...wall, startX: round1(clamped.x), startY: round1(clamped.y) }
+      : { ...wall, endX: round1(clamped.x), endY: round1(clamped.y) };
   const doc =
     drag.elementKind === 'wall'
       ? {
@@ -117,6 +112,9 @@ function applyReshapeExit(
   ];
   const snapped = snapPoint(point, other, docSnapSources(state.doc), exclude, state.camera.zoom);
   const clamped = clampToDocBounds(state.doc, snapped.point);
+  if (distance(clamped, other) < MIN_LINE_LENGTH) {
+    return { ...state, snapHint: null };
+  }
   const nextExit: Exit =
     drag.handle === 'start'
       ? { ...exit, startX: round1(clamped.x), startY: round1(clamped.y) }
@@ -138,60 +136,14 @@ function reshapeRectElement<
     rotation: number;
     id: string;
   },
->(element: T, point: Vec2, handle: RectHandle, doc: DrawingDocument): T {
-  const center = rectCenter(element);
-  const localPoint = rotatePoint(point, center, -element.rotation);
-  const fixed =
-    handle === 'start'
-      ? { x: element.endX, y: element.endY }
-      : { x: element.startX, y: element.startY };
-  const clamped = clampRectDraft(fixed, localPoint, elementLocalDoc(doc, element));
+>(element: T, point: Vec2, handle: RectHandle, startElement: T): T {
+  const center = rectCenter(startElement);
+  const localPoint = rotatePoint(point, center, -startElement.rotation);
   const patch =
     handle === 'start'
-      ? { startX: round1(clamped.x), startY: round1(clamped.y) }
-      : { endX: round1(clamped.x), endY: round1(clamped.y) };
+      ? { startX: round1(localPoint.x), startY: round1(localPoint.y) }
+      : { endX: round1(localPoint.x), endY: round1(localPoint.y) };
   return { ...element, ...patch };
-}
-
-function elementLocalDoc(
-  doc: DrawingDocument,
-  element: {
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-    rotation: number;
-    id: string;
-  },
-): DrawingDocument {
-  const center = rectCenter(element);
-  const rot = (p: Vec2) => rotatePoint(p, center, -element.rotation);
-  const mapWall = (wall: Wall): Wall => {
-    const a = rot({ x: wall.startX, y: wall.startY });
-    const b = rot({ x: wall.endX, y: wall.endY });
-    return { ...wall, startX: a.x, startY: a.y, endX: b.x, endY: b.y };
-  };
-  const mapRect = (rect: Pillar | Fabric): Pillar | Fabric => {
-    const worldCenter = rectCenter(rect);
-    const localCenter = rot(worldCenter);
-    const dx = localCenter.x - worldCenter.x;
-    const dy = localCenter.y - worldCenter.y;
-    return {
-      ...rect,
-      startX: rect.startX + dx,
-      startY: rect.startY + dy,
-      endX: rect.endX + dx,
-      endY: rect.endY + dy,
-      rotation: rect.rotation - element.rotation,
-    };
-  };
-  return {
-    ...doc,
-    walls: doc.walls.filter((w) => w.id !== element.id).map(mapWall),
-    outsideWalls: doc.outsideWalls.filter((w) => w.id !== element.id).map(mapWall),
-    pillars: doc.pillars.filter((p) => p.id !== element.id).map(mapRect),
-    fabrics: doc.fabrics.filter((f) => f.id !== element.id).map(mapRect),
-  };
 }
 
 function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Vec2): EditorState {
@@ -200,11 +152,12 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
     if (!pillar) {
       return state;
     }
+    const startPillar = drag.originDoc.pillars.find((p) => p.id === drag.elementId);
     const next = reshapeRectElement(
       pillar,
       clampToDocBounds(state.doc, point),
       drag.handle,
-      state.doc,
+      startPillar ?? pillar,
     );
     if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
       return state;
@@ -218,11 +171,12 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   if (!fabric) {
     return state;
   }
+  const startFabric = drag.originDoc.fabrics.find((f) => f.id === drag.elementId);
   const next = reshapeRectElement(
     fabric,
     clampToDocBounds(state.doc, point),
     drag.handle,
-    state.doc,
+    startFabric ?? fabric,
   );
   if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
     return state;

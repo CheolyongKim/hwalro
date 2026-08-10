@@ -8,6 +8,7 @@ import type {
   Pillar,
   RectHandle,
   Tool,
+  ValidationProblem,
   Vec2,
   Wall,
   LayoutText,
@@ -37,6 +38,7 @@ import {
   applyBackgroundOpacity,
   applyBackgroundRemove,
   applyBackgroundResize,
+  applyBackgroundResizeStart,
 } from './background';
 
 export type EditorAction =
@@ -91,7 +93,10 @@ export type EditorAction =
   | { type: 'eraseStart'; point: Vec2; hit: ElementHit }
   | { type: 'eraseUpdate'; hit: ElementHit }
   | { type: 'deleteSelection' }
+  | { type: 'setValidationProblems'; problems: ValidationProblem[] }
   | { type: 'backgroundInsert'; image: string; aspect: number }
+  | { type: 'backgroundDragStart'; point: Vec2 }
+  | { type: 'backgroundResizeStart'; point: Vec2 }
   | { type: 'backgroundDragStart'; point: Vec2 }
   | { type: 'backgroundResize'; width: number }
   | { type: 'backgroundOpacity'; opacity: number }
@@ -144,6 +149,7 @@ export function createInitialState(): EditorState {
     drag: null,
     cursor: null,
     snapHint: null,
+    validationProblems: [],
     error: null,
     errorNonce: 0,
     cameraFitNonce: 0,
@@ -211,7 +217,7 @@ function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
       error: '기둥이나 구조물 안에는 배치할 수 없습니다.',
     };
   }
-  const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom);
+  const snapped = snapPoint(point, point, docSnapSources(state.doc), [], state.camera.zoom, false);
   return {
     ...state,
     draft: { start: snapped.point, end: snapped.point },
@@ -231,6 +237,7 @@ function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
     docSnapSources(state.doc),
     [state.draft.start],
     state.camera.zoom,
+    false,
   );
   const end = clampRectDraft(state.draft.start, snapped.point, state.doc);
   return { ...state, draft: { ...state.draft, end } };
@@ -516,6 +523,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'backgroundDragStart':
       return applyBackgroundDragStart(state, action.point);
 
+    case 'backgroundResizeStart':
+      return applyBackgroundResizeStart(state, action.point);
+
     case 'backgroundResize':
       return applyBackgroundResize(state, action.width);
 
@@ -575,13 +585,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return commit(state, action.prev, action.next);
 
     case 'replaceDoc':
-      return { ...state, doc: action.doc, error: null };
+      return { ...state, doc: action.doc, error: null, validationProblems: [] };
 
     case 'loadDocument':
       return {
         ...clearInteraction({ ...state, doc: action.doc }),
         past: [],
         future: [],
+        validationProblems: [],
         cameraFitNonce: state.cameraFitNonce + 1,
       };
 
@@ -759,6 +770,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'setError':
       return { ...state, error: action.message, errorNonce: state.errorNonce + 1 };
+
+    case 'setValidationProblems':
+      return { ...state, validationProblems: action.problems };
 
     case 'clearSelection':
       return { ...state, selection: emptySelection(), snapHint: null };

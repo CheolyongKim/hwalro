@@ -136,6 +136,7 @@ export function snapPoint(
   sources: SnapSources,
   exclude: Vec2[],
   zoom: number,
+  enableAxisSnap = true,
 ): SnapResult {
   const magnet = endpointMagnet(raw, allEndpoints(sources), exclude, zoom);
   if (magnet) {
@@ -145,9 +146,11 @@ export function snapPoint(
   if (surface) {
     return { point: surface, snappedToEndpoint: surface, axisSnapped: false };
   }
-  const axis = axisSnap(origin, raw);
-  if (axis) {
-    return { point: axis, snappedToEndpoint: null, axisSnapped: true };
+  if (enableAxisSnap) {
+    const axis = axisSnap(origin, raw);
+    if (axis) {
+      return { point: axis, snappedToEndpoint: null, axisSnapped: true };
+    }
   }
   return { point: raw, snappedToEndpoint: null, axisSnapped: false };
 }

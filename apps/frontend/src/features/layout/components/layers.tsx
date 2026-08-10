@@ -118,16 +118,38 @@ interface WallViewProps {
   selected: boolean;
   s: (px: number) => number;
   color?: string;
+  thick?: boolean;
+  problem?: boolean;
 }
 
-export const WallView = memo(function WallView({ wall, selected, s, color }: WallViewProps) {
-  const stroke = selected ? CANVAS_COLORS.accent : (color ?? CANVAS_COLORS.ink);
+export const WallView = memo(function WallView({
+  wall,
+  selected,
+  s,
+  color,
+  thick,
+  problem,
+}: WallViewProps) {
+  let stroke = color ?? CANVAS_COLORS.ink;
+  if (selected) {
+    stroke = CANVAS_COLORS.accent;
+  }
+  if (problem) {
+    stroke = CANVAS_COLORS.problem;
+  }
+  let strokeWidth = thick ? s(3) : s(2);
+  if (selected) {
+    strokeWidth = s(2.5);
+  }
+  if (problem) {
+    strokeWidth = s(3.5);
+  }
   return (
     <Group>
       <Line
         points={[wall.startX, wall.startY, wall.endX, wall.endY]}
         stroke={stroke}
-        strokeWidth={selected ? s(2.5) : s(2)}
+        strokeWidth={strokeWidth}
       />
       {selected && (
         <Group>
@@ -156,23 +178,37 @@ export const WallView = memo(function WallView({ wall, selected, s, color }: Wal
 });
 
 export const OutsideWallView = memo(function OutsideWallView(props: WallViewProps) {
-  return <WallView {...props} color={CANVAS_COLORS.outsideWall} />;
+  return <WallView {...props} color={CANVAS_COLORS.outsideWall} thick />;
 });
 
 interface ExitViewProps {
   exit: Exit;
   selected: boolean;
   s: (px: number) => number;
+  problem?: boolean;
 }
 
-export const ExitView = memo(function ExitView({ exit, selected, s }: ExitViewProps) {
-  const color = selected ? CANVAS_COLORS.exitStrong : CANVAS_COLORS.exit;
+export const ExitView = memo(function ExitView({ exit, selected, s, problem }: ExitViewProps) {
+  let color: string = CANVAS_COLORS.exit;
+  if (selected) {
+    color = CANVAS_COLORS.exitStrong;
+  }
+  if (problem) {
+    color = CANVAS_COLORS.problem;
+  }
+  let strokeWidth = s(2.5);
+  if (selected) {
+    strokeWidth = s(3);
+  }
+  if (problem) {
+    strokeWidth = s(3.5);
+  }
   return (
     <Group>
       <Line
         points={[exit.startX, exit.startY, exit.endX, exit.endY]}
         stroke={color}
-        strokeWidth={selected ? s(3) : s(2.5)}
+        strokeWidth={strokeWidth}
       />
       {selected && (
         <Group>
@@ -210,6 +246,7 @@ interface RectViewProps {
   endX: number;
   endY: number;
   rotation: number;
+  problem?: boolean;
 }
 
 function RectShape({
@@ -222,12 +259,21 @@ function RectShape({
   endX,
   endY,
   rotation,
+  problem,
 }: RectViewProps) {
   const minX = Math.min(startX, endX);
   const minY = Math.min(startY, endY);
   const width = Math.abs(endX - startX);
   const height = Math.abs(endY - startY);
   const center = rectCenter({ startX, startY, endX, endY });
+  let rectStroke = stroke;
+  let rectStrokeWidth = selected ? s(2) : s(1);
+  let rectFill = fill;
+  if (problem) {
+    rectFill = CANVAS_COLORS.problemFill;
+    rectStroke = CANVAS_COLORS.problem;
+    rectStrokeWidth = s(2.5);
+  }
   return (
     <Group x={center.x} y={center.y} rotation={rotation}>
       <Rect
@@ -235,9 +281,9 @@ function RectShape({
         y={minY - center.y}
         width={width}
         height={height}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={selected ? s(2) : s(1)}
+        fill={rectFill}
+        stroke={rectStroke}
+        strokeWidth={rectStrokeWidth}
       />
       {selected && (
         <Group>
@@ -287,13 +333,20 @@ interface PillarViewProps {
   pillar: Pillar;
   selected: boolean;
   s: (px: number) => number;
+  problem?: boolean;
 }
 
-export const PillarView = memo(function PillarView({ pillar, selected, s }: PillarViewProps) {
+export const PillarView = memo(function PillarView({
+  pillar,
+  selected,
+  s,
+  problem,
+}: PillarViewProps) {
   return (
     <RectShape
       selected={selected}
       s={s}
+      problem={problem}
       fill={CANVAS_COLORS.pillarFill}
       stroke={selected ? CANVAS_COLORS.accent : CANVAS_COLORS.pillarStroke}
       startX={pillar.startX}
@@ -309,13 +362,20 @@ interface FabricViewProps {
   fabric: Fabric;
   selected: boolean;
   s: (px: number) => number;
+  problem?: boolean;
 }
 
-export const FabricView = memo(function FabricView({ fabric, selected, s }: FabricViewProps) {
+export const FabricView = memo(function FabricView({
+  fabric,
+  selected,
+  s,
+  problem,
+}: FabricViewProps) {
   return (
     <RectShape
       selected={selected}
       s={s}
+      problem={problem}
       fill={selected ? CANVAS_COLORS.fabricSelectedFill : CANVAS_COLORS.fabricFill}
       stroke={selected ? CANVAS_COLORS.accent : CANVAS_COLORS.fabricStroke}
       startX={fabric.startX}
