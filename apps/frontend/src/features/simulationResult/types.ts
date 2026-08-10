@@ -71,6 +71,7 @@ export interface EvacuationPoint {
 
 export interface ComparableSimulation {
   id: number;
+  simulationResultId: number;
   name: string;
   totalEvacuationTime: number;
 }
@@ -82,6 +83,7 @@ export interface RiskZone extends Bounds {
 
 export interface SimulationResultViewModel {
   simulationId: string;
+  simulationResultId: number;
   title: string;
   subtitle: string;
   durationSeconds: number;

@@ -4,7 +4,11 @@ import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.InvalidTokenException;
 import com.hwalro.regulation.law.exception.LawApiConfigurationException;
 import com.hwalro.regulation.law.exception.RegulationNotFoundException;
+import com.hwalro.regulation.report.exception.InvalidReportDraftException;
+import com.hwalro.regulation.report.exception.ReportDraftGenerationException;
 import com.hwalro.regulation.report.exception.ReportNotFoundException;
+import com.hwalro.regulation.report.exception.SimulationServiceException;
+import com.hwalro.regulation.report.exception.SimulationServiceTimeoutException;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import com.hwalro.regulation.safetycheck.exception.InspectionAreaNotFoundException;
 import com.hwalro.regulation.safetycheck.exception.SafetyInspectionNotFoundException;
@@ -68,6 +72,30 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ReportNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, String> handleReportNotFound(ReportNotFoundException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(ReportDraftGenerationException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public Map<String, String> handleReportDraftGeneration(ReportDraftGenerationException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidReportDraftException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    public Map<String, String> handleInvalidReportDraft(InvalidReportDraftException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(SimulationServiceTimeoutException.class)
+    @ResponseStatus(HttpStatus.GATEWAY_TIMEOUT)
+    public Map<String, String> handleSimulationServiceTimeout(SimulationServiceTimeoutException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(SimulationServiceException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    public Map<String, String> handleSimulationService(SimulationServiceException exception) {
         return Map.of("message", exception.getMessage());
     }
 

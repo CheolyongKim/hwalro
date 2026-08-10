@@ -13,6 +13,8 @@ public interface RiskMapper {
 
     long count(@Param("assigneeId") Long assigneeId);
 
+    List<Risk> findBySimulationResultIds(@Param("simulationResultIds") List<Long> simulationResultIds);
+
     int insert(Risk risk);
 
     int update(Risk risk);

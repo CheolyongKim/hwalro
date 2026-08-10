@@ -283,6 +283,7 @@ CREATE TABLE IF NOT EXISTS simulation_metrics (
     metric_type VARCHAR(50) NOT NULL,
     metric_value DOUBLE NOT NULL,
     CONSTRAINT pk_simulation_metrics PRIMARY KEY (id),
+    CONSTRAINT uk_simulation_metrics_result_type UNIQUE (simulation_result_id, metric_type),
     CONSTRAINT fk_simulation_metrics_result
         FOREIGN KEY (simulation_result_id) REFERENCES simulation_results (id)
         ON UPDATE CASCADE

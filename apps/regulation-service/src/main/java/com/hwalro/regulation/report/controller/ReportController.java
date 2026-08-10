@@ -3,9 +3,11 @@ package com.hwalro.regulation.report.controller;
 import com.hwalro.regulation.common.jwt.JwtAuthInterceptor;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.common.jwt.RequireRole;
+import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.dto.ReportUpdateRequest;
+import com.hwalro.regulation.report.service.AiReportDraftService;
 import com.hwalro.regulation.report.service.ReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,14 +15,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,9 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 /** 보고서 목록 조회를 프론트엔드에 제공한다. */
 public class ReportController {
     private final ReportService reportService;
+    private final AiReportDraftService aiReportDraftService;
 
-    public ReportController(ReportService reportService) {
+    public ReportController(ReportService reportService, AiReportDraftService aiReportDraftService) {
         this.reportService = reportService;
+        this.aiReportDraftService = aiReportDraftService;
     }
 
     @GetMapping
@@ -66,5 +73,15 @@ public class ReportController {
             @RequestBody ReportUpdateRequest request,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return reportService.updateReport(user, id, request);
+    }
+
+    @PostMapping("/ai-drafts")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "AI 보고서 초안 생성", description = "현재 시뮬레이션과 비교 결과를 해석한 초안을 생성하고 저장합니다.")
+    public ReportDetailResponse createAiDraft(
+            @RequestBody AiReportDraftCreateRequest request,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @Parameter(hidden = true) @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return aiReportDraftService.create(user, authorization, request);
     }
 }

@@ -19,10 +19,10 @@ spring:
   application:
     name: regulation-service
 
-  # 개발 환경에서는 OpenAI 없이 실행 (아래 exclude 제거 후 설정)
-  autoconfigure:
-    exclude:
-      - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
+  # 기본 실행에서는 AI 모델을 만들지 않는다. OpenAI 사용 시 ai 프로필을 활성화한다.
+  ai:
+    model:
+      chat: none
 
   datasource:
     url: ${REGULATION_DB_URL:jdbc:mysql://localhost:3307/hwalro_regulation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
@@ -48,6 +48,11 @@ jwt:
 auth-service:
   base-url: ${AUTH_SERVICE_URL:http://localhost:8080}
 
+simulation-service:
+  base-url: ${SIMULATION_SERVICE_URL:http://localhost:8081}
+  connect-timeout: ${SIMULATION_SERVICE_CONNECT_TIMEOUT:2s}
+  read-timeout: ${SIMULATION_SERVICE_READ_TIMEOUT:10s}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -55,8 +60,3 @@ springdoc:
     operations-sorter: alpha
   api-docs:
     path: /v3/api-docs
-
-  # Spring AI Configuration
-  # ai:
-  #   openai:
-  #     api-key: ${OPENAI_API_KEY}

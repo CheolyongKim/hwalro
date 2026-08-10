@@ -41,6 +41,23 @@
         </where>
     </select>
 
+    <select id="findBySimulationResultIds" resultType="com.hwalro.regulation.risk.domain.Risk">
+        SELECT id,
+               simulation_result_id,
+               assignee_id,
+               title,
+               description,
+               severity,
+               status,
+               created_at
+        FROM risks
+        WHERE simulation_result_id IN
+        <foreach collection="simulationResultIds" item="simulationResultId" open="(" separator="," close=")">
+            #{simulationResultId}
+        </foreach>
+        ORDER BY simulation_result_id, id
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO risks (assignee_id, title, description, severity, status)
         VALUES (#{assigneeId}, #{title}, #{description}, #{severity}, #{status})

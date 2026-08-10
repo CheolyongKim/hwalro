@@ -69,4 +69,17 @@
         WHERE id = #{id}
           AND status = '초안'
     </update>
+
+    <insert id="insertDraft" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO reports (author_id, title, content, status)
+        VALUES (#{authorId}, #{title}, #{content}, #{status})
+    </insert>
+
+    <insert id="insertSimulationLinks">
+        INSERT INTO report_simulations (report_id, simulation_result_id)
+        VALUES
+        <foreach collection="simulationResultIds" item="simulationResultId" separator=",">
+            (#{reportId}, #{simulationResultId})
+        </foreach>
+    </insert>
 </mapper>

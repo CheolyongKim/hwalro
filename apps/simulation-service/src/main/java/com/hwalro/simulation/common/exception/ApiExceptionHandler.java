@@ -7,6 +7,7 @@ import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedExceptio
 import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.exception.DrawingValidationException;
+import com.hwalro.simulation.result.exception.SimulationResultNotFoundException;
 import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
@@ -67,6 +68,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(DrawingNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, String> handleDrawingNotFound(DrawingNotFoundException exception) {
+        return Map.of("message", exception.getMessage());
+    }
+
+    @ExceptionHandler(SimulationResultNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleSimulationResultNotFound(SimulationResultNotFoundException exception) {
         return Map.of("message", exception.getMessage());
     }
 

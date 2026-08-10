@@ -1,6 +1,8 @@
+import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { mockSimulationResultProvider } from '../api/simulationResultProvider';
+import { reportApi } from '../../reports/api/reportApi';
+import { simulationResultProvider } from '../api/simulationResultProvider';
 import { EvacuationProgressChart } from '../components/EvacuationProgressChart';
 import { ImprovementComparisonPanel } from '../components/ImprovementComparisonPanel';
 import { PlaybackControls } from '../components/PlaybackControls';
@@ -22,6 +24,13 @@ function matchesMediaQuery(query: string) {
   return typeof window !== 'undefined' && window.matchMedia(query).matches;
 }
 
+function getReportDraftErrorMessage(error: unknown) {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message ?? 'AI 보고서 초안을 생성하지 못했습니다.';
+  }
+  return 'AI 보고서 초안을 생성하지 못했습니다.';
+}
+
 function ResultView({ result }: { result: SimulationResultViewModel }) {
   const navigate = useNavigate();
   const playback = useSimulationPlayback(result.durationSeconds);
@@ -36,6 +45,8 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
   const [pendingBounds, setPendingBounds] = useState<Bounds | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [resultsRevealed, setResultsRevealed] = useState(false);
 
   const bottlenecksVisible = playback.hasCompletedPlayback || resultsRevealed;
@@ -76,6 +87,28 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
     playback.pause();
     playback.seek(result.durationSeconds);
     setResultsRevealed(true);
+  };
+
+  const handleOpenReport = () => {
+    setReportError(null);
+    setReportOpen(true);
+  };
+
+  const handleGenerateReport = async (comparisonResultIds: number[]) => {
+    setReportGenerating(true);
+    setReportError(null);
+    try {
+      const report = await reportApi.createAiDraft({
+        sourceSimulationResultId: result.simulationResultId,
+        comparisonSimulationResultIds: comparisonResultIds,
+      });
+      setReportOpen(false);
+      navigate(`/reports/${report.id}`);
+    } catch (error) {
+      setReportError(getReportDraftErrorMessage(error));
+    } finally {
+      setReportGenerating(false);
+    }
   };
 
   return (
@@ -122,7 +155,7 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
         selectedBottleneckId={selectedBottleneckId}
         riskZones={riskZones}
         onSelectBottleneck={setSelectedBottleneckId}
-        onOpenReport={() => setReportOpen(true)}
+        onOpenReport={handleOpenReport}
       />
 
       {evacuationChart.isMinimized ? (
@@ -178,11 +211,12 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
       <ReportDraftDialog
         open={reportOpen}
         result={result}
-        onClose={() => setReportOpen(false)}
-        onGenerate={(_comparisonIds) => {
-          setReportOpen(false);
-          window.alert('보고서 초안 생성 요청을 준비했습니다.');
+        isGenerating={reportGenerating}
+        errorMessage={reportError}
+        onClose={() => {
+          if (!reportGenerating) setReportOpen(false);
         }}
+        onGenerate={handleGenerateReport}
       />
     </main>
   );
@@ -198,7 +232,7 @@ export default function SimulationResultPage() {
   useEffect(() => {
     let active = true;
     setStatus('loading');
-    mockSimulationResultProvider
+    simulationResultProvider
       .getResult(simulationId)
       .then((value) => {
         if (!active) return;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { reportApi } from '../api/reportApi';
+import AutoResizeTextarea from '../components/AutoResizeTextarea';
 import type { ReportDetailResponse } from '../types/report';
 import { getReportErrorMessage } from '../utils/getReportErrorMessage';
 
@@ -149,7 +150,7 @@ function ReportDetailPage() {
 
           <section className="mt-6 border-t border-line pt-6">
             <h2 className="text-lg font-black text-ink">1. 검토 개요</h2>
-            <textarea
+            <AutoResizeTextarea
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
               aria-label="검토 개요"
@@ -160,7 +161,7 @@ function ReportDetailPage() {
 
           <section className="mt-7">
             <h2 className="text-lg font-black text-ink">2. 핵심 분석 결과</h2>
-            <textarea
+            <AutoResizeTextarea
               value={analysis}
               onChange={(event) => setAnalysis(event.target.value)}
               aria-label="핵심 분석 결과"
@@ -186,7 +187,7 @@ function ReportDetailPage() {
 
           <section className="mt-7">
             <h2 className="text-lg font-black text-ink">4. 개선 조치</h2>
-            <textarea
+            <AutoResizeTextarea
               value={improvements}
               onChange={(event) => setImprovements(event.target.value)}
               aria-label="개선 조치"
