@@ -49,7 +49,7 @@ function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) 
       <span
         id={id}
         role="tooltip"
-        className={`pointer-events-none invisible absolute top-full z-30 mt-2 w-72 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${align === 'right' ? 'right-0' : 'left-0'}`}
+        className={`pointer-events-none invisible absolute top-full z-30 mt-2 w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${align === 'right' ? 'right-0' : 'left-0'}`}
       >
         {children}
       </span>
@@ -451,6 +451,7 @@ function SimulationSetupPage() {
             tool={editable ? tool : 'select'}
             brushRadius={brushRadius}
             selectedHazardId={selectedHazardId}
+            selectedExitIds={selectedExitIds}
             highlightedExitId={highlightedExitId}
             onSpray={applySpray}
             onErase={applyErase}
@@ -645,7 +646,11 @@ function SimulationSetupPage() {
                       }
                     }}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      highlightedExitId === exit.id ? 'border-amber-400 bg-amber-50' : 'border-line'
+                      highlightedExitId === exit.id
+                        ? 'border-amber-400 bg-amber-50'
+                        : selectedExitIds.includes(exit.id)
+                          ? 'border-blue-500 bg-blue-50 text-blue-800'
+                          : 'border-line'
                     }`}
                   >
                     <input
@@ -659,7 +664,7 @@ function SimulationSetupPage() {
                             : ids.filter((id) => id !== exit.id),
                         )
                       }
-                      className="accent-primary"
+                      className="accent-blue-600"
                     />
                     <span>{exit.name}</span>
                   </label>

@@ -22,6 +22,7 @@ interface SimulationCanvasProps {
   tool: SimulationTool;
   brushRadius: number;
   selectedHazardId: string | null;
+  selectedExitIds?: readonly number[];
   highlightedExitId?: number | null;
   onSpray: (point: SimulationPoint) => void;
   onErase: (point: SimulationPoint) => void;
@@ -48,6 +49,7 @@ export function SimulationCanvas({
   tool,
   brushRadius,
   selectedHazardId,
+  selectedExitIds = [],
   highlightedExitId = null,
   onSpray,
   onErase,
@@ -376,17 +378,18 @@ export function SimulationCanvas({
             ))}
             {drawing.exits.map((exit) => {
               const highlighted = exit.id === highlightedExitId;
+              const selected = selectedExitIds.includes(exit.id);
               return (
                 <Line
                   key={exit.id}
                   points={[exit.startX, exit.startY, exit.endX, exit.endY]}
-                  stroke={highlighted ? '#f59e0b' : '#078f7e'}
-                  strokeWidth={s(highlighted ? 8 : 5)}
+                  stroke={highlighted ? '#f59e0b' : selected ? '#2563eb' : '#078f7e'}
+                  strokeWidth={s(highlighted ? 8 : selected ? 7 : 5)}
                   lineCap="round"
-                  shadowColor="#fbbf24"
-                  shadowBlur={highlighted ? s(18) : 0}
-                  shadowOpacity={highlighted ? 0.9 : 0}
-                  shadowEnabled={highlighted}
+                  shadowColor={highlighted ? '#fbbf24' : '#60a5fa'}
+                  shadowBlur={highlighted ? s(18) : selected ? s(10) : 0}
+                  shadowOpacity={highlighted ? 0.9 : selected ? 0.6 : 0}
+                  shadowEnabled={highlighted || selected}
                 />
               );
             })}
