@@ -10,6 +10,9 @@ import { InlineTextInput } from '../components/InlineTextInput';
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
+import { CreateSimulationDraftDialog } from '../../simulations/components/CreateSimulationDraftDialog';
+import { simulationApi } from '../../simulations/api/simulationApi';
+import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import '../layout.css';
 
@@ -25,6 +28,8 @@ function LayoutPage() {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [retryCount, setRetryCount] = useState(0);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [draftDialogOpen, setDraftDialogOpen] = useState(false);
+  const [draftPending, setDraftPending] = useState(false);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
@@ -74,12 +79,18 @@ function LayoutPage() {
     if (saveStatus === 'saving' || loadStatus !== 'ready' || sessionRef.current === null) {
       return;
     }
+    if (sessionRef.current.layoutVersionStatus === '잠금') {
+      dispatch({
+        type: 'setError',
+        message: '시뮬레이션에 사용된 도면 버전은 잠겨 있어 수정할 수 없습니다.',
+      });
+      return;
+    }
     setSaveStatus('saving');
     try {
       const version = await saveDrawing(drawingId, {
+        ...sessionRef.current,
         doc: stateRef.current.doc,
-        description: sessionRef.current.description,
-        version: sessionRef.current.version,
       });
       sessionRef.current = {
         ...sessionRef.current,
@@ -113,6 +124,50 @@ function LayoutPage() {
     }
   }, [saveStatus, loadStatus, drawingId]);
 
+  const handleOpenDraftDialog = useCallback(async () => {
+    const session = sessionRef.current;
+    if (session === null || draftPending) return;
+    const hasUnsavedChanges = JSON.stringify(stateRef.current.doc) !== JSON.stringify(session.doc);
+    if (!hasUnsavedChanges || session.layoutVersionStatus === '잠금') {
+      setDraftDialogOpen(true);
+      return;
+    }
+    setDraftPending(true);
+    try {
+      const version = await saveDrawing(drawingId, { ...session, doc: stateRef.current.doc });
+      sessionRef.current = { ...session, doc: stateRef.current.doc, version };
+      setDraftDialogOpen(true);
+    } catch (error) {
+      dispatch({ type: 'setError', message: getSimulationErrorMessage(error) });
+    } finally {
+      setDraftPending(false);
+    }
+  }, [draftPending, drawingId]);
+
+  const handleCreateDraft = useCallback(
+    async (parentSimulationId?: number) => {
+      const session = sessionRef.current;
+      if (session === null || draftPending) return;
+      setDraftPending(true);
+      try {
+        const draft = await simulationApi.createDraft({
+          layoutVersionId: session.layoutVersionId,
+          ...(parentSimulationId === undefined ? {} : { parentSimulationId }),
+        });
+        navigate(`/simulations/${draft.simulationId}/setup`);
+      } catch (error) {
+        setDraftDialogOpen(false);
+        dispatch({
+          type: 'setError',
+          message: getSimulationErrorMessage(error),
+        });
+      } finally {
+        setDraftPending(false);
+      }
+    },
+    [draftPending, navigate],
+  );
+
   useEffect(() => {
     if (state.error === null) {
       return;
@@ -131,6 +186,16 @@ function LayoutPage() {
       }
       const mod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
+      const locked = sessionRef.current?.layoutVersionStatus === '잠금';
+      if (
+        locked &&
+        ((mod && (key === 's' || key === 'z' || key === 'y')) ||
+          event.key === 'Delete' ||
+          event.key === 'Backspace')
+      ) {
+        event.preventDefault();
+        return;
+      }
       if (mod && key === 's') {
         event.preventDefault();
         void performSave();
@@ -149,6 +214,8 @@ function LayoutPage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [performSave]);
+
+  const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
 
   if (loadStatus === 'loading') {
     return (
@@ -219,24 +286,35 @@ function LayoutPage() {
           <path d="M10 3 L5 8 L10 13" />
         </svg>
       </button>
-      <LayoutCanvas state={state} dispatch={dispatch} size={size} onSizeChange={onSizeChange} />
+      <LayoutCanvas
+        state={state}
+        dispatch={dispatch}
+        size={size}
+        onSizeChange={onSizeChange}
+        readOnly={readOnly}
+      />
       <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
         <LayoutToolbar
           state={state}
           saveStatus={saveStatus}
           onSave={() => void performSave()}
+          onStartSimulation={() => void handleOpenDraftDialog()}
+          readOnly={readOnly}
           collapsed={panelCollapsed}
           onToggleCollapse={() => setPanelCollapsed((value) => !value)}
         />
         {!panelCollapsed && (
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <SettingsPanel state={state} dispatch={dispatch} />
+            <div className={readOnly ? 'pointer-events-none opacity-60' : ''}>
+              <SettingsPanel state={state} dispatch={dispatch} />
+            </div>
           </div>
         )}
       </div>
       <ToolToolbar
         state={state}
         dispatch={dispatch}
+        disabled={readOnly}
         className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
       />
       <ZoomControl
@@ -271,6 +349,14 @@ function LayoutPage() {
             ×
           </button>
         </div>
+      )}
+      {draftDialogOpen && sessionRef.current !== null && (
+        <CreateSimulationDraftDialog
+          layoutVersionId={sessionRef.current.layoutVersionId}
+          pending={draftPending}
+          onClose={() => setDraftDialogOpen(false)}
+          onConfirm={(parentSimulationId) => void handleCreateDraft(parentSimulationId)}
+        />
       )}
     </div>
   );

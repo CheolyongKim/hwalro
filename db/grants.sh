@@ -1,4 +1,5 @@
 #!/bin/bash
+# Executed directly by the Linux MySQL entrypoint; Git enforces LF via .gitattributes.
 set -e
 
 mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" <<SQL

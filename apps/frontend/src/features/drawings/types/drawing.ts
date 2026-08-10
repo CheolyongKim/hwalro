@@ -54,7 +54,12 @@ export interface DrawingSummary {
   createdAt: string;
 }
 
+export type DrawingLayoutVersionStatus = '초안' | '잠금';
+
 export interface Drawing extends DrawingSummary {
+  layoutVersionId: number;
+  layoutVersionNumber: number;
+  layoutVersionStatus: DrawingLayoutVersionStatus;
   width: number;
   height: number;
   walls: DrawingWall[];
