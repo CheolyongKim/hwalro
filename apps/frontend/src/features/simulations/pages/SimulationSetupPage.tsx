@@ -220,6 +220,9 @@ function SimulationSetupPage() {
   }
 
   const editable = setup.status === 'DRAFT';
+  const allExitsSelected =
+    setup.drawing.exits.length > 0 &&
+    setup.drawing.exits.every((exit) => selectedExitIds.includes(exit.id));
   const selectedHazard = hazards.find((hazard) => hazard.clientId === selectedHazardId) ?? null;
 
   const beginGesture = () => {
@@ -606,15 +609,15 @@ function SimulationSetupPage() {
               <h2 className="text-sm font-black">사용 출입구</h2>
               <button
                 type="button"
-                disabled={
-                  !editable ||
-                  setup.drawing.exits.length === 0 ||
-                  setup.drawing.exits.every((exit) => selectedExitIds.includes(exit.id))
+                disabled={!editable || setup.drawing.exits.length === 0}
+                onClick={() =>
+                  setSelectedExitIds(
+                    allExitsSelected ? [] : setup.drawing.exits.map((exit) => exit.id),
+                  )
                 }
-                onClick={() => setSelectedExitIds(setup.drawing.exits.map((exit) => exit.id))}
                 className="rounded-lg border border-primary px-2.5 py-1 text-xs font-bold text-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
-                전체 선택
+                {allExitsSelected ? '전체 해제' : '전체 선택'}
               </button>
             </div>
             <p className="mt-1 text-xs leading-5 text-text-muted">
