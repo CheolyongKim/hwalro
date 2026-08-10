@@ -151,9 +151,9 @@ export function createMockSimulationResult(simulationId: string): SimulationResu
       evacuatedCount: frame.evacuatedCount,
     })),
     comparableSimulations: [
-      { id: 102, name: '출구 B 추가안', totalEvacuationTime: 221 },
-      { id: 103, name: '중앙 집기 이동안', totalEvacuationTime: 233 },
-      { id: 104, name: '남측 통로 확장안', totalEvacuationTime: 218 },
+      { id: 102, simulationResultId: 202, name: '출구 B 추가안', totalEvacuationTime: 221 },
+      { id: 103, simulationResultId: 203, name: '중앙 집기 이동안', totalEvacuationTime: 233 },
+      { id: 104, simulationResultId: 204, name: '남측 통로 확장안', totalEvacuationTime: 218 },
     ],
   };
 }

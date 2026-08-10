@@ -15,6 +15,7 @@ import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.dto.ReportUpdateRequest;
 import com.hwalro.regulation.report.exception.ReportNotFoundException;
 import com.hwalro.regulation.report.mapper.ReportMapper;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -91,19 +92,29 @@ public class ReportService {
     @Transactional
     public ReportDetailResponse createDraft(
             Long authorId, String title, ReportContent content, List<Long> simulationResultIds) {
-        if (authorId == null || authorId <= 0 || !StringUtils.hasText(title) || content == null) {
+        if (authorId == null
+                || authorId <= 0
+                || !StringUtils.hasText(title)
+                || title.trim().length() > 200
+                || content == null) {
             throw new IllegalArgumentException("보고서 초안 저장 정보가 올바르지 않습니다.");
         }
         if (simulationResultIds == null || simulationResultIds.isEmpty()) {
             throw new IllegalArgumentException("연결할 시뮬레이션 결과가 필요합니다.");
         }
+        HashSet<Long> uniqueResultIds = new HashSet<>();
+        for (Long simulationResultId : simulationResultIds) {
+            if (simulationResultId == null || simulationResultId <= 0 || !uniqueResultIds.add(simulationResultId)) {
+                throw new IllegalArgumentException("시뮬레이션 결과 ID는 양수이며 중복될 수 없습니다.");
+            }
+        }
         ReportDraftInsert draft =
-                new ReportDraftInsert(authorId, title, serializeContent(content), ReportStatus.DRAFT.value());
+                new ReportDraftInsert(authorId, title.trim(), serializeContent(content), ReportStatus.DRAFT.value());
         reportMapper.insertDraft(draft);
         if (draft.getId() == null) {
             throw new IllegalStateException("보고서 초안 ID를 생성하지 못했습니다.");
         }
-        reportMapper.insertSimulationLinks(draft.getId(), simulationResultIds);
+        reportMapper.insertSimulationLinks(draft.getId(), List.copyOf(simulationResultIds));
         return toDetailResponse(findReport(draft.getId()));
     }
 

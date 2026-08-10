@@ -19,6 +19,9 @@
         JOIN layout_versions layout_version ON layout_version.id = simulation.layout_version_id
         JOIN layouts layout ON layout.id = layout_version.layout_id
         WHERE result.id IN <include refid="resultIds" />
+        <if test="createdBy != null">
+            AND simulation.created_by = #{createdBy}
+        </if>
     </select>
 
     <select id="findMetrics" resultType="com.hwalro.simulation.result.mapper.SimulationReportContextMapper$MetricRow">

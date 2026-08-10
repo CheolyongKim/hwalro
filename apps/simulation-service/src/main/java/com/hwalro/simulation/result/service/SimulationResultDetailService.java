@@ -16,11 +16,11 @@ import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Heatmap;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.HeatmapFrame;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Rectangle;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Segment;
-import com.hwalro.simulation.result.exception.SimulationResultNotFoundException;
 import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper;
 import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper.JsonChunk;
 import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper.SegmentRow;
 import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper.SummaryRow;
+import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -46,7 +46,7 @@ public class SimulationResultDetailService {
         }
         SummaryRow summary = mapper.findSummary(simulationId);
         if (summary == null) {
-            throw new SimulationResultNotFoundException(simulationId);
+            throw new SimulationNotFoundException("시뮬레이션을 찾을 수 없습니다: " + simulationId);
         }
         requireAccessible(summary, user);
 
@@ -87,7 +87,7 @@ public class SimulationResultDetailService {
                 .map(frame -> new EvacuationPoint(frame.timeSeconds(), frame.evacuatedCount()))
                 .toList();
         List<ComparableSimulation> comparableSimulations =
-                mapper.findComparableSimulations(simulationId, user.userId()).stream()
+                mapper.findComparableSimulations(simulationId, summary.createdBy()).stream()
                         .map(row -> new ComparableSimulation(
                                 row.simulationId(), row.simulationResultId(), row.name(), row.totalEvacuationTime()))
                         .toList();
@@ -174,6 +174,9 @@ public class SimulationResultDetailService {
                 frames.add(new HeatmapFrame(requiredDouble(frame, "timeSeconds"), values));
             }
         });
+        if (frames.isEmpty()) {
+            throw new IllegalArgumentException("히트맵 프레임이 없습니다.");
+        }
         frames.sort(Comparator.comparingDouble(HeatmapFrame::timeSeconds));
         return new Heatmap(columns, rows, cellSize, cellSize, maxDensity, List.copyOf(frames));
     }
@@ -245,7 +248,12 @@ public class SimulationResultDetailService {
     private List<Double> doubleList(JsonNode node, String field) {
         JsonNode values = requiredArray(node, field, field);
         List<Double> result = new ArrayList<>(values.size());
-        values.forEach(value -> result.add(value.asDouble()));
+        values.forEach(value -> {
+            if (!value.isNumber()) {
+                throw new IllegalArgumentException("JSON 배열에 숫자가 아닌 값이 있습니다: " + field);
+            }
+            result.add(value.asDouble());
+        });
         return List.copyOf(result);
     }
 

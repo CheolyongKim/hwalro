@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface SimulationReportContextMapper {
-    List<SummaryRow> findSummaries(@Param("ids") List<Long> ids);
+    List<SummaryRow> findSummaries(@Param("ids") List<Long> ids, @Param("createdBy") Long createdBy);
 
     List<MetricRow> findMetrics(@Param("ids") List<Long> ids);
 

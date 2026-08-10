@@ -71,7 +71,7 @@ export interface EvacuationPoint {
 
 export interface ComparableSimulation {
   id: number;
-  simulationResultId?: number;
+  simulationResultId: number;
   name: string;
   totalEvacuationTime: number;
 }

@@ -16,8 +16,8 @@ class OpenAiReportDraftGeneratorTest {
     @Test
     void returnsValidatedStructuredContent() {
         ReportContent expected = new ReportContent("개요", "분석", "개선");
-        OpenAiReportDraftGenerator generator =
-                new OpenAiReportDraftGenerator(new ReportPromptFactory(), prompt -> expected);
+        OpenAiReportDraftGenerator generator = new OpenAiReportDraftGenerator(
+                new ReportPromptFactory(new com.fasterxml.jackson.databind.ObjectMapper()), prompt -> expected);
 
         assertThat(generator.generate(input)).isEqualTo(expected);
     }
@@ -39,9 +39,10 @@ class OpenAiReportDraftGeneratorTest {
 
     @Test
     void wrapsProviderFailureWithoutExposingItsMessage() {
-        OpenAiReportDraftGenerator generator = new OpenAiReportDraftGenerator(new ReportPromptFactory(), prompt -> {
-            throw new IllegalStateException("secret provider body");
-        });
+        OpenAiReportDraftGenerator generator = new OpenAiReportDraftGenerator(
+                new ReportPromptFactory(new com.fasterxml.jackson.databind.ObjectMapper()), prompt -> {
+                    throw new IllegalStateException("secret provider body");
+                });
 
         assertThatThrownBy(() -> generator.generate(input))
                 .isInstanceOf(ReportDraftGenerationException.class)
@@ -50,6 +51,7 @@ class OpenAiReportDraftGeneratorTest {
     }
 
     private OpenAiReportDraftGenerator generatorReturning(ReportContent content) {
-        return new OpenAiReportDraftGenerator(new ReportPromptFactory(), prompt -> content);
+        return new OpenAiReportDraftGenerator(
+                new ReportPromptFactory(new com.fasterxml.jackson.databind.ObjectMapper()), prompt -> content);
     }
 }

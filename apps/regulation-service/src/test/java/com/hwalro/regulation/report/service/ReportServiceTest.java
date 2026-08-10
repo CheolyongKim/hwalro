@@ -120,4 +120,19 @@ class ReportServiceTest {
         verify(reportMapper).insertSimulationLinks(30L, List.of(10L, 20L));
         verify(reportMapper, never()).startEditing(30L);
     }
+
+    @Test
+    void rejectsInvalidDraftTitleAndSimulationResultIdsBeforeInsert() {
+        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
+        ReportContent content = new ReportContent("개요", "분석", "개선");
+
+        assertThatThrownBy(() -> reportService.createDraft(7L, "가".repeat(201), content, List.of(10L)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> reportService.createDraft(7L, "보고서", content, List.of(10L, 10L)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> reportService.createDraft(7L, "보고서", content, java.util.Arrays.asList(10L, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(reportMapper, never()).insertDraft(org.mockito.ArgumentMatchers.any());
+    }
 }

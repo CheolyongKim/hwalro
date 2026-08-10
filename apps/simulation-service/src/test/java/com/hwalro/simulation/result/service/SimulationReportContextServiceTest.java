@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.result.dto.SimulationReportContextResponse;
 import com.hwalro.simulation.result.exception.SimulationResultNotFoundException;
@@ -24,7 +23,7 @@ class SimulationReportContextServiceTest {
 
     @Test
     void returnsContextsInRequestedOrderWithMetricsAndBottlenecks() {
-        when(mapper.findSummaries(List.of(20L, 10L)))
+        when(mapper.findSummaries(List.of(20L, 10L), 7L))
                 .thenReturn(List.of(
                         new SimulationReportContextMapper.SummaryRow(10L, 100L, 7L, "현재 배치안"),
                         new SimulationReportContextMapper.SummaryRow(20L, 200L, 7L, "비교 배치안")));
@@ -62,7 +61,7 @@ class SimulationReportContextServiceTest {
 
     @Test
     void rejectsMissingSimulationResult() {
-        when(mapper.findSummaries(List.of(10L, 20L)))
+        when(mapper.findSummaries(List.of(10L, 20L), 7L))
                 .thenReturn(List.of(new SimulationReportContextMapper.SummaryRow(10L, 100L, 7L, "현재 배치안")));
 
         assertThatThrownBy(() -> new SimulationReportContextService(mapper)
@@ -73,11 +72,10 @@ class SimulationReportContextServiceTest {
 
     @Test
     void operatorCannotReadAnotherUsersResult() {
-        when(mapper.findSummaries(List.of(10L)))
-                .thenReturn(List.of(new SimulationReportContextMapper.SummaryRow(10L, 100L, 99L, "다른 배치안")));
+        when(mapper.findSummaries(List.of(10L), 7L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> new SimulationReportContextService(mapper)
                         .findAll(List.of(10L), new JwtUser(7L, Set.of("OPERATOR"))))
-                .isInstanceOf(ForbiddenException.class);
+                .isInstanceOf(SimulationResultNotFoundException.class);
     }
 }

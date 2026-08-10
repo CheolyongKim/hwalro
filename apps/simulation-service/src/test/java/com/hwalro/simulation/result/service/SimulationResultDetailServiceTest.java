@@ -7,8 +7,8 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
-import com.hwalro.simulation.result.exception.SimulationResultNotFoundException;
 import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper;
+import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -92,7 +92,71 @@ class SimulationResultDetailServiceTest {
 
         assertThatThrownBy(() -> new SimulationResultDetailService(mapper, new ObjectMapper())
                         .find(9999L, new JwtUser(9001L, Set.of("OPERATOR"))))
-                .isInstanceOf(SimulationResultNotFoundException.class);
+                .isInstanceOf(SimulationNotFoundException.class)
+                .hasMessageContaining("시뮬레이션을 찾을 수 없습니다");
+    }
+
+    @Test
+    void usesResultOwnerWhenLoadingComparableSimulationsForReviewer() {
+        long simulationId = 9201L;
+        when(mapper.findSummary(simulationId))
+                .thenReturn(new SimulationResultDetailMapper.SummaryRow(
+                        9301L, simulationId, 9001L, 9100L, "행사장", "지하 2층", 170, 100, 100));
+        when(mapper.findMetrics(9301L))
+                .thenReturn(List.of(
+                        new SimulationResultDetailMapper.MetricRow("TOTAL_EVACUATION_TIME", 264),
+                        new SimulationResultDetailMapper.MetricRow("MAX_DENSITY", 4.8)));
+        when(mapper.findTimelineChunks(9301L))
+                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, timelineChunk(0, 100, 0))));
+        when(mapper.findHeatmapChunks(9301L))
+                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, heatmapChunk())));
+        when(mapper.findWalls(9100L)).thenReturn(List.of());
+        when(mapper.findExits(9100L)).thenReturn(List.of());
+        when(mapper.findPillars(9100L)).thenReturn(List.of());
+        when(mapper.findFabrics(9100L)).thenReturn(List.of());
+        when(mapper.findBottlenecks(9301L)).thenReturn(List.of());
+        when(mapper.findComparableSimulations(simulationId, 9001L)).thenReturn(List.of());
+
+        new SimulationResultDetailService(mapper, new ObjectMapper())
+                .find(simulationId, new JwtUser(77L, Set.of("SAFETY_REVIEWER")));
+
+        org.mockito.Mockito.verify(mapper).findComparableSimulations(simulationId, 9001L);
+    }
+
+    @Test
+    void rejectsEmptyHeatmapFramesAndNonNumericArrayValues() {
+        assertInvalidHeatmap(
+                """
+                {"threshold":{"value":3.5},"grid":{"cellSize":5,"rows":1,"columns":1},"frames":[]}
+                """,
+                "히트맵 프레임이 없습니다");
+        assertInvalidHeatmap(
+                """
+                {"threshold":{"value":3.5},"grid":{"cellSize":5,"rows":1,"columns":1},
+                 "frames":[{"timeSeconds":0,"values":[null]}]}
+                """,
+                "숫자가 아닌 값");
+    }
+
+    private void assertInvalidHeatmap(String heatmapJson, String message) {
+        long simulationId = 9201L;
+        org.mockito.Mockito.reset(mapper);
+        when(mapper.findSummary(simulationId))
+                .thenReturn(new SimulationResultDetailMapper.SummaryRow(
+                        9301L, simulationId, 9001L, 9100L, "행사장", "지하 2층", 170, 100, 100));
+        when(mapper.findMetrics(9301L))
+                .thenReturn(List.of(
+                        new SimulationResultDetailMapper.MetricRow("TOTAL_EVACUATION_TIME", 264),
+                        new SimulationResultDetailMapper.MetricRow("MAX_DENSITY", 4.8)));
+        when(mapper.findTimelineChunks(9301L))
+                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, timelineChunk(0, 100, 0))));
+        when(mapper.findHeatmapChunks(9301L))
+                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, heatmapJson)));
+
+        assertThatThrownBy(() -> new SimulationResultDetailService(mapper, new ObjectMapper())
+                        .find(simulationId, new JwtUser(9001L, Set.of("OPERATOR"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(message);
     }
 
     private String timelineChunk(int time, int active, int evacuated) {

@@ -5,6 +5,7 @@ import com.hwalro.regulation.report.exception.SimulationServiceTimeoutException;
 import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -15,7 +16,13 @@ public class SimulationReportContextClient {
     private final RestClient restClient;
 
     public SimulationReportContextClient(SimulationServiceProperties properties) {
-        this.restClient = RestClient.builder().baseUrl(properties.baseUrl()).build();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(properties.connectTimeout());
+        requestFactory.setReadTimeout(properties.readTimeout());
+        this.restClient = RestClient.builder()
+                .baseUrl(properties.baseUrl())
+                .requestFactory(requestFactory)
+                .build();
     }
 
     public List<Context> findAll(List<Long> simulationResultIds, String authorization) {

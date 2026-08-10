@@ -35,7 +35,8 @@ class OpenAiReportContentSmokeTest {
                 .defaultOptions(options)
                 .build();
 
-        ReportPromptFactory.Prompt prompt = new ReportPromptFactory().create(createInput());
+        ReportPromptFactory.Prompt prompt =
+                new ReportPromptFactory(new com.fasterxml.jackson.databind.ObjectMapper()).create(createInput());
         ReportContent content = ChatClient.create(chatModel)
                 .prompt()
                 .system(prompt.system())

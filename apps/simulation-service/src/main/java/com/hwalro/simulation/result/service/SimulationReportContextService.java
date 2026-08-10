@@ -29,8 +29,9 @@ public class SimulationReportContextService {
 
     public List<SimulationReportContextResponse> findAll(List<Long> simulationResultIds, JwtUser user) {
         List<Long> validatedIds = validate(simulationResultIds);
+        Long createdByScope = resolveCreatedByScope(user);
         Map<Long, SummaryRow> summaries = new HashMap<>();
-        for (SummaryRow summary : mapper.findSummaries(validatedIds)) {
+        for (SummaryRow summary : mapper.findSummaries(validatedIds, createdByScope)) {
             summaries.put(summary.simulationResultId(), summary);
         }
         for (Long id : validatedIds) {
@@ -38,8 +39,6 @@ public class SimulationReportContextService {
                 throw new SimulationResultNotFoundException(id);
             }
         }
-        requireAccessible(user, summaries.values());
-
         Map<Long, List<Metric>> metrics = mapper.findMetrics(validatedIds).stream()
                 .collect(java.util.stream.Collectors.groupingBy(
                         MetricRow::simulationResultId,
@@ -71,17 +70,15 @@ public class SimulationReportContextService {
                 .toList();
     }
 
-    private void requireAccessible(JwtUser user, java.util.Collection<SummaryRow> summaries) {
+    private Long resolveCreatedByScope(JwtUser user) {
         if (user == null) {
             throw new ForbiddenException("시뮬레이션 결과 조회 권한이 없습니다.");
         }
         if (user.roles().contains("SAFETY_REVIEWER") || user.roles().contains("ADMIN")) {
-            return;
+            return null;
         }
-        if (user.roles().contains("OPERATOR")
-                && user.userId() != null
-                && summaries.stream().allMatch(summary -> user.userId().equals(summary.createdBy()))) {
-            return;
+        if (user.roles().contains("OPERATOR") && user.userId() != null) {
+            return user.userId();
         }
         throw new ForbiddenException("시뮬레이션 결과 조회 권한이 없습니다.");
     }
