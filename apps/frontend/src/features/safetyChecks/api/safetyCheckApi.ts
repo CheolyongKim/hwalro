@@ -3,6 +3,7 @@ import type {
   ChecklistTemplate,
   ChecklistTemplateUpdateRequest,
   InspectionArea,
+  InspectionAreaRequest,
   InspectionDetail,
   InspectionHistory,
   InspectionUpdateRequest,
@@ -11,6 +12,20 @@ import type {
 export const safetyCheckApi = {
   getAreas: () =>
     apiClient.get<InspectionArea[]>('/api/safety-checks/areas').then((response) => response.data),
+  getArea: (areaId: number) =>
+    apiClient
+      .get<InspectionArea>(`/api/safety-checks/areas/${areaId}`)
+      .then((response) => response.data),
+  createArea: (body: InspectionAreaRequest) =>
+    apiClient
+      .post<InspectionArea>('/api/safety-checks/areas', body)
+      .then((response) => response.data),
+  updateArea: (areaId: number, body: InspectionAreaRequest) =>
+    apiClient
+      .put<InspectionArea>(`/api/safety-checks/areas/${areaId}`, body)
+      .then((response) => response.data),
+  deleteArea: (areaId: number) =>
+    apiClient.delete(`/api/safety-checks/areas/${areaId}`).then(() => undefined),
   getHistory: (areaId: number) =>
     apiClient
       .get<InspectionHistory[]>(`/api/safety-checks/areas/${areaId}/inspections`)

@@ -246,6 +246,7 @@
         SET optimistic_lock = #{nextLock}
         WHERE id = #{id}
           AND optimistic_lock = #{expectedLock}
+          AND status = '초안'
     </update>
 
     <delete id="deleteWallsByVersionId">

@@ -1,2 +1,2 @@
-db/grants.sh text eol=lf
-scripts/migrate-auth-roles.sh text eol=lf
+*.sh text eol=lf
+gradlew text eol=lf
