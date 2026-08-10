@@ -18,6 +18,7 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'fabric', label: '구조물' },
   { id: 'text', label: '텍스트' },
   { id: 'erase', label: '지우개' },
+  { id: 'background', label: '배경' },
 ];
 
 export function ToolToolbar({ state, dispatch, className, disabled = false }: ToolToolbarProps) {

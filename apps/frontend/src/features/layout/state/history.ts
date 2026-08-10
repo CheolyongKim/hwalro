@@ -16,6 +16,7 @@ export function commit(
     drag: null,
     snapHint: null,
     error: null,
+    validationProblems: [],
   };
 }
 
@@ -36,7 +37,12 @@ export function applyUndo(state: EditorState): EditorState {
   }
   const past = state.past.slice(0, -1);
   const doc = state.past[state.past.length - 1];
-  return { ...clearInteraction({ ...state, doc }), past, future: [state.doc, ...state.future] };
+  return {
+    ...clearInteraction({ ...state, doc }),
+    past,
+    future: [state.doc, ...state.future],
+    validationProblems: [],
+  };
 }
 
 export function applyRedo(state: EditorState): EditorState {
@@ -44,5 +50,10 @@ export function applyRedo(state: EditorState): EditorState {
     return state;
   }
   const [doc, ...future] = state.future;
-  return { ...clearInteraction({ ...state, doc }), past: [...state.past, state.doc], future };
+  return {
+    ...clearInteraction({ ...state, doc }),
+    past: [...state.past, state.doc],
+    future,
+    validationProblems: [],
+  };
 }

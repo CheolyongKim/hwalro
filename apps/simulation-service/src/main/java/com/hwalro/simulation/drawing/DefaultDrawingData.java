@@ -17,6 +17,7 @@ public class DefaultDrawingData {
             BigDecimal height,
             List<DefaultWall> walls,
             List<DefaultOutsideWall> outsideWalls,
+            List<DefaultFabric> fabrics,
             List<DefaultExit> exits,
             List<DefaultLayoutText> layoutTexts) {}
 
@@ -25,6 +26,9 @@ public class DefaultDrawingData {
     public record DefaultOutsideWall(
             String name, BigDecimal startX, BigDecimal startY, BigDecimal endX, BigDecimal endY) {}
 
+    public record DefaultFabric(
+            String name, BigDecimal startX, BigDecimal startY, BigDecimal endX, BigDecimal endY, BigDecimal rotation) {}
+
     public record DefaultExit(String name, BigDecimal startX, BigDecimal startY, BigDecimal endX, BigDecimal endY) {}
 
     public record DefaultLayoutText(String text, BigDecimal x, BigDecimal y) {}
@@ -32,7 +36,7 @@ public class DefaultDrawingData {
     private final DefaultDrawing defaultDrawing;
 
     public DefaultDrawingData(ObjectMapper objectMapper) {
-        try (InputStream inputStream = new ClassPathResource("drawings/default-drawing.json").getInputStream()) {
+        try (InputStream inputStream = new ClassPathResource("drawings/default-drawing-v3.json").getInputStream()) {
             this.defaultDrawing = objectMapper.readValue(inputStream, DefaultDrawing.class);
         } catch (IOException e) {
             throw new IllegalStateException("기본 도면 데이터를 불러올 수 없습니다.", e);

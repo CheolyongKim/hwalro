@@ -121,6 +121,7 @@ public class DrawingService {
 
         insertWallsIfPresent(toWallsFromDefault(defaultDrawing.walls(), version.getId()));
         insertOutsideWallsIfPresent(toOutsideWallsFromDefault(defaultDrawing.outsideWalls(), version.getId()));
+        insertFabricsIfPresent(toFabricsFromDefault(defaultDrawing.fabrics(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
         insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
 
@@ -382,6 +383,22 @@ public class DrawingService {
                     domainOutsideWall.setEndX(outsideWall.endX());
                     domainOutsideWall.setEndY(outsideWall.endY());
                     return domainOutsideWall;
+                })
+                .toList();
+    }
+
+    private List<Fabric> toFabricsFromDefault(List<DefaultDrawingData.DefaultFabric> fabrics, Long layoutVersionId) {
+        return fabrics.stream()
+                .map(fabric -> {
+                    Fabric domainFabric = new Fabric();
+                    domainFabric.setLayoutVersionId(layoutVersionId);
+                    domainFabric.setName(fabric.name());
+                    domainFabric.setStartX(fabric.startX());
+                    domainFabric.setStartY(fabric.startY());
+                    domainFabric.setEndX(fabric.endX());
+                    domainFabric.setEndY(fabric.endY());
+                    domainFabric.setRotation(fabric.rotation());
+                    return domainFabric;
                 })
                 .toList();
     }
