@@ -653,7 +653,25 @@ function SimulationSetupPage() {
 
           <section className="mt-6 border-t border-line pt-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black">위험구역</h2>
+              <div className="flex items-center gap-1">
+                <h2 className="text-sm font-black">위험구역</h2>
+                <InfoTooltip id="hazard-cost-help" label="위험구역 경로 비용 안내">
+                  에이전트의 대피 경로를 비교할 때 사용하는 상대 비용입니다.
+                  <span className="my-1 block font-mono text-[10px] leading-4 text-white">
+                    depth = clamp(1 - 중심거리 / 반지름, 0, 1)
+                    <br />원 밖: M = 1
+                    <br />원 안: M = 5 × 100^depth
+                    <br />
+                    간선 비용 = 길이 / 6 × (시작점 M + 4 × 중간점 M + 끝점 M)
+                  </span>
+                  경계는 5, 반지름 중간은 50, 중심은 500입니다. 전체 경로는 모든 간선 비용을
+                  합산하고, 위험구역이 겹치면 가장 큰 M만 적용합니다.
+                  <span className="mt-1 block text-white/70">
+                    HAZARD_RADIAL_EXP_V3 · 활로가 정의한 상대 비용이며 공인 위험도나 사망확률이
+                    아닙니다.
+                  </span>
+                </InfoTooltip>
+              </div>
               <span className="text-xs text-text-muted">{hazards.length}개</span>
             </div>
             {selectedHazard ? (
