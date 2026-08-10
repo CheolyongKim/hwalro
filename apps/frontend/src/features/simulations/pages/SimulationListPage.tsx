@@ -91,10 +91,18 @@ function SimulationListPage() {
               시뮬레이션을 불러오는 중입니다.
             </div>
           ) : query.isError && items.length === 0 ? (
-            <div className="flex min-h-64 items-center justify-center px-6 text-center">
+            <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-6 text-center">
               <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
                 {getSimulationErrorMessage(query.error)}
               </p>
+              <button
+                type="button"
+                onClick={() => void query.refetch()}
+                disabled={query.isFetching}
+                className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-text-strong hover:bg-surface disabled:opacity-50"
+              >
+                {query.isFetching ? '불러오는 중...' : '다시 시도'}
+              </button>
             </div>
           ) : items.length === 0 ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-6 text-center text-sm text-text-muted">

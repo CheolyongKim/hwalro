@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SimulationOverview } from '../types';
-import { findNewlyCompletedSimulations } from './SimulationCompletionNotifier';
+import {
+  findNewlyCompletedSimulations,
+  listAllSimulationOverviews,
+} from './SimulationCompletionNotifier';
 
 function simulation(
   id: number,
@@ -41,5 +44,24 @@ describe('findNewlyCompletedSimulations', () => {
     ];
 
     expect(findNewlyCompletedSimulations(previous, current, 7).map(({ id }) => id)).toEqual([1]);
+  });
+});
+
+describe('listAllSimulationOverviews', () => {
+  it('전체 페이지의 시뮬레이션을 반환한다', async () => {
+    const requestedPages: number[] = [];
+    const items = await listAllSimulationOverviews(async (page, size) => {
+      requestedPages.push(page);
+      return {
+        totalCount: 201,
+        page,
+        size,
+        hasNext: page < 3,
+        items: [simulation(page, 7, 'RUNNING')],
+      };
+    });
+
+    expect(requestedPages).toEqual([1, 2, 3]);
+    expect(items.map(({ id }) => id)).toEqual([1, 2, 3]);
   });
 });

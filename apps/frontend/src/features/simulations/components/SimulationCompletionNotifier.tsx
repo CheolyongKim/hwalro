@@ -2,10 +2,32 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { simulationApi } from '../api/simulationApi';
-import type { SimulationExecutionStatus, SimulationOverview } from '../types';
+import type {
+  SimulationExecutionStatus,
+  SimulationOverview,
+  SimulationOverviewPage,
+} from '../types';
 
 const POLL_INTERVAL_MS = 3000;
 const TOAST_DURATION_MS = 6000;
+const MONITOR_PAGE_SIZE = 100;
+
+type OverviewPageLoader = (page: number, size: number) => Promise<SimulationOverviewPage>;
+
+export async function listAllSimulationOverviews(
+  loadPage: OverviewPageLoader = simulationApi.listOverview,
+): Promise<SimulationOverview[]> {
+  const firstPage = await loadPage(1, MONITOR_PAGE_SIZE);
+  const pageCount = Math.ceil(firstPage.totalCount / firstPage.size);
+  if (pageCount <= 1) return firstPage.items;
+
+  const items = [...firstPage.items];
+  // ponytail: Reuse the existing API until history volume justifies a dedicated active-monitor endpoint.
+  for (let page = 2; page <= pageCount; page += 1) {
+    items.push(...(await loadPage(page, MONITOR_PAGE_SIZE)).items);
+  }
+  return items;
+}
 
 export function findNewlyCompletedSimulations(
   previousStatuses: ReadonlyMap<number, SimulationExecutionStatus>,
@@ -89,7 +111,7 @@ function SimulationCompletionNotifier({ userId }: SimulationCompletionNotifierPr
   const notifiedIdsRef = useRef(new Set<number>());
   const query = useQuery({
     queryKey: ['simulations', 'completion-monitor'],
-    queryFn: () => simulationApi.listOverview(1, 20),
+    queryFn: () => listAllSimulationOverviews(),
     refetchInterval: POLL_INTERVAL_MS,
   });
 
@@ -101,17 +123,15 @@ function SimulationCompletionNotifier({ userId }: SimulationCompletionNotifierPr
     if (!query.data) return;
 
     const currentStatuses = new Map<number, SimulationExecutionStatus>(
-      query.data.items.map((simulation) => [simulation.id, simulation.status]),
+      query.data.map((simulation) => [simulation.id, simulation.status]),
     );
     const previousStatuses = previousStatusesRef.current;
     previousStatusesRef.current = currentStatuses;
     if (!previousStatuses) return;
 
-    const completed = findNewlyCompletedSimulations(
-      previousStatuses,
-      query.data.items,
-      userId,
-    ).filter((simulation) => !notifiedIdsRef.current.has(simulation.id));
+    const completed = findNewlyCompletedSimulations(previousStatuses, query.data, userId).filter(
+      (simulation) => !notifiedIdsRef.current.has(simulation.id),
+    );
     if (completed.length === 0) return;
 
     completed.forEach((simulation) => notifiedIdsRef.current.add(simulation.id));
