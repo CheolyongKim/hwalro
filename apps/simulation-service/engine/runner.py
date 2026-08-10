@@ -330,7 +330,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     evacuation_times: list[float] = []
     maximum_iterations = int(math.floor(max_time / DT_SECONDS + 1e-9))
     for context in contexts:
-        for agent_id in _update_targets(context):
+        for agent_id in _initialize_targets(context):
             state = context.states.pop(agent_id)
             evacuation_times.append(0.0)
             timeline.add_exit_event(0.0, state.stable_id, state.exit_id)
@@ -342,13 +342,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         for context in contexts:
             if not context.states:
                 continue
-            previous = _capture_states(context)
-            try:
-                context.simulation.iterate()
-            except Exception as exc:
-                raise RunnerError(f"JuPedSim iteration {iteration} failed: {exc}") from exc
-            _rollback_invalid_moves(context, previous)
-            for agent_id in _update_targets(context, previous):
+            for agent_id in _advance_context(context, iteration):
                 state = context.states.pop(agent_id, None)
                 if state is not None:
                     evacuation_times.append(elapsed)
@@ -437,34 +431,66 @@ def _create_context(
 
 
 def _capture_states(context: SimulationContext):
-    captured = {}
-    for agent_id in context.states:
-        agent = context.simulation.agent(agent_id)
-        captured[agent_id] = (float(agent.position[0]), float(agent.position[1]))
-    return captured
+    _agents, positions = _active_agents_and_positions(context)
+    return positions
 
 
-def _rollback_invalid_moves(context: SimulationContext, previous) -> None:
+def _active_agents_and_positions(context: SimulationContext):
+    available = {}
+    for agent in context.simulation.agents():
+        agent_id = agent.id
+        if agent_id in context.states:
+            available[agent_id] = agent
+    missing = context.states.keys() - available.keys()
+    if missing:
+        raise RunnerError(f"active JuPedSim agents are missing: {sorted(missing)}")
+
+    agents = {agent_id: available[agent_id] for agent_id in context.states}
+    positions = {}
+    for agent_id, agent in agents.items():
+        position = agent.position
+        positions[agent_id] = (float(position[0]), float(position[1]))
+    return agents, positions
+
+
+def _initialize_targets(context: SimulationContext) -> list[int]:
+    agents, positions = _active_agents_and_positions(context)
+    return _update_targets(context, agents, positions)
+
+
+def _advance_context(context: SimulationContext, iteration: int) -> list[int]:
+    previous = _capture_states(context)
+    try:
+        context.simulation.iterate()
+    except Exception as exc:
+        raise RunnerError(f"JuPedSim iteration {iteration} failed: {exc}") from exc
+    agents, current = _active_agents_and_positions(context)
+    _rollback_invalid_moves(context, previous, agents, current)
+    return _update_targets(context, agents, current, previous)
+
+
+def _rollback_invalid_moves(context: SimulationContext, previous, agents, current) -> None:
     agent_ids = list(previous)
-    current = []
-    for agent_id in agent_ids:
-        position = context.simulation.agent(agent_id).position
-        current.append((float(position[0]), float(position[1])))
-    valid = context.router.valid_moves([previous[agent_id] for agent_id in agent_ids], current)
+    valid = context.router.valid_moves(
+        [previous[agent_id] for agent_id in agent_ids],
+        [current[agent_id] for agent_id in agent_ids],
+    )
     for agent_id, is_valid in zip(agent_ids, valid, strict=True):
         if is_valid:
             continue
-        agent = context.simulation.agent(agent_id)
         position = previous[agent_id]
+        agent = agents[agent_id]
         agent.position = position
         agent.model.velocity = (0.0, 0.0)
+        current[agent_id] = position
 
 
-def _update_targets(context: SimulationContext, previous=None) -> list[int]:
+def _update_targets(context: SimulationContext, agents, positions, previous=None) -> list[int]:
     evacuated = []
     for agent_id, state in context.states.items():
-        agent = context.simulation.agent(agent_id)
-        position = (float(agent.position[0]), float(agent.position[1]))
+        agent = agents[agent_id]
+        position = positions[agent_id]
+        original_cursor = state.cursor
         while (
             state.cursor + 1 < len(state.waypoints)
             and _waypoint_reached(position, state, context.router.can_connect)
@@ -488,7 +514,8 @@ def _update_targets(context: SimulationContext, previous=None) -> list[int]:
             if context.simulation.mark_agent_for_removal(agent_id):
                 evacuated.append(agent_id)
             continue
-        agent.target = state.waypoints[state.cursor]
+        if previous is None or state.cursor != original_cursor:
+            agent.target = state.waypoints[state.cursor]
     return evacuated
 
 
@@ -521,13 +548,16 @@ def _snapshot(
         for stable_id, point in trapped.items()
     ]
     for context in contexts:
+        if not context.states:
+            continue
+        _active_agents, positions = _active_agents_and_positions(context)
         for agent_id, state in context.states.items():
-            agent = context.simulation.agent(agent_id)
+            position = positions[agent_id]
             agents.append(
                 {
                     "agentId": state.stable_id,
-                    "x": _rounded(agent.position[0]),
-                    "y": _rounded(agent.position[1]),
+                    "x": _rounded(position[0]),
+                    "y": _rounded(position[1]),
                 }
             )
     agents.sort(key=lambda value: value["agentId"])

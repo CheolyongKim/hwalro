@@ -300,6 +300,8 @@ class GridRouter:
         self.approach_y = np.full(self.width * self.height, np.nan, dtype=float)
         self._grid_edges = self._build_grid_edges()
         self._build_cost_field()
+        self._reachable = self.valid & np.isfinite(self.distance)
+        self._has_reachable = bool(self._reachable.any())
 
     def plan(self, start: Point) -> Route:
         point = (float(start[0]), float(start[1]))
@@ -308,8 +310,8 @@ class GridRouter:
         if not self._prepared_walkable.covers(ShapelyPoint(point)):
             raise ValueError(f"agent at {point} is outside the walkable area")
 
-        reachable = self.valid & np.isfinite(self.distance)
-        if not reachable.any():
+        reachable = self._reachable
+        if not self._has_reachable:
             raise ValueError("no selected exit is reachable")
         local = self._local_nodes(point, reachable)
         if not local:
@@ -491,6 +493,13 @@ class GridRouter:
         return self._physical_edge_is_walkable(start, end)
 
     def crossed_exit(self, start: Point, end: Point, exit_start: Point, exit_end: Point) -> bool:
+        if (
+            max(start[0], end[0]) < min(exit_start[0], exit_end[0])
+            or min(start[0], end[0]) > max(exit_start[0], exit_end[0])
+            or max(start[1], end[1]) < min(exit_start[1], exit_end[1])
+            or min(start[1], end[1]) > max(exit_start[1], exit_end[1])
+        ):
+            return False
         movement = LineString((start, end))
         return self._prepared_physical_walkable.covers(movement) and movement.intersects(
             LineString((exit_start, exit_end))

@@ -7,7 +7,9 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,7 +36,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -107,6 +113,85 @@ class SimulationExecutionServiceTest {
         verify(simulationMapper).insertTimeline(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
         verify(simulationMapper).insertHeatmap(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
         verify(simulationMapper).markExecutionCompleted(21L);
+    }
+
+    @Test
+    void cachesSuccessfulEngineReadinessForTheServiceLifetime() {
+        stubTwoExecutionRequests();
+
+        service.execute(21L, user);
+        service.execute(21L, user);
+
+        verify(engineRunner, times(1)).assertAvailable();
+        verify(executor, times(2)).execute(any(Runnable.class));
+    }
+
+    @Test
+    void retriesEngineReadinessAfterAFailedCheck() {
+        when(simulationMapper.updateExecutionProfiles(21L, "SFM_DEFAULT_V2", "HAZARD_RADIAL_EXP_V3"))
+                .thenReturn(1);
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationService.getAccessibleSimulation(21L, user))
+                .thenReturn(simulation("DRAFT"), simulation("DRAFT"), simulation("REQUESTED"));
+        doThrow(new SimulationEngineUnavailableException("not ready"))
+                .doNothing()
+                .when(engineRunner)
+                .assertAvailable();
+
+        assertThatThrownBy(() -> service.execute(21L, user)).isInstanceOf(SimulationEngineUnavailableException.class);
+        var response = service.execute(21L, user);
+
+        assertThat(response.status()).isEqualTo("REQUESTED");
+        verify(engineRunner, times(2)).assertAvailable();
+        verify(simulationMapper, times(1)).requestExecution(21L);
+    }
+
+    @Test
+    void sharesOneReadinessCheckAcrossConcurrentFirstRequests() throws Exception {
+        CountDownLatch readinessEntered = new CountDownLatch(1);
+        CountDownLatch bothRequestsStarted = new CountDownLatch(2);
+        CountDownLatch releaseReadiness = new CountDownLatch(1);
+        ThreadLocal<Integer> accessCount = ThreadLocal.withInitial(() -> 0);
+        when(simulationMapper.updateExecutionProfiles(21L, "SFM_DEFAULT_V2", "HAZARD_RADIAL_EXP_V3"))
+                .thenReturn(1);
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationService.getAccessibleSimulation(21L, user)).thenAnswer(invocation -> {
+            int count = accessCount.get();
+            accessCount.set(count + 1);
+            if (count == 0) {
+                bothRequestsStarted.countDown();
+            }
+            return simulation(count == 0 ? "DRAFT" : "REQUESTED");
+        });
+        doAnswer(invocation -> {
+                    readinessEntered.countDown();
+                    if (!releaseReadiness.await(5, TimeUnit.SECONDS)) {
+                        throw new AssertionError("readiness check was not released");
+                    }
+                    return null;
+                })
+                .when(engineRunner)
+                .assertAvailable();
+
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try {
+            var first = callers.submit(() -> service.execute(21L, user));
+            assertThat(readinessEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            var second = callers.submit(() -> service.execute(21L, user));
+            assertThat(bothRequestsStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            releaseReadiness.countDown();
+
+            assertThat(first.get(5, TimeUnit.SECONDS).status()).isEqualTo("REQUESTED");
+            assertThat(second.get(5, TimeUnit.SECONDS).status()).isEqualTo("REQUESTED");
+        } finally {
+            releaseReadiness.countDown();
+            callers.shutdownNow();
+        }
+
+        verify(engineRunner, times(1)).assertAvailable();
+        verify(executor, times(2)).execute(any(Runnable.class));
     }
 
     @Test
@@ -261,6 +346,15 @@ class SimulationExecutionServiceTest {
                 })
                 .when(executor)
                 .execute(any(Runnable.class));
+    }
+
+    private void stubTwoExecutionRequests() {
+        when(simulationMapper.updateExecutionProfiles(21L, "SFM_DEFAULT_V2", "HAZARD_RADIAL_EXP_V3"))
+                .thenReturn(1);
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationService.getAccessibleSimulation(21L, user))
+                .thenReturn(simulation("DRAFT"), simulation("REQUESTED"), simulation("DRAFT"), simulation("REQUESTED"));
     }
 
     private void stubDraftAndRequestedStatus() {

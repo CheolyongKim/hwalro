@@ -228,6 +228,16 @@ class GridRoutingTest(unittest.TestCase):
         self.assertTrue(router.crossed_exit((1.9, 2), (2.1, 2), start, end))
         self.assertFalse(router.crossed_exit((1.9, 0.6), (2.1, 0.6), start, end))
 
+    def test_exit_crossing_rejects_disjoint_bounds_before_geometry_checks(self):
+        class UnexpectedGeometryCheck:
+            def covers(self, _movement):
+                raise AssertionError("disjoint segment must not reach GEOS")
+
+        router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])
+        router._prepared_physical_walkable = UnexpectedGeometryCheck()
+
+        self.assertFalse(router.crossed_exit((0, 2), (1, 2), (3, 1), (3, 3)))
+
     def test_route_avoids_hazard_when_lower_total_cost_exists(self):
         walkable = Polygon(((0, 0), (6, 0), (6, 4), (0, 4)))
         hazard = Hazard(3.0, 2.0, 1.0)
@@ -269,12 +279,14 @@ class GridRoutingTest(unittest.TestCase):
         walkable = Polygon(((0, 0), (8, 0), (8, 4), (0, 4)))
         exits = [Exit("left", (0, 1.5), (0, 2.5)), Exit("right", (8, 1.5), (8, 2.5))]
         router = GridRouter(walkable, [Hazard(1.5, 2.0, 2.0)], exits)
+        reachable = router._reachable
 
         first = router.plan((3.5, 2.0))
         second = router.plan((3.5, 2.0))
 
         self.assertEqual(first.exit_id, "right")
         self.assertEqual(first, second)
+        self.assertIs(router._reachable, reachable)
 
     def test_wide_exit_is_seeded_along_its_full_length(self):
         walkable = Polygon(((0, 0), (6, 0), (6, 4), (0, 4)))

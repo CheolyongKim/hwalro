@@ -11,7 +11,10 @@ from runner import (
     HeatmapWriter,
     SimulationContext,
     TimelineWriter,
+    _advance_context,
+    _initialize_targets,
     _rollback_invalid_moves,
+    _snapshot,
     _waypoint_reached,
 )
 
@@ -137,6 +140,202 @@ class WaypointProgressTest(unittest.TestCase):
         self.assertTrue(_waypoint_reached((1.2, -0.2), other, lambda _a, _b: True))
 
 
+class BulkAgentAccessTest(unittest.TestCase):
+    class Model:
+        def __init__(self):
+            self.velocity = (0.0, 0.0)
+
+    class BackingAgent:
+        def __init__(self, agent_id, position):
+            self.id = agent_id
+            self.position = position
+            self.model = BulkAgentAccessTest.Model()
+            self.position_reads = 0
+            self.target = None
+            self.target_writes = 0
+
+    class AgentHandle:
+        def __init__(self, simulation, backing):
+            self._simulation = simulation
+            self._backing = backing
+            self._generation = simulation.generation
+
+        def _check_generation(self):
+            if self._generation != self._simulation.generation:
+                raise AssertionError("agent handle was reused across an iteration")
+
+        @property
+        def id(self):
+            self._check_generation()
+            return self._backing.id
+
+        @property
+        def position(self):
+            self._check_generation()
+            self._backing.position_reads += 1
+            return self._backing.position
+
+        @position.setter
+        def position(self, value):
+            self._check_generation()
+            self._backing.position = value
+
+        @property
+        def model(self):
+            self._check_generation()
+            return self._backing.model
+
+        @property
+        def target(self):
+            self._check_generation()
+            return self._backing.target
+
+        @target.setter
+        def target(self, value):
+            self._check_generation()
+            self._backing.target = value
+            self._backing.target_writes += 1
+
+    class Simulation:
+        def __init__(self, agents):
+            self._agents = {agent.id: agent for agent in agents}
+            self.generation = 0
+            self.pending_removals = set()
+            self.next_positions = {}
+            self.traversals = 0
+
+        def agent(self, _agent_id):
+            raise AssertionError("single-agent lookup must not be used")
+
+        def agents(self):
+            self.traversals += 1
+            return [
+                BulkAgentAccessTest.AgentHandle(self, agent)
+                for agent in self._agents.values()
+            ]
+
+        def iterate(self):
+            self.generation += 1
+            for agent_id in self.pending_removals:
+                self._agents.pop(agent_id, None)
+            self.pending_removals.clear()
+            for agent_id, position in self.next_positions.items():
+                self._agents[agent_id].position = position
+            self.next_positions.clear()
+
+        def mark_agent_for_removal(self, agent_id):
+            self.pending_removals.add(agent_id)
+            return True
+
+    class Router:
+        def valid_moves(self, starts, _ends):
+            return [True] * len(starts)
+
+        def can_connect(self, _start, _end):
+            return True
+
+        def can_reach_exit(self, _start, _end):
+            return True
+
+        def crossed_exit(self, _start, _end, _exit_start, _exit_end):
+            return False
+
+    @staticmethod
+    def _state(stable_id, waypoint):
+        return AgentRouteState(
+            stable_id=stable_id,
+            exit_id=501,
+            waypoints=(waypoint,),
+            terminal_point=waypoint,
+            exit_start=(20.0, 0.0),
+            exit_end=(20.0, 1.0),
+        )
+
+    def test_uses_fresh_bulk_traversals_and_avoids_redundant_reads_and_targets(self):
+        first = self.BackingAgent(1, (-1.0, 0.0))
+        second = self.BackingAgent(2, (5.0, 0.0))
+        simulation = self.Simulation([first, second])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(1, (0.0, 0.0)), 2: self._state(2, (10.0, 0.0))},
+        )
+
+        self.assertEqual(_initialize_targets(context), [])
+        self.assertEqual((first.target_writes, second.target_writes), (1, 1))
+
+        simulation.next_positions[1] = (0.0, 0.0)
+        self.assertEqual(_advance_context(context, 1), [1])
+        context.states.pop(1)
+        self.assertEqual((first.target_writes, second.target_writes), (1, 1))
+
+        frame = _snapshot([context], {}, 0.01)
+        self.assertEqual(frame["agents"], [{"agentId": 2, "x": 5.0, "y": 0.0}])
+
+        self.assertEqual(_advance_context(context, 2), [])
+        self.assertEqual((first.position_reads, second.position_reads), (3, 6))
+        self.assertEqual((first.target_writes, second.target_writes), (1, 1))
+        self.assertEqual(simulation.traversals, 6)
+
+    def test_sets_a_new_target_once_when_the_waypoint_changes(self):
+        agent = self.BackingAgent(1, (-1.0, 0.0))
+        simulation = self.Simulation([agent])
+        state = AgentRouteState(
+            stable_id=1,
+            exit_id=501,
+            waypoints=((0.0, 0.0), (10.0, 0.0)),
+            terminal_point=(10.0, 0.0),
+            exit_start=(20.0, 0.0),
+            exit_end=(20.0, 1.0),
+        )
+        context = SimulationContext(simulation, self.Router(), {1: state})
+
+        self.assertEqual(_initialize_targets(context), [])
+        simulation.next_positions[1] = (0.0, 0.0)
+        self.assertEqual(_advance_context(context, 1), [])
+
+        self.assertEqual(state.cursor, 1)
+        self.assertEqual(agent.target, (10.0, 0.0))
+        self.assertEqual(agent.target_writes, 2)
+
+    def test_snapshot_skips_bulk_traversal_for_an_empty_context(self):
+        simulation = self.Simulation([self.BackingAgent(1, (1.0, 1.0))])
+        context = SimulationContext(simulation, self.Router(), {})
+
+        frame = _snapshot([context], {}, 0.01)
+
+        self.assertEqual(frame["agents"], [])
+        self.assertEqual(simulation.traversals, 0)
+
+    def test_rollback_happens_before_exit_crossing_is_checked(self):
+        class RejectingRouter(self.Router):
+            def valid_moves(self, starts, _ends):
+                return [False] * len(starts)
+
+            def can_connect(self, _start, _end):
+                return False
+
+            def can_reach_exit(self, _start, _end):
+                return False
+
+            def crossed_exit(self, start, end, _exit_start, _exit_end):
+                return start[0] < 0.0 <= end[0]
+
+        agent = self.BackingAgent(1, (-1.0, 0.0))
+        simulation = self.Simulation([agent])
+        simulation.next_positions[1] = (1.0, 0.0)
+        context = SimulationContext(
+            simulation,
+            RejectingRouter(),
+            {1: self._state(1, (10.0, 0.0))},
+        )
+
+        self.assertEqual(_advance_context(context, 1), [])
+
+        self.assertEqual(agent.position, (-1.0, 0.0))
+        self.assertEqual(simulation.pending_removals, set())
+
+
 class MovementGuardTest(unittest.TestCase):
     class Model:
         velocity = (3.0, 0.0)
@@ -171,20 +370,34 @@ class MovementGuardTest(unittest.TestCase):
     def test_invalid_move_rolls_back_position_and_zeroes_velocity(self):
         agent = self.Agent()
         context = SimulationContext(self.Simulation(agent), self.Router(False), {})
+        current = {1: (2.0, 1.0)}
 
-        _rollback_invalid_moves(context, {1: (1.0, 1.0)})
+        _rollback_invalid_moves(
+            context,
+            {1: (1.0, 1.0)},
+            {1: agent},
+            current,
+        )
 
         self.assertEqual(agent.position, (1.0, 1.0))
         self.assertEqual(agent.model.velocity, (0.0, 0.0))
+        self.assertEqual(current, {1: (1.0, 1.0)})
 
     def test_valid_move_is_not_changed(self):
         agent = self.Agent()
         context = SimulationContext(self.Simulation(agent), self.Router(True), {})
+        current = {1: (2.0, 1.0)}
 
-        _rollback_invalid_moves(context, {1: (1.0, 1.0)})
+        _rollback_invalid_moves(
+            context,
+            {1: (1.0, 1.0)},
+            {1: agent},
+            current,
+        )
 
         self.assertEqual(agent.position, (2.0, 1.0))
         self.assertEqual(agent.model.velocity, (3.0, 0.0))
+        self.assertEqual(current, {1: (2.0, 1.0)})
 
 
 if __name__ == "__main__":
