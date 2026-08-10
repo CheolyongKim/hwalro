@@ -2,32 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { simulationApi } from '../api/simulationApi';
-import type {
-  SimulationExecutionStatus,
-  SimulationOverview,
-  SimulationOverviewPage,
-} from '../types';
+import type { SimulationExecutionStatus, SimulationOverview } from '../types';
 
 const POLL_INTERVAL_MS = 3000;
 const TOAST_DURATION_MS = 6000;
-const MONITOR_PAGE_SIZE = 100;
-
-type OverviewPageLoader = (page: number, size: number) => Promise<SimulationOverviewPage>;
-
-export async function listAllSimulationOverviews(
-  loadPage: OverviewPageLoader = simulationApi.listOverview,
-): Promise<SimulationOverview[]> {
-  const firstPage = await loadPage(1, MONITOR_PAGE_SIZE);
-  const pageCount = Math.ceil(firstPage.totalCount / firstPage.size);
-  if (pageCount <= 1) return firstPage.items;
-
-  const items = [...firstPage.items];
-  // ponytail: Reuse the existing API until history volume justifies a dedicated active-monitor endpoint.
-  for (let page = 2; page <= pageCount; page += 1) {
-    items.push(...(await loadPage(page, MONITOR_PAGE_SIZE)).items);
-  }
-  return items;
-}
 
 export function findNewlyCompletedSimulations(
   previousStatuses: ReadonlyMap<number, SimulationExecutionStatus>,
@@ -39,7 +17,6 @@ export function findNewlyCompletedSimulations(
     return (
       simulation.createdBy === userId &&
       simulation.status === 'COMPLETED' &&
-      previousStatus !== undefined &&
       previousStatus !== 'COMPLETED'
     );
   });
@@ -110,8 +87,8 @@ function SimulationCompletionNotifier({ userId }: SimulationCompletionNotifierPr
   const previousStatusesRef = useRef<Map<number, SimulationExecutionStatus> | null>(null);
   const notifiedIdsRef = useRef(new Set<number>());
   const query = useQuery({
-    queryKey: ['simulations', 'completion-monitor'],
-    queryFn: () => listAllSimulationOverviews(),
+    queryKey: ['simulations', 'completion-monitor', userId],
+    queryFn: simulationApi.listMonitor,
     refetchInterval: POLL_INTERVAL_MS,
   });
 

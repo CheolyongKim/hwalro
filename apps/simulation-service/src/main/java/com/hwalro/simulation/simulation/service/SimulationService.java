@@ -92,23 +92,16 @@ public class SimulationService {
         long totalCount = simulationMapper.countSimulationOverview(createdBy);
         List<SimulationOverviewResponse> items =
                 simulationMapper.findSimulationOverviewPage((page - 1) * size, size, createdBy).stream()
-                        .map(simulation -> new SimulationOverviewResponse(
-                                simulation.getId(),
-                                simulation.getLayoutVersionId(),
-                                simulation.getLayoutId(),
-                                simulation.getLayoutTitle(),
-                                simulation.getLayoutVersionNumber(),
-                                simulation.getCreatedBy(),
-                                simulation.getStatus(),
-                                simulation.getCreatedAt(),
-                                simulation.getRequestedAt(),
-                                simulation.getStartedAt(),
-                                simulation.getFinishedAt(),
-                                simulation.getTotalPeople(),
-                                simulation.getTerminationReason()))
+                        .map(SimulationService::toOverviewResponse)
                         .toList();
         return new SimulationOverviewPageResponse(
                 Math.toIntExact(totalCount), page, size, page * size < totalCount, items);
+    }
+
+    public List<SimulationOverviewResponse> listMonitor(JwtUser user) {
+        return simulationMapper.findSimulationMonitor(user.userId()).stream()
+                .map(SimulationService::toOverviewResponse)
+                .toList();
     }
 
     @Transactional
@@ -424,6 +417,23 @@ public class SimulationService {
     private static ExitDto toExit(LayoutExit exit) {
         return new ExitDto(
                 exit.getId(), exit.getName(), exit.getStartX(), exit.getStartY(), exit.getEndX(), exit.getEndY());
+    }
+
+    private static SimulationOverviewResponse toOverviewResponse(Simulation simulation) {
+        return new SimulationOverviewResponse(
+                simulation.getId(),
+                simulation.getLayoutVersionId(),
+                simulation.getLayoutId(),
+                simulation.getLayoutTitle(),
+                simulation.getLayoutVersionNumber(),
+                simulation.getCreatedBy(),
+                simulation.getStatus(),
+                simulation.getCreatedAt(),
+                simulation.getRequestedAt(),
+                simulation.getStartedAt(),
+                simulation.getFinishedAt(),
+                simulation.getTotalPeople(),
+                simulation.getTerminationReason());
     }
 
     private record DrawingSnapshot(

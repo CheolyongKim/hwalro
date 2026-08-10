@@ -138,6 +138,20 @@ class SimulationServiceTest {
         assertThat(response.items().get(0).totalPeople()).isEqualTo(12);
     }
 
+    @Test
+    void listsOnlyCurrentUsersMonitorItemsEvenForAdmin() {
+        JwtUser admin = new JwtUser(7L, Set.of("ADMIN"));
+        Simulation item = simulation();
+        item.setLayoutTitle("test");
+        when(simulationMapper.findSimulationMonitor(7L)).thenReturn(List.of(item));
+
+        var response = service.listMonitor(admin);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).id()).isEqualTo(21L);
+        verify(simulationMapper).findSimulationMonitor(7L);
+    }
+
     private void stubDrawing() {
         when(drawingMapper.findWallsByVersionId(11L)).thenReturn(List.of());
         when(drawingMapper.findOutsideWallsByVersionId(11L))
