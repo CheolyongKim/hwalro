@@ -121,6 +121,7 @@ public class DrawingService {
 
         insertWallsIfPresent(toWallsFromDefault(defaultDrawing.walls(), version.getId()));
         insertOutsideWallsIfPresent(toOutsideWallsFromDefault(defaultDrawing.outsideWalls(), version.getId()));
+        insertPillarsIfPresent(toPillarsFromDefault(defaultDrawing.pillars(), version.getId()));
         insertFabricsIfPresent(toFabricsFromDefault(defaultDrawing.fabrics(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
         insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
@@ -383,6 +384,25 @@ public class DrawingService {
                     domainOutsideWall.setEndX(outsideWall.endX());
                     domainOutsideWall.setEndY(outsideWall.endY());
                     return domainOutsideWall;
+                })
+                .toList();
+    }
+
+    private List<Pillar> toPillarsFromDefault(List<DefaultDrawingData.DefaultPillar> pillars, Long layoutVersionId) {
+        if (pillars == null) {
+            return List.of();
+        }
+        return pillars.stream()
+                .map(pillar -> {
+                    Pillar domainPillar = new Pillar();
+                    domainPillar.setLayoutVersionId(layoutVersionId);
+                    domainPillar.setName(pillar.name());
+                    domainPillar.setStartX(pillar.startX());
+                    domainPillar.setStartY(pillar.startY());
+                    domainPillar.setEndX(pillar.endX());
+                    domainPillar.setEndY(pillar.endY());
+                    domainPillar.setRotation(pillar.rotation());
+                    return domainPillar;
                 })
                 .toList();
     }
