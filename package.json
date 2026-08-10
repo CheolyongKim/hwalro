@@ -7,12 +7,12 @@
     "lint": "turbo lint",
     "clean": "turbo clean",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "infra": "docker compose up -d",
+    "infra": "docker compose up -d --wait && node ./scripts/load-dev-test-data.mjs",
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v",
     "infra:migrate:auth-roles": "node ./scripts/migrate-auth-roles.mjs",
     "engine:setup": "node ./scripts/setup-simulation-engine.mjs",
-    "reset": "pnpm infra:reset && docker compose up -d --wait && node ./scripts/migrate-auth-roles.mjs --retry"
+    "reset": "pnpm infra:reset && pnpm infra && node ./scripts/migrate-auth-roles.mjs --retry"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",

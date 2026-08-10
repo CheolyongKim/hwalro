@@ -3,11 +3,21 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-const dmlPath = resolve(
-  scriptDirectory,
-  '../src/main/resources/db/simulation-result-test-dml.sql',
-);
+const dmlPath = resolve(scriptDirectory, '../src/main/resources/db/simulation-result-test-dml.sql');
 const sql = await readFile(dmlPath, 'utf8');
+
+for (const requiredFragment of [
+  "WHERE login_id = 'test'",
+  'VALUES (9100, 9100, @test_user_id',
+  'termination_reason, frame_interval_seconds',
+  "'ALL_EVACUATED'",
+  'USE hwalro_regulation;',
+  'INSERT INTO risks',
+]) {
+  if (!sql.includes(requiredFragment)) {
+    throw new Error(`Missing required integrated fixture fragment: ${requiredFragment}`);
+  }
+}
 const payloads = [...sql.matchAll(/CAST\('((?:''|[^'])*)' AS JSON\)/g)].map((match) =>
   match[1].replaceAll("''", "'"),
 );
@@ -15,9 +25,7 @@ const parsedPayloads = payloads.map((payload) => JSON.parse(payload));
 const timelineChunks = parsedPayloads.filter(
   (payload) => payload.positionOrder === 'AGENT_ID_ASC_XY_FLAT',
 );
-const heatmapChunks = parsedPayloads.filter(
-  (payload) => payload.grid?.valueOrder === 'ROW_MAJOR',
-);
+const heatmapChunks = parsedPayloads.filter((payload) => payload.grid?.valueOrder === 'ROW_MAJOR');
 const timelineFrames = timelineChunks.flatMap((payload) => payload.frames);
 const heatmapFrames = heatmapChunks.flatMap((payload) => payload.frames);
 
