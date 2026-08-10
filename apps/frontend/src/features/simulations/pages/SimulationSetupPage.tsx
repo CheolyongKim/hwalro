@@ -515,9 +515,34 @@ function SimulationSetupPage() {
           <section className="mt-6 border-t border-line pt-5">
             <h2 className="text-sm font-black">시뮬레이션 조건</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-xs font-bold text-text-muted">
-                평균 이동속도 (m/s)
+              <div className="text-xs font-bold text-text-muted">
+                <div className="flex items-center gap-1">
+                  <label htmlFor="walking-speed">희망 이동속도 (m/s)</label>
+                  <span className="group relative inline-flex">
+                    <button
+                      type="button"
+                      aria-label="희망 이동속도 안내"
+                      aria-describedby="walking-speed-help"
+                      className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px] leading-none outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      i
+                    </button>
+                    <span
+                      id="walking-speed-help"
+                      role="tooltip"
+                      className="pointer-events-none invisible absolute left-0 top-full z-30 mt-2 w-72 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                    >
+                      에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표
+                      평균은 약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제
+                      속도는 혼잡도와 상호작용에 따라 달라집니다.
+                      <span className="mt-1 block text-white/70">
+                        출처: Weidmann (1993), ETH Zürich
+                      </span>
+                    </span>
+                  </span>
+                </div>
                 <input
+                  id="walking-speed"
                   type="number"
                   min={0.1}
                   max={3}
@@ -527,7 +552,7 @@ function SimulationSetupPage() {
                   disabled={!editable}
                   className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
                 />
-              </label>
+              </div>
               <label className="text-xs font-bold text-text-muted">
                 초기 반응시간 (초)
                 <input
