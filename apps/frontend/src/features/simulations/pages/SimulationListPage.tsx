@@ -1,5 +1,5 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { simulationApi } from '../api/simulationApi';
 import type { SimulationExecutionStatus, SimulationOverview } from '../types';
@@ -47,13 +47,18 @@ function destination(simulation: SimulationOverview): string {
 }
 
 function SimulationListPage() {
-  const query = useInfiniteQuery({
-    queryKey: ['simulations', 'overview'],
-    queryFn: ({ pageParam }) => simulationApi.listOverview(pageParam, PAGE_SIZE),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.page + 1 : undefined),
+  const [page, setPage] = useState(1);
+  const query = useQuery({
+    queryKey: ['simulations', 'overview', page],
+    queryFn: () => simulationApi.listOverview(page, PAGE_SIZE),
   });
-  const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
+  const items = query.data?.items ?? [];
+  const totalPages = Math.max(1, Math.ceil((query.data?.totalCount ?? 0) / PAGE_SIZE));
+  const visiblePages = useMemo(() => {
+    const count = Math.min(5, totalPages);
+    const start = Math.max(1, Math.min(page - 2, totalPages - count + 1));
+    return Array.from({ length: count }, (_, index) => start + index);
+  }, [page, totalPages]);
   const hasRunning = items.some(
     (simulation) => simulation.status === 'REQUESTED' || simulation.status === 'RUNNING',
   );
@@ -159,16 +164,46 @@ function SimulationListPage() {
                   </tbody>
                 </table>
               </div>
-              {query.hasNextPage && (
-                <button
-                  type="button"
-                  onClick={() => void query.fetchNextPage()}
-                  disabled={query.isFetchingNextPage}
-                  className="w-full border-t border-line px-4 py-3 text-sm font-bold text-text-strong hover:bg-surface disabled:opacity-50"
-                >
-                  {query.isFetchingNextPage ? '불러오는 중...' : '더 보기'}
-                </button>
-              )}
+              <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
+                <p className="text-sm text-text-muted">
+                  총 {(query.data?.totalCount ?? 0).toLocaleString()}건
+                </p>
+                <nav className="flex items-center gap-1" aria-label="시뮬레이션 목록 페이지">
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => current - 1)}
+                    disabled={page === 1 || query.isFetching}
+                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    이전
+                  </button>
+                  {visiblePages.map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      onClick={() => setPage(pageNumber)}
+                      disabled={query.isFetching}
+                      aria-current={pageNumber === page ? 'page' : undefined}
+                      aria-label={`${pageNumber}페이지`}
+                      className={`h-9 min-w-9 rounded-lg px-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                        pageNumber === page
+                          ? 'bg-primary text-white'
+                          : 'border border-line text-text-strong hover:bg-surface'
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => current + 1)}
+                    disabled={page === totalPages || query.isFetching}
+                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    다음
+                  </button>
+                </nav>
+              </div>
               {query.isError && (
                 <div
                   role="alert"
@@ -177,9 +212,7 @@ function SimulationListPage() {
                   <span>{getSimulationErrorMessage(query.error)}</span>
                   <button
                     type="button"
-                    onClick={() =>
-                      void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch())
-                    }
+                    onClick={() => void query.refetch()}
                     disabled={query.isFetching}
                     className="shrink-0 rounded-lg border border-red-300 px-3 py-1.5 font-bold disabled:opacity-50"
                   >
