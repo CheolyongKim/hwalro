@@ -45,6 +45,7 @@ class RunResult:
     elapsed_ns: int
     tree_sha256: str
     files: dict[str, dict[str, Any]]
+    summary: dict[str, Any]
 
 
 def _sha256_file(path: Path) -> str:
@@ -169,6 +170,141 @@ def _open_scenario(
             - (origin + (columns - 1) * spacing_x),
         },
     )
+
+
+def _correctness_scenario(
+    name: str,
+    drawing: dict[str, Any],
+    agents: list[dict[str, float]],
+    selected_exit_ids: list[int],
+    iterations: int,
+    frame_interval: float,
+    *,
+    hazards: list[dict[str, float]] | None = None,
+    walking_speed: float = 1.2,
+) -> Scenario:
+    payload = _base_payload(drawing, agents, selected_exit_ids, iterations)
+    payload["frameIntervalSeconds"] = frame_interval
+    payload["hazards"] = hazards or []
+    payload["model"]["walkingSpeed"] = walking_speed
+    return Scenario(
+        name=name,
+        category="correctness",
+        agent_count=len(agents),
+        iterations=iterations,
+        payload=payload,
+        source={"kind": "generated-correctness-fixture"},
+    )
+
+
+def _correctness_scenarios() -> list[Scenario]:
+    boundary_6x4 = [
+        {"x": 0.0, "y": 0.0},
+        {"x": 6.0, "y": 0.0},
+        {"x": 6.0, "y": 4.0},
+        {"x": 0.0, "y": 4.0},
+    ]
+    left_exit = {"id": 1, "startX": 0.0, "startY": 1.5, "endX": 0.0, "endY": 2.5}
+    right_exit = {"id": 2, "startX": 6.0, "startY": 1.5, "endX": 6.0, "endY": 2.5}
+    divider = [{"startX": 3.0, "startY": 0.0, "endX": 3.0, "endY": 4.0}]
+
+    wall_rollback = _correctness_scenario(
+        "correctness-wall-rollback-1x500",
+        {
+            "outsideBoundary": [
+                {"x": 0.0, "y": 0.0},
+                {"x": 6.0, "y": 0.0},
+                {"x": 6.0, "y": 5.0},
+                {"x": 0.0, "y": 5.0},
+            ],
+            "walls": [{"startX": 3.0, "startY": 0.0, "endX": 3.0, "endY": 4.0}],
+            "pillars": [],
+            "fabrics": [],
+            "exits": [
+                {"id": 1, "startX": 6.0, "startY": 4.0, "endX": 6.0, "endY": 4.8}
+            ],
+        },
+        [{"x": 1.0, "y": 2.0}],
+        [1],
+        500,
+        0.01,
+        walking_speed=5.0,
+    )
+    bottleneck = _correctness_scenario(
+        "correctness-bottleneck-5x3000",
+        {
+            "outsideBoundary": boundary_6x4,
+            "walls": [
+                {"startX": 3.0, "startY": 0.0, "endX": 3.0, "endY": 1.4},
+                {"startX": 3.0, "startY": 2.6, "endX": 3.0, "endY": 4.0},
+            ],
+            "pillars": [],
+            "fabrics": [],
+            "exits": [right_exit],
+        },
+        [
+            {"x": 1.0, "y": 1.0},
+            {"x": 1.0, "y": 2.0},
+            {"x": 1.0, "y": 3.0},
+            {"x": 2.0, "y": 1.5},
+            {"x": 2.0, "y": 2.5},
+        ],
+        [2],
+        3000,
+        0.1,
+    )
+    hazard_multi_exit = _correctness_scenario(
+        "correctness-hazard-multi-exit-1x1500",
+        {
+            "outsideBoundary": [
+                {"x": 0.0, "y": 0.0},
+                {"x": 8.0, "y": 0.0},
+                {"x": 8.0, "y": 4.0},
+                {"x": 0.0, "y": 4.0},
+            ],
+            "walls": [],
+            "pillars": [],
+            "fabrics": [],
+            "exits": [
+                left_exit,
+                {"id": 2, "startX": 8.0, "startY": 1.5, "endX": 8.0, "endY": 2.5},
+            ],
+        },
+        [{"x": 3.5, "y": 2.0}],
+        [1, 2],
+        1500,
+        0.1,
+        hazards=[{"centerX": 1.5, "centerY": 2.0, "radius": 2.0}],
+    )
+    multi_context = _correctness_scenario(
+        "correctness-multi-context-simultaneous-2x1000",
+        {
+            "outsideBoundary": boundary_6x4,
+            "walls": divider,
+            "pillars": [],
+            "fabrics": [],
+            "exits": [left_exit, right_exit],
+        },
+        [{"x": 1.0, "y": 2.0}, {"x": 5.0, "y": 2.0}],
+        [1, 2],
+        1000,
+        0.01,
+    )
+    trapped = _correctness_scenario(
+        "correctness-trapped-2x5",
+        {
+            "outsideBoundary": boundary_6x4,
+            "walls": divider,
+            "pillars": [],
+            "fabrics": [],
+            "exits": [left_exit],
+        },
+        [{"x": 0.5, "y": 2.0}, {"x": 5.0, "y": 2.0}],
+        [1],
+        5,
+        0.01,
+    )
+    return [wall_rollback, bottleneck, hazard_multi_exit, multi_context, trapped]
 
 
 def _point_from_wall(wall: dict[str, Any], prefix: str) -> tuple[float, float]:
@@ -383,6 +519,12 @@ def _build_scenarios(
                 room_density=1.0,
             )
         )
+    if filters:
+        scenarios.extend(
+            scenario
+            for scenario in _correctness_scenarios()
+            if any(fnmatch.fnmatchcase(scenario.name, pattern) for pattern in filters)
+        )
     return _select_scenarios(scenarios, filters)
 
 
@@ -418,6 +560,74 @@ def _hash_output_tree(output_dir: Path) -> tuple[str, dict[str, dict[str, Any]]]
     return tree.hexdigest(), files
 
 
+def _output_summary(output_dir: Path) -> dict[str, Any]:
+    result = json.loads((output_dir / "result.json").read_text(encoding="utf-8"))
+    exit_events = []
+    for path in sorted((output_dir / "timeline").glob("*.json")):
+        chunk = json.loads(path.read_text(encoding="utf-8"))
+        exit_events.extend(chunk.get("exitEvents", []))
+    return {"result": result, "exitEvents": exit_events}
+
+
+def _route_probe(python: str, engine_root: Path, input_path: Path) -> bytes:
+    probe = r"""
+import json
+import sys
+
+sys.path.insert(0, sys.argv[1])
+from route_planner import (
+    GridRouter, build_routing_geometry, build_walkable_geometry,
+    containing_component, parse_exits, parse_hazards, split_agent_components,
+)
+
+payload = json.load(open(sys.argv[2], encoding="utf-8"))
+drawing = payload["drawing"]
+agents = [(float(item["x"]), float(item["y"])) for item in payload["agents"]]
+walkable = build_walkable_geometry(drawing)
+routing = build_routing_geometry(drawing, 0.3)
+exits = parse_exits(drawing, payload["selectedExitIds"])
+hazards = parse_hazards(payload["hazards"])
+routes = []
+for component, indexed_agents in split_agent_components(routing, agents):
+    try:
+        router = GridRouter(
+            component, hazards, exits,
+            physical_walkable=containing_component(walkable, component),
+            exit_clearance=0.3,
+        )
+    except ValueError as exc:
+        if str(exc) != "no selected exit is reachable from this walkable component":
+            raise
+        routes.extend({"agentId": index + 1, "trapped": True} for index, _ in indexed_agents)
+        continue
+    for index, position in indexed_agents:
+        route = router.plan(position)
+        routes.append({
+            "agentId": index + 1,
+            "trapped": False,
+            "exitId": route.exit_id,
+            "waypoints": route.waypoints,
+            "terminalPoint": route.terminal_point,
+            "exitStart": route.exit_start,
+            "exitEnd": route.exit_end,
+            "totalCost": route.total_cost,
+        })
+routes.sort(key=lambda item: item["agentId"])
+print(json.dumps(routes, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+"""
+    completed = subprocess.run(
+        [python, "-c", probe, str(engine_root), str(input_path)],
+        cwd=engine_root,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise BenchmarkError(
+            f"route probe failed for {engine_root}: {completed.stderr.decode('utf-8', 'replace')[-4000:]}"
+        )
+    return completed.stdout.strip()
+
+
 def _run_runner(
     python: str,
     engine_root: Path,
@@ -447,7 +657,12 @@ def _run_runner(
             f"stderr:\n{completed.stderr[-4000:]}"
         )
     tree_digest, files = _hash_output_tree(output_dir)
-    return RunResult(elapsed_ns=elapsed, tree_sha256=tree_digest, files=files)
+    return RunResult(
+        elapsed_ns=elapsed,
+        tree_sha256=tree_digest,
+        files=files,
+        summary=_output_summary(output_dir),
+    )
 
 
 def _assert_same_output(
@@ -528,6 +743,18 @@ def _benchmark_scenario(
     input_path = work_dir / "inputs" / f"{scenario.name}.json"
     input_path.parent.mkdir(parents=True, exist_ok=True)
     input_path.write_bytes(input_bytes)
+
+    route_comparison = None
+    if scenario.category == "correctness":
+        baseline_routes = _route_probe(python, roots["baseline"], input_path)
+        candidate_routes = _route_probe(python, roots["candidate"], input_path)
+        if baseline_routes != candidate_routes:
+            raise BenchmarkError(f"{scenario.name}: baseline/candidate routes differ")
+        route_comparison = {
+            "byteForByteEqual": True,
+            "sha256": hashlib.sha256(baseline_routes).hexdigest(),
+            "routes": json.loads(baseline_routes),
+        }
 
     warmup_order = (
         ("baseline", "candidate")
@@ -621,6 +848,8 @@ def _benchmark_scenario(
         },
         "outputTreeSha256": warmup["baseline"].tree_sha256,
         "outputFiles": reference,
+        "outputSummary": warmup["baseline"].summary,
+        "routeComparison": route_comparison,
     }
 
 
