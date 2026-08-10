@@ -602,11 +602,25 @@ function SimulationSetupPage() {
           </section>
 
           <section className="mt-6 border-t border-line pt-5">
-            <h2 className="text-sm font-black">사용 출입구</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black">사용 출입구</h2>
+              <button
+                type="button"
+                disabled={
+                  !editable ||
+                  setup.drawing.exits.length === 0 ||
+                  setup.drawing.exits.every((exit) => selectedExitIds.includes(exit.id))
+                }
+                onClick={() => setSelectedExitIds(setup.drawing.exits.map((exit) => exit.id))}
+                className="rounded-lg border border-primary px-2.5 py-1 text-xs font-bold text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                전체 선택
+              </button>
+            </div>
             <p className="mt-1 text-xs leading-5 text-text-muted">
               DRAFT 저장은 출입구를 선택하지 않아도 가능합니다.
             </p>
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
               {setup.drawing.exits.length === 0 ? (
                 <p className="rounded-lg bg-surface px-3 py-3 text-xs text-text-muted">
                   등록된 출입구가 없습니다.
