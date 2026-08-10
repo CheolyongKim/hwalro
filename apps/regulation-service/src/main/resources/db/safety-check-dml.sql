@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 -- 신규 개발 DB에 안전 체크리스트 예시 구역, 템플릿, 점검 이력을 적재한다.
 -- 개발용 test 사용자(ID 1)를 점검 담당자로 사용한다.
 -- simulation_result_id and inspector_id are external identifiers owned by other services.
