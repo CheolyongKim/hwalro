@@ -13,8 +13,8 @@ export const CANVAS_COLORS = {
   fabricFill: '#e8f0ee',
   fabricSelectedFill: '#dcebe7',
   fabricStroke: '#93aca6',
-  problem: '#f97316',
-  problemFill: 'rgba(249, 115, 22, 0.18)',
+  problem: '#ea580c',
+  problemFill: '#ea580c',
 } as const;
 
 export const ACCENT_ALPHA_8 = 'rgba(22, 143, 128, 0.08)';

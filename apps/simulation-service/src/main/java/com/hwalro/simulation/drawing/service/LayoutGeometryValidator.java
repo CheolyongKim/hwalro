@@ -63,7 +63,7 @@ public class LayoutGeometryValidator {
         }
         collectInsideFrameProblems(frame, pillars, fabrics, exits, messages, problems);
         collectExitReachabilityProblems(regionWalks, pillars, fabrics, exits, messages, problems);
-        if (!problems.isEmpty()) {
+        if (!messages.isEmpty()) {
             throw new DrawingValidationException(String.join(" ", messages), problems);
         }
     }

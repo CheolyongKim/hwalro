@@ -136,9 +136,9 @@ function reshapeRectElement<
     rotation: number;
     id: string;
   },
->(element: T, point: Vec2, handle: RectHandle): T {
-  const center = rectCenter(element);
-  const localPoint = rotatePoint(point, center, -element.rotation);
+>(element: T, point: Vec2, handle: RectHandle, startElement: T): T {
+  const center = rectCenter(startElement);
+  const localPoint = rotatePoint(point, center, -startElement.rotation);
   const patch =
     handle === 'start'
       ? { startX: round1(localPoint.x), startY: round1(localPoint.y) }
@@ -152,7 +152,13 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
     if (!pillar) {
       return state;
     }
-    const next = reshapeRectElement(pillar, clampToDocBounds(state.doc, point), drag.handle);
+    const startPillar = drag.originDoc.pillars.find((p) => p.id === drag.elementId);
+    const next = reshapeRectElement(
+      pillar,
+      clampToDocBounds(state.doc, point),
+      drag.handle,
+      startPillar ?? pillar,
+    );
     if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
       return state;
     }
@@ -165,7 +171,13 @@ function applyRectReshapeUpdate(state: EditorState, drag: ReshapeDrag, point: Ve
   if (!fabric) {
     return state;
   }
-  const next = reshapeRectElement(fabric, clampToDocBounds(state.doc, point), drag.handle);
+  const startFabric = drag.originDoc.fabrics.find((f) => f.id === drag.elementId);
+  const next = reshapeRectElement(
+    fabric,
+    clampToDocBounds(state.doc, point),
+    drag.handle,
+    startFabric ?? fabric,
+  );
   if (!isRectInsideBounds(state.doc, next.startX, next.startY, next.endX, next.endY)) {
     return state;
   }
