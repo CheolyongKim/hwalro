@@ -20,6 +20,7 @@ WALL_TOTAL_WIDTH_METERS = 0.02
 EXIT_SEED_MAX_DISTANCE_METERS = GRID_STEP_METERS * math.sqrt(2.0)
 HAZARD_BOUNDARY_MULTIPLIER = 5.0
 HAZARD_CENTER_MULTIPLIER = 500.0
+_CONNECTOR_VISIBILITY_BATCH_SIZE = 4096
 _EPSILON = 1e-9
 _MOVES = (
     (-1, -1),
@@ -312,21 +313,36 @@ class GridRouter:
         if not reachable.any():
             raise ValueError("no selected exit is reachable")
         local = self._local_nodes(point, reachable)
-        if not local:
-            candidates = np.flatnonzero(reachable)
-            squared = (self._x[candidates] - point[0]) ** 2 + (self._y[candidates] - point[1]) ** 2
-            count = min(64, candidates.size)
-            local = candidates[np.argpartition(squared, count - 1)[:count]].tolist()
-
         best: tuple[float, int, int] | None = None
-        for node in sorted(local):
-            node_point = self._point(node)
-            if not self.can_connect(point, node_point):
+        checked: set[int] = set()
+        candidates: np.ndarray | None = None
+        squared: np.ndarray | None = None
+        while best is None:
+            for node in sorted(local):
+                if node in checked:
+                    continue
+                checked.add(node)
+                node_point = self._point(node)
+                if not self.can_connect(point, node_point):
+                    continue
+                total = self._edge_cost(point, node_point) + float(self.distance[node])
+                candidate = (total, int(self.exit_label[node]), node)
+                if best is None or candidate < best:
+                    best = candidate
+            if best is not None:
+                break
+            if candidates is None:
+                candidates = np.flatnonzero(reachable)
+                squared = (self._x[candidates] - point[0]) ** 2 + (
+                    self._y[candidates] - point[1]
+                ) ** 2
+                count = min(64, candidates.size)
+                local = candidates[np.argpartition(squared, count - 1)[:count]].tolist()
                 continue
-            total = self._edge_cost(point, node_point) + float(self.distance[node])
-            candidate = (total, int(self.exit_label[node]), node)
-            if best is None or candidate < best:
-                best = candidate
+            # A safe corridor can be narrower than one grid cell. Search farther
+            # connectors in bounded-memory batches only after the old 64-node path fails.
+            best = self._expanded_connector(point, candidates, squared)
+            break
         if best is None:
             raise ValueError(f"agent at {point} cannot connect to the routing grid")
 
@@ -546,6 +562,60 @@ class GridRouter:
                 ):
                     nodes.append(node)
         return nodes
+
+    def _expanded_connector(
+        self, point: Point, candidates: np.ndarray, squared: np.ndarray
+    ) -> tuple[float, int, int] | None:
+        np.sqrt(squared, out=squared)
+        squared += self.distance[candidates]
+        # candidates are already in node order, so a stable sort also fixes tie order.
+        order = np.argsort(squared, kind="stable")
+        best: tuple[float, int, int] | None = None
+        for offset in range(0, order.size, _CONNECTOR_VISIBILITY_BATCH_SIZE):
+            if best is not None and squared[order[offset]] > best[0] + _EPSILON:
+                break
+            batch_order = order[
+                offset : offset + _CONNECTOR_VISIBILITY_BATCH_SIZE
+            ]
+            batch = candidates[batch_order]
+            batch_lower_bounds = squared[batch_order]
+            coordinates = np.empty((batch.size, 2, 2), dtype=float)
+            coordinates[:, 0, :] = point
+            coordinates[:, 1, 0] = self._x[batch]
+            coordinates[:, 1, 1] = self._y[batch]
+            clear = np.asarray(
+                covers(self.walkable, linestrings(coordinates)), dtype=bool
+            )
+            for position in np.flatnonzero(clear):
+                if best is not None and batch_lower_bounds[position] > best[0] + _EPSILON:
+                    break
+                node = int(batch[position])
+                total = self._expanded_connector_cost(
+                    point, self._point(node)
+                ) + float(self.distance[node])
+                candidate = (total, int(self.exit_label[node]), node)
+                if best is None or candidate < best:
+                    best = candidate
+        return best
+
+    def _expanded_connector_cost(self, start: Point, end: Point) -> float:
+        length = math.dist(start, end)
+        if not self.hazards:
+            return length
+        if length <= self.step:
+            return self._edge_cost(start, end)
+        segment_count = math.ceil(length / self.step)
+        total = 0.0
+        previous = start
+        for index in range(1, segment_count + 1):
+            ratio = index / segment_count
+            current = (
+                start[0] + (end[0] - start[0]) * ratio,
+                start[1] + (end[1] - start[1]) * ratio,
+            )
+            total += self._edge_cost(previous, current)
+            previous = current
+        return total
 
     def _point(self, flat_index: int) -> Point:
         return (float(self._x[flat_index]), float(self._y[flat_index]))
