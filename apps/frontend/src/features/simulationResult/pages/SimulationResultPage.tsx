@@ -143,7 +143,7 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
           aria-pressed={riskDrawingMode}
           onClick={() => setRiskDrawingMode((value) => !value)}
         >
-          {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 구역 설정'}
+          {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 항목 설정'}
         </button>
       </div>
 
