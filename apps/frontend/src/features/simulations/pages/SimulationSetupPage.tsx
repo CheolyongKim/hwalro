@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import type { SimulationTool } from '../components/SimulationCanvas';
@@ -21,12 +21,41 @@ interface PlacementSnapshot {
 type LoadState = 'loading' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+interface InfoTooltipProps {
+  id: string;
+  label: string;
+  align?: 'left' | 'right';
+  children: ReactNode;
+}
+
 const TOOL_LABELS: Array<{ value: SimulationTool; label: string }> = [
   { value: 'select', label: '선택' },
   { value: 'spray', label: '에이전트 배치' },
   { value: 'erase', label: '지우개' },
   { value: 'hazard', label: '위험구역' },
 ];
+
+function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label={label}
+        aria-describedby={id}
+        className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px] leading-none outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        i
+      </button>
+      <span
+        id={id}
+        role="tooltip"
+        className={`pointer-events-none invisible absolute top-full z-30 mt-2 w-72 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${align === 'right' ? 'right-0' : 'left-0'}`}
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
 
 function sameSnapshot(a: PlacementSnapshot, b: PlacementSnapshot): boolean {
   return a.agents === b.agents && a.hazards === b.hazards;
@@ -270,10 +299,10 @@ function SimulationSetupPage() {
 
   const validateOptions = (): string | null => {
     if (reactionTime < 0.1 || reactionTime > 2) {
-      return '초기 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
+      return '속도 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
     }
     if (walkingSpeed <= 0 || walkingSpeed > 3) {
-      return '평균 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.';
+      return '희망 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.';
     }
     return null;
   };
@@ -521,28 +550,14 @@ function SimulationSetupPage() {
               <div className="text-xs font-bold text-text-muted">
                 <div className="flex items-center gap-1">
                   <label htmlFor="walking-speed">희망 이동속도 (m/s)</label>
-                  <span className="group relative inline-flex">
-                    <button
-                      type="button"
-                      aria-label="희망 이동속도 안내"
-                      aria-describedby="walking-speed-help"
-                      className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px] leading-none outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                    >
-                      i
-                    </button>
-                    <span
-                      id="walking-speed-help"
-                      role="tooltip"
-                      className="pointer-events-none invisible absolute left-0 top-full z-30 mt-2 w-72 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-                    >
-                      에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표
-                      평균은 약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제
-                      속도는 혼잡도와 상호작용에 따라 달라집니다.
-                      <span className="mt-1 block text-white/70">
-                        출처: Weidmann (1993), ETH Zürich
-                      </span>
+                  <InfoTooltip id="walking-speed-help" label="희망 이동속도 안내">
+                    에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표 평균은
+                    약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제 속도는
+                    혼잡도와 상호작용에 따라 달라집니다.
+                    <span className="mt-1 block text-white/70">
+                      출처: Weidmann (1993), ETH Zürich
                     </span>
-                  </span>
+                  </InfoTooltip>
                 </div>
                 <input
                   id="walking-speed"
@@ -556,9 +571,23 @@ function SimulationSetupPage() {
                   className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
                 />
               </div>
-              <label className="text-xs font-bold text-text-muted">
-                초기 반응시간 (초)
+              <div className="text-xs font-bold text-text-muted">
+                <div className="flex items-center gap-1">
+                  <label htmlFor="reaction-time">속도 반응시간 (초)</label>
+                  <InfoTooltip id="reaction-time-help" label="속도 반응시간 안내" align="right">
+                    현재 속도가 희망속도와 방향에 적응하는 시간상수 τ입니다. 값이 작을수록 속도가 더
+                    빠르게 변하며, 출발 전 대기시간은 아닙니다.
+                    <span className="my-1 block font-mono text-[10px] text-white">
+                      Fdrv = (희망속도 벡터 - 현재속도 벡터) / τ
+                    </span>
+                    JuPedSim SFM 기본값은 0.5초이고, 시스템 허용 범위는 0.1~2.0초입니다.
+                    <span className="mt-1 block text-white/70">
+                      출처: JuPedSim SFM, Helbing et al. (2000)
+                    </span>
+                  </InfoTooltip>
+                </div>
                 <input
+                  id="reaction-time"
                   type="number"
                   min={0.1}
                   max={2}
@@ -568,7 +597,7 @@ function SimulationSetupPage() {
                   disabled={!editable}
                   className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
                 />
-              </label>
+              </div>
             </div>
           </section>
 

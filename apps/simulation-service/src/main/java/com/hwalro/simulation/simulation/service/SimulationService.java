@@ -308,7 +308,7 @@ public class SimulationService {
             throw new IllegalArgumentException("보행 속도는 0보다 크고 3m/s 이하여야 합니다.");
         }
         if (reactionTime.compareTo(MIN_REACTION_TIME) < 0 || reactionTime.compareTo(MAX_REACTION_TIME) > 0) {
-            throw new IllegalArgumentException("초기 반응시간은 0.1초 이상 2.0초 이하여야 합니다.");
+            throw new IllegalArgumentException("속도 반응시간은 0.1초 이상 2.0초 이하여야 합니다.");
         }
     }
 
