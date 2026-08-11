@@ -1,11 +1,15 @@
 package com.hwalro.simulation.simulation.engine;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationFailureDetailResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +29,10 @@ public class SimulationEngineRunner {
     private static final Logger log = LoggerFactory.getLogger(SimulationEngineRunner.class);
     private static final Duration READINESS_TIMEOUT = Duration.ofSeconds(15);
     private static final int MAX_ENGINE_MESSAGE_LENGTH = 1000;
+    private static final long MAX_FAILURE_DETAIL_BYTES = 4096;
+    private static final int ROUTING_ERROR_EXIT_CODE = 3;
+    private static final String ROUTING_ERROR_CODE = "AGENT_ROUTE_UNREACHABLE";
+    private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
 
     private final ObjectMapper objectMapper;
     private final String pythonCommand;
@@ -113,8 +121,23 @@ public class SimulationEngineRunner {
             }
             String diagnostic = output.await();
             if (process.exitValue() != 0) {
-                log.warn("Simulation {} engine process failed: {}", simulationId, diagnostic);
-                throw new EngineRunException("ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.", false);
+                SimulationFailureDetailResponse failureDetail = null;
+                if (process.exitValue() == ROUTING_ERROR_EXIT_CODE) {
+                    failureDetail = readFailureDetail(outputDirectory, setup);
+                    if (failureDetail == null) {
+                        log.warn("Simulation {} engine returned an invalid routing failure detail", simulationId);
+                    } else {
+                        log.warn(
+                                "Simulation {} engine routing failure code={} agentId={} recommendationPresent={}",
+                                simulationId,
+                                failureDetail.code(),
+                                failureDetail.agentId(),
+                                failureDetail.recommendedPosition() != null);
+                    }
+                } else {
+                    log.warn("Simulation {} engine process failed: {}", simulationId, diagnostic);
+                }
+                throw new EngineRunException("ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.", false, failureDetail);
             }
 
             EngineResult result = objectMapper.readValue(
@@ -174,6 +197,77 @@ public class SimulationEngineRunner {
         if (result.timelineChunkCount() == null || result.heatmapChunkCount() == null) {
             throw new EngineRunException("ENGINE_ERROR: 엔진 결과의 청크 개수가 누락되었습니다.", false);
         }
+    }
+
+    SimulationFailureDetailResponse readFailureDetail(Path outputDirectory, SimulationSetupResponse setup) {
+        try {
+            Path detailPath = outputDirectory.resolve("error.json");
+            if (!Files.isRegularFile(detailPath)
+                    || Files.size(detailPath) < 1
+                    || Files.size(detailPath) > MAX_FAILURE_DETAIL_BYTES) {
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(detailPath.toFile());
+            if (root == null
+                    || !root.isObject()
+                    || root.size() != 4
+                    || !root.has("schemaVersion")
+                    || !root.has("code")
+                    || !root.has("agentId")
+                    || !root.has("recommendedPosition")) {
+                return null;
+            }
+            JsonNode schemaVersion = root.get("schemaVersion");
+            JsonNode code = root.get("code");
+            JsonNode agentIdNode = root.get("agentId");
+            if (!schemaVersion.isIntegralNumber()
+                    || !schemaVersion.canConvertToInt()
+                    || schemaVersion.intValue() != 1
+                    || !code.isTextual()
+                    || !ROUTING_ERROR_CODE.equals(code.textValue())
+                    || !agentIdNode.isIntegralNumber()
+                    || !agentIdNode.canConvertToInt()) {
+                return null;
+            }
+            int agentId = agentIdNode.intValue();
+            if (agentId < 1 || agentId > setup.agentPositions().size()) {
+                return null;
+            }
+            JsonNode recommendedPosition = root.get("recommendedPosition");
+            PointDto recommendation = recommendedPosition.isNull() ? null : readPoint(recommendedPosition);
+            if (!recommendedPosition.isNull()
+                    && (recommendation == null
+                            || recommendation.x().signum() < 0
+                            || recommendation.y().signum() < 0
+                            || recommendation.x().compareTo(setup.drawing().width()) > 0
+                            || recommendation.y().compareTo(setup.drawing().height()) > 0)) {
+                return null;
+            }
+            return new SimulationFailureDetailResponse(
+                    ROUTING_ERROR_CODE, (long) agentId, setup.agentPositions().get(agentId - 1), recommendation);
+        } catch (IOException | RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private static PointDto readPoint(JsonNode node) {
+        if (!node.isObject() || node.size() != 2 || !node.has("x") || !node.has("y")) {
+            return null;
+        }
+        JsonNode xNode = node.get("x");
+        JsonNode yNode = node.get("y");
+        if (!xNode.isNumber()
+                || !yNode.isNumber()
+                || !Double.isFinite(xNode.doubleValue())
+                || !Double.isFinite(yNode.doubleValue())) {
+            return null;
+        }
+        BigDecimal x = xNode.decimalValue();
+        BigDecimal y = yNode.decimalValue();
+        if (x.abs().compareTo(MAX_COORDINATE) > 0 || y.abs().compareTo(MAX_COORDINATE) > 0) {
+            return null;
+        }
+        return new PointDto(x, y);
     }
 
     private List<HeatmapChunk> readHeatmaps(Path outputDirectory, int count) throws IOException {
@@ -324,19 +418,33 @@ public class SimulationEngineRunner {
 
     public static class EngineRunException extends Exception {
         private final boolean timeout;
+        private final SimulationFailureDetailResponse failureDetail;
 
         public EngineRunException(String message, boolean timeout) {
-            super(message);
-            this.timeout = timeout;
+            this(message, timeout, null, null);
         }
 
         public EngineRunException(String message, boolean timeout, Throwable cause) {
+            this(message, timeout, null, cause);
+        }
+
+        public EngineRunException(String message, boolean timeout, SimulationFailureDetailResponse failureDetail) {
+            this(message, timeout, failureDetail, null);
+        }
+
+        private EngineRunException(
+                String message, boolean timeout, SimulationFailureDetailResponse failureDetail, Throwable cause) {
             super(message, cause);
             this.timeout = timeout;
+            this.failureDetail = failureDetail;
         }
 
         public boolean isTimeout() {
             return timeout;
+        }
+
+        public SimulationFailureDetailResponse failureDetail() {
+            return failureDetail;
         }
     }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import type { SimulationTool } from '../components/SimulationCanvas';
 import {
@@ -14,6 +14,7 @@ import {
   addSprayedAgents,
   createUniformPlacement,
   eraseAgents,
+  parseHighlightedAgentId,
 } from '../utils/placement';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
@@ -71,6 +72,17 @@ function SimulationSetupPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
   const recordLastActivity = useRecordLastActivity();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedHighlightRef = useRef({
+    simulationId,
+    value: searchParams.get('highlightAgent'),
+  });
+  if (requestedHighlightRef.current.simulationId !== simulationId) {
+    requestedHighlightRef.current = {
+      simulationId,
+      value: searchParams.get('highlightAgent'),
+    };
+  }
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [executing, setExecuting] = useState(false);
@@ -79,6 +91,7 @@ function SimulationSetupPage() {
   const [hazards, setHazards] = useState<EditableHazardZone[]>([]);
   const [selectedExitIds, setSelectedExitIds] = useState<number[]>([]);
   const [highlightedExitId, setHighlightedExitId] = useState<number | null>(null);
+  const [highlightedAgentId, setHighlightedAgentId] = useState<number | null>(null);
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
   const [reactionTime, setReactionTime] = useState(0.5);
   const [tool, setTool] = useState<SimulationTool>('spray');
@@ -96,9 +109,11 @@ function SimulationSetupPage() {
   const hazardSequenceRef = useRef(0);
 
   const replacePlacement = useCallback((next: PlacementSnapshot) => {
+    const agentsChanged = placementRef.current.agents !== next.agents;
     placementRef.current = next;
     setAgents(next.agents);
     setHazards(next.hazards);
+    if (agentsChanged) setHighlightedAgentId(null);
   }, []);
 
   const commitPlacement = useCallback(
@@ -114,7 +129,7 @@ function SimulationSetupPage() {
   );
 
   const loadSetup = useCallback(
-    (data: SimulationSetup) => {
+    (data: SimulationSetup, highlightAgent: string | null = null) => {
       const loadedHazards = data.hazardZones.map((hazard, index) => ({
         ...hazard,
         clientId: `hazard-${hazard.id ?? index}-${hazardSequenceRef.current++}`,
@@ -131,6 +146,7 @@ function SimulationSetupPage() {
       gestureOriginRef.current = null;
       setHistoryRevision((revision) => revision + 1);
       replacePlacement({ agents: data.agentPositions, hazards: loadedHazards });
+      setHighlightedAgentId(parseHighlightedAgentId(highlightAgent, data.agentPositions.length));
     },
     [replacePlacement],
   );
@@ -148,7 +164,7 @@ function SimulationSetupPage() {
       .getSetup(id)
       .then((data) => {
         if (!cancelled) {
-          loadSetup(data);
+          loadSetup(data, requestedHighlightRef.current.value);
           setLoadState('ready');
         }
       })
@@ -162,6 +178,13 @@ function SimulationSetupPage() {
       cancelled = true;
     };
   }, [loadSetup, simulationId]);
+
+  useEffect(() => {
+    if (loadState !== 'ready' || !searchParams.has('highlightAgent')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('highlightAgent');
+    setSearchParams(next, { replace: true });
+  }, [loadState, searchParams, setSearchParams]);
 
   const undo = useCallback(() => {
     const previous = pastRef.current[pastRef.current.length - 1];
@@ -358,7 +381,7 @@ function SimulationSetupPage() {
         hazardZones: hazards.map(({ centerX, centerY, radius }) => ({ centerX, centerY, radius })),
         selectedExitIds,
       });
-      loadSetup(saved);
+      loadSetup(saved, highlightedAgentId?.toString() ?? null);
       recordLastActivity('SIMULATION_SETUP', saved.simulationId);
       return saved;
     } catch (error) {
@@ -486,6 +509,7 @@ function SimulationSetupPage() {
             selectedHazardId={selectedHazardId}
             selectedExitIds={selectedExitIds}
             highlightedExitId={highlightedExitId}
+            highlightedAgentId={highlightedAgentId}
             onSpray={applySpray}
             onErase={applyErase}
             onCreateHazard={createHazard}

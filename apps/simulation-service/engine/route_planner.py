@@ -8,11 +8,18 @@ import math
 from typing import Any, Callable, Iterable, Sequence
 
 import numpy as np
-from shapely import contains_xy, covers, linestrings, points
+from shapely import (
+    contains_xy,
+    covers,
+    distance as geometry_distance,
+    linestrings,
+    points,
+)
 from shapely.affinity import rotate
 from shapely.geometry import LineString, Point as ShapelyPoint, Polygon, box
 from shapely.ops import unary_union
 from shapely.prepared import prep
+from shapely.strtree import STRtree
 
 
 GRID_STEP_METERS = 0.25
@@ -58,6 +65,10 @@ class Route:
     exit_start: Point
     exit_end: Point
     total_cost: float
+
+
+class AgentRouteUnreachableError(ValueError):
+    """Raised only when an otherwise valid agent cannot connect to the route grid."""
 
 
 def hazard_multiplier(point: Point, hazards: Iterable[Hazard]) -> float:
@@ -240,6 +251,17 @@ def parse_exits(drawing: dict[str, Any], selected_exit_ids: Sequence[Any]) -> tu
     return tuple(exits)
 
 
+def parse_exit_segments(drawing: dict[str, Any]) -> tuple[tuple[Point, Point], ...]:
+    """Parse every physical exit segment, including exits not selected for routing."""
+    segments = []
+    for index, item in enumerate(drawing.get("exits", [])):
+        start, end = _line_points(item, f"drawing.exits[{index}]")
+        if start == end:
+            raise ValueError(f"drawing.exits[{index}] must have positive length")
+        segments.append((start, end))
+    return tuple(segments)
+
+
 class GridRouter:
     """One global reverse-Dijkstra field; each planned route is immutable."""
 
@@ -344,7 +366,7 @@ class GridRouter:
             best = self._expanded_connector(point, candidates, squared)
             break
         if best is None:
-            raise ValueError(f"agent at {point} cannot connect to the routing grid")
+            raise AgentRouteUnreachableError("agent cannot connect to the routing grid")
 
         total_cost, exit_label, node = best
         route_node = node
@@ -372,6 +394,119 @@ class GridRouter:
             exit_end=exit_end,
             total_cost=total_cost,
         )
+
+    def recommended_position(
+        self,
+        start: Point,
+        other_agents: Sequence[Point],
+        exit_segments: Sequence[tuple[Point, Point]],
+        agent_spacing: float,
+    ) -> Point | None:
+        """Return the deterministic nearest safe reachable grid point, if one exists."""
+        if not math.isfinite(agent_spacing) or agent_spacing <= 0:
+            raise ValueError("agent spacing must be positive")
+
+        exit_values = np.asarray(exit_segments, dtype=float)
+        exit_geometries = (
+            linestrings(exit_values) if exit_values.size else np.empty(0, dtype=object)
+        )
+        exit_tree = STRtree(exit_geometries) if exit_geometries.size else None
+        agent_values = np.asarray(other_agents, dtype=float)
+        agent_geometries = (
+            points(agent_values[:, 0], agent_values[:, 1])
+            if agent_values.size
+            else np.empty(0, dtype=object)
+        )
+        agent_tree = STRtree(agent_geometries) if agent_geometries.size else None
+        try:
+            numeric_exit_ids = [
+                exit_.id
+                for exit_ in self.exits
+                if not isinstance(exit_.id, bool) and isinstance(exit_.id, (int, float))
+            ]
+            if len(numeric_exit_ids) != len(self.exits):
+                raise TypeError
+            numeric_order = {
+                exit_id: rank for rank, exit_id in enumerate(sorted(set(numeric_exit_ids)))
+            }
+            exit_keys = np.asarray(
+                [numeric_order[exit_id] for exit_id in numeric_exit_ids], dtype=np.int64
+            )
+        except (TypeError, ValueError):
+            exit_keys = np.arange(len(self.exits), dtype=np.int64)
+
+        start_x, start_y = float(start[0]), float(start[1])
+        reachable = self.valid & np.isfinite(self.distance)
+        best: tuple[float, float, int, int] | None = None
+        # ponytail: keep this rare failure-path scan uncached; share trees/masks only
+        # if production evidence shows multiple route failures per request are common.
+        for offset in range(0, reachable.size, _CONNECTOR_VISIBILITY_BATCH_SIZE):
+            end = min(offset + _CONNECTOR_VISIBILITY_BATCH_SIZE, reachable.size)
+            nodes = np.flatnonzero(reachable[offset:end]) + offset
+            if not nodes.size:
+                continue
+            candidate_points = points(self._x[nodes], self._y[nodes])
+            allowed = np.ones(nodes.size, dtype=bool)
+
+            if exit_tree is not None:
+                pairs = exit_tree.query(
+                    candidate_points,
+                    predicate="dwithin",
+                    distance=self.exit_clearance,
+                )
+                if pairs.shape[1]:
+                    too_close = np.asarray(
+                        geometry_distance(
+                            candidate_points[pairs[0]], exit_geometries[pairs[1]]
+                        )
+                        < self.exit_clearance,
+                        dtype=bool,
+                    )
+                    allowed[pairs[0][too_close]] = False
+
+            if agent_tree is not None:
+                pairs = agent_tree.query(
+                    candidate_points,
+                    predicate="dwithin",
+                    distance=agent_spacing,
+                )
+                if pairs.shape[1]:
+                    too_close = np.asarray(
+                        geometry_distance(
+                            candidate_points[pairs[0]], agent_geometries[pairs[1]]
+                        )
+                        < agent_spacing,
+                        dtype=bool,
+                    )
+                    allowed[pairs[0][too_close]] = False
+
+            nodes = nodes[allowed]
+            if not nodes.size:
+                continue
+            squared = (self._x[nodes] - start_x) ** 2 + (self._y[nodes] - start_y) ** 2
+            node_exit_keys = exit_keys[self.exit_label[nodes]]
+            order = np.lexsort(
+                (nodes, node_exit_keys, self.distance[nodes], squared)
+            )
+            position = int(order[0])
+            node = int(nodes[position])
+            candidate = (
+                float(squared[position]),
+                float(self.distance[node]),
+                int(exit_keys[int(self.exit_label[node])]),
+                node,
+            )
+            if best is None or candidate < best:
+                best = candidate
+
+        if best is None:
+            return None
+        recommendation = self._point(best[3])
+        try:
+            self.plan(recommendation)
+        except AgentRouteUnreachableError:
+            return None
+        return recommendation
 
     def _build_cost_field(self) -> None:
         heap: list[tuple[float, int, int]] = []

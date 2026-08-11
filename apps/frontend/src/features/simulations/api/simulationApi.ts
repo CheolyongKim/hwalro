@@ -57,6 +57,13 @@ export const simulationApi = {
       .get<SimulationExecution>(`/api/simulations/${simulationId}/execution`)
       .then((response) => response.data),
 
+  createPlacementAdjustmentDraft: (simulationId: number, applyRecommendation: boolean) =>
+    apiClient
+      .post<SimulationSetup>(`/api/simulations/${simulationId}/placement-adjustment-draft`, {
+        applyRecommendation,
+      })
+      .then((response) => response.data),
+
   getTimelineChunk: (simulationId: number, sequence: number) =>
     apiClient
       .get<SimulationTimelineChunk>(`/api/simulations/${simulationId}/timeline/${sequence}`)

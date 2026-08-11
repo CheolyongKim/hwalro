@@ -24,6 +24,8 @@ interface SimulationCanvasProps {
   selectedHazardId: string | null;
   selectedExitIds?: readonly number[];
   highlightedExitId?: number | null;
+  highlightedAgentId?: number | null;
+  recommendedPosition?: SimulationPoint | null;
   onSpray: (point: SimulationPoint) => void;
   onErase: (point: SimulationPoint) => void;
   onCreateHazard: (point: SimulationPoint) => void;
@@ -51,6 +53,8 @@ export function SimulationCanvas({
   selectedHazardId,
   selectedExitIds = [],
   highlightedExitId = null,
+  highlightedAgentId = null,
+  recommendedPosition = null,
   onSpray,
   onErase,
   onCreateHazard,
@@ -255,6 +259,8 @@ export function SimulationCanvas({
   const viewW = size.w > 0 ? size.w / k : 1;
   const viewH = size.h > 0 ? size.h / k : 1;
   const showBrush = cursor && (tool === 'spray' || tool === 'erase');
+  const highlightedAgent =
+    highlightedAgentId !== null ? (agents[highlightedAgentId - 1] ?? null) : null;
   const agentShape = useMemo(
     () => (
       <Shape
@@ -433,7 +439,75 @@ export function SimulationCanvas({
               />
             )}
           </Layer>
+          {highlightedAgent && (
+            <Layer x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
+              {recommendedPosition && (
+                <>
+                  <Line
+                    points={[
+                      highlightedAgent.x,
+                      highlightedAgent.y,
+                      recommendedPosition.x,
+                      recommendedPosition.y,
+                    ]}
+                    stroke="#2563eb"
+                    strokeWidth={s(2)}
+                    dash={[s(6), s(4)]}
+                  />
+                  <Circle
+                    x={recommendedPosition.x}
+                    y={recommendedPosition.y}
+                    radius={AGENT_RADIUS + s(7)}
+                    stroke="#2563eb"
+                    strokeWidth={s(2)}
+                    dash={[s(6), s(4)]}
+                  />
+                  <KonvaText
+                    x={recommendedPosition.x + s(10)}
+                    y={recommendedPosition.y - s(18)}
+                    text="추천"
+                    fontSize={s(12)}
+                    fontStyle="bold"
+                    fill="#1d4ed8"
+                  />
+                </>
+              )}
+              <Circle
+                x={highlightedAgent.x}
+                y={highlightedAgent.y}
+                radius={AGENT_RADIUS + s(5)}
+                stroke="#d97706"
+                strokeWidth={s(2)}
+                dash={[s(5), s(3)]}
+              />
+              <Circle
+                x={highlightedAgent.x}
+                y={highlightedAgent.y}
+                radius={AGENT_RADIUS + s(11)}
+                stroke="#d97706"
+                strokeWidth={s(2)}
+                dash={[s(5), s(3)]}
+              />
+              <KonvaText
+                x={highlightedAgent.x + s(12)}
+                y={highlightedAgent.y - s(20)}
+                text={`! #${highlightedAgentId}`}
+                fontSize={s(13)}
+                fontStyle="bold"
+                fill="#b45309"
+              />
+            </Layer>
+          )}
         </Stage>
+      )}
+      {highlightedAgent && (
+        <p className="sr-only" aria-live="polite">
+          에이전트 #{highlightedAgentId}, 현재 위치 x {highlightedAgent.x.toFixed(2)}미터, y{' '}
+          {highlightedAgent.y.toFixed(2)}미터
+          {recommendedPosition
+            ? `, 추천 위치 x ${recommendedPosition.x.toFixed(2)}미터, y ${recommendedPosition.y.toFixed(2)}미터, 이동 거리 ${Math.hypot(recommendedPosition.x - highlightedAgent.x, recommendedPosition.y - highlightedAgent.y).toFixed(2)}미터`
+            : ''}
+        </p>
       )}
       <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-line bg-white/90 px-3 py-2 text-xs font-bold text-text-muted shadow-sm">
         {Math.round(camera.zoom * 100)}%
