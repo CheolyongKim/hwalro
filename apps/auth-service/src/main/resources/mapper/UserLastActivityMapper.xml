@@ -12,13 +12,14 @@
         WHERE user_id = #{userId}
     </select>
 
-    <!-- 사용자당 1행만 유지한다. PK(user_id) 충돌 시 마지막 작업으로 덮어쓴다. -->
+    <!-- 사용자당 1행만 유지한다. PK(user_id) 충돌 시 마지막 작업으로 덮어쓴다.
+         VALUES() 함수는 MySQL 8.0.20부터 지원 중단되었으므로 행 별칭(new)을 사용한다. -->
     <insert id="upsert">
         INSERT INTO user_last_activities (user_id, activity_type, resource_id, occurred_at)
-        VALUES (#{userId}, #{activityType}, #{resourceId}, CURRENT_TIMESTAMP(6))
+        VALUES (#{userId}, #{activityType}, #{resourceId}, CURRENT_TIMESTAMP(6)) AS new
         ON DUPLICATE KEY UPDATE
-            activity_type = VALUES(activity_type),
-            resource_id   = VALUES(resource_id),
+            activity_type = new.activity_type,
+            resource_id   = new.resource_id,
             occurred_at   = CURRENT_TIMESTAMP(6)
     </insert>
 

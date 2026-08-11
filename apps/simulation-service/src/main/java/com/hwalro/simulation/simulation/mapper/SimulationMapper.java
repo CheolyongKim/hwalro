@@ -29,7 +29,13 @@ public interface SimulationMapper {
 
     List<Simulation> findSimulationMonitor(@Param("createdBy") Long createdBy);
 
+    Simulation findSimulationOverviewById(@Param("id") Long id);
+
     long countSimulationOverview(@Param("createdBy") Long createdBy);
+
+    long countInProgress(@Param("createdBy") Long createdBy);
+
+    long countCompletedThisWeek(@Param("createdBy") Long createdBy);
 
     SimulationOption findSimulationOption(@Param("simulationId") Long simulationId);
 

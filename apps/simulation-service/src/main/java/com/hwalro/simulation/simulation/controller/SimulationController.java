@@ -11,6 +11,7 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPag
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationWorkSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineChunkResponse;
 import com.hwalro.simulation.simulation.service.SimulationExecutionService;
 import com.hwalro.simulation.simulation.service.SimulationService;
@@ -65,6 +66,20 @@ public class SimulationController {
     public List<SimulationOverviewResponse> monitor(
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationService.listMonitor(user);
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "현재 사용자의 시뮬레이션 업무 현황 집계 조회")
+    public SimulationWorkSummaryResponse summary(
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.getWorkSummary(user);
+    }
+
+    @GetMapping("/{id}/overview")
+    @Operation(summary = "시뮬레이션 단건 개요 조회")
+    public SimulationOverviewResponse overviewById(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.getOverview(id, user);
     }
 
     @PostMapping("/drafts")

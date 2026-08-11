@@ -68,6 +68,8 @@ public final class SimulationDtos {
     public record SimulationOverviewPageResponse(
             int totalCount, int page, int size, boolean hasNext, List<SimulationOverviewResponse> items) {}
 
+    public record SimulationWorkSummaryResponse(int inProgressCount, int completedThisWeekCount) {}
+
     public record SimulationSetupResponse(
             Long simulationId,
             Long layoutVersionId,
