@@ -54,9 +54,9 @@ export function InlineTextInput({
     return null;
   }
 
-  const longestLine = initialText.split('\n').reduce((longest, line) =>
-    line.length > longest.length ? line : longest,
-  );
+  const longestLine = initialText
+    .split('\n')
+    .reduce((longest, line) => (line.length > longest.length ? line : longest));
   const width = Math.max(80, estimateTextWidthPx(longestLine, TEXT_FONT_PX * zoom));
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

@@ -2,7 +2,12 @@ import { memo, useEffect, useState } from 'react';
 import { Circle, Group, Image as KonvaImage, Line, Rect, Text as KonvaText } from 'react-konva';
 import type { BackgroundImage, Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
 import { PX_PER_METER, rectCenter } from '../utils/geometry';
-import { MIN_TEXT_SCREEN_PX, ROTATE_HANDLE_OFFSET_PX, TEXT_FONT_PX, textWorldBox } from '../utils/hitTest';
+import {
+  MIN_TEXT_SCREEN_PX,
+  ROTATE_HANDLE_OFFSET_PX,
+  TEXT_FONT_PX,
+  textWorldBox,
+} from '../utils/hitTest';
 import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_UI } from '../utils/colors';
 
 export const MINOR_STEP = 50;

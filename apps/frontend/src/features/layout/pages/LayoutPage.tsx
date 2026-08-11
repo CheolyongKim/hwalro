@@ -260,7 +260,7 @@ function LayoutPage() {
   const draftInitialText =
     draftTextId === null
       ? ''
-      : state.doc.layoutTexts.find((t) => t.id === draftTextId)?.text ?? '';
+      : (state.doc.layoutTexts.find((t) => t.id === draftTextId)?.text ?? '');
 
   if (loadStatus === 'loading') {
     return (
