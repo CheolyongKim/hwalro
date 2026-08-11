@@ -5,12 +5,14 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.HeatmapChunkResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PlacementAdjustmentDraftRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationExecutionResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPageResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationWorkSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TimelineChunkResponse;
 import com.hwalro.simulation.simulation.service.SimulationExecutionService;
 import com.hwalro.simulation.simulation.service.SimulationService;
@@ -67,6 +69,20 @@ public class SimulationController {
         return simulationService.listMonitor(user);
     }
 
+    @GetMapping("/summary")
+    @Operation(summary = "현재 사용자의 시뮬레이션 업무 현황 집계 조회")
+    public SimulationWorkSummaryResponse summary(
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.getWorkSummary(user);
+    }
+
+    @GetMapping("/{id}/overview")
+    @Operation(summary = "시뮬레이션 단건 개요 조회")
+    public SimulationOverviewResponse overviewById(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.getOverview(id, user);
+    }
+
     @PostMapping("/drafts")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "시뮬레이션 DRAFT 생성")
@@ -74,6 +90,16 @@ public class SimulationController {
             @RequestBody DraftCreateRequest request,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationService.createDraft(request, user);
+    }
+
+    @PostMapping("/{failedId}/placement-adjustment-draft")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "실패한 시뮬레이션에서 배치 조정 초안 생성")
+    public SimulationSetupResponse createPlacementAdjustmentDraft(
+            @PathVariable Long failedId,
+            @RequestBody PlacementAdjustmentDraftRequest request,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.createPlacementAdjustmentDraft(failedId, request, user);
     }
 
     @GetMapping("/{id}/setup")
@@ -98,6 +124,13 @@ public class SimulationController {
     public SimulationExecutionResponse execute(
             @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationExecutionService.execute(id, user);
+    }
+
+    @PostMapping("/{id}/cancel")
+    @Operation(summary = "시뮬레이션 실행 취소")
+    public SimulationExecutionResponse cancel(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationExecutionService.cancel(id, user);
     }
 
     @GetMapping("/{id}/execution")

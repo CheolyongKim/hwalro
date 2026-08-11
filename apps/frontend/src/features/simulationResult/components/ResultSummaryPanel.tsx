@@ -99,12 +99,12 @@ export function ResultSummaryPanel({
       )}
       {riskZones.length > 0 && (
         <section className="risk-zone-summary" aria-labelledby="risk-zone-summary-title">
-          <h2 id="risk-zone-summary-title">위험 예상 구역</h2>
+          <h2 id="risk-zone-summary-title">위험 예상 항목</h2>
           <div className="risk-zone-list">
             {riskZones.map((zone) => (
               <div className="risk-zone-summary-card" key={zone.id}>
                 <strong>{zone.name}</strong>
-                <span>사용자 지정 위험 예상 구역</span>
+                <span>사용자 지정 위험 예상 항목</span>
               </div>
             ))}
           </div>

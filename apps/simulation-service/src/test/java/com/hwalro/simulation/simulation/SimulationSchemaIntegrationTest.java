@@ -3,13 +3,23 @@ package com.hwalro.simulation.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.simulation.simulation.domain.Simulation;
+import com.hwalro.simulation.simulation.mapper.SimulationMapper;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mybatis.spring.SqlSessionFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.testcontainers.containers.MySQLContainer;
@@ -22,10 +32,31 @@ class SimulationSchemaIntegrationTest {
     private static final MySQLContainer<?> MYSQL =
             new MySQLContainer<>("mysql:8.4").withDatabaseName("hwalro_simulation");
 
+    private static SqlSessionFactory sqlSessionFactory;
+
     @BeforeAll
-    static void createSchema() throws SQLException {
+    static void createSchema() throws Exception {
         try (Connection connection = connection()) {
             ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/schema.sql"));
+        }
+
+        Configuration configuration = new Configuration();
+        configuration.setMapUnderscoreToCamelCase(true);
+        SqlSessionFactoryBean factory = new SqlSessionFactoryBean();
+        factory.setDataSource(new UnpooledDataSource(
+                MYSQL.getDriverClassName(), MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()));
+        factory.setConfiguration(configuration);
+        factory.setMapperLocations(new ClassPathResource("mapper/SimulationMapper.xml"));
+        sqlSessionFactory = factory.getObject();
+    }
+
+    @AfterEach
+    void restoreDensityThresholdSetting() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            statement.executeUpdate("INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                    + "VALUES (1, 3.500, 'PERSON_PER_M2')");
         }
     }
 
@@ -44,6 +75,100 @@ class SimulationSchemaIntegrationTest {
                         statement.executeQuery("SHOW COLUMNS FROM simulation_options LIKE 'routing_profile'")) {
             assertThat(columns.next()).isTrue();
             assertThat(columns.getString("Default")).isEqualTo("HAZARD_RADIAL_EXP_V3");
+        }
+    }
+
+    @Test
+    void densityThresholdSettingAllowsOnlyOnePositivePersonPerSquareMeterValue() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            statement.executeUpdate("INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                    + "VALUES (1, 3.500, 'PERSON_PER_M2')");
+
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                                    + "VALUES (2, 3.500, 'PERSON_PER_M2')"))
+                    .isInstanceOf(SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "UPDATE density_threshold_settings SET threshold_value = 0 WHERE id = 1"))
+                    .isInstanceOf(SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "UPDATE density_threshold_settings SET unit = 'PEOPLE' WHERE id = 1"))
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void simulationsHasJsonFailureDetail() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement();
+                ResultSet columns = statement.executeQuery("SHOW COLUMNS FROM simulations LIKE 'failure_detail'")) {
+            assertThat(columns.next()).isTrue();
+            assertThat(columns.getString("Type")).isEqualTo("json");
+            assertThat(columns.getString("Null")).isEqualTo("YES");
+        }
+    }
+
+    @Test
+    void densityThresholdDmlInitializesButDoesNotOverwriteExistingValue() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
+            assertThat(densityThreshold(statement)).isEqualByComparingTo("3.500");
+
+            statement.executeUpdate("UPDATE density_threshold_settings SET threshold_value = 4.200 WHERE id = 1");
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
+            assertThat(densityThreshold(statement)).isEqualByComparingTo("4.200");
+        }
+    }
+
+    @Test
+    void mapperPersistsAndClearsFailureDetailAcrossExecutionTransitions() throws Exception {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate(
+                    "INSERT INTO floor_plans (id, name, width, height) " + "VALUES (931, 'failure detail', 10, 10)");
+            statement.executeUpdate("INSERT INTO layouts (id, floor_plan_id, created_by, title) "
+                    + "VALUES (932, 931, 7, 'failure detail')");
+            statement.executeUpdate(
+                    "INSERT INTO layout_versions (id, layout_id, version, status) " + "VALUES (933, 932, 1, '잠금')");
+            statement.executeUpdate("INSERT INTO simulations "
+                    + "(id, layout_version_id, created_by, status) "
+                    + "VALUES (934, 933, 7, 'REQUESTED')");
+            statement.executeUpdate("INSERT INTO simulations "
+                    + "(id, layout_version_id, created_by, status, failure_message, failure_detail) "
+                    + "VALUES (935, 933, 7, 'RUNNING', 'stale', JSON_OBJECT('code', 'stale'))");
+        }
+
+        String detail =
+                """
+                {"schemaVersion":1,"code":"AGENT_ROUTE_UNREACHABLE","agentId":2,"currentPosition":{"x":1.5,"y":2.5},"recommendedPosition":null}
+                """
+                        .strip();
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            SimulationMapper mapper = session.getMapper(SimulationMapper.class);
+
+            assertThat(mapper.markExecutionFailed(934L, "route failed", detail)).isEqualTo(1);
+            Simulation failed = mapper.findSimulationById(934L);
+            assertThat(failed.getStatus()).isEqualTo("FAILED");
+            assertThat(failed.getFailureMessage()).isEqualTo("route failed");
+            assertThat(new ObjectMapper().readTree(failed.getFailureDetail()))
+                    .isEqualTo(new ObjectMapper().readTree(detail));
+
+            assertThat(mapper.requestExecution(934L)).isEqualTo(1);
+            Simulation requested = mapper.findSimulationById(934L);
+            assertThat(requested.getStatus()).isEqualTo("REQUESTED");
+            assertThat(requested.getFailureMessage()).isNull();
+            assertThat(requested.getFailureDetail()).isNull();
+
+            assertThat(mapper.markExecutionCompleted(935L)).isEqualTo(1);
+            Simulation completed = mapper.findSimulationById(935L);
+            assertThat(completed.getStatus()).isEqualTo("COMPLETED");
+            assertThat(completed.getFailureMessage()).isNull();
+            assertThat(completed.getFailureDetail()).isNull();
+            session.commit();
         }
     }
 
@@ -75,10 +200,12 @@ class SimulationSchemaIntegrationTest {
                     "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (922, 921, 7, 'status')");
             statement.executeUpdate(
                     "INSERT INTO layout_versions (id, layout_id, version, status) VALUES (923, 922, 1, '잠금')");
+            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, status) "
+                    + "VALUES (924, 923, 7, 'CANCELLED')");
 
             assertThatThrownBy(() -> statement.executeUpdate(
                             "INSERT INTO simulations (id, layout_version_id, created_by, status) "
-                                    + "VALUES (924, 923, 7, 'UNKNOWN')"))
+                                    + "VALUES (925, 923, 7, 'UNKNOWN')"))
                     .isInstanceOf(SQLException.class);
         }
     }
@@ -107,5 +234,13 @@ class SimulationSchemaIntegrationTest {
 
     private static Connection connection() throws SQLException {
         return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+    }
+
+    private static BigDecimal densityThreshold(Statement statement) throws SQLException {
+        try (ResultSet resultSet =
+                statement.executeQuery("SELECT threshold_value FROM density_threshold_settings WHERE id = 1")) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getBigDecimal("threshold_value");
+        }
     }
 }

@@ -63,7 +63,8 @@ export interface SimulationSetup {
   drawing: SimulationDrawing;
 }
 
-export type SimulationExecutionStatus = 'DRAFT' | 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type SimulationExecutionStatus =
+  'DRAFT' | 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export type SimulationTerminationReason = 'ALL_EVACUATED' | 'MAX_DURATION';
 
@@ -92,6 +93,12 @@ export interface SimulationExecution {
   startedAt: string | null;
   finishedAt: string | null;
   failureMessage: string | null;
+  failureDetail?: {
+    code: 'AGENT_ROUTE_UNREACHABLE';
+    agentId: number;
+    currentPosition: SimulationPoint;
+    recommendedPosition: SimulationPoint | null;
+  } | null;
   result: SimulationResultSummary | null;
 }
 

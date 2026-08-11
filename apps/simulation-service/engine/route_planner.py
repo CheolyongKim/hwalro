@@ -8,11 +8,18 @@ import math
 from typing import Any, Callable, Iterable, Sequence
 
 import numpy as np
-from shapely import contains_xy, covers, linestrings, points
+from shapely import (
+    contains_xy,
+    covers,
+    distance as geometry_distance,
+    linestrings,
+    points,
+)
 from shapely.affinity import rotate
 from shapely.geometry import LineString, Point as ShapelyPoint, Polygon, box
 from shapely.ops import unary_union
 from shapely.prepared import prep
+from shapely.strtree import STRtree
 
 
 GRID_STEP_METERS = 0.25
@@ -20,6 +27,7 @@ WALL_TOTAL_WIDTH_METERS = 0.02
 EXIT_SEED_MAX_DISTANCE_METERS = GRID_STEP_METERS * math.sqrt(2.0)
 HAZARD_BOUNDARY_MULTIPLIER = 5.0
 HAZARD_CENTER_MULTIPLIER = 500.0
+_CONNECTOR_VISIBILITY_BATCH_SIZE = 4096
 _EPSILON = 1e-9
 _MOVES = (
     (-1, -1),
@@ -57,6 +65,10 @@ class Route:
     exit_start: Point
     exit_end: Point
     total_cost: float
+
+
+class AgentRouteUnreachableError(ValueError):
+    """Raised only when an otherwise valid agent cannot connect to the route grid."""
 
 
 def hazard_multiplier(point: Point, hazards: Iterable[Hazard]) -> float:
@@ -239,6 +251,17 @@ def parse_exits(drawing: dict[str, Any], selected_exit_ids: Sequence[Any]) -> tu
     return tuple(exits)
 
 
+def parse_exit_segments(drawing: dict[str, Any]) -> tuple[tuple[Point, Point], ...]:
+    """Parse every physical exit segment, including exits not selected for routing."""
+    segments = []
+    for index, item in enumerate(drawing.get("exits", [])):
+        start, end = _line_points(item, f"drawing.exits[{index}]")
+        if start == end:
+            raise ValueError(f"drawing.exits[{index}] must have positive length")
+        segments.append((start, end))
+    return tuple(segments)
+
+
 class GridRouter:
     """One global reverse-Dijkstra field; each planned route is immutable."""
 
@@ -314,23 +337,38 @@ class GridRouter:
         if not self._has_reachable:
             raise ValueError("no selected exit is reachable")
         local = self._local_nodes(point, reachable)
-        if not local:
-            candidates = np.flatnonzero(reachable)
-            squared = (self._x[candidates] - point[0]) ** 2 + (self._y[candidates] - point[1]) ** 2
-            count = min(64, candidates.size)
-            local = candidates[np.argpartition(squared, count - 1)[:count]].tolist()
-
         best: tuple[float, int, int] | None = None
-        for node in sorted(local):
-            node_point = self._point(node)
-            if not self.can_connect(point, node_point):
+        checked: set[int] = set()
+        candidates: np.ndarray | None = None
+        squared: np.ndarray | None = None
+        while best is None:
+            for node in sorted(local):
+                if node in checked:
+                    continue
+                checked.add(node)
+                node_point = self._point(node)
+                if not self.can_connect(point, node_point):
+                    continue
+                total = self._edge_cost(point, node_point) + float(self.distance[node])
+                candidate = (total, int(self.exit_label[node]), node)
+                if best is None or candidate < best:
+                    best = candidate
+            if best is not None:
+                break
+            if candidates is None:
+                candidates = np.flatnonzero(reachable)
+                squared = (self._x[candidates] - point[0]) ** 2 + (
+                    self._y[candidates] - point[1]
+                ) ** 2
+                count = min(64, candidates.size)
+                local = candidates[np.argpartition(squared, count - 1)[:count]].tolist()
                 continue
-            total = self._edge_cost(point, node_point) + float(self.distance[node])
-            candidate = (total, int(self.exit_label[node]), node)
-            if best is None or candidate < best:
-                best = candidate
+            # A safe corridor can be narrower than one grid cell. Search farther
+            # connectors in bounded-memory batches only after the old 64-node path fails.
+            best = self._expanded_connector(point, candidates, squared)
+            break
         if best is None:
-            raise ValueError(f"agent at {point} cannot connect to the routing grid")
+            raise AgentRouteUnreachableError("agent cannot connect to the routing grid")
 
         total_cost, exit_label, node = best
         route_node = node
@@ -358,6 +396,119 @@ class GridRouter:
             exit_end=exit_end,
             total_cost=total_cost,
         )
+
+    def recommended_position(
+        self,
+        start: Point,
+        other_agents: Sequence[Point],
+        exit_segments: Sequence[tuple[Point, Point]],
+        agent_spacing: float,
+    ) -> Point | None:
+        """Return the deterministic nearest safe reachable grid point, if one exists."""
+        if not math.isfinite(agent_spacing) or agent_spacing <= 0:
+            raise ValueError("agent spacing must be positive")
+
+        exit_values = np.asarray(exit_segments, dtype=float)
+        exit_geometries = (
+            linestrings(exit_values) if exit_values.size else np.empty(0, dtype=object)
+        )
+        exit_tree = STRtree(exit_geometries) if exit_geometries.size else None
+        agent_values = np.asarray(other_agents, dtype=float)
+        agent_geometries = (
+            points(agent_values[:, 0], agent_values[:, 1])
+            if agent_values.size
+            else np.empty(0, dtype=object)
+        )
+        agent_tree = STRtree(agent_geometries) if agent_geometries.size else None
+        try:
+            numeric_exit_ids = [
+                exit_.id
+                for exit_ in self.exits
+                if not isinstance(exit_.id, bool) and isinstance(exit_.id, (int, float))
+            ]
+            if len(numeric_exit_ids) != len(self.exits):
+                raise TypeError
+            numeric_order = {
+                exit_id: rank for rank, exit_id in enumerate(sorted(set(numeric_exit_ids)))
+            }
+            exit_keys = np.asarray(
+                [numeric_order[exit_id] for exit_id in numeric_exit_ids], dtype=np.int64
+            )
+        except (TypeError, ValueError):
+            exit_keys = np.arange(len(self.exits), dtype=np.int64)
+
+        start_x, start_y = float(start[0]), float(start[1])
+        reachable = self.valid & np.isfinite(self.distance)
+        best: tuple[float, float, int, int] | None = None
+        # ponytail: keep this rare failure-path scan uncached; share trees/masks only
+        # if production evidence shows multiple route failures per request are common.
+        for offset in range(0, reachable.size, _CONNECTOR_VISIBILITY_BATCH_SIZE):
+            end = min(offset + _CONNECTOR_VISIBILITY_BATCH_SIZE, reachable.size)
+            nodes = np.flatnonzero(reachable[offset:end]) + offset
+            if not nodes.size:
+                continue
+            candidate_points = points(self._x[nodes], self._y[nodes])
+            allowed = np.ones(nodes.size, dtype=bool)
+
+            if exit_tree is not None:
+                pairs = exit_tree.query(
+                    candidate_points,
+                    predicate="dwithin",
+                    distance=self.exit_clearance,
+                )
+                if pairs.shape[1]:
+                    too_close = np.asarray(
+                        geometry_distance(
+                            candidate_points[pairs[0]], exit_geometries[pairs[1]]
+                        )
+                        < self.exit_clearance,
+                        dtype=bool,
+                    )
+                    allowed[pairs[0][too_close]] = False
+
+            if agent_tree is not None:
+                pairs = agent_tree.query(
+                    candidate_points,
+                    predicate="dwithin",
+                    distance=agent_spacing,
+                )
+                if pairs.shape[1]:
+                    too_close = np.asarray(
+                        geometry_distance(
+                            candidate_points[pairs[0]], agent_geometries[pairs[1]]
+                        )
+                        < agent_spacing,
+                        dtype=bool,
+                    )
+                    allowed[pairs[0][too_close]] = False
+
+            nodes = nodes[allowed]
+            if not nodes.size:
+                continue
+            squared = (self._x[nodes] - start_x) ** 2 + (self._y[nodes] - start_y) ** 2
+            node_exit_keys = exit_keys[self.exit_label[nodes]]
+            order = np.lexsort(
+                (nodes, node_exit_keys, self.distance[nodes], squared)
+            )
+            position = int(order[0])
+            node = int(nodes[position])
+            candidate = (
+                float(squared[position]),
+                float(self.distance[node]),
+                int(exit_keys[int(self.exit_label[node])]),
+                node,
+            )
+            if best is None or candidate < best:
+                best = candidate
+
+        if best is None:
+            return None
+        recommendation = self._point(best[3])
+        try:
+            self.plan(recommendation)
+        except AgentRouteUnreachableError:
+            return None
+        return recommendation
 
     def _build_cost_field(self) -> None:
         heap: list[tuple[float, int, int]] = []
@@ -555,6 +706,60 @@ class GridRouter:
                 ):
                     nodes.append(node)
         return nodes
+
+    def _expanded_connector(
+        self, point: Point, candidates: np.ndarray, squared: np.ndarray
+    ) -> tuple[float, int, int] | None:
+        np.sqrt(squared, out=squared)
+        squared += self.distance[candidates]
+        # candidates are already in node order, so a stable sort also fixes tie order.
+        order = np.argsort(squared, kind="stable")
+        best: tuple[float, int, int] | None = None
+        for offset in range(0, order.size, _CONNECTOR_VISIBILITY_BATCH_SIZE):
+            if best is not None and squared[order[offset]] > best[0] + _EPSILON:
+                break
+            batch_order = order[
+                offset : offset + _CONNECTOR_VISIBILITY_BATCH_SIZE
+            ]
+            batch = candidates[batch_order]
+            batch_lower_bounds = squared[batch_order]
+            coordinates = np.empty((batch.size, 2, 2), dtype=float)
+            coordinates[:, 0, :] = point
+            coordinates[:, 1, 0] = self._x[batch]
+            coordinates[:, 1, 1] = self._y[batch]
+            clear = np.asarray(
+                covers(self.walkable, linestrings(coordinates)), dtype=bool
+            )
+            for position in np.flatnonzero(clear):
+                if best is not None and batch_lower_bounds[position] > best[0] + _EPSILON:
+                    break
+                node = int(batch[position])
+                total = self._expanded_connector_cost(
+                    point, self._point(node)
+                ) + float(self.distance[node])
+                candidate = (total, int(self.exit_label[node]), node)
+                if best is None or candidate < best:
+                    best = candidate
+        return best
+
+    def _expanded_connector_cost(self, start: Point, end: Point) -> float:
+        length = math.dist(start, end)
+        if not self.hazards:
+            return length
+        if length <= self.step:
+            return self._edge_cost(start, end)
+        segment_count = math.ceil(length / self.step)
+        total = 0.0
+        previous = start
+        for index in range(1, segment_count + 1):
+            ratio = index / segment_count
+            current = (
+                start[0] + (end[0] - start[0]) * ratio,
+                start[1] + (end[1] - start[1]) * ratio,
+            )
+            total += self._edge_cost(previous, current)
+            previous = current
+        return total
 
     def _point(self, flat_index: int) -> Point:
         return (float(self._x[flat_index]), float(self._y[flat_index]))

@@ -20,6 +20,10 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# AI agent tooling (로컬 전용 스킬·설정)
+.agents/
+.claude/
+
 # IDE
 .idea/
 *.iml

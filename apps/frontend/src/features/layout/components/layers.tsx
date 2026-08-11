@@ -2,7 +2,12 @@ import { memo, useEffect, useState } from 'react';
 import { Circle, Group, Image as KonvaImage, Line, Rect, Text as KonvaText } from 'react-konva';
 import type { BackgroundImage, Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
 import { PX_PER_METER, rectCenter } from '../utils/geometry';
-import { ROTATE_HANDLE_OFFSET_PX, TEXT_FONT_PX, textWorldBox } from '../utils/hitTest';
+import {
+  MIN_TEXT_SCREEN_PX,
+  ROTATE_HANDLE_OFFSET_PX,
+  TEXT_FONT_PX,
+  textWorldBox,
+} from '../utils/hitTest';
 import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_UI } from '../utils/colors';
 
 export const MINOR_STEP = 50;
@@ -398,8 +403,11 @@ interface TextViewProps {
 }
 
 export const TextView = memo(function TextView({ text, selected, zoom }: TextViewProps) {
+  if (TEXT_FONT_PX * zoom < MIN_TEXT_SCREEN_PX) {
+    return null;
+  }
   const s = (px: number) => px / (zoom * PX_PER_METER);
-  const box = textWorldBox(text, zoom);
+  const box = textWorldBox(text);
   return (
     <Group>
       {selected && (
@@ -418,7 +426,7 @@ export const TextView = memo(function TextView({ text, selected, zoom }: TextVie
         x={text.x}
         y={text.y}
         text={text.text}
-        fontSize={s(TEXT_FONT_PX)}
+        fontSize={TEXT_FONT_PX / PX_PER_METER}
         fontFamily={FONT_UI}
         fill={selected ? CANVAS_COLORS.accent : CANVAS_COLORS.ink}
       />

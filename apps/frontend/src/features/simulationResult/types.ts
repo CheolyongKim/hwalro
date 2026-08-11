@@ -22,14 +22,22 @@ export interface DrawingRect extends DrawingSegment {
   rotation?: number;
 }
 
+export interface DrawingText {
+  text: string;
+  x: number;
+  y: number;
+}
+
 export interface SimulationDrawing {
   name: string;
   width: number;
   height: number;
+  outsideBoundary: Point[];
   walls: DrawingSegment[];
   exits: DrawingSegment[];
   pillars: DrawingRect[];
   fabrics: DrawingRect[];
+  layoutTexts: DrawingText[];
 }
 
 export interface AgentFrameBuffer {
@@ -45,6 +53,8 @@ export interface HeatmapFrame {
 }
 
 export interface HeatmapData {
+  originX: number;
+  originY: number;
   columns: number;
   rows: number;
   cellWidth: number;
@@ -81,7 +91,7 @@ export interface RiskZone extends Bounds {
   name: string;
 }
 
-export interface SimulationResultViewModel {
+export interface SimulationResultSummaryViewModel {
   simulationId: string;
   simulationResultId: number;
   title: string;
@@ -91,13 +101,29 @@ export interface SimulationResultViewModel {
   maxDensity: number;
   densityThreshold: number;
   drawing: SimulationDrawing;
-  agentFrames: AgentFrameBuffer[];
-  heatmap: HeatmapData;
   bottlenecks: DetectedBottleneck[];
-  evacuationProgress: EvacuationPoint[];
   comparableSimulations: ComparableSimulation[];
 }
 
+export interface SimulationResultViewModel extends SimulationResultSummaryViewModel {
+  agentFrames: AgentFrameBuffer[];
+  heatmap: HeatmapData;
+  evacuationProgress: EvacuationPoint[];
+}
+
+export interface SimulationPlaybackChunkData {
+  sequence: number;
+  agentFrames: AgentFrameBuffer[];
+  heatmap: HeatmapData;
+  evacuationProgress: EvacuationPoint[];
+}
+
 export interface SimulationResultProvider {
-  getResult(simulationId: string): Promise<SimulationResultViewModel | null>;
+  getSummary(simulationId: string): Promise<SimulationResultSummaryViewModel | null>;
+  getPlaybackChunk(
+    simulationId: number,
+    sequence: number,
+    totalPeople: number,
+    maxDensity: number,
+  ): Promise<SimulationPlaybackChunkData>;
 }

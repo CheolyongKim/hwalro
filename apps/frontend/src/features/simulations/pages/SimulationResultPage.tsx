@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { simulationApi } from '../api/simulationApi';
 import { SimulationCanvas } from '../components/SimulationCanvas';
+import { STATUS_LABELS } from '../constants/simulationStatus';
 import type {
   EditableHazardZone,
   SimulationExecution,
@@ -37,6 +38,8 @@ function SimulationResultPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [creatingAdjustmentDraft, setCreatingAdjustmentDraft] = useState(false);
   const [pollingStopped, setPollingStopped] = useState(false);
   const [refreshingStatus, setRefreshingStatus] = useState(false);
   const lastAnimationTimeRef = useRef<number | null>(null);
@@ -124,6 +127,13 @@ function SimulationResultPage() {
   );
 
   const result = execution?.result ?? null;
+
+  useEffect(() => {
+    if (execution?.status === 'COMPLETED' && result) {
+      navigate(`/simulations/${id}/results`, { replace: true });
+    }
+  }, [execution?.status, id, navigate, result]);
+
   const duration = result?.simulationDurationSeconds ?? 0;
   const chunkDuration = result?.timelineChunkDurationSeconds ?? 20;
   const chunkSequence = Math.min(
@@ -215,6 +225,20 @@ function SimulationResultPage() {
     }
   };
 
+  const cancel = async () => {
+    if (!window.confirm('진행 중인 시뮬레이션을 취소하시겠습니까?')) return;
+    setCancelling(true);
+    setMessage(null);
+    try {
+      setExecution(await simulationApi.cancel(id));
+      setPollingStopped(false);
+    } catch (error) {
+      setMessage(getSimulationErrorMessage(error));
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const refreshStoppedPolling = async () => {
     setRefreshingStatus(true);
     setMessage(null);
@@ -225,6 +249,20 @@ function SimulationResultPage() {
       setMessage(getSimulationErrorMessage(error));
     } finally {
       setRefreshingStatus(false);
+    }
+  };
+
+  const createAdjustmentDraft = async (applyRecommendation: boolean, agentId: number) => {
+    setCreatingAdjustmentDraft(true);
+    setMessage(null);
+    try {
+      const draft = await simulationApi.createPlacementAdjustmentDraft(id, applyRecommendation);
+      const query = applyRecommendation ? '' : `?highlightAgent=${agentId}`;
+      navigate(`/simulations/${draft.simulationId}/setup${query}`);
+    } catch (error) {
+      setMessage(getSimulationErrorMessage(error));
+    } finally {
+      setCreatingAdjustmentDraft(false);
     }
   };
 
@@ -257,16 +295,11 @@ function SimulationResultPage() {
   }
 
   const running = execution.status === 'REQUESTED' || execution.status === 'RUNNING';
-  const statusLabel =
-    execution.status === 'REQUESTED'
-      ? '실행 대기'
-      : execution.status === 'RUNNING'
-        ? '실행 중'
-        : execution.status === 'COMPLETED'
-          ? '실행 완료'
-          : execution.status === 'FAILED'
-            ? '실행 실패'
-            : '실행 전';
+  const routeFailure =
+    execution.status === 'FAILED' && execution.failureDetail?.code === 'AGENT_ROUTE_UNREACHABLE'
+      ? execution.failureDetail
+      : null;
+  const statusLabel = STATUS_LABELS[execution.status];
 
   return (
     <main className="flex h-dvh min-w-[960px] flex-col overflow-hidden bg-background text-ink">
@@ -322,6 +355,8 @@ function SimulationResultPage() {
             tool="select"
             brushRadius={0.3}
             selectedHazardId={null}
+            highlightedAgentId={routeFailure?.agentId}
+            recommendedPosition={routeFailure?.recommendedPosition}
             onSpray={NOOP}
             onErase={NOOP}
             onCreateHazard={NOOP}
@@ -339,16 +374,26 @@ function SimulationResultPage() {
                     ? '자동 상태 확인이 중단되었습니다.'
                     : 'JuPedSim이 대피 경로를 계산하고 있습니다.'}
                 </p>
-                {pollingStopped && (
+                <div className="mt-4 flex justify-center gap-2">
+                  {pollingStopped && (
+                    <button
+                      type="button"
+                      onClick={() => void refreshStoppedPolling()}
+                      disabled={refreshingStatus || cancelling}
+                      className="h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
+                    >
+                      {refreshingStatus ? '확인 중…' : '상태 다시 확인'}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => void refreshStoppedPolling()}
-                    disabled={refreshingStatus}
-                    className="mt-4 h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
+                    onClick={() => void cancel()}
+                    disabled={cancelling || refreshingStatus}
+                    className="h-9 rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
-                    {refreshingStatus ? '확인 중…' : '상태 다시 확인'}
+                    {cancelling ? '취소 중…' : '실행 취소'}
                   </button>
-                )}
+                </div>
               </div>
             </div>
           )}
@@ -389,7 +434,69 @@ function SimulationResultPage() {
               {message}
             </p>
           )}
-          {execution.status === 'FAILED' && (
+          {routeFailure && (
+            <div
+              className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950"
+              aria-live="polite"
+            >
+              <p className="font-black">배치 조정이 필요합니다</p>
+              <p className="mt-2 text-sm leading-5">
+                <span aria-hidden="true">! </span>에이전트 #{routeFailure.agentId}가 출구로 가는
+                경로를 찾지 못했습니다.
+              </p>
+              <dl className="mt-3 space-y-1 text-xs leading-5 text-amber-900">
+                <div>
+                  <dt className="inline font-bold">현재 위치: </dt>
+                  <dd className="inline">
+                    x {routeFailure.currentPosition.x.toFixed(2)}m, y{' '}
+                    {routeFailure.currentPosition.y.toFixed(2)}m
+                  </dd>
+                </div>
+                {routeFailure.recommendedPosition && (
+                  <>
+                    <div>
+                      <dt className="inline font-bold">추천 위치: </dt>
+                      <dd className="inline">
+                        x {routeFailure.recommendedPosition.x.toFixed(2)}m, y{' '}
+                        {routeFailure.recommendedPosition.y.toFixed(2)}m
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-bold">이동 거리: </dt>
+                      <dd className="inline">
+                        {Math.hypot(
+                          routeFailure.recommendedPosition.x - routeFailure.currentPosition.x,
+                          routeFailure.recommendedPosition.y - routeFailure.currentPosition.y,
+                        ).toFixed(2)}
+                        m
+                      </dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {routeFailure.recommendedPosition && (
+                  <button
+                    type="button"
+                    onClick={() => void createAdjustmentDraft(true, routeFailure.agentId)}
+                    disabled={creatingAdjustmentDraft}
+                    className="h-9 rounded-lg bg-amber-700 px-4 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    추천 위치로 새 배치 만들기
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void createAdjustmentDraft(false, routeFailure.agentId)}
+                  disabled={creatingAdjustmentDraft}
+                  className="h-9 rounded-lg border border-amber-700 bg-white px-4 text-sm font-bold text-amber-900 disabled:opacity-50"
+                >
+                  {creatingAdjustmentDraft ? '배치 화면 준비 중…' : '새 배치에서 직접 수정'}
+                </button>
+              </div>
+            </div>
+          )}
+          {execution.status === 'FAILED' && !routeFailure && (
             <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
               <p className="font-bold text-red-700">실행에 실패했습니다.</p>
               <p className="mt-2 text-sm leading-5 text-red-600">
@@ -402,6 +509,22 @@ function SimulationResultPage() {
                 className="mt-4 h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
               >
                 {retrying ? '재시도 중…' : '동일 설정으로 재시도'}
+              </button>
+            </div>
+          )}
+          {execution.status === 'CANCELLED' && (
+            <div className="mt-4 rounded-xl border border-line bg-surface p-4">
+              <p className="font-bold text-text-strong">실행을 취소했습니다.</p>
+              <p className="mt-2 text-sm leading-5 text-text-muted">
+                필요하면 같은 설정으로 다시 실행할 수 있습니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => void retry()}
+                disabled={retrying}
+                className="mt-4 h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {retrying ? '재실행 중…' : '동일 설정으로 재실행'}
               </button>
             </div>
           )}

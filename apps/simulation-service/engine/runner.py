@@ -18,6 +18,7 @@ REQUIRED_MODEL_PROFILE = "SFM_DEFAULT_V2"
 REQUIRED_ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3"
 DT_SECONDS = 0.01
 AGENT_RADIUS_METERS = 0.3
+AGENT_SPACING_METERS = AGENT_RADIUS_METERS * 2.0
 MAX_SIMULATION_TIME_SECONDS = 600.0
 MAX_AGENTS = 5000
 FRAMES_PER_CHUNK = 20
@@ -26,6 +27,10 @@ WAYPOINT_REACHED_DISTANCE_METERS = max(AGENT_RADIUS_METERS, 0.25 * math.sqrt(2.0
 
 
 class RunnerError(RuntimeError):
+    pass
+
+
+class AgentRouteUnreachableRunnerError(RunnerError):
     pass
 
 
@@ -221,22 +226,26 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     jps, np, _shapely, engine_version = _load_dependencies()
     try:
         from route_planner import (
+            AgentRouteUnreachableError,
             GridRouter,
             build_routing_geometry,
             build_walkable_geometry,
             containing_component,
             parse_exits,
+            parse_exit_segments,
             parse_hazards,
             split_agent_components,
             usable_exit_segment,
         )
     except ModuleNotFoundError:
         from .route_planner import (  # type: ignore[no-redef]
+            AgentRouteUnreachableError,
             GridRouter,
             build_routing_geometry,
             build_walkable_geometry,
             containing_component,
             parse_exits,
+            parse_exit_segments,
             parse_hazards,
             split_agent_components,
             usable_exit_segment,
@@ -293,6 +302,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         raise RunnerError(str(exc)) from exc
 
     contexts: list[SimulationContext] = []
+    routing_groups: list[tuple[Any, Any, Any]] = []
     trapped: dict[int, tuple[float, float]] = {}
     for component, indexed_agents in groups:
         try:
@@ -309,7 +319,55 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 raise RunnerError(str(exc)) from exc
             trapped.update((index + 1, position) for index, position in indexed_agents)
             continue
-        routes = [router.plan(position) for _, position in indexed_agents]
+        routing_groups.append((physical_component, router, indexed_agents))
+
+    routes_by_index = {}
+    indexed_routers = sorted(
+        (index, position, router)
+        for _physical_component, router, indexed_agents in routing_groups
+        for index, position in indexed_agents
+    )
+    for index, position, router in indexed_routers:
+        try:
+            routes_by_index[index] = router.plan(position)
+        except AgentRouteUnreachableError:
+            try:
+                recommendation = router.recommended_position(
+                    start=position,
+                    other_agents=tuple(
+                        other_position
+                        for other_index, other_position in enumerate(agents)
+                        if other_index != index
+                    ),
+                    exit_segments=parse_exit_segments(drawing),
+                    agent_spacing=AGENT_SPACING_METERS,
+                )
+            except ValueError as exc:
+                raise RunnerError(str(exc)) from exc
+            output_dir.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                output_dir / "error.json",
+                {
+                    "schemaVersion": 1,
+                    "code": "AGENT_ROUTE_UNREACHABLE",
+                    "agentId": index + 1,
+                    "recommendedPosition": (
+                        {
+                            "x": _rounded(recommendation[0]),
+                            "y": _rounded(recommendation[1]),
+                        }
+                        if recommendation is not None
+                        else None
+                    ),
+                },
+            )
+            # ponytail: report only the first original-order failure; add a
+            # multi-agent diagnostic only if correction/retry telemetry demands it.
+            raise AgentRouteUnreachableRunnerError(
+                "AGENT_ROUTE_UNREACHABLE"
+            ) from None
+
+    for physical_component, router, indexed_agents in routing_groups:
         contexts.append(
             _create_context(
                 jps,
@@ -317,7 +375,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 physical_component,
                 router,
                 indexed_agents,
-                routes,
+                [routes_by_index[index] for index, _position in indexed_agents],
                 walking_speed,
                 reaction_time,
             )
@@ -636,6 +694,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("input and output_dir are required")
         run(args.input, args.output_dir)
         return 0
+    except AgentRouteUnreachableRunnerError:
+        print("runner error: AGENT_ROUTE_UNREACHABLE", file=sys.stderr)
+        return 3
     except RunnerError as exc:
         print(f"runner error: {exc}", file=sys.stderr)
         return 2

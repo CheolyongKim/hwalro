@@ -2,26 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { simulationApi } from '../api/simulationApi';
-import type { SimulationExecutionStatus, SimulationOverview } from '../types';
+import { STATUS_LABELS, STATUS_STYLES } from '../constants/simulationStatus';
+import type { SimulationOverview } from '../types';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
 
 const PAGE_SIZE = 20;
-
-const STATUS_LABELS: Record<SimulationExecutionStatus, string> = {
-  DRAFT: '배치 작성 중',
-  REQUESTED: '실행 대기',
-  RUNNING: '실행 중',
-  COMPLETED: '실행 완료',
-  FAILED: '실행 실패',
-};
-
-const STATUS_STYLES: Record<SimulationExecutionStatus, string> = {
-  DRAFT: 'bg-soft-gray text-text-strong',
-  REQUESTED: 'bg-amber-50 text-amber-700',
-  RUNNING: 'bg-primary-soft text-primary',
-  COMPLETED: 'bg-emerald-50 text-emerald-700',
-  FAILED: 'bg-red-50 text-red-700',
-};
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-';
@@ -48,6 +33,8 @@ function destination(simulation: SimulationOverview): string {
 
 function SimulationListPage() {
   const [page, setPage] = useState(1);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ['simulations', 'overview', page],
     queryFn: () => simulationApi.listOverview(page, PAGE_SIZE),
@@ -68,6 +55,20 @@ function SimulationListPage() {
     const timer = window.setInterval(() => void query.refetch(), 3000);
     return () => window.clearInterval(timer);
   }, [hasRunning, query.refetch]);
+
+  const cancelSimulation = async (simulationId: number) => {
+    if (!window.confirm('진행 중인 시뮬레이션을 취소하시겠습니까?')) return;
+    setCancellingId(simulationId);
+    setActionError(null);
+    try {
+      await simulationApi.cancel(simulationId);
+      await query.refetch();
+    } catch (error) {
+      setActionError(getSimulationErrorMessage(error));
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   return (
     <main className="bg-background">
@@ -117,7 +118,7 @@ function SimulationListPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[960px] border-collapse text-left">
+                <table className="w-full min-w-[1040px] border-collapse text-left">
                   <caption className="sr-only">시뮬레이션 실행 및 배치 목록</caption>
                   <thead className="bg-surface text-xs font-bold tracking-wide text-text-muted">
                     <tr>
@@ -127,6 +128,7 @@ function SimulationListPage() {
                       <th className="px-4 py-4">인원</th>
                       <th className="px-4 py-4">결과</th>
                       <th className="px-4 py-4">생성일</th>
+                      <th className="px-4 py-4">작업</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -166,6 +168,19 @@ function SimulationListPage() {
                         </td>
                         <td className="px-4 py-4 text-sm text-text-muted">
                           {formatDateTime(simulation.createdAt)}
+                        </td>
+                        <td className="px-4 py-4">
+                          {(simulation.status === 'REQUESTED' ||
+                            simulation.status === 'RUNNING') && (
+                            <button
+                              type="button"
+                              onClick={() => void cancelSimulation(simulation.id)}
+                              disabled={cancellingId !== null}
+                              className="h-8 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {cancellingId === simulation.id ? '취소 중…' : '실행 취소'}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -212,6 +227,14 @@ function SimulationListPage() {
                   </button>
                 </nav>
               </div>
+              {actionError && (
+                <div
+                  role="alert"
+                  className="border-t border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700"
+                >
+                  {actionError}
+                </div>
+              )}
               {query.isError && (
                 <div
                   role="alert"

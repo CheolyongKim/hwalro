@@ -8,6 +8,10 @@ public class Risk {
     private Long assigneeId;
     private String title;
     private String description;
+    private Double startX;
+    private Double startY;
+    private Double endX;
+    private Double endY;
     private String severity;
     private String status;
     private LocalDateTime createdAt;
@@ -52,6 +56,38 @@ public class Risk {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Double getStartX() {
+        return startX;
+    }
+
+    public void setStartX(Double startX) {
+        this.startX = startX;
+    }
+
+    public Double getStartY() {
+        return startY;
+    }
+
+    public void setStartY(Double startY) {
+        this.startY = startY;
+    }
+
+    public Double getEndX() {
+        return endX;
+    }
+
+    public void setEndX(Double endX) {
+        this.endX = endX;
+    }
+
+    public Double getEndY() {
+        return endY;
+    }
+
+    public void setEndY(Double endY) {
+        this.endY = endY;
     }
 
     public String getSeverity() {

@@ -7,6 +7,7 @@ import com.hwalro.simulation.simulation.domain.SimulationMetric;
 import com.hwalro.simulation.simulation.domain.SimulationOption;
 import com.hwalro.simulation.simulation.domain.SimulationResult;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -29,7 +30,13 @@ public interface SimulationMapper {
 
     List<Simulation> findSimulationMonitor(@Param("createdBy") Long createdBy);
 
+    Simulation findSimulationOverviewById(@Param("id") Long id);
+
     long countSimulationOverview(@Param("createdBy") Long createdBy);
+
+    long countInProgress(@Param("createdBy") Long createdBy);
+
+    long countCompletedThisWeek(@Param("createdBy") Long createdBy, @Param("weekStart") LocalDateTime weekStart);
 
     SimulationOption findSimulationOption(@Param("simulationId") Long simulationId);
 
@@ -85,7 +92,10 @@ public interface SimulationMapper {
 
     int markExecutionCompleted(@Param("simulationId") Long simulationId);
 
-    int markExecutionFailed(@Param("simulationId") Long simulationId, @Param("message") String message);
+    int markExecutionFailed(
+            @Param("simulationId") Long simulationId, @Param("message") String message, @Param("detail") String detail);
+
+    int cancelExecution(@Param("simulationId") Long simulationId);
 
     int markInterruptedExecutionsFailed(@Param("message") String message);
 

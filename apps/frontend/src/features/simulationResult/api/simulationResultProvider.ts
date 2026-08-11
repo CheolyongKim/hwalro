@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { apiClient } from '../../../api/client';
-import type { SimulationResultProvider, SimulationResultViewModel } from '../types';
+import { simulationApi } from '../../simulations/api/simulationApi';
+import type { SimulationResultProvider, SimulationResultSummaryViewModel } from '../types';
+import { convertPlaybackChunks } from '../utils/resultChunks';
 
 interface SegmentResponse {
   name: string;
@@ -11,7 +13,7 @@ interface SegmentResponse {
   rotation?: number;
 }
 
-interface SimulationResultDetailResponse {
+interface SimulationResultSummaryResponse {
   simulationId: number;
   simulationResultId: number;
   title: string;
@@ -24,24 +26,12 @@ interface SimulationResultDetailResponse {
     name: string;
     width: number;
     height: number;
+    outsideBoundary: Array<{ x: number; y: number }>;
     walls: SegmentResponse[];
     exits: SegmentResponse[];
     pillars: SegmentResponse[];
     fabrics: SegmentResponse[];
-  };
-  agentFrames: Array<{
-    timeSeconds: number;
-    positions: number[];
-    activeAgentCount: number;
-    evacuatedCount: number;
-  }>;
-  heatmap: {
-    columns: number;
-    rows: number;
-    cellWidth: number;
-    cellHeight: number;
-    maxDensity: number;
-    frames: Array<{ timeSeconds: number; values: number[] }>;
+    layoutTexts: Array<{ text: string; x: number; y: number }>;
   };
   bottlenecks: Array<{
     id: number;
@@ -53,7 +43,6 @@ interface SimulationResultDetailResponse {
     thresholdValue: number;
     geometry: { x: number; y: number; width: number; height: number };
   }>;
-  evacuationProgress: Array<{ timeSeconds: number; evacuatedCount: number }>;
   comparableSimulations: Array<{
     id: number;
     simulationResultId: number;
@@ -62,34 +51,33 @@ interface SimulationResultDetailResponse {
   }>;
 }
 
-function toViewModel(response: SimulationResultDetailResponse): SimulationResultViewModel {
+function toSummaryViewModel(
+  response: SimulationResultSummaryResponse,
+): SimulationResultSummaryViewModel {
   return {
     ...response,
     simulationId: String(response.simulationId),
-    agentFrames: response.agentFrames.map((frame) => ({
-      ...frame,
-      positions: Float32Array.from(frame.positions),
-    })),
-    heatmap: {
-      ...response.heatmap,
-      frames: response.heatmap.frames.map((frame) => ({
-        ...frame,
-        values: Float32Array.from(frame.values),
-      })),
-    },
   };
 }
 
 export const simulationResultProvider: SimulationResultProvider = {
-  async getResult(simulationId) {
+  async getSummary(simulationId) {
     try {
-      const response = await apiClient.get<SimulationResultDetailResponse>(
+      const response = await apiClient.get<SimulationResultSummaryResponse>(
         `/api/simulations/${simulationId}/result`,
       );
-      return toViewModel(response.data);
+      return toSummaryViewModel(response.data);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) return null;
       throw error;
     }
+  },
+
+  async getPlaybackChunk(simulationId, sequence, totalPeople, maxDensity) {
+    const [timeline, heatmap] = await Promise.all([
+      simulationApi.getTimelineChunk(simulationId, sequence),
+      simulationApi.getHeatmapChunk(simulationId, sequence),
+    ]);
+    return convertPlaybackChunks(timeline, heatmap, totalPeople, maxDensity);
   },
 };
