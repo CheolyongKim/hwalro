@@ -12,6 +12,7 @@ import { ReportDraftDialog } from '../components/ReportDraftDialog';
 import { ResultSummaryPanel } from '../components/ResultSummaryPanel';
 import { RiskZoneEditorDialog } from '../components/RiskZoneEditorDialog';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
+import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
 import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
@@ -296,6 +297,7 @@ export default function SimulationResultPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
   const numericSimulationId = Number(simulationId);
+  const recordLastActivity = useRecordLastActivity();
   const [summary, setSummary] = useState<SimulationResultSummaryViewModel | null>(null);
   const [executionResult, setExecutionResult] = useState<SimulationResultSummary | null>(null);
   const [loadingTotalPeople, setLoadingTotalPeople] = useState<number | null>(null);
@@ -335,12 +337,14 @@ export default function SimulationResultPage() {
         setExecutionResult(execution.result);
         setSummary(loadedSummary);
         setStatus('ready');
+        // 결과 분석 화면은 별도 저장이 없으므로 결과를 실제로 열람한 시점을 작업으로 본다.
+        recordLastActivity('SIMULATION_RESULT', numericSimulationId);
       })
       .catch(() => active && setStatus('error'));
     return () => {
       active = false;
     };
-  }, [navigate, numericSimulationId, retry, simulationId]);
+  }, [navigate, numericSimulationId, retry, simulationId, recordLastActivity]);
 
   if (status === 'loading') {
     const participantLabel = loadingTotalPeople?.toLocaleString('ko-KR');

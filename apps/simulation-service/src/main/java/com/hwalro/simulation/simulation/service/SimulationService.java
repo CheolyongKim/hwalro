@@ -27,12 +27,18 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPag
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationWorkSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TextDto;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -102,6 +108,27 @@ public class SimulationService {
         return simulationMapper.findSimulationMonitor(user.userId()).stream()
                 .map(SimulationService::toOverviewResponse)
                 .toList();
+    }
+
+    public SimulationOverviewResponse getOverview(Long id, JwtUser user) {
+        Simulation simulation = simulationMapper.findSimulationOverviewById(id);
+        if (simulation == null) {
+            throw new SimulationNotFoundException("시뮬레이션을 찾을 수 없습니다: " + id);
+        }
+        requireAccessible(simulation.getCreatedBy(), user);
+        return toOverviewResponse(simulation);
+    }
+
+    public SimulationWorkSummaryResponse getWorkSummary(JwtUser user) {
+        LocalDateTime weekStartUtc = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .with(DayOfWeek.MONDAY)
+                .atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .toInstant()
+                .atZone(ZoneOffset.UTC)
+                .toLocalDateTime();
+        return new SimulationWorkSummaryResponse(
+                Math.toIntExact(simulationMapper.countInProgress(user.userId())),
+                Math.toIntExact(simulationMapper.countCompletedThisWeek(user.userId(), weekStartUtc)));
     }
 
     @Transactional

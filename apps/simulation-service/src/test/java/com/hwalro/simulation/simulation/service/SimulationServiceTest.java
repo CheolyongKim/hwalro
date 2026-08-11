@@ -3,11 +3,13 @@ package com.hwalro.simulation.simulation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
@@ -17,6 +19,7 @@ import com.hwalro.simulation.simulation.domain.SimulationOption;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
+import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -150,6 +153,65 @@ class SimulationServiceTest {
         assertThat(response).hasSize(1);
         assertThat(response.get(0).id()).isEqualTo(21L);
         verify(simulationMapper).findSimulationMonitor(7L);
+    }
+
+    @Test
+    void returnsSingleOverviewForOwnSimulation() {
+        Simulation item = simulation();
+        item.setLayoutId(3L);
+        item.setLayoutTitle("test");
+        item.setLayoutVersionNumber(1);
+        item.setTotalPeople(12);
+        when(simulationMapper.findSimulationOverviewById(21L)).thenReturn(item);
+
+        var response = service.getOverview(21L, user);
+
+        assertThat(response.id()).isEqualTo(21L);
+        assertThat(response.layoutTitle()).isEqualTo("test");
+        assertThat(response.layoutId()).isEqualTo(3L);
+    }
+
+    @Test
+    void rejectsSingleOverviewForOtherOperatorsSimulation() {
+        Simulation item = simulation();
+        item.setCreatedBy(99L);
+        when(simulationMapper.findSimulationOverviewById(21L)).thenReturn(item);
+
+        assertThatThrownBy(() -> service.getOverview(21L, user)).isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void rejectsSingleOverviewWhenSimulationMissing() {
+        when(simulationMapper.findSimulationOverviewById(404L)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.getOverview(404L, user)).isInstanceOf(SimulationNotFoundException.class);
+    }
+
+    @Test
+    void returnsWorkSummaryScopedToCurrentUser() {
+        when(simulationMapper.countInProgress(7L)).thenReturn(1L);
+        when(simulationMapper.countCompletedThisWeek(eq(7L), any(LocalDateTime.class)))
+                .thenReturn(7L);
+
+        var response = service.getWorkSummary(user);
+
+        assertThat(response.inProgressCount()).isEqualTo(1);
+        assertThat(response.completedThisWeekCount()).isEqualTo(7);
+        verify(simulationMapper).countInProgress(7L);
+        verify(simulationMapper).countCompletedThisWeek(eq(7L), any(LocalDateTime.class));
+    }
+
+    @Test
+    void scopesWorkSummaryToCurrentUserEvenForAdmin() {
+        JwtUser admin = new JwtUser(7L, Set.of("ADMIN"));
+        when(simulationMapper.countInProgress(7L)).thenReturn(0L);
+        when(simulationMapper.countCompletedThisWeek(eq(7L), any(LocalDateTime.class)))
+                .thenReturn(0L);
+
+        service.getWorkSummary(admin);
+
+        verify(simulationMapper).countInProgress(7L);
+        verify(simulationMapper).countCompletedThisWeek(eq(7L), any(LocalDateTime.class));
     }
 
     private void stubDrawing() {

@@ -146,6 +146,50 @@
         ORDER BY s.created_at DESC, s.id DESC
     </select>
 
+    <!-- 홈 화면 "진행 중인 안전 검토" 카드가 마지막 작업 포인터를 채울 때 사용한다.
+         findSimulationMonitor와 같은 조인 구조를 사용하되 단건만 조회한다. -->
+    <select id="findSimulationOverviewById" resultType="com.hwalro.simulation.simulation.domain.Simulation">
+        SELECT s.id,
+               s.layout_version_id,
+               s.parent_simulation_id,
+               s.created_by,
+               s.status,
+               s.created_at,
+               s.requested_at,
+               s.started_at,
+               s.finished_at,
+               so.total_people,
+               l.id AS layout_id,
+               l.title AS layout_title,
+               lv.version AS layout_version_number,
+               sr.termination_reason
+        FROM simulations s
+        JOIN simulation_options so ON so.simulation_id = s.id
+        JOIN layout_versions lv ON lv.id = s.layout_version_id
+        JOIN layouts l ON l.id = lv.layout_id
+        LEFT JOIN simulation_results sr ON sr.simulation_id = s.id
+        WHERE s.id = #{id}
+    </select>
+
+    <!-- 홈 화면 "내 업무 현황" 집계. 실행 대기와 실행 중을 처리 중으로 본다. -->
+    <select id="countInProgress" resultType="long">
+        SELECT COUNT(*)
+        FROM simulations s
+        WHERE s.created_by = #{createdBy}
+          AND s.status IN ('REQUESTED', 'RUNNING')
+    </select>
+
+    <!-- 이번 주(월요일 00:00 KST) 이후 완료된 건수.
+         시뮬레이션 시간값은 UTC 세션 기준(CURRENT_TIMESTAMP)으로 저장되므로,
+         KST 주간 시작 시각을 UTC로 변환한 값을 서버에서 파라미터로 넘겨 비교한다. -->
+    <select id="countCompletedThisWeek" resultType="long">
+        SELECT COUNT(*)
+        FROM simulations s
+        WHERE s.created_by = #{createdBy}
+          AND s.status = 'COMPLETED'
+          AND s.finished_at &gt;= #{weekStart}
+    </select>
+
     <select id="findSimulationOption" resultType="com.hwalro.simulation.simulation.domain.SimulationOption">
         SELECT id,
                simulation_id,
