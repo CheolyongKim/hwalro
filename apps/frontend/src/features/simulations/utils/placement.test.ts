@@ -59,4 +59,18 @@ describe('에이전트 배치', () => {
       ]),
     ).toEqual([{ x: 4, y: 4 }]);
   });
+
+  it('지우개 크기에 따라 제거 범위가 달라진다', () => {
+    const agents = [
+      { x: 2, y: 2 },
+      { x: 3, y: 2 },
+      { x: 4, y: 2 },
+    ];
+
+    expect(eraseAgents({ x: 2, y: 2 }, 0.5, agents)).toEqual([
+      { x: 3, y: 2 },
+      { x: 4, y: 2 },
+    ]);
+    expect(eraseAgents({ x: 2, y: 2 }, 1.5, agents)).toEqual([{ x: 4, y: 2 }]);
+  });
 });
