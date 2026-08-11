@@ -2,17 +2,23 @@ package com.hwalro.simulation.result.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.simulation.analysis.service.DensityThresholdProvider;
+import com.hwalro.simulation.analysis.service.DensityThresholdProvider.DensityThreshold;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
+import com.hwalro.simulation.drawing.domain.LayoutText;
+import com.hwalro.simulation.drawing.domain.OutsideWall;
+import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -23,28 +29,40 @@ class SimulationResultDetailServiceTest {
     @Mock
     private SimulationResultDetailMapper mapper;
 
+    @Mock
+    private DensityThresholdProvider densityThresholdProvider;
+
+    @Mock
+    private DrawingMapper drawingMapper;
+
+    private SimulationResultDetailService service;
+
+    @BeforeEach
+    void setUp() {
+        service =
+                new SimulationResultDetailService(mapper, drawingMapper, new ObjectMapper(), densityThresholdProvider);
+    }
+
     @Test
-    void assemblesOrderedChunksIntoResultView() {
+    void assemblesStaticResultSummaryWithoutLoadingPlaybackChunks() {
         long simulationId = 9201L;
         when(mapper.findSummary(simulationId))
                 .thenReturn(new SimulationResultDetailMapper.SummaryRow(
                         9301L, simulationId, 9001L, 9100L, "행사장", "지하 2층", 170, 100, 100));
         when(mapper.findMetrics(9301L))
                 .thenReturn(List.of(
-                        new SimulationResultDetailMapper.MetricRow("TOTAL_EVACUATION_TIME", 264),
+                        new SimulationResultDetailMapper.MetricRow("SIMULATION_DURATION_SECONDS", 264),
                         new SimulationResultDetailMapper.MetricRow("MAX_DENSITY", 4.8)));
+        when(densityThresholdProvider.getCurrent())
+                .thenReturn(new DensityThreshold(new BigDecimal("3.5"), "PERSON_PER_M2"));
         when(mapper.findWalls(9100L))
                 .thenReturn(List.of(new SimulationResultDetailMapper.SegmentRow("벽", 0, 0, 10, 0, 0)));
         when(mapper.findExits(9100L))
                 .thenReturn(List.of(new SimulationResultDetailMapper.SegmentRow("출구", 10, 0, 10, 2, 0)));
         when(mapper.findPillars(9100L)).thenReturn(List.of());
         when(mapper.findFabrics(9100L)).thenReturn(List.of());
-        when(mapper.findTimelineChunks(9301L))
-                .thenReturn(List.of(
-                        new SimulationResultDetailMapper.JsonChunk(1, timelineChunk(4, 80, 20)),
-                        new SimulationResultDetailMapper.JsonChunk(0, timelineChunk(0, 100, 0))));
-        when(mapper.findHeatmapChunks(9301L))
-                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, heatmapChunk())));
+        when(drawingMapper.findOutsideWallsByVersionId(9100L)).thenReturn(rectangularBoundary());
+        when(drawingMapper.findLayoutTextsByVersionId(9100L)).thenReturn(List.of(layoutText("중앙 통로", 4, 5)));
         when(mapper.findBottlenecks(9301L))
                 .thenReturn(List.of(new SimulationResultDetailMapper.BottleneckRow(
                         1L,
@@ -57,21 +75,22 @@ class SimulationResultDetailServiceTest {
         when(mapper.findComparableSimulations(simulationId, 9001L))
                 .thenReturn(List.of(new SimulationResultDetailMapper.ComparableRow(9202L, 9302L, "비교안", 221)));
 
-        var result = new SimulationResultDetailService(mapper, new ObjectMapper())
-                .find(simulationId, new JwtUser(9001L, Set.of("OPERATOR")));
+        var result = service.find(simulationId, new JwtUser(9001L, Set.of("OPERATOR")));
 
         assertThat(result.simulationResultId()).isEqualTo(9301L);
         assertThat(result.durationSeconds()).isEqualTo(264);
         assertThat(result.totalPeople()).isEqualTo(100);
-        assertThat(result.agentFrames())
-                .extracting(frame -> frame.timeSeconds())
-                .containsExactly(0.0, 4.0);
-        assertThat(result.evacuationProgress())
-                .extracting(point -> point.evacuatedCount())
-                .containsExactly(0, 20);
-        assertThat(result.heatmap().columns()).isEqualTo(2);
+        assertThat(result.densityThreshold()).isEqualTo(3.5);
+        assertThat(result.drawing().outsideBoundary())
+                .extracting(point -> point.x() + "," + point.y())
+                .containsExactly("0.0,0.0", "0.0,10.0", "20.0,10.0", "20.0,0.0");
+        assertThat(result.drawing().walls()).hasSize(1);
+        assertThat(result.drawing().layoutTexts()).singleElement().satisfies(text -> {
+            assertThat(text.text()).isEqualTo("중앙 통로");
+            assertThat(text.x()).isEqualTo(4);
+            assertThat(text.y()).isEqualTo(5);
+        });
         assertThat(result.bottlenecks().get(0).name()).isEqualTo("중앙 통로");
-        assertThat(result.comparableSimulations().get(0).id()).isEqualTo(9202L);
         assertThat(result.comparableSimulations().get(0).simulationResultId()).isEqualTo(9302L);
     }
 
@@ -81,8 +100,7 @@ class SimulationResultDetailServiceTest {
                 .thenReturn(new SimulationResultDetailMapper.SummaryRow(
                         9301L, 9201L, 9001L, 9100L, "행사장", "지하 2층", 170, 100, 100));
 
-        assertThatThrownBy(() -> new SimulationResultDetailService(mapper, new ObjectMapper())
-                        .find(9201L, new JwtUser(7L, Set.of("OPERATOR"))))
+        assertThatThrownBy(() -> service.find(9201L, new JwtUser(7L, Set.of("OPERATOR"))))
                 .isInstanceOf(ForbiddenException.class);
     }
 
@@ -90,8 +108,7 @@ class SimulationResultDetailServiceTest {
     void rejectsMissingSimulation() {
         when(mapper.findSummary(9999L)).thenReturn(null);
 
-        assertThatThrownBy(() -> new SimulationResultDetailService(mapper, new ObjectMapper())
-                        .find(9999L, new JwtUser(9001L, Set.of("OPERATOR"))))
+        assertThatThrownBy(() -> service.find(9999L, new JwtUser(9001L, Set.of("OPERATOR"))))
                 .isInstanceOf(SimulationNotFoundException.class)
                 .hasMessageContaining("시뮬레이션을 찾을 수 없습니다");
     }
@@ -104,80 +121,46 @@ class SimulationResultDetailServiceTest {
                         9301L, simulationId, 9001L, 9100L, "행사장", "지하 2층", 170, 100, 100));
         when(mapper.findMetrics(9301L))
                 .thenReturn(List.of(
-                        new SimulationResultDetailMapper.MetricRow("TOTAL_EVACUATION_TIME", 264),
+                        new SimulationResultDetailMapper.MetricRow("SIMULATION_DURATION_SECONDS", 264),
                         new SimulationResultDetailMapper.MetricRow("MAX_DENSITY", 4.8)));
-        when(mapper.findTimelineChunks(9301L))
-                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, timelineChunk(0, 100, 0))));
-        when(mapper.findHeatmapChunks(9301L))
-                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, heatmapChunk())));
+        when(densityThresholdProvider.getCurrent())
+                .thenReturn(new DensityThreshold(new BigDecimal("3.5"), "PERSON_PER_M2"));
         when(mapper.findWalls(9100L)).thenReturn(List.of());
         when(mapper.findExits(9100L)).thenReturn(List.of());
         when(mapper.findPillars(9100L)).thenReturn(List.of());
         when(mapper.findFabrics(9100L)).thenReturn(List.of());
+        when(drawingMapper.findOutsideWallsByVersionId(9100L)).thenReturn(rectangularBoundary());
+        when(drawingMapper.findLayoutTextsByVersionId(9100L)).thenReturn(List.of());
         when(mapper.findBottlenecks(9301L)).thenReturn(List.of());
         when(mapper.findComparableSimulations(simulationId, 9001L)).thenReturn(List.of());
 
-        new SimulationResultDetailService(mapper, new ObjectMapper())
-                .find(simulationId, new JwtUser(77L, Set.of("SAFETY_REVIEWER")));
+        service.find(simulationId, new JwtUser(77L, Set.of("SAFETY_REVIEWER")));
 
-        org.mockito.Mockito.verify(mapper).findComparableSimulations(simulationId, 9001L);
+        verify(mapper).findComparableSimulations(simulationId, 9001L);
     }
 
-    @Test
-    void rejectsEmptyHeatmapFramesAndNonNumericArrayValues() {
-        assertInvalidHeatmap(
-                """
-                {"threshold":{"value":3.5},"grid":{"cellSize":5,"rows":1,"columns":1},"frames":[]}
-                """,
-                "히트맵 프레임이 없습니다");
-        assertInvalidHeatmap(
-                """
-                {"threshold":{"value":3.5},"grid":{"cellSize":5,"rows":1,"columns":1},
-                 "frames":[{"timeSeconds":0,"values":[null]}]}
-                """,
-                "숫자가 아닌 값");
+    private List<OutsideWall> rectangularBoundary() {
+        return List.of(
+                outsideWall(0, 0, 20, 0),
+                outsideWall(20, 10, 0, 10),
+                outsideWall(20, 0, 20, 10),
+                outsideWall(0, 10, 0, 0));
     }
 
-    private void assertInvalidHeatmap(String heatmapJson, String message) {
-        long simulationId = 9201L;
-        org.mockito.Mockito.reset(mapper);
-        when(mapper.findSummary(simulationId))
-                .thenReturn(new SimulationResultDetailMapper.SummaryRow(
-                        9301L, simulationId, 9001L, 9100L, "행사장", "지하 2층", 170, 100, 100));
-        when(mapper.findMetrics(9301L))
-                .thenReturn(List.of(
-                        new SimulationResultDetailMapper.MetricRow("TOTAL_EVACUATION_TIME", 264),
-                        new SimulationResultDetailMapper.MetricRow("MAX_DENSITY", 4.8)));
-        when(mapper.findTimelineChunks(9301L))
-                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, timelineChunk(0, 100, 0))));
-        when(mapper.findHeatmapChunks(9301L))
-                .thenReturn(List.of(new SimulationResultDetailMapper.JsonChunk(0, heatmapJson)));
-
-        assertThatThrownBy(() -> new SimulationResultDetailService(mapper, new ObjectMapper())
-                        .find(simulationId, new JwtUser(9001L, Set.of("OPERATOR"))))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(message);
+    private OutsideWall outsideWall(double startX, double startY, double endX, double endY) {
+        OutsideWall wall = new OutsideWall();
+        wall.setStartX(BigDecimal.valueOf(startX));
+        wall.setStartY(BigDecimal.valueOf(startY));
+        wall.setEndX(BigDecimal.valueOf(endX));
+        wall.setEndY(BigDecimal.valueOf(endY));
+        return wall;
     }
 
-    private String timelineChunk(int time, int active, int evacuated) {
-        String positions = IntStream.range(0, 200)
-                .mapToObj(index -> Integer.toString(index))
-                .collect(Collectors.joining(","));
-        return """
-                {"agentCount":100,"frames":[
-                  {"timeSeconds":%d,"activeAgentCount":%d,"evacuatedCount":%d,"positions":[%s]}
-                ]}
-                """
-                .formatted(time, active, evacuated, positions);
-    }
-
-    private String heatmapChunk() {
-        return """
-                {
-                  "threshold":{"value":3.5,"unit":"PERSON_PER_M2"},
-                  "grid":{"originX":0,"originY":0,"cellSize":5,"rows":1,"columns":2,"valueOrder":"ROW_MAJOR"},
-                  "frames":[{"timeSeconds":0,"values":[0.1,4.8]}]
-                }
-                """;
+    private LayoutText layoutText(String value, double x, double y) {
+        LayoutText text = new LayoutText();
+        text.setText(value);
+        text.setX(BigDecimal.valueOf(x));
+        text.setY(BigDecimal.valueOf(y));
+        return text;
     }
 }

@@ -5,6 +5,7 @@ import {
   Particle,
   ParticleContainer,
   Rectangle,
+  Text as PixiText,
   type Texture,
 } from 'pixi.js';
 import type {
@@ -12,6 +13,7 @@ import type {
   DetectedBottleneck,
   HeatmapData,
   RiskZone,
+  SimulationResultSummaryViewModel,
   SimulationResultViewModel,
 } from '../types';
 import { interpolatePositions, selectFramePair } from '../utils/playback';
@@ -32,6 +34,7 @@ export interface PixiSimulationScene {
   particles: Particle[];
   interpolationBuffer: Float32Array;
   agentTexture: Texture;
+  floorLabels: PixiText[];
   lastHeatmapTime: number | null;
 }
 
@@ -63,23 +66,80 @@ export function pixiScreenToWorld(x: number, y: number, transform: PixiCameraTra
   };
 }
 
-function drawFloorPlan(result: SimulationResultViewModel) {
+type PixiSceneConfig = Pick<SimulationResultSummaryViewModel, 'drawing' | 'totalPeople'>;
+
+function traceBoundary(graphics: Graphics, points: PixiSceneConfig['drawing']['outsideBoundary']) {
+  const first = points[0];
+  if (!first) return graphics;
+  graphics.moveTo(first.x, first.y);
+  for (const point of points.slice(1)) graphics.lineTo(point.x, point.y);
+  return graphics.closePath();
+}
+
+function addRotatedRectangle(
+  container: Container,
+  rectangle: PixiSceneConfig['drawing']['pillars'][number],
+  fillColor: number,
+  strokeColor: number,
+) {
+  const x = Math.min(rectangle.startX, rectangle.endX);
+  const y = Math.min(rectangle.startY, rectangle.endY);
+  const width = Math.abs(rectangle.endX - rectangle.startX);
+  const height = Math.abs(rectangle.endY - rectangle.startY);
+  const graphic = new Graphics()
+    .rect(-width / 2, -height / 2, width, height)
+    .fill({ color: fillColor })
+    .stroke({ color: strokeColor, width: 0.18 });
+  graphic.position.set(x + width / 2, y + height / 2);
+  graphic.rotation = ((rectangle.rotation ?? 0) * Math.PI) / 180;
+  container.addChild(graphic);
+}
+
+function drawFloorPlan(result: PixiSceneConfig) {
   const { drawing } = result;
-  const floor = new Graphics();
-  floor.rect(0, 0, drawing.width, drawing.height).fill({ color: 0xf9fbfa });
+  const baseLayer = new Graphics();
+  const structureLayer = new Container();
+  const lineLayer = new Graphics();
+  const labels: PixiText[] = [];
+  baseLayer.rect(0, 0, drawing.width, drawing.height).fill({ color: 0xf3f7f6 });
+  traceBoundary(baseLayer, drawing.outsideBoundary).fill({ color: 0xffffff });
+  traceBoundary(lineLayer, drawing.outsideBoundary).stroke({ color: 0x355b55, width: 0.45 });
   for (const wall of drawing.walls) {
-    floor
+    lineLayer
       .moveTo(wall.startX, wall.startY)
       .lineTo(wall.endX, wall.endY)
-      .stroke({ color: 0x214b45, width: 0.55, cap: 'round' });
+      .stroke({ color: 0x506663, width: 0.4, cap: 'round' });
   }
+  structureLayer.addChild(lineLayer);
+  for (const pillar of drawing.pillars) {
+    addRotatedRectangle(structureLayer, pillar, 0xdce5e3, 0x839793);
+  }
+  for (const fabric of drawing.fabrics) {
+    addRotatedRectangle(structureLayer, fabric, 0xe8efed, 0xa0afac);
+  }
+  for (const text of drawing.layoutTexts) {
+    const label = new PixiText({
+      text: text.text,
+      style: {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 11,
+        fill: 0x637773,
+      },
+      resolution: window.devicePixelRatio || 1,
+    });
+    label.position.set(text.x, text.y);
+    labels.push(label);
+    structureLayer.addChild(label);
+  }
+  const exitLayer = new Graphics();
   for (const exit of drawing.exits) {
-    floor
+    exitLayer
       .moveTo(exit.startX, exit.startY)
       .lineTo(exit.endX, exit.endY)
-      .stroke({ color: 0x16a394, width: 1.5, cap: 'round' });
+      .stroke({ color: 0x078f7e, width: 1, cap: 'round' });
   }
-  return floor;
+  structureLayer.addChild(exitLayer);
+  return { baseLayer, structureLayer, labels };
 }
 
 function createAgentTexture(app: Application) {
@@ -91,7 +151,7 @@ function createAgentTexture(app: Application) {
 
 export async function createPixiSimulationScene(
   host: HTMLDivElement,
-  result: SimulationResultViewModel,
+  result: PixiSceneConfig,
 ): Promise<PixiSimulationScene> {
   const app = new Application();
   await app.init({
@@ -112,6 +172,7 @@ export async function createPixiSimulationScene(
   const heatmapLayer = new Graphics();
   const bottleneckLayer = new Graphics();
   const riskLayer = new Graphics();
+  const floorPlan = drawFloorPlan(result);
   const agentTexture = createAgentTexture(app);
   const particles = Array.from(
     { length: result.totalPeople },
@@ -138,7 +199,14 @@ export async function createPixiSimulationScene(
     },
   });
   agentLayer.update();
-  world.addChild(drawFloorPlan(result), heatmapLayer, bottleneckLayer, agentLayer, riskLayer);
+  world.addChild(
+    floorPlan.baseLayer,
+    heatmapLayer,
+    floorPlan.structureLayer,
+    bottleneckLayer,
+    agentLayer,
+    riskLayer,
+  );
   app.stage.addChild(world);
 
   return {
@@ -151,6 +219,7 @@ export async function createPixiSimulationScene(
     particles,
     interpolationBuffer: new Float32Array(result.totalPeople * 2),
     agentTexture,
+    floorLabels: floorPlan.labels,
     lastHeatmapTime: null,
   };
 }
@@ -173,8 +242,8 @@ function updateHeatmap(layer: Graphics, heatmap: HeatmapData, timeSeconds: numbe
       const ratio = Math.min(1, density / heatmap.maxDensity);
       layer
         .rect(
-          column * heatmap.cellWidth,
-          row * heatmap.cellHeight,
+          heatmap.originX + column * heatmap.cellWidth,
+          heatmap.originY + row * heatmap.cellHeight,
           heatmap.cellWidth + 0.05,
           heatmap.cellHeight + 0.05,
         )
@@ -307,6 +376,7 @@ export function updatePixiSimulationScene(
 export function applyPixiCamera(scene: PixiSimulationScene, transform: PixiCameraTransform) {
   scene.world.scale.set(transform.scale);
   scene.world.position.set(transform.offsetX, transform.offsetY);
+  for (const label of scene.floorLabels) label.scale.set(1 / transform.scale);
   scene.app.render();
 }
 

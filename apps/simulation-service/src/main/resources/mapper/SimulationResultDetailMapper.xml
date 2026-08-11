@@ -58,22 +58,6 @@
         ORDER BY id
     </select>
 
-    <select id="findTimelineChunks" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$JsonChunk">
-        SELECT chunk_sequence AS chunkSequence,
-               CAST(frame_data AS CHAR) AS jsonData
-        FROM timelines
-        WHERE simulation_result_id = #{simulationResultId}
-        ORDER BY chunk_sequence
-    </select>
-
-    <select id="findHeatmapChunks" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$JsonChunk">
-        SELECT chunk_sequence AS chunkSequence,
-               CAST(density_data AS CHAR) AS jsonData
-        FROM heatmaps
-        WHERE simulation_result_id = #{simulationResultId}
-        ORDER BY chunk_sequence
-    </select>
-
     <select id="findBottlenecks" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$BottleneckRow">
         SELECT id,
                bottleneck_order AS bottleneckOrder,
@@ -96,7 +80,7 @@
         JOIN simulation_results candidate_result ON candidate_result.simulation_id = candidate.id
         JOIN simulation_metrics metric
           ON metric.simulation_result_id = candidate_result.id
-         AND metric.metric_type = 'TOTAL_EVACUATION_TIME'
+         AND metric.metric_type = 'TOTAL_EVACUATION_TIME_SECONDS'
         LEFT JOIN proposal_simulations proposal_simulation ON proposal_simulation.simulation_id = candidate.id
         LEFT JOIN improvement_proposals proposal ON proposal.id = proposal_simulation.improvement_proposal_id
         WHERE candidate.created_by = #{createdBy}
