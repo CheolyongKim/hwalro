@@ -8,6 +8,7 @@ import com.hwalro.regulation.risk.dto.RiskListResponse;
 import com.hwalro.regulation.risk.dto.RiskResponse;
 import com.hwalro.regulation.risk.dto.RiskUpdateRequest;
 import com.hwalro.regulation.risk.service.RiskService;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +38,13 @@ public class RiskController {
             @RequestParam(defaultValue = "20") int size,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return riskService.list(page, size, user);
+    }
+
+    @GetMapping("/by-result/{simulationResultId}")
+    public List<RiskResponse> listBySimulationResult(
+            @PathVariable Long simulationResultId,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return riskService.listBySimulationResult(simulationResultId, user);
     }
 
     @GetMapping("/{id}")

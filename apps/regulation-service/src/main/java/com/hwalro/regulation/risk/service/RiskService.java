@@ -10,6 +10,7 @@ import com.hwalro.regulation.risk.dto.RiskUpdateRequest;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import com.hwalro.regulation.risk.mapper.RiskMapper;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -41,6 +42,16 @@ public class RiskService {
         return new RiskListResponse((int) totalCount, page, size, page * size < totalCount, items);
     }
 
+    public List<RiskResponse> listBySimulationResult(Long simulationResultId, JwtUser user) {
+        if (simulationResultId == null || simulationResultId <= 0) {
+            throw new IllegalArgumentException("시뮬레이션 결과 ID는 양수여야 합니다.");
+        }
+        Long assigneeFilter = resolveAssigneeFilter(user);
+        return riskMapper.findBySimulationResultId(simulationResultId, assigneeFilter).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public RiskResponse get(Long id, JwtUser user) {
         Risk risk = findByIdOrThrow(id);
         requireAccessible(risk, user);
@@ -49,10 +60,16 @@ public class RiskService {
 
     public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
+        validateGeometry(request);
         Risk risk = new Risk();
         risk.setAssigneeId(assigneeId);
+        risk.setSimulationResultId(request.simulationResultId());
         risk.setTitle(request.title().trim());
         risk.setDescription(request.description());
+        risk.setStartX(request.startX());
+        risk.setStartY(request.startY());
+        risk.setEndX(request.endX());
+        risk.setEndY(request.endY());
         risk.setSeverity(request.severity().trim());
         risk.setStatus(request.status().trim());
         riskMapper.insert(risk);
@@ -116,9 +133,22 @@ public class RiskService {
                 risk.getAssigneeId(),
                 risk.getTitle(),
                 risk.getDescription(),
+                risk.getStartX(),
+                risk.getStartY(),
+                risk.getEndX(),
+                risk.getEndY(),
                 risk.getSeverity(),
                 risk.getStatus(),
                 risk.getCreatedAt());
+    }
+
+    private void validateGeometry(RiskCreateRequest request) {
+        List<Double> coordinates = List.of(request.startX(), request.startY(), request.endX(), request.endY());
+        boolean anyProvided = coordinates.stream().anyMatch(Objects::nonNull);
+        boolean allProvided = coordinates.stream().allMatch(Objects::nonNull);
+        if (anyProvided != allProvided) {
+            throw new IllegalArgumentException("위험 구역 좌표는 startX, startY, endX, endY를 모두 함께 입력해야 합니다.");
+        }
     }
 
     private void validatePage(int page, int size) {

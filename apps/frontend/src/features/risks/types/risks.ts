@@ -4,12 +4,21 @@ export interface Risk {
   assigneeId: number | null;
   title: string;
   description: string | null;
+  startX: number | null;
+  startY: number | null;
+  endX: number | null;
+  endY: number | null;
   severity: string;
   status: string;
   createdAt: string;
 }
 
 export interface RiskCreateRequest {
+  simulationResultId: number | null;
+  startX: number | null;
+  startY: number | null;
+  endX: number | null;
+  endY: number | null;
   title: string;
   description: string | null;
   severity: string;

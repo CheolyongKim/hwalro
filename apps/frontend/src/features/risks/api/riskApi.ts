@@ -6,6 +6,8 @@ export const riskApi = {
     apiClient
       .get<RiskListResponse>('/api/risks', { params: { page, size } })
       .then((res) => res.data),
+  listBySimulationResult: (simulationResultId: number) =>
+    apiClient.get<Risk[]>(`/api/risks/by-result/${simulationResultId}`).then((res) => res.data),
   get: (id: number) => apiClient.get<Risk>(`/api/risks/${id}`).then((res) => res.data),
   create: (body: RiskCreateRequest) =>
     apiClient.post<Risk>('/api/risks', body).then((res) => res.data),

@@ -8,6 +8,10 @@ public record RiskResponse(
         Long assigneeId,
         String title,
         String description,
+        Double startX,
+        Double startY,
+        Double endX,
+        Double endY,
         String severity,
         String status,
         LocalDateTime createdAt) {}
