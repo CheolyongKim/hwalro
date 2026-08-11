@@ -484,9 +484,11 @@ function SimulationSetupPage() {
                 type="button"
                 disabled={!editable}
                 onClick={() => setTool(item.value)}
-                className={`h-9 rounded-lg px-3 text-xs font-bold transition-colors disabled:opacity-40 ${
+                className={`h-9 rounded-lg px-3 text-xs font-bold transition-all duration-300 disabled:opacity-40 ${
                   tool === item.value
-                    ? 'bg-primary text-white'
+                    ? item.value === 'erase'
+                      ? 'scale-105 bg-danger text-white shadow-md shadow-red-200'
+                      : 'scale-105 bg-primary text-white shadow-md shadow-emerald-200'
                     : 'bg-surface text-text-strong hover:bg-primary-soft'
                 }`}
               >
@@ -526,7 +528,37 @@ function SimulationSetupPage() {
           </section>
 
           <section className="mt-6 border-t border-line pt-5">
-            <h2 className="text-sm font-black">에이전트 배치</h2>
+            <div
+              aria-live="polite"
+              className={`flex items-center justify-between rounded-xl border px-3 py-2 transition-all duration-300 ${
+                tool === 'erase'
+                  ? 'scale-[1.02] border-red-200 bg-red-50 text-danger shadow-sm'
+                  : tool === 'spray'
+                    ? 'border-emerald-200 bg-emerald-50 text-primary shadow-sm'
+                    : 'border-line bg-surface text-text-strong'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`flex size-7 items-center justify-center rounded-full text-base font-black transition-all duration-300 ${
+                    tool === 'erase'
+                      ? 'scale-110 bg-red-100 text-danger'
+                      : tool === 'spray'
+                        ? 'bg-emerald-100 text-primary'
+                        : 'bg-white text-text-muted'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {tool === 'erase' ? '−' : tool === 'spray' ? '+' : '·'}
+                </span>
+                <h2 className="text-sm font-black">
+                  {tool === 'erase' ? '에이전트 지우기' : '에이전트 배치'}
+                </h2>
+              </div>
+              <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-black">
+                {tool === 'erase' ? '지우개 모드' : tool === 'spray' ? '배치 모드' : '도구 대기'}
+              </span>
+            </div>
             {(tool === 'spray' || tool === 'erase') && (
               <label className="mt-4 block text-xs font-bold text-text-muted">
                 {tool === 'erase' ? '지우개' : '스프레이'} 크기 ·{' '}
