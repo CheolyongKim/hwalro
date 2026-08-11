@@ -258,6 +258,11 @@ function LayoutPage() {
   }, [performSave]);
 
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
+  const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
+  const draftInitialText =
+    draftTextId === null
+      ? ''
+      : (state.doc.layoutTexts.find((t) => t.id === draftTextId)?.text ?? '');
 
   if (loadStatus === 'loading') {
     return (
@@ -372,6 +377,7 @@ function LayoutPage() {
           zoom={state.camera.zoom}
           panX={state.camera.panX}
           panY={state.camera.panY}
+          initialText={draftInitialText}
           onCommit={(text) => dispatch({ type: 'textCommit', text })}
           onCancel={() => dispatch({ type: 'textCancel' })}
         />

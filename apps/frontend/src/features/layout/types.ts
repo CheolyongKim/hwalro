@@ -125,6 +125,7 @@ export interface RectDraft {
 
 export interface TextDraft {
   point: Vec2;
+  textId: string | null;
 }
 
 export type ValidationProblemKind = 'wall' | 'outsideWall' | 'exit' | 'pillar' | 'fabric';
