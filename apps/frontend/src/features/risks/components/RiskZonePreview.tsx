@@ -64,13 +64,19 @@ export function RiskZonePreview({ drawing, zone, width = 240, height = 160 }: Pr
 
     const drawingWidth = Math.max(drawing.width, 1);
     const drawingHeight = Math.max(drawing.height, 1);
-    const scale = Math.min((width - PADDING * 2) / drawingWidth, (height - PADDING * 2) / drawingHeight);
+    const scale = Math.min(
+      (width - PADDING * 2) / drawingWidth,
+      (height - PADDING * 2) / drawingHeight,
+    );
     const offsetX = (width - drawingWidth * scale) / 2;
     const offsetY = (height - drawingHeight * scale) / 2;
 
     if (drawing.outsideBoundary.length > 0) {
       context.beginPath();
-      context.moveTo(offsetX + drawing.outsideBoundary[0].x * scale, offsetY + drawing.outsideBoundary[0].y * scale);
+      context.moveTo(
+        offsetX + drawing.outsideBoundary[0].x * scale,
+        offsetY + drawing.outsideBoundary[0].y * scale,
+      );
       for (const point of drawing.outsideBoundary.slice(1)) {
         context.lineTo(offsetX + point.x * scale, offsetY + point.y * scale);
       }
