@@ -63,7 +63,8 @@ export interface SimulationSetup {
   drawing: SimulationDrawing;
 }
 
-export type SimulationExecutionStatus = 'DRAFT' | 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type SimulationExecutionStatus =
+  'DRAFT' | 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export type SimulationTerminationReason = 'ALL_EVACUATED' | 'MAX_DURATION';
 

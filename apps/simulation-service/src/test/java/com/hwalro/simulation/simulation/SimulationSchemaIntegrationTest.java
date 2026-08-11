@@ -122,10 +122,12 @@ class SimulationSchemaIntegrationTest {
                     "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (922, 921, 7, 'status')");
             statement.executeUpdate(
                     "INSERT INTO layout_versions (id, layout_id, version, status) VALUES (923, 922, 1, '잠금')");
+            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, status) "
+                    + "VALUES (924, 923, 7, 'CANCELLED')");
 
             assertThatThrownBy(() -> statement.executeUpdate(
                             "INSERT INTO simulations (id, layout_version_id, created_by, status) "
-                                    + "VALUES (924, 923, 7, 'UNKNOWN')"))
+                                    + "VALUES (925, 923, 7, 'UNKNOWN')"))
                     .isInstanceOf(SQLException.class);
         }
     }

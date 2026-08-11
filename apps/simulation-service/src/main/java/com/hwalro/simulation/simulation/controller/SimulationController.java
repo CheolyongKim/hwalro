@@ -115,6 +115,13 @@ public class SimulationController {
         return simulationExecutionService.execute(id, user);
     }
 
+    @PostMapping("/{id}/cancel")
+    @Operation(summary = "시뮬레이션 실행 취소")
+    public SimulationExecutionResponse cancel(
+            @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationExecutionService.cancel(id, user);
+    }
+
     @GetMapping("/{id}/execution")
     @Operation(summary = "시뮬레이션 실행 상태 및 결과 조회")
     public SimulationExecutionResponse getExecution(
