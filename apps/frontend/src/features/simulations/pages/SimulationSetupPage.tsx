@@ -21,6 +21,7 @@ interface PlacementSnapshot {
 
 type LoadState = 'loading' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type AgentDeletionToast = { state: 'confirm' | 'success'; count: number } | null;
 
 interface InfoTooltipProps {
   id: string;
@@ -82,6 +83,7 @@ function SimulationSetupPage() {
   const [uniformCount, setUniformCount] = useState(100);
   const [selectedHazardId, setSelectedHazardId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [agentDeletionToast, setAgentDeletionToast] = useState<AgentDeletionToast>(null);
   const [, setHistoryRevision] = useState(0);
   const placementRef = useRef<PlacementSnapshot>({ agents: [], hazards: [] });
   const pastRef = useRef<PlacementSnapshot[]>([]);
@@ -119,6 +121,7 @@ function SimulationSetupPage() {
       setWalkingSpeed(data.walkingSpeed);
       setReactionTime(data.reactionTime);
       setSelectedHazardId(null);
+      setAgentDeletionToast(null);
       pastRef.current = [];
       futureRef.current = [];
       gestureOriginRef.current = null;
@@ -193,6 +196,12 @@ function SimulationSetupPage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [redo, undo]);
+
+  useEffect(() => {
+    if (agentDeletionToast?.state !== 'success') return;
+    const timer = window.setTimeout(() => setAgentDeletionToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [agentDeletionToast]);
 
   if (loadState === 'loading') {
     return (
@@ -305,14 +314,17 @@ function SimulationSetupPage() {
 
   const handleClearAgents = () => {
     if (!editable || agents.length === 0) return;
-    if (
-      !window.confirm(
-        `배치된 에이전트 ${agents.length.toLocaleString()}명을 모두 삭제할까요?\n위험구역과 시뮬레이션 조건은 유지됩니다.`,
-      )
-    ) {
+    setAgentDeletionToast({ state: 'confirm', count: agents.length });
+  };
+
+  const confirmClearAgents = () => {
+    if (!editable || agents.length === 0) {
+      setAgentDeletionToast(null);
       return;
     }
+    const count = agents.length;
     commitPlacement({ ...placementRef.current, agents: [] });
+    setAgentDeletionToast({ state: 'success', count });
   };
 
   const validateOptions = (): string | null => {
@@ -496,6 +508,69 @@ function SimulationSetupPage() {
               </button>
             ))}
           </div>
+          {agentDeletionToast && (
+            <article
+              role="status"
+              aria-live="polite"
+              className={`absolute right-4 top-4 z-20 w-80 overflow-hidden rounded-2xl border bg-white shadow-xl shadow-ink/15 ${
+                agentDeletionToast.state === 'confirm' ? 'border-red-200' : 'border-emerald-200'
+              }`}
+            >
+              <div className="flex gap-3 p-4">
+                <div
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-full text-lg font-black ${
+                    agentDeletionToast.state === 'confirm'
+                      ? 'bg-red-100 text-danger'
+                      : 'bg-emerald-100 text-emerald-700'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {agentDeletionToast.state === 'confirm' ? '!' : '✓'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-ink">
+                    {agentDeletionToast.state === 'confirm'
+                      ? `에이전트 ${agentDeletionToast.count.toLocaleString()}명을 삭제할까요?`
+                      : `에이전트 ${agentDeletionToast.count.toLocaleString()}명을 삭제했습니다.`}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-text-muted">
+                    위험구역과 시뮬레이션 조건은 유지됩니다.
+                  </p>
+                  {agentDeletionToast.state === 'confirm' && (
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAgentDeletionToast(null)}
+                        className="h-8 rounded-lg border border-line px-3 text-xs font-bold text-text-strong"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmClearAgents}
+                        className="h-8 rounded-lg bg-danger px-3 text-xs font-bold text-white"
+                      >
+                        전체 삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAgentDeletionToast(null)}
+                  aria-label="에이전트 삭제 알림 닫기"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-surface hover:text-ink"
+                >
+                  ×
+                </button>
+              </div>
+              <div
+                className={`h-1 ${
+                  agentDeletionToast.state === 'confirm' ? 'bg-danger' : 'bg-emerald-500'
+                }`}
+              />
+            </article>
+          )}
           {message && (
             <div
               role="alert"
