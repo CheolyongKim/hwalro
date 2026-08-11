@@ -29,7 +29,7 @@ class SimulationReportContextServiceTest {
                         new SimulationReportContextMapper.SummaryRow(20L, 200L, 7L, "비교 배치안")));
         when(mapper.findMetrics(List.of(20L, 10L)))
                 .thenReturn(List.of(
-                        new SimulationReportContextMapper.MetricRow(10L, "TOTAL_EVACUATION_TIME", 264, "s"),
+                        new SimulationReportContextMapper.MetricRow(10L, "TOTAL_EVACUATION_TIME_SECONDS", 264, "s"),
                         new SimulationReportContextMapper.MetricRow(20L, "MAX_DENSITY", 5.2, "persons/m2")));
         when(mapper.findBottlenecks(List.of(20L, 10L)))
                 .thenReturn(List.of(new SimulationReportContextMapper.BottleneckRow(10L, 1, 12, 72, 4.8, 3.5)));

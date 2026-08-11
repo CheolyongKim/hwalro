@@ -3,11 +3,13 @@ package com.hwalro.simulation.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -26,6 +28,16 @@ class SimulationSchemaIntegrationTest {
     static void createSchema() throws SQLException {
         try (Connection connection = connection()) {
             ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/schema.sql"));
+        }
+    }
+
+    @AfterEach
+    void restoreDensityThresholdSetting() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            statement.executeUpdate("INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                    + "VALUES (1, 3.500, 'PERSON_PER_M2')");
         }
     }
 
@@ -144,7 +156,7 @@ class SimulationSchemaIntegrationTest {
         return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
     }
 
-    private static java.math.BigDecimal densityThreshold(Statement statement) throws SQLException {
+    private static BigDecimal densityThreshold(Statement statement) throws SQLException {
         try (ResultSet resultSet =
                 statement.executeQuery("SELECT threshold_value FROM density_threshold_settings WHERE id = 1")) {
             assertThat(resultSet.next()).isTrue();

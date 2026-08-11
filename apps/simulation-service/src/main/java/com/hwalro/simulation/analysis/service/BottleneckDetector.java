@@ -176,14 +176,13 @@ public class BottleneckDetector {
     private static List<SpatialComponent> spatialComponents(List<ParsedCell> parsedCells, BigDecimal threshold) {
         Map<Cell, BigDecimal> qualifying = new LinkedHashMap<>();
         List<ParsedCell> orderedCells = parsedCells.stream()
+                .filter(cell -> cell.density().compareTo(threshold) >= 0)
                 .sorted(Comparator.comparingInt(
                                 (ParsedCell cell) -> cell.position().row())
                         .thenComparingInt(cell -> cell.position().column()))
                 .toList();
         for (ParsedCell cell : orderedCells) {
-            if (cell.density().compareTo(threshold) >= 0) {
-                qualifying.put(cell.position(), cell.density());
-            }
+            qualifying.put(cell.position(), cell.density());
         }
         List<SpatialComponent> result = new ArrayList<>();
         Set<Cell> visited = new HashSet<>();

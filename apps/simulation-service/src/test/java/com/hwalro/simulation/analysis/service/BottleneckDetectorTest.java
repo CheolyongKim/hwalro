@@ -121,7 +121,7 @@ class BottleneckDetectorTest {
 
         assertThat(first).hasSize(2);
         assertThat(first).extracting(item -> item.peakDensity()).containsExactly(4.1, 4.8);
-        assertThat(reversed).extracting(item -> item.peakDensity()).containsExactly(4.1, 4.8);
+        assertThat(reversed).containsExactlyElementsOf(first);
     }
 
     @Test

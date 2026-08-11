@@ -298,18 +298,26 @@ export default function SimulationResultPage() {
   const numericSimulationId = Number(simulationId);
   const [summary, setSummary] = useState<SimulationResultSummaryViewModel | null>(null);
   const [executionResult, setExecutionResult] = useState<SimulationResultSummary | null>(null);
+  const [loadingTotalPeople, setLoadingTotalPeople] = useState<number | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let active = true;
     setStatus('loading');
+    setLoadingTotalPeople(null);
     if (!Number.isSafeInteger(numericSimulationId) || numericSimulationId < 1) {
       setStatus('missing');
       return () => {
         active = false;
       };
     }
+    void simulationApi
+      .getSetup(numericSimulationId)
+      .then((setup) => {
+        if (active) setLoadingTotalPeople(setup.totalPeople);
+      })
+      .catch(() => undefined);
     simulationApi
       .getExecution(numericSimulationId)
       .then(async (execution) => {
@@ -335,7 +343,14 @@ export default function SimulationResultPage() {
   }, [navigate, numericSimulationId, retry, simulationId]);
 
   if (status === 'loading') {
-    return <div className="result-state">5,000명 시뮬레이션 결과를 준비하고 있습니다.</div>;
+    const participantLabel = loadingTotalPeople?.toLocaleString('ko-KR');
+    return (
+      <div className="result-state">
+        {participantLabel
+          ? `${participantLabel}명 시뮬레이션 결과를 준비하고 있습니다.`
+          : '시뮬레이션 결과를 준비하고 있습니다.'}
+      </div>
+    );
   }
   if (status !== 'ready' || !summary || !executionResult) {
     return (
