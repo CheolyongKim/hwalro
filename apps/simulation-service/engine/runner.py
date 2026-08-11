@@ -38,6 +38,7 @@ PHASE_NAMES = (
 )
 STALL_ITERATION_LIMIT = 500
 STALL_MOVEMENT_EPSILON_METERS = 0.001
+RELOCATION_LOG_LIMIT = 20
 
 
 class RunnerError(RuntimeError):
@@ -341,6 +342,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            relocate_agents,
             split_agent_components,
             usable_exit_segment,
         )
@@ -354,6 +356,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            relocate_agents,
             split_agent_components,
             usable_exit_segment,
         )
@@ -404,9 +407,23 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             usable_exit_segment(exit_, AGENT_RADIUS_METERS)
         walkable = build_walkable_geometry(drawing)
         routing_area = build_routing_geometry(drawing, AGENT_RADIUS_METERS)
+        agents, relocations = relocate_agents(routing_area, agents)
         groups = split_agent_components(routing_area, agents)
     except ValueError as exc:
         raise RunnerError(str(exc)) from exc
+
+    if relocations:
+        print(f"relocated {len(relocations)} agent(s) out of obstacles", file=sys.stderr)
+        for item in relocations[:RELOCATION_LOG_LIMIT]:
+            print(
+                f"  agent {item.index + 1}: {item.origin} -> {item.destination}",
+                file=sys.stderr,
+            )
+        if len(relocations) > RELOCATION_LOG_LIMIT:
+            print(
+                f"  ... and {len(relocations) - RELOCATION_LOG_LIMIT} more",
+                file=sys.stderr,
+            )
 
     contexts: list[SimulationContext] = []
     routing_groups: list[tuple[Any, Any, Any]] = []
