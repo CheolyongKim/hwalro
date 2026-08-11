@@ -13,7 +13,12 @@ import type {
   SimulationWorkSummary,
 } from '../types/home';
 import { selectPriorityRisks } from '../utils/priorityRisks';
-import { activityHasSimulation, currentStageLabel, resumePath, reviewSteps } from '../utils/reviewProgress';
+import {
+  activityHasSimulation,
+  currentStageLabel,
+  resumePath,
+  reviewSteps,
+} from '../utils/reviewProgress';
 
 const RECENT_SIMULATION_LIMIT = 5;
 const RISK_SCAN_SIZE = 20;

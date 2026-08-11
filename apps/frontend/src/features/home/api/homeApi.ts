@@ -10,9 +10,7 @@ export const homeApi = {
       .then((res) => (res.status === 204 || !res.data ? null : res.data)),
 
   recordLastActivity: (activityType: LastActivityType, resourceId: number) =>
-    apiClient
-      .put('/api/auth/me/last-activity', { activityType, resourceId })
-      .then(() => undefined),
+    apiClient.put('/api/auth/me/last-activity', { activityType, resourceId }).then(() => undefined),
 
   getWorkSummary: () =>
     apiClient.get<SimulationWorkSummary>('/api/simulations/summary').then((res) => res.data),
