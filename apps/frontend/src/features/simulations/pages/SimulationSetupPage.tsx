@@ -318,12 +318,12 @@ function SimulationSetupPage() {
   };
 
   const handleClearAgents = () => {
-    if (!editable || agents.length === 0) return;
+    if (!editable || saveState === 'saving' || agents.length === 0) return;
     setAgentDeletionToast({ state: 'confirm', count: agents.length });
   };
 
   const confirmClearAgents = () => {
-    if (!editable || agents.length === 0) {
+    if (!editable || saveState === 'saving' || agents.length === 0) {
       setAgentDeletionToast(null);
       return;
     }
@@ -634,7 +634,7 @@ function SimulationSetupPage() {
             <button
               type="button"
               onClick={handleClearAgents}
-              disabled={!editable || agents.length === 0}
+              disabled={!editable || saveState === 'saving' || agents.length === 0}
               className="mt-3 h-10 w-full rounded-lg border border-red-200 text-xs font-bold text-danger disabled:cursor-not-allowed disabled:opacity-40"
             >
               에이전트 전체 삭제
