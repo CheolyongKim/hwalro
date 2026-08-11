@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -13,11 +14,14 @@ import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.simulation.domain.HazardZone;
 import com.hwalro.simulation.simulation.domain.LayoutSimulationContext;
 import com.hwalro.simulation.simulation.domain.Simulation;
 import com.hwalro.simulation.simulation.domain.SimulationOption;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PlacementAdjustmentDraftRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
+import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
@@ -106,6 +110,192 @@ class SimulationServiceTest {
 
         assertThatThrownBy(() -> service.createDraft(new DraftCreateRequest(11L, 20L), user))
                 .isInstanceOf(SimulationConflictException.class);
+    }
+
+    @Test
+    void createsAdjustmentDraftWithRecommendationAndCopiesWholeSetup() {
+        Simulation source = parentSimulation(11L);
+        source.setStatus("FAILED");
+        source.setFailureDetail(routeFailureJson("2", "2", "2", "3", "3"));
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+        when(simulationMapper.findInitialStateJson(20L)).thenReturn("[[1,1],[2,2]]");
+        SimulationOption sourceOption = option();
+        sourceOption.setSimulationId(20L);
+        sourceOption.setRandomSeed(99);
+        sourceOption.setWalkingSpeed(BigDecimal.valueOf(1.4));
+        sourceOption.setReactionTime(BigDecimal.valueOf(0.7));
+        when(simulationMapper.findSimulationOption(20L)).thenReturn(sourceOption);
+        HazardZone sourceHazard = hazard(20L, 6, 6, 1);
+        when(simulationMapper.findHazardZones(20L)).thenReturn(List.of(sourceHazard));
+        when(simulationMapper.findSelectedExitIds(20L)).thenReturn(List.of(501L));
+        when(simulationMapper.findLayoutContext(11L)).thenReturn(context("잠금"));
+        stubDrawing();
+        when(simulationMapper.insertSimulation(any())).thenAnswer(invocation -> {
+            Simulation draft = invocation.getArgument(0);
+            draft.setId(21L);
+            return 1;
+        });
+        Simulation created = simulation();
+        created.setParentSimulationId(20L);
+        when(simulationMapper.findSimulationById(21L)).thenReturn(created);
+        when(simulationMapper.findSimulationOption(21L)).thenReturn(sourceOption);
+        when(simulationMapper.findInitialStateJson(21L)).thenReturn("[[1,1],[3,3]]");
+        when(simulationMapper.findHazardZones(21L)).thenReturn(List.of(sourceHazard));
+        when(simulationMapper.findSelectedExitIds(21L)).thenReturn(List.of(501L));
+
+        var response = service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(true), user);
+
+        assertThat(response.parentSimulationId()).isEqualTo(20L);
+        assertThat(response.agentPositions().get(1).x()).isEqualByComparingTo(BigDecimal.valueOf(3));
+        ArgumentCaptor<Simulation> draftCaptor = ArgumentCaptor.forClass(Simulation.class);
+        verify(simulationMapper).insertSimulation(draftCaptor.capture());
+        assertThat(draftCaptor.getValue().getParentSimulationId()).isEqualTo(20L);
+        ArgumentCaptor<SimulationOption> optionCaptor = ArgumentCaptor.forClass(SimulationOption.class);
+        verify(simulationMapper).insertSimulationOption(optionCaptor.capture());
+        assertThat(optionCaptor.getValue().getRandomSeed()).isEqualTo(99);
+        assertThat(optionCaptor.getValue().getModelProfile()).isEqualTo(sourceOption.getModelProfile());
+        assertThat(optionCaptor.getValue().getRoutingProfile()).isEqualTo(sourceOption.getRoutingProfile());
+        assertThat(optionCaptor.getValue().getWalkingSpeed()).isEqualByComparingTo("1.4");
+        assertThat(optionCaptor.getValue().getReactionTime()).isEqualByComparingTo("0.7");
+        verify(simulationMapper).insertInitialState(21L, "[[1,1],[3,3]]");
+        ArgumentCaptor<List<HazardZone>> hazardsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(simulationMapper).insertHazardZones(hazardsCaptor.capture());
+        assertThat(hazardsCaptor.getValue()).singleElement().satisfies(hazard -> {
+            assertThat(hazard.getSimulationId()).isEqualTo(21L);
+            assertThat(hazard.getCenterX()).isEqualByComparingTo(BigDecimal.valueOf(6));
+        });
+        verify(simulationMapper).insertSimulationExits(21L, 11L, List.of(501L));
+        verify(simulationMapper, never()).updateInitialState(eq(20L), any());
+    }
+
+    @Test
+    void rejectsApplyingMissingRecommendationAsInvalidGeometry() {
+        Simulation source = parentSimulation(11L);
+        source.setStatus("FAILED");
+        source.setFailureDetail(routeFailureJson("2", "2", "2", null, null));
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+        when(simulationMapper.findInitialStateJson(20L)).thenReturn("[[1,1],[2,2]]");
+        when(simulationMapper.findSimulationOption(20L)).thenReturn(option());
+        when(simulationMapper.findHazardZones(20L)).thenReturn(List.of());
+        when(simulationMapper.findSelectedExitIds(20L)).thenReturn(List.of(501L));
+
+        assertThatThrownBy(() ->
+                        service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(true), user))
+                .isInstanceOf(InvalidSimulationGeometryException.class);
+
+        verify(simulationMapper, never()).insertSimulation(any());
+    }
+
+    @Test
+    void copiesAgentOrderUnchangedWhenRecommendationIsNotApplied() {
+        Simulation source = parentSimulation(11L);
+        source.setStatus("FAILED");
+        source.setFailureDetail(routeFailureJson("2", "2", "2", "9", "9"));
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+        when(simulationMapper.findInitialStateJson(20L)).thenReturn("[[1,1],[2,2]]");
+        when(simulationMapper.findSimulationOption(20L)).thenReturn(option());
+        when(simulationMapper.findHazardZones(20L)).thenReturn(List.of());
+        when(simulationMapper.findSelectedExitIds(20L)).thenReturn(List.of());
+        when(simulationMapper.findLayoutContext(11L)).thenReturn(context("잠금"));
+        stubDrawing();
+        when(simulationMapper.insertSimulation(any())).thenAnswer(invocation -> {
+            Simulation draft = invocation.getArgument(0);
+            draft.setId(21L);
+            return 1;
+        });
+        Simulation created = simulation();
+        created.setParentSimulationId(20L);
+        when(simulationMapper.findSimulationById(21L)).thenReturn(created);
+        when(simulationMapper.findSimulationOption(21L)).thenReturn(option());
+        when(simulationMapper.findInitialStateJson(21L)).thenReturn("[[1,1],[2,2]]");
+        when(simulationMapper.findHazardZones(21L)).thenReturn(List.of());
+        when(simulationMapper.findSelectedExitIds(21L)).thenReturn(List.of());
+
+        service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(false), user);
+
+        verify(simulationMapper).insertInitialState(21L, "[[1,1],[2,2]]");
+    }
+
+    @Test
+    void validatesUnchangedPlacementBeforeCopyingDraft() {
+        Simulation source = parentSimulation(11L);
+        source.setStatus("FAILED");
+        source.setFailureDetail(routeFailureJson("2", "1.2", "1.2", "3", "3"));
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+        when(simulationMapper.findInitialStateJson(20L)).thenReturn("[[1,1],[1.2,1.2]]");
+        when(simulationMapper.findSimulationOption(20L)).thenReturn(option());
+        when(simulationMapper.findHazardZones(20L)).thenReturn(List.of());
+        when(simulationMapper.findSelectedExitIds(20L)).thenReturn(List.of());
+        when(simulationMapper.findLayoutContext(11L)).thenReturn(context("잠금"));
+        stubDrawing();
+
+        assertThatThrownBy(() ->
+                        service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(false), user))
+                .isInstanceOf(InvalidSimulationGeometryException.class);
+
+        verify(simulationMapper, never()).insertSimulation(any());
+    }
+
+    @Test
+    void validatesRecommendedPositionAgainstWholeSetupBeforeCreatingDraft() {
+        Simulation source = parentSimulation(11L);
+        source.setStatus("FAILED");
+        source.setFailureDetail(routeFailureJson("2", "2", "2", "1.2", "1.2"));
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+        when(simulationMapper.findInitialStateJson(20L)).thenReturn("[[1,1],[2,2]]");
+        when(simulationMapper.findSimulationOption(20L)).thenReturn(option());
+        when(simulationMapper.findHazardZones(20L)).thenReturn(List.of());
+        when(simulationMapper.findSelectedExitIds(20L)).thenReturn(List.of());
+        when(simulationMapper.findLayoutContext(11L)).thenReturn(context("잠금"));
+        stubDrawing();
+
+        assertThatThrownBy(() ->
+                        service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(true), user))
+                .isInstanceOf(InvalidSimulationGeometryException.class);
+
+        verify(simulationMapper, never()).insertSimulation(any());
+    }
+
+    @Test
+    void rejectsFailureDetailThatDoesNotMatchStoredAgentPosition() {
+        Simulation source = parentSimulation(11L);
+        source.setStatus("FAILED");
+        source.setFailureDetail(routeFailureJson("2", "9", "9", "3", "3"));
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+        when(simulationMapper.findInitialStateJson(20L)).thenReturn("[[1,1],[2,2]]");
+
+        assertThatThrownBy(() ->
+                        service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(false), user))
+                .isInstanceOf(SimulationConflictException.class);
+
+        verify(simulationMapper, never()).insertSimulation(any());
+    }
+
+    @Test
+    void rejectsAdjustmentDraftWithoutSourceAccess() {
+        Simulation source = parentSimulation(11L);
+        source.setCreatedBy(8L);
+        source.setStatus("FAILED");
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+
+        assertThatThrownBy(() ->
+                        service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(false), user))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(simulationMapper, never()).findInitialStateJson(20L);
+    }
+
+    @Test
+    void rejectsAdjustmentDraftFromNonFailedSource() {
+        Simulation source = parentSimulation(11L);
+        source.setStatus("COMPLETED");
+        when(simulationMapper.findSimulationByIdForUpdate(20L)).thenReturn(source);
+
+        assertThatThrownBy(() ->
+                        service.createPlacementAdjustmentDraft(20L, new PlacementAdjustmentDraftRequest(false), user))
+                .isInstanceOf(SimulationConflictException.class);
+
+        verify(simulationMapper, never()).findInitialStateJson(20L);
     }
 
     @Test
@@ -264,6 +454,30 @@ class SimulationServiceTest {
         option.setWalkingSpeed(BigDecimal.valueOf(1.25));
         option.setReactionTime(BigDecimal.valueOf(0.5));
         return option;
+    }
+
+    private static HazardZone hazard(Long simulationId, double x, double y, double radius) {
+        HazardZone hazard = new HazardZone();
+        hazard.setSimulationId(simulationId);
+        hazard.setCenterX(BigDecimal.valueOf(x));
+        hazard.setCenterY(BigDecimal.valueOf(y));
+        hazard.setRadius(BigDecimal.valueOf(radius));
+        return hazard;
+    }
+
+    private static String routeFailureJson(
+            String agentId, String currentX, String currentY, String recommendedX, String recommendedY) {
+        String recommendation =
+                recommendedX == null ? "null" : "{\"x\":" + recommendedX + ",\"y\":" + recommendedY + "}";
+        return "{\"code\":\"AGENT_ROUTE_UNREACHABLE\",\"agentId\":"
+                + agentId
+                + ",\"currentPosition\":{\"x\":"
+                + currentX
+                + ",\"y\":"
+                + currentY
+                + "},\"recommendedPosition\":"
+                + recommendation
+                + "}";
     }
 
     private static OutsideWall wall(double startX, double startY, double endX, double endY) {

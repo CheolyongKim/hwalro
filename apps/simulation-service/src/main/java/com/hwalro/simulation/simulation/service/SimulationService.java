@@ -1,6 +1,7 @@
 package com.hwalro.simulation.simulation.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
@@ -19,16 +20,19 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.HazardZoneDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PlacementAdjustmentDraftRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.RectDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SegmentDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationFailureDetailResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPageResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationWorkSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TextDto;
+import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
@@ -39,6 +43,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,6 +56,8 @@ public class SimulationService {
     private static final String LAYOUT_STATUS_DRAFT = "초안";
     private static final String LAYOUT_STATUS_LOCKED = "잠금";
     private static final String SIMULATION_STATUS_DRAFT = "DRAFT";
+    private static final String SIMULATION_STATUS_FAILED = "FAILED";
+    private static final String ROUTING_ERROR_CODE = "AGENT_ROUTE_UNREACHABLE";
     private static final String MODEL_PROFILE = "SFM_DEFAULT_V2";
     private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final BigDecimal DEFAULT_WALKING_SPEED = BigDecimal.valueOf(1.25);
@@ -58,6 +65,7 @@ public class SimulationService {
     private static final BigDecimal MIN_REACTION_TIME = BigDecimal.valueOf(0.1);
     private static final BigDecimal MAX_REACTION_TIME = BigDecimal.valueOf(2.0);
     private static final BigDecimal MAX_WALKING_SPEED = BigDecimal.valueOf(3.0);
+    private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_OPERATOR = "OPERATOR";
     private static final String ROLE_REVIEWER = "SAFETY_REVIEWER";
@@ -193,6 +201,88 @@ public class SimulationService {
         return getSetupInternal(simulation.getId(), user);
     }
 
+    @Transactional
+    public SimulationSetupResponse createPlacementAdjustmentDraft(
+            Long failedId, PlacementAdjustmentDraftRequest request, JwtUser user) {
+        if (failedId == null || request == null || request.applyRecommendation() == null) {
+            throw new IllegalArgumentException("failedId와 applyRecommendation이 필요합니다.");
+        }
+
+        Simulation source = findSimulationForUpdate(failedId);
+        requireAccessible(source.getCreatedBy(), user);
+        if (!SIMULATION_STATUS_FAILED.equals(source.getStatus())) {
+            throw new SimulationConflictException("실패한 시뮬레이션에서만 배치 조정 초안을 만들 수 있습니다.");
+        }
+
+        List<PointDto> agents = readAgentPositions(source.getId());
+        SimulationFailureDetailResponse failureDetail = readFailureDetail(source);
+        if (!matchesFailureDetail(failureDetail, agents)) {
+            throw new SimulationConflictException("배치 조정에 사용할 에이전트 오류 정보가 없습니다.");
+        }
+
+        SimulationOption sourceOption = simulationMapper.findSimulationOption(source.getId());
+        if (sourceOption == null
+                || sourceOption.getTotalPeople() == null
+                || sourceOption.getTotalPeople() != agents.size()) {
+            throw new IllegalStateException("원본 시뮬레이션 옵션과 에이전트 수가 일치하지 않습니다.");
+        }
+        List<HazardZone> sourceHazards = simulationMapper.findHazardZones(source.getId());
+        List<Long> selectedExitIds = simulationMapper.findSelectedExitIds(source.getId());
+
+        if (request.applyRecommendation()) {
+            if (failureDetail.recommendedPosition() == null) {
+                throw new InvalidSimulationGeometryException("적용할 수 있는 추천 좌표가 없습니다.");
+            }
+            agents = new ArrayList<>(agents);
+            agents.set(Math.toIntExact(failureDetail.agentId() - 1), failureDetail.recommendedPosition());
+        }
+        LayoutSimulationContext context = findLayoutContext(source.getLayoutVersionId());
+        DrawingSnapshot drawing = loadDrawing(context);
+        List<PointDto> boundary =
+                SimulationGeometry.assembleBoundary(drawing.outsideWalls(), context.getWidth(), context.getHeight());
+        SimulationGeometry.validateSetup(
+                agents,
+                sourceHazards.stream()
+                        .map(hazard -> new HazardZoneDto(
+                                hazard.getId(), hazard.getCenterX(), hazard.getCenterY(), hazard.getRadius()))
+                        .toList(),
+                boundary,
+                drawing.walls(),
+                drawing.pillars(),
+                drawing.fabrics(),
+                drawing.exits());
+
+        Simulation draft = new Simulation();
+        draft.setLayoutVersionId(source.getLayoutVersionId());
+        draft.setParentSimulationId(source.getId());
+        draft.setCreatedBy(user.userId());
+        draft.setStatus(SIMULATION_STATUS_DRAFT);
+        simulationMapper.insertSimulation(draft);
+
+        SimulationOption copiedOption = new SimulationOption();
+        copiedOption.setSimulationId(draft.getId());
+        copiedOption.setRandomSeed(sourceOption.getRandomSeed());
+        copiedOption.setModelProfile(sourceOption.getModelProfile());
+        copiedOption.setRoutingProfile(sourceOption.getRoutingProfile());
+        copiedOption.setTotalPeople(sourceOption.getTotalPeople());
+        copiedOption.setWalkingSpeed(sourceOption.getWalkingSpeed());
+        copiedOption.setReactionTime(sourceOption.getReactionTime());
+        simulationMapper.insertSimulationOption(copiedOption);
+        simulationMapper.insertInitialState(draft.getId(), writeAgentPositions(agents));
+
+        List<HazardZone> copiedHazards = sourceHazards.stream()
+                .map(hazard -> new HazardZoneDto(null, hazard.getCenterX(), hazard.getCenterY(), hazard.getRadius()))
+                .map(hazard -> toHazardZone(draft.getId(), hazard))
+                .toList();
+        if (!copiedHazards.isEmpty()) {
+            simulationMapper.insertHazardZones(copiedHazards);
+        }
+        if (!selectedExitIds.isEmpty()) {
+            simulationMapper.insertSimulationExits(draft.getId(), source.getLayoutVersionId(), selectedExitIds);
+        }
+        return getSetupInternal(draft.getId(), user);
+    }
+
     public SimulationSetupResponse getSetup(Long id, JwtUser user) {
         return getSetupInternal(id, user);
     }
@@ -201,6 +291,42 @@ public class SimulationService {
         Simulation simulation = findSimulation(id);
         requireAccessible(simulation.getCreatedBy(), user);
         return simulation;
+    }
+
+    SimulationFailureDetailResponse readFailureDetail(Simulation simulation) {
+        if (simulation.getFailureDetail() == null
+                || simulation.getFailureDetail().isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(simulation.getFailureDetail());
+            if (root == null
+                    || !root.isObject()
+                    || root.size() != 4
+                    || !root.has("code")
+                    || !root.has("agentId")
+                    || !root.has("currentPosition")
+                    || !root.has("recommendedPosition")
+                    || !root.get("code").isTextual()
+                    || !ROUTING_ERROR_CODE.equals(root.get("code").textValue())
+                    || !root.get("agentId").isIntegralNumber()
+                    || !root.get("agentId").canConvertToLong()) {
+                return null;
+            }
+            long agentId = root.get("agentId").longValue();
+            PointDto currentPosition = readFailurePoint(root.get("currentPosition"));
+            JsonNode recommendationNode = root.get("recommendedPosition");
+            PointDto recommendation = recommendationNode.isNull() ? null : readFailurePoint(recommendationNode);
+            if (agentId < 1
+                    || agentId > SimulationGeometry.MAX_AGENTS
+                    || currentPosition == null
+                    || (!recommendationNode.isNull() && recommendation == null)) {
+                return null;
+            }
+            return new SimulationFailureDetailResponse(ROUTING_ERROR_CODE, agentId, currentPosition, recommendation);
+        } catch (IOException | RuntimeException exception) {
+            return null;
+        }
     }
 
     @Transactional
@@ -371,6 +497,35 @@ public class SimulationService {
             return;
         }
         throw new ForbiddenException("시뮬레이션에 접근할 권한이 없습니다.");
+    }
+
+    private static boolean matchesFailureDetail(SimulationFailureDetailResponse failureDetail, List<PointDto> agents) {
+        if (failureDetail == null || failureDetail.agentId() < 1 || failureDetail.agentId() > agents.size()) {
+            return false;
+        }
+        PointDto stored = agents.get(Math.toIntExact(failureDetail.agentId() - 1));
+        return stored.x().compareTo(failureDetail.currentPosition().x()) == 0
+                && stored.y().compareTo(failureDetail.currentPosition().y()) == 0;
+    }
+
+    private static PointDto readFailurePoint(JsonNode node) {
+        if (!node.isObject() || node.size() != 2 || !node.has("x") || !node.has("y")) {
+            return null;
+        }
+        JsonNode xNode = node.get("x");
+        JsonNode yNode = node.get("y");
+        if (!xNode.isNumber()
+                || !yNode.isNumber()
+                || !Double.isFinite(xNode.doubleValue())
+                || !Double.isFinite(yNode.doubleValue())) {
+            return null;
+        }
+        BigDecimal x = xNode.decimalValue();
+        BigDecimal y = yNode.decimalValue();
+        if (x.abs().compareTo(MAX_COORDINATE) > 0 || y.abs().compareTo(MAX_COORDINATE) > 0) {
+            return null;
+        }
+        return new PointDto(x, y);
     }
 
     private String writeAgentPositions(List<PointDto> positions) {

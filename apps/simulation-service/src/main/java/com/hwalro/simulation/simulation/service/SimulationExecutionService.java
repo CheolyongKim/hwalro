@@ -13,6 +13,7 @@ import com.hwalro.simulation.simulation.domain.SimulationResult;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitEventResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.HeatmapChunkResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationExecutionResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationFailureDetailResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationMetricResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationResultResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
@@ -192,6 +193,7 @@ public class SimulationExecutionService {
                 simulation.getStartedAt(),
                 simulation.getFinishedAt(),
                 simulation.getFailureMessage(),
+                simulationService.readFailureDetail(simulation),
                 resultResponse);
     }
 
@@ -256,12 +258,18 @@ public class SimulationExecutionService {
             EngineRun run = engineRunner.run(simulationId, setup);
             transactionTemplate.executeWithoutResult(status -> persistResult(simulationId, setup, run));
         } catch (EngineRunException exception) {
-            log.warn("Simulation {} engine execution failed (timeout={})", simulationId, exception.isTimeout());
+            SimulationFailureDetailResponse failureDetail = exception.isTimeout() ? null : exception.failureDetail();
+            if (failureDetail == null) {
+                log.warn("Simulation {} engine execution failed (timeout={})", simulationId, exception.isTimeout());
+            }
             markFailed(
                     simulationId,
                     exception.isTimeout()
                             ? "ENGINE_TIMEOUT: 실제 실행시간 제한을 초과했습니다."
-                            : "ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.");
+                            : failureDetail == null
+                                    ? "ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다."
+                                    : "Agent #%d의 시작 위치를 대피 경로에 연결할 수 없습니다.".formatted(failureDetail.agentId()),
+                    failureDetail);
         } catch (RuntimeException exception) {
             log.error("Simulation {} execution failed", simulationId, exception);
             markFailed(simulationId, "ENGINE_ERROR: 시뮬레이션 실행 또는 결과 저장에 실패했습니다.");
@@ -316,11 +324,24 @@ public class SimulationExecutionService {
     }
 
     private void markFailed(Long simulationId, String message) {
+        markFailed(simulationId, message, null);
+    }
+
+    private void markFailed(Long simulationId, String message, SimulationFailureDetailResponse failureDetail) {
         String safeMessage = message == null || message.isBlank() ? "ENGINE_ERROR: 실행에 실패했습니다." : message;
         safeMessage = safeMessage.substring(0, Math.min(safeMessage.length(), MAX_FAILURE_MESSAGE_LENGTH));
         String finalMessage = safeMessage;
+        String detailJson = null;
+        if (failureDetail != null) {
+            try {
+                detailJson = objectMapper.writeValueAsString(failureDetail);
+            } catch (JsonProcessingException exception) {
+                log.warn("Could not serialize simulation {} failure detail", simulationId);
+            }
+        }
+        String finalDetailJson = detailJson;
         transactionTemplate.executeWithoutResult(
-                status -> simulationMapper.markExecutionFailed(simulationId, finalMessage));
+                status -> simulationMapper.markExecutionFailed(simulationId, finalMessage, finalDetailJson));
     }
 
     private final class SimulationTask extends FutureTask<Void> {

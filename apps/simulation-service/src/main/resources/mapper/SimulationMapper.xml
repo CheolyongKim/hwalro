@@ -38,7 +38,8 @@
                requested_at,
                started_at,
                finished_at,
-               failure_message
+               failure_message,
+               failure_detail
         FROM simulations
         WHERE id = #{id}
     </select>
@@ -53,7 +54,8 @@
                requested_at,
                started_at,
                finished_at,
-               failure_message
+               failure_message,
+               failure_detail
         FROM simulations
         WHERE id = #{id}
         FOR UPDATE
@@ -352,7 +354,8 @@
             requested_at = CURRENT_TIMESTAMP(6),
             started_at = NULL,
             finished_at = NULL,
-            failure_message = NULL
+            failure_message = NULL,
+            failure_detail = NULL
         WHERE id = #{simulationId}
           AND status IN ('DRAFT', 'FAILED', 'CANCELLED')
     </update>
@@ -369,7 +372,8 @@
         UPDATE simulations
         SET status = 'COMPLETED',
             finished_at = CURRENT_TIMESTAMP(6),
-            failure_message = NULL
+            failure_message = NULL,
+            failure_detail = NULL
         WHERE id = #{simulationId}
           AND status = 'RUNNING'
     </update>
@@ -378,7 +382,8 @@
         UPDATE simulations
         SET status = 'FAILED',
             finished_at = CURRENT_TIMESTAMP(6),
-            failure_message = #{message}
+            failure_message = #{message},
+            failure_detail = CASE WHEN #{detail} IS NULL THEN NULL ELSE CAST(#{detail} AS JSON) END
         WHERE id = #{simulationId}
           AND status IN ('REQUESTED', 'RUNNING')
     </update>
@@ -396,7 +401,8 @@
         UPDATE simulations
         SET status = 'FAILED',
             finished_at = CURRENT_TIMESTAMP(6),
-            failure_message = #{message}
+            failure_message = #{message},
+            failure_detail = NULL
         WHERE status IN ('REQUESTED', 'RUNNING')
     </update>
 

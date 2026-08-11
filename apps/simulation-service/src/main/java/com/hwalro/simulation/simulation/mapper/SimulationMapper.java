@@ -92,7 +92,8 @@ public interface SimulationMapper {
 
     int markExecutionCompleted(@Param("simulationId") Long simulationId);
 
-    int markExecutionFailed(@Param("simulationId") Long simulationId, @Param("message") String message);
+    int markExecutionFailed(
+            @Param("simulationId") Long simulationId, @Param("message") String message, @Param("detail") String detail);
 
     int cancelExecution(@Param("simulationId") Long simulationId);
 

@@ -9,6 +9,8 @@ public final class SimulationDtos {
 
     public record DraftCreateRequest(Long layoutVersionId, Long parentSimulationId) {}
 
+    public record PlacementAdjustmentDraftRequest(Boolean applyRecommendation) {}
+
     public record SetupUpdateRequest(
             List<PointDto> agentPositions,
             List<HazardZoneDto> hazardZones,
@@ -100,6 +102,9 @@ public final class SimulationDtos {
             Integer heatmapChunkCount,
             List<SimulationMetricResponse> metrics) {}
 
+    public record SimulationFailureDetailResponse(
+            String code, Long agentId, PointDto currentPosition, PointDto recommendedPosition) {}
+
     public record SimulationExecutionResponse(
             Long simulationId,
             String status,
@@ -107,6 +112,7 @@ public final class SimulationDtos {
             LocalDateTime startedAt,
             LocalDateTime finishedAt,
             String failureMessage,
+            SimulationFailureDetailResponse failureDetail,
             SimulationResultResponse result) {}
 
     public record TimelineAgentResponse(Long agentId, BigDecimal x, BigDecimal y) {}

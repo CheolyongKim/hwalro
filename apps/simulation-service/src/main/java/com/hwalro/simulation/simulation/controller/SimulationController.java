@@ -5,6 +5,7 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.HeatmapChunkResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PlacementAdjustmentDraftRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SetupUpdateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationExecutionResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationOverviewPageResponse;
@@ -89,6 +90,16 @@ public class SimulationController {
             @RequestBody DraftCreateRequest request,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return simulationService.createDraft(request, user);
+    }
+
+    @PostMapping("/{failedId}/placement-adjustment-draft")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "실패한 시뮬레이션에서 배치 조정 초안 생성")
+    public SimulationSetupResponse createPlacementAdjustmentDraft(
+            @PathVariable Long failedId,
+            @RequestBody PlacementAdjustmentDraftRequest request,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return simulationService.createPlacementAdjustmentDraft(failedId, request, user);
     }
 
     @GetMapping("/{id}/setup")

@@ -93,6 +93,12 @@ export interface SimulationExecution {
   startedAt: string | null;
   finishedAt: string | null;
   failureMessage: string | null;
+  failureDetail?: {
+    code: 'AGENT_ROUTE_UNREACHABLE';
+    agentId: number;
+    currentPosition: SimulationPoint;
+    recommendedPosition: SimulationPoint | null;
+  } | null;
   result: SimulationResultSummary | null;
 }
 

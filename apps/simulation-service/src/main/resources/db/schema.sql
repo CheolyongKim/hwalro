@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS simulations (
     started_at DATETIME(6) NULL,
     finished_at DATETIME(6) NULL,
     failure_message VARCHAR(1000) NULL,
+    failure_detail JSON NULL,
     CONSTRAINT pk_simulations PRIMARY KEY (id),
     CONSTRAINT uk_simulations_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT uk_simulations_id_parent UNIQUE (id, parent_simulation_id),

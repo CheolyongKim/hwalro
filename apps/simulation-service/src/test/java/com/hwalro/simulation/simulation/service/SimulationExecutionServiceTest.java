@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -20,6 +21,7 @@ import com.hwalro.simulation.simulation.domain.SimulationResult;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationFailureDetailResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineResult;
@@ -150,7 +152,7 @@ class SimulationExecutionServiceTest {
         service.execute(21L, user);
         queued.get().run();
 
-        verify(simulationMapper).markExecutionFailed(eq(21L), contains("ENGINE_TIMEOUT"));
+        verify(simulationMapper).markExecutionFailed(eq(21L), contains("ENGINE_TIMEOUT"), isNull());
     }
 
     @Test
@@ -166,7 +168,7 @@ class SimulationExecutionServiceTest {
 
         assertThatThrownBy(() -> service.execute(21L, user)).isInstanceOf(SimulationEngineUnavailableException.class);
 
-        verify(simulationMapper).markExecutionFailed(eq(21L), contains("SERVICE_UNAVAILABLE"));
+        verify(simulationMapper).markExecutionFailed(eq(21L), contains("SERVICE_UNAVAILABLE"), isNull());
     }
 
     @Test
@@ -185,7 +187,7 @@ class SimulationExecutionServiceTest {
         assertThatThrownBy(() -> service.execute(21L, user)).isInstanceOf(SimulationEngineUnavailableException.class);
 
         assertThat(capacity.availablePermits()).isEqualTo(availableBefore);
-        verify(simulationMapper).markExecutionFailed(eq(21L), contains("SERVICE_UNAVAILABLE"));
+        verify(simulationMapper).markExecutionFailed(eq(21L), contains("SERVICE_UNAVAILABLE"), isNull());
     }
 
     @Test
@@ -304,7 +306,26 @@ class SimulationExecutionServiceTest {
         service.execute(21L, user);
         queued.get().run();
 
-        verify(simulationMapper).markExecutionFailed(21L, "ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.");
+        verify(simulationMapper).markExecutionFailed(21L, "ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.", null);
+    }
+
+    @Test
+    void persistsOnlyStructuredRoutingFailureFields() throws Exception {
+        stubDraftAndRequestedStatus();
+        captureWorker();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
+        SimulationFailureDetailResponse detail = new SimulationFailureDetailResponse(
+                "AGENT_ROUTE_UNREACHABLE", 1L, new PointDto(BigDecimal.ONE, BigDecimal.ONE), null);
+        when(engineRunner.run(eq(21L), any())).thenThrow(new EngineRunException("private diagnostic", false, detail));
+
+        service.execute(21L, user);
+        queued.get().run();
+
+        verify(simulationMapper)
+                .markExecutionFailed(
+                        eq(21L), eq("Agent #1의 시작 위치를 대피 경로에 연결할 수 없습니다."), contains("\"recommendedPosition\":null"));
     }
 
     @Test
@@ -314,6 +335,20 @@ class SimulationExecutionServiceTest {
         service.failInterruptedExecutions();
 
         verify(simulationMapper).markInterruptedExecutionsFailed(contains("SERVICE_RESTARTED"));
+    }
+
+    @Test
+    void returnsPersistedFailureDetailWithExecutionStatus() {
+        Simulation failed = simulation("FAILED");
+        failed.setFailureMessage("route failure");
+        SimulationFailureDetailResponse detail = new SimulationFailureDetailResponse(
+                "AGENT_ROUTE_UNREACHABLE", 1L, new PointDto(BigDecimal.ONE, BigDecimal.ONE), null);
+        when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(failed);
+        when(simulationService.readFailureDetail(failed)).thenReturn(detail);
+
+        var response = service.getExecution(21L, user);
+
+        assertThat(response.failureDetail()).isEqualTo(detail);
     }
 
     @Test
