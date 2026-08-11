@@ -466,10 +466,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!state.textDraft) {
         return state;
       }
-      const trimmed = action.text.trim();
       const textId = state.textDraft.textId;
       if (textId === null) {
-        if (trimmed === '') {
+        if (action.text.trim() === '') {
           return { ...state, textDraft: null };
         }
         if (!isInsideBounds(state.doc, state.textDraft.point.x, state.textDraft.point.y)) {
@@ -477,7 +476,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         }
         const text: LayoutText = {
           id: uid(),
-          text: trimmed,
+          text: action.text,
           x: round1(state.textDraft.point.x),
           y: round1(state.textDraft.point.y),
         };
@@ -488,10 +487,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!existing) {
         return { ...state, textDraft: null };
       }
-      if (trimmed === '' || trimmed === existing.text) {
+      if (action.text.trim() === '' || action.text === existing.text) {
         return { ...state, textDraft: null };
       }
-      const nextText: LayoutText = { ...existing, text: trimmed };
+      const nextText: LayoutText = { ...existing, text: action.text };
       const next = {
         ...state.doc,
         layoutTexts: state.doc.layoutTexts.map((t) => (t.id === textId ? nextText : t)),

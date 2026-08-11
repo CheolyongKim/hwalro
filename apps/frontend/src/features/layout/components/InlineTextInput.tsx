@@ -14,6 +14,8 @@ interface InlineTextInputProps {
   onCancel: () => void;
 }
 
+const MIN_INPUT_WIDTH = 80;
+
 export function InlineTextInput({
   point,
   zoom,
@@ -31,6 +33,7 @@ export function InlineTextInput({
     if (textarea) {
       textarea.style.height = 'auto';
       textarea.style.height = `${textarea.scrollHeight}px`;
+      textarea.style.width = `${MIN_INPUT_WIDTH}px`;
       textarea.style.width = `${Math.max(width, textarea.scrollWidth)}px`;
     }
   };
@@ -57,7 +60,7 @@ export function InlineTextInput({
   const longestLine = initialText
     .split('\n')
     .reduce((longest, line) => (line.length > longest.length ? line : longest));
-  const width = Math.max(80, estimateTextWidthPx(longestLine, TEXT_FONT_PX * zoom));
+  const width = Math.max(MIN_INPUT_WIDTH, estimateTextWidthPx(longestLine, TEXT_FONT_PX * zoom));
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Escape') {
