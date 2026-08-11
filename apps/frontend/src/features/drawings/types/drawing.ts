@@ -95,5 +95,3 @@ export interface DrawingListResponse {
   hasNext: boolean;
   items: DrawingSummary[];
 }
-
-export type DrawingPeriod = '전체' | '최근 7일' | '최근 30일';
