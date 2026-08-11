@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import type { SimulationTool } from '../components/SimulationCanvas';
+import {
+  AgentDeletionConfirmDialog,
+  AgentDeletionSuccessToast,
+} from '../components/AgentDeletionFeedback';
 import { simulationApi } from '../api/simulationApi';
 import type { EditableHazardZone, SimulationPoint, SimulationSetup } from '../types';
 import {
@@ -181,6 +185,7 @@ function SimulationSetupPage() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (agentDeletionToast?.state === 'confirm') return;
       const target = event.target as HTMLElement | null;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
       const modifier = event.ctrlKey || event.metaKey;
@@ -195,7 +200,7 @@ function SimulationSetupPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [redo, undo]);
+  }, [agentDeletionToast?.state, redo, undo]);
 
   useEffect(() => {
     if (agentDeletionToast?.state !== 'success') return;
@@ -508,68 +513,18 @@ function SimulationSetupPage() {
               </button>
             ))}
           </div>
-          {agentDeletionToast && (
-            <article
-              role="status"
-              aria-live="polite"
-              className={`absolute right-4 top-4 z-20 w-80 overflow-hidden rounded-2xl border bg-white shadow-xl shadow-ink/15 ${
-                agentDeletionToast.state === 'confirm' ? 'border-red-200' : 'border-emerald-200'
-              }`}
-            >
-              <div className="flex gap-3 p-4">
-                <div
-                  className={`flex size-9 shrink-0 items-center justify-center rounded-full text-lg font-black ${
-                    agentDeletionToast.state === 'confirm'
-                      ? 'bg-red-100 text-danger'
-                      : 'bg-emerald-100 text-emerald-700'
-                  }`}
-                  aria-hidden="true"
-                >
-                  {agentDeletionToast.state === 'confirm' ? '!' : '✓'}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black text-ink">
-                    {agentDeletionToast.state === 'confirm'
-                      ? `에이전트 ${agentDeletionToast.count.toLocaleString()}명을 삭제할까요?`
-                      : `에이전트 ${agentDeletionToast.count.toLocaleString()}명을 삭제했습니다.`}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-text-muted">
-                    위험구역과 시뮬레이션 조건은 유지됩니다.
-                  </p>
-                  {agentDeletionToast.state === 'confirm' && (
-                    <div className="mt-3 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setAgentDeletionToast(null)}
-                        className="h-8 rounded-lg border border-line px-3 text-xs font-bold text-text-strong"
-                      >
-                        취소
-                      </button>
-                      <button
-                        type="button"
-                        onClick={confirmClearAgents}
-                        className="h-8 rounded-lg bg-danger px-3 text-xs font-bold text-white"
-                      >
-                        전체 삭제
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAgentDeletionToast(null)}
-                  aria-label="에이전트 삭제 알림 닫기"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-surface hover:text-ink"
-                >
-                  ×
-                </button>
-              </div>
-              <div
-                className={`h-1 ${
-                  agentDeletionToast.state === 'confirm' ? 'bg-danger' : 'bg-emerald-500'
-                }`}
-              />
-            </article>
+          {agentDeletionToast?.state === 'confirm' && (
+            <AgentDeletionConfirmDialog
+              count={agentDeletionToast.count}
+              onCancel={() => setAgentDeletionToast(null)}
+              onConfirm={confirmClearAgents}
+            />
+          )}
+          {agentDeletionToast?.state === 'success' && (
+            <AgentDeletionSuccessToast
+              count={agentDeletionToast.count}
+              onClose={() => setAgentDeletionToast(null)}
+            />
           )}
           {message && (
             <div
