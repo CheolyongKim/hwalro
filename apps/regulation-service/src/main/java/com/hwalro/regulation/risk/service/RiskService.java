@@ -114,14 +114,14 @@ public class RiskService {
     }
 
     private boolean canManageAll(Set<String> roles) {
-        return roles.contains(ROLE_ADMIN) || roles.contains(ROLE_OPERATOR);
+        return roles.contains(ROLE_ADMIN) || roles.contains(ROLE_REVIEWER);
     }
 
     private Long resolveAssigneeFilter(JwtUser user) {
         if (canManageAll(user.roles())) {
             return null;
         }
-        if (user.roles().contains(ROLE_REVIEWER)) {
+        if (user.roles().contains(ROLE_OPERATOR)) {
             return user.userId();
         }
         throw new ForbiddenException("접근 권한이 없습니다.");
@@ -131,7 +131,7 @@ public class RiskService {
         if (canManageAll(user.roles())) {
             return;
         }
-        if (user.roles().contains(ROLE_REVIEWER) && user.userId().equals(risk.getAssigneeId())) {
+        if (user.roles().contains(ROLE_OPERATOR) && user.userId().equals(risk.getAssigneeId())) {
             return;
         }
         throw new ForbiddenException("접근 권한이 없습니다.");
