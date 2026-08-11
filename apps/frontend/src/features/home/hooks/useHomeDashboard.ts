@@ -2,8 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { drawingApi } from '../../drawings/api/drawingApi';
+import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import { riskApi } from '../../risks/api/riskApi';
 import { simulationApi } from '../../simulations/api/simulationApi';
+import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { homeApi } from '../api/homeApi';
 import { userNameApi } from '../api/userNameApi';
 import type {
@@ -163,13 +165,21 @@ export function useHomeDashboard() {
     (simulationPointerId != null && pointedSimulationQuery.isPending) ||
     (drawingPointerId != null && pointedDrawingQuery.isPending);
 
+  const activeReviewErrorMessage = lastActivityQuery.isError
+    ? '마지막 작업 위치를 불러오지 못했습니다.'
+    : drawingPointerId != null && pointedDrawingQuery.isError
+      ? getDrawingErrorMessage(pointedDrawingQuery.error)
+      : pointedSimulationQuery.isError
+        ? getSimulationErrorMessage(pointedSimulationQuery.error)
+        : '';
+
   return {
     activeReview: {
       data: activeReview,
       isPending: isActiveReviewPending,
       isError:
         lastActivityQuery.isError || pointedSimulationQuery.isError || pointedDrawingQuery.isError,
-      error: lastActivityQuery.error ?? pointedSimulationQuery.error ?? pointedDrawingQuery.error,
+      errorMessage: activeReviewErrorMessage,
       refetch: () => {
         void lastActivityQuery.refetch();
         void pointedSimulationQuery.refetch();

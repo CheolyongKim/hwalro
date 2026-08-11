@@ -3,6 +3,7 @@ package com.hwalro.simulation.simulation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -189,26 +190,28 @@ class SimulationServiceTest {
     @Test
     void returnsWorkSummaryScopedToCurrentUser() {
         when(simulationMapper.countInProgress(7L)).thenReturn(1L);
-        when(simulationMapper.countCompletedThisWeek(7L)).thenReturn(7L);
+        when(simulationMapper.countCompletedThisWeek(eq(7L), any(LocalDateTime.class)))
+                .thenReturn(7L);
 
         var response = service.getWorkSummary(user);
 
         assertThat(response.inProgressCount()).isEqualTo(1);
         assertThat(response.completedThisWeekCount()).isEqualTo(7);
         verify(simulationMapper).countInProgress(7L);
-        verify(simulationMapper).countCompletedThisWeek(7L);
+        verify(simulationMapper).countCompletedThisWeek(eq(7L), any(LocalDateTime.class));
     }
 
     @Test
     void scopesWorkSummaryToCurrentUserEvenForAdmin() {
         JwtUser admin = new JwtUser(7L, Set.of("ADMIN"));
         when(simulationMapper.countInProgress(7L)).thenReturn(0L);
-        when(simulationMapper.countCompletedThisWeek(7L)).thenReturn(0L);
+        when(simulationMapper.countCompletedThisWeek(eq(7L), any(LocalDateTime.class)))
+                .thenReturn(0L);
 
         service.getWorkSummary(admin);
 
         verify(simulationMapper).countInProgress(7L);
-        verify(simulationMapper).countCompletedThisWeek(7L);
+        verify(simulationMapper).countCompletedThisWeek(eq(7L), any(LocalDateTime.class));
     }
 
     private void stubDrawing() {

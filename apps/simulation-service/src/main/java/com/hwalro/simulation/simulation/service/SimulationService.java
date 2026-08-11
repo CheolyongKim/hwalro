@@ -34,6 +34,11 @@ import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -115,9 +120,15 @@ public class SimulationService {
     }
 
     public SimulationWorkSummaryResponse getWorkSummary(JwtUser user) {
+        LocalDateTime weekStartUtc = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .with(DayOfWeek.MONDAY)
+                .atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .toInstant()
+                .atZone(ZoneOffset.UTC)
+                .toLocalDateTime();
         return new SimulationWorkSummaryResponse(
                 Math.toIntExact(simulationMapper.countInProgress(user.userId())),
-                Math.toIntExact(simulationMapper.countCompletedThisWeek(user.userId())));
+                Math.toIntExact(simulationMapper.countCompletedThisWeek(user.userId(), weekStartUtc)));
     }
 
     @Transactional

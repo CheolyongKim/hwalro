@@ -179,14 +179,15 @@
           AND s.status IN ('REQUESTED', 'RUNNING')
     </select>
 
-    <!-- 이번 주 월요일 00:00부터 완료된 건수. WEEKDAY()는 월요일이 0이다.
-         비교 기준은 DB 서버 시각이다. -->
+    <!-- 이번 주(월요일 00:00 KST) 이후 완료된 건수.
+         시뮬레이션 시간값은 UTC 세션 기준(CURRENT_TIMESTAMP)으로 저장되므로,
+         KST 주간 시작 시각을 UTC로 변환한 값을 서버에서 파라미터로 넘겨 비교한다. -->
     <select id="countCompletedThisWeek" resultType="long">
         SELECT COUNT(*)
         FROM simulations s
         WHERE s.created_by = #{createdBy}
           AND s.status = 'COMPLETED'
-          AND s.finished_at &gt;= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+          AND s.finished_at &gt;= #{weekStart}
     </select>
 
     <select id="findSimulationOption" resultType="com.hwalro.simulation.simulation.domain.SimulationOption">

@@ -20,7 +20,7 @@ function HomePage() {
             review={activeReview.data}
             isPending={activeReview.isPending}
             isError={activeReview.isError}
-            errorMessage={getSimulationErrorMessage(activeReview.error)}
+            errorMessage={activeReview.errorMessage}
             onRetry={activeReview.refetch}
           />
         </div>
