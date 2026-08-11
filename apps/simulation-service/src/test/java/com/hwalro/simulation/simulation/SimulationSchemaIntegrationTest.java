@@ -3,11 +3,13 @@ package com.hwalro.simulation.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -29,6 +31,16 @@ class SimulationSchemaIntegrationTest {
         }
     }
 
+    @AfterEach
+    void restoreDensityThresholdSetting() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            statement.executeUpdate("INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                    + "VALUES (1, 3.500, 'PERSON_PER_M2')");
+        }
+    }
+
     @Test
     void simulationOptionsHasModelProfile() throws SQLException {
         try (Connection connection = connection();
@@ -44,6 +56,41 @@ class SimulationSchemaIntegrationTest {
                         statement.executeQuery("SHOW COLUMNS FROM simulation_options LIKE 'routing_profile'")) {
             assertThat(columns.next()).isTrue();
             assertThat(columns.getString("Default")).isEqualTo("HAZARD_RADIAL_EXP_V3");
+        }
+    }
+
+    @Test
+    void densityThresholdSettingAllowsOnlyOnePositivePersonPerSquareMeterValue() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            statement.executeUpdate("INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                    + "VALUES (1, 3.500, 'PERSON_PER_M2')");
+
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "INSERT INTO density_threshold_settings (id, threshold_value, unit) "
+                                    + "VALUES (2, 3.500, 'PERSON_PER_M2')"))
+                    .isInstanceOf(SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "UPDATE density_threshold_settings SET threshold_value = 0 WHERE id = 1"))
+                    .isInstanceOf(SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "UPDATE density_threshold_settings SET unit = 'PEOPLE' WHERE id = 1"))
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void densityThresholdDmlInitializesButDoesNotOverwriteExistingValue() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM density_threshold_settings");
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
+            assertThat(densityThreshold(statement)).isEqualByComparingTo("3.500");
+
+            statement.executeUpdate("UPDATE density_threshold_settings SET threshold_value = 4.200 WHERE id = 1");
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
+            assertThat(densityThreshold(statement)).isEqualByComparingTo("4.200");
         }
     }
 
@@ -107,5 +154,13 @@ class SimulationSchemaIntegrationTest {
 
     private static Connection connection() throws SQLException {
         return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+    }
+
+    private static BigDecimal densityThreshold(Statement statement) throws SQLException {
+        try (ResultSet resultSet =
+                statement.executeQuery("SELECT threshold_value FROM density_threshold_settings WHERE id = 1")) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getBigDecimal("threshold_value");
+        }
     }
 }

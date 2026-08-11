@@ -99,8 +99,15 @@ function createHeatmapFrames(columns: number, rows: number): HeatmapFrame[] {
 export function createMockSimulationResult(simulationId: string): SimulationResultViewModel {
   const drawing: SimulationDrawing = {
     ...defaultDrawing,
+    outsideBoundary: [
+      { x: 0, y: 0 },
+      { x: defaultDrawing.width, y: 0 },
+      { x: defaultDrawing.width, y: defaultDrawing.height },
+      { x: 0, y: defaultDrawing.height },
+    ],
     pillars: [],
     fabrics: [],
+    layoutTexts: [],
   };
   const agentFrames = createAgentFrames();
   const columns = 68;
@@ -117,6 +124,8 @@ export function createMockSimulationResult(simulationId: string): SimulationResu
     drawing,
     agentFrames,
     heatmap: {
+      originX: 0,
+      originY: 0,
       columns,
       rows,
       cellWidth: drawing.width / columns,

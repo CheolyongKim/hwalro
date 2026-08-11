@@ -1,7 +1,9 @@
 import axios from 'axios';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { reportApi } from '../../reports/api/reportApi';
+import { simulationApi } from '../../simulations/api/simulationApi';
+import type { SimulationResultSummary } from '../../simulations/types';
 import { simulationResultProvider } from '../api/simulationResultProvider';
 import { EvacuationProgressChart } from '../components/EvacuationProgressChart';
 import { ImprovementComparisonPanel } from '../components/ImprovementComparisonPanel';
@@ -12,7 +14,13 @@ import { RiskZoneEditorDialog } from '../components/RiskZoneEditorDialog';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
 import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
-import type { Bounds, RiskZone, SimulationResultViewModel } from '../types';
+import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
+import type {
+  Bounds,
+  RiskZone,
+  SimulationResultSummaryViewModel,
+  SimulationResultViewModel,
+} from '../types';
 import { selectFramePair } from '../utils/playback';
 import '../simulationResult.css';
 import '../simulationResultMotion.css';
@@ -31,16 +39,50 @@ function getReportDraftErrorMessage(error: unknown) {
   return 'AI 보고서 초안을 생성하지 못했습니다.';
 }
 
-function ResultView({ result }: { result: SimulationResultViewModel }) {
+interface ResultViewProps {
+  summary: SimulationResultSummaryViewModel;
+  executionResult: SimulationResultSummary;
+}
+
+function ResultView({ summary, executionResult }: ResultViewProps) {
   const navigate = useNavigate();
-  const playback = useSimulationPlayback(result.durationSeconds);
+  const playback = useSimulationPlayback(summary.durationSeconds);
+  const chunks = useSimulationResultChunks({
+    simulationId: Number(summary.simulationId),
+    totalPeople: summary.totalPeople,
+    maxDensity: summary.maxDensity,
+    currentTimeSeconds: playback.currentTimeSeconds,
+    chunkDurationSeconds: executionResult.timelineChunkDurationSeconds,
+    timelineChunkCount: executionResult.timelineChunkCount,
+    heatmapChunkCount: executionResult.heatmapChunkCount,
+  });
+  const result = useMemo<SimulationResultViewModel | null>(
+    () =>
+      chunks.readyForCurrentTime && chunks.heatmap && chunks.agentFrames.length > 0
+        ? {
+            ...summary,
+            agentFrames: chunks.agentFrames,
+            heatmap: chunks.heatmap,
+            evacuationProgress: chunks.evacuationProgress,
+          }
+        : null,
+    [
+      chunks.agentFrames,
+      chunks.evacuationProgress,
+      chunks.heatmap,
+      chunks.readyForCurrentTime,
+      summary,
+    ],
+  );
   const evacuationChart = useCollapsiblePanel(() =>
     matchesMediaQuery(NARROW_RESULT_VIEWPORT_QUERY),
   );
   const improvementPanel = useCollapsiblePanel(() =>
     matchesMediaQuery(COMPACT_SUPPORT_PANEL_QUERY),
   );
-  const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(1);
+  const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(
+    summary.bottlenecks[0]?.id ?? null,
+  );
   const [riskDrawingMode, setRiskDrawingMode] = useState(false);
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
   const [pendingBounds, setPendingBounds] = useState<Bounds | null>(null);
@@ -50,8 +92,12 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
   const [resultsRevealed, setResultsRevealed] = useState(false);
 
   const bottlenecksVisible = playback.hasCompletedPlayback || resultsRevealed;
-  const currentFrame = selectFramePair(result.agentFrames, playback.currentTimeSeconds).previous;
-  const evacuationRate = Math.round((currentFrame.evacuatedCount / result.totalPeople) * 100);
+  const currentFrame = result
+    ? selectFramePair(result.agentFrames, playback.currentTimeSeconds).previous
+    : null;
+  const evacuationRate = currentFrame
+    ? Math.round((currentFrame.evacuatedCount / summary.totalPeople) * 100)
+    : 0;
 
   useEffect(() => {
     const compactViewport = window.matchMedia(COMPACT_SUPPORT_PANEL_QUERY);
@@ -85,7 +131,7 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
 
   const handleRevealResults = () => {
     playback.pause();
-    playback.seek(result.durationSeconds);
+    playback.seek(summary.durationSeconds);
     setResultsRevealed(true);
   };
 
@@ -95,6 +141,7 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
   };
 
   const handleGenerateReport = async (comparisonResultIds: number[]) => {
+    if (!result) return;
     setReportGenerating(true);
     setReportError(null);
     try {
@@ -110,6 +157,29 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
       setReportGenerating(false);
     }
   };
+
+  if (chunks.error || !result || !currentFrame) {
+    return (
+      <div className="result-state">
+        <p>
+          {chunks.error ??
+            (chunks.loading
+              ? '시뮬레이션 재생 데이터를 불러오는 중입니다.'
+              : '시뮬레이션 재생 데이터가 없습니다.')}
+        </p>
+        <div>
+          <button type="button" onClick={() => navigate(-1)}>
+            이전 화면
+          </button>
+          {chunks.error && (
+            <button type="button" onClick={chunks.retry}>
+              다시 시도
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="simulation-result-page">
@@ -143,7 +213,7 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
           aria-pressed={riskDrawingMode}
           onClick={() => setRiskDrawingMode((value) => !value)}
         >
-          {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 구역 설정'}
+          {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 항목 설정'}
         </button>
       </div>
 
@@ -223,35 +293,66 @@ function ResultView({ result }: { result: SimulationResultViewModel }) {
 }
 
 export default function SimulationResultPage() {
-  const { simulationId = '1' } = useParams();
+  const { simulationId = '' } = useParams();
   const navigate = useNavigate();
-  const [result, setResult] = useState<SimulationResultViewModel | null>(null);
+  const numericSimulationId = Number(simulationId);
+  const [summary, setSummary] = useState<SimulationResultSummaryViewModel | null>(null);
+  const [executionResult, setExecutionResult] = useState<SimulationResultSummary | null>(null);
+  const [loadingTotalPeople, setLoadingTotalPeople] = useState<number | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let active = true;
     setStatus('loading');
-    simulationResultProvider
-      .getResult(simulationId)
-      .then((value) => {
+    setLoadingTotalPeople(null);
+    if (!Number.isSafeInteger(numericSimulationId) || numericSimulationId < 1) {
+      setStatus('missing');
+      return () => {
+        active = false;
+      };
+    }
+    void simulationApi
+      .getSetup(numericSimulationId)
+      .then((setup) => {
+        if (active) setLoadingTotalPeople(setup.totalPeople);
+      })
+      .catch(() => undefined);
+    simulationApi
+      .getExecution(numericSimulationId)
+      .then(async (execution) => {
         if (!active) return;
-        if (!value) setStatus('missing');
-        else {
-          setResult(value);
-          setStatus('ready');
+        if (execution.status !== 'COMPLETED' || !execution.result) {
+          navigate(`/simulations/${simulationId}/result`, { replace: true });
+          return;
         }
+        const loadedSummary = await simulationResultProvider.getSummary(simulationId);
+        if (!active) return;
+        if (!loadedSummary) {
+          setStatus('missing');
+          return;
+        }
+        setExecutionResult(execution.result);
+        setSummary(loadedSummary);
+        setStatus('ready');
       })
       .catch(() => active && setStatus('error'));
     return () => {
       active = false;
     };
-  }, [retry, simulationId]);
+  }, [navigate, numericSimulationId, retry, simulationId]);
 
   if (status === 'loading') {
-    return <div className="result-state">5,000명 시뮬레이션 결과를 준비하고 있습니다.</div>;
+    const participantLabel = loadingTotalPeople?.toLocaleString('ko-KR');
+    return (
+      <div className="result-state">
+        {participantLabel
+          ? `${participantLabel}명 시뮬레이션 결과를 준비하고 있습니다.`
+          : '시뮬레이션 결과를 준비하고 있습니다.'}
+      </div>
+    );
   }
-  if (status !== 'ready' || !result) {
+  if (status !== 'ready' || !summary || !executionResult) {
     return (
       <div className="result-state">
         <p>{status === 'missing' ? '완료된 결과가 없습니다.' : '결과를 불러오지 못했습니다.'}</p>
@@ -268,5 +369,5 @@ export default function SimulationResultPage() {
       </div>
     );
   }
-  return <ResultView result={result} />;
+  return <ResultView summary={summary} executionResult={executionResult} />;
 }

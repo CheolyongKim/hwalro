@@ -124,6 +124,13 @@ function SimulationResultPage() {
   );
 
   const result = execution?.result ?? null;
+
+  useEffect(() => {
+    if (execution?.status === 'COMPLETED' && result) {
+      navigate(`/simulations/${id}/results`, { replace: true });
+    }
+  }, [execution?.status, id, navigate, result]);
+
   const duration = result?.simulationDurationSeconds ?? 0;
   const chunkDuration = result?.timelineChunkDurationSeconds ?? 20;
   const chunkSequence = Math.min(

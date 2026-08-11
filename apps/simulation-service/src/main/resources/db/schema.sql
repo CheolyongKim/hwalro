@@ -4,6 +4,21 @@ CREATE DATABASE IF NOT EXISTS hwalro_simulation
 
 USE hwalro_simulation;
 
+CREATE TABLE IF NOT EXISTS density_threshold_settings (
+    id TINYINT UNSIGNED NOT NULL,
+    threshold_value DECIMAL(8, 3) NOT NULL,
+    unit VARCHAR(30) NOT NULL DEFAULT 'PERSON_PER_M2',
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_density_threshold_settings PRIMARY KEY (id),
+    CONSTRAINT chk_density_threshold_settings_singleton CHECK (id = 1),
+    CONSTRAINT chk_density_threshold_settings_positive CHECK (threshold_value > 0),
+    CONSTRAINT chk_density_threshold_settings_unit CHECK (unit = 'PERSON_PER_M2')
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS floor_plans (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(200) NOT NULL,

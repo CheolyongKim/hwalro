@@ -95,7 +95,7 @@ export function SimulationPlaybackStage(props: Props) {
       if (createdScene) destroyPixiSimulationScene(createdScene);
       if (sceneRef.current === createdScene) sceneRef.current = null;
     };
-  }, [props.result, sceneRetry]);
+  }, [props.result.drawing, props.result.simulationId, props.result.totalPeople, sceneRetry]);
 
   useEffect(() => {
     if (!sceneRef.current) return;

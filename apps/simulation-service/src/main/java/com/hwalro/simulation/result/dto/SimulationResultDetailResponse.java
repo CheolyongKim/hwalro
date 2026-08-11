@@ -12,31 +12,27 @@ public record SimulationResultDetailResponse(
         double maxDensity,
         double densityThreshold,
         Drawing drawing,
-        List<AgentFrame> agentFrames,
-        Heatmap heatmap,
         List<Bottleneck> bottlenecks,
-        List<EvacuationPoint> evacuationProgress,
         List<ComparableSimulation> comparableSimulations) {
 
     public record Drawing(
             String name,
             double width,
             double height,
+            List<Point> outsideBoundary,
             List<Segment> walls,
             List<Segment> exits,
             List<Rectangle> pillars,
-            List<Rectangle> fabrics) {}
+            List<Rectangle> fabrics,
+            List<LayoutText> layoutTexts) {}
+
+    public record Point(double x, double y) {}
 
     public record Segment(String name, double startX, double startY, double endX, double endY) {}
 
     public record Rectangle(String name, double startX, double startY, double endX, double endY, double rotation) {}
 
-    public record AgentFrame(double timeSeconds, List<Double> positions, int activeAgentCount, int evacuatedCount) {}
-
-    public record Heatmap(
-            int columns, int rows, double cellWidth, double cellHeight, double maxDensity, List<HeatmapFrame> frames) {}
-
-    public record HeatmapFrame(double timeSeconds, List<Double> values) {}
+    public record LayoutText(String text, double x, double y) {}
 
     public record Bottleneck(
             Long id,
@@ -49,8 +45,6 @@ public record SimulationResultDetailResponse(
             Bounds geometry) {}
 
     public record Bounds(double x, double y, double width, double height) {}
-
-    public record EvacuationPoint(double timeSeconds, int evacuatedCount) {}
 
     public record ComparableSimulation(Long id, Long simulationResultId, String name, double totalEvacuationTime) {}
 }

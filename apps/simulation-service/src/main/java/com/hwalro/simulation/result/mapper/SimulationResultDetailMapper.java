@@ -18,10 +18,6 @@ public interface SimulationResultDetailMapper {
 
     List<SegmentRow> findFabrics(@Param("layoutVersionId") Long layoutVersionId);
 
-    List<JsonChunk> findTimelineChunks(@Param("simulationResultId") Long simulationResultId);
-
-    List<JsonChunk> findHeatmapChunks(@Param("simulationResultId") Long simulationResultId);
-
     List<BottleneckRow> findBottlenecks(@Param("simulationResultId") Long simulationResultId);
 
     List<ComparableRow> findComparableSimulations(
@@ -41,8 +37,6 @@ public interface SimulationResultDetailMapper {
     record MetricRow(String metricType, double metricValue) {}
 
     record SegmentRow(String name, double startX, double startY, double endX, double endY, double rotation) {}
-
-    record JsonChunk(int chunkSequence, String jsonData) {}
 
     record BottleneckRow(
             Long id,

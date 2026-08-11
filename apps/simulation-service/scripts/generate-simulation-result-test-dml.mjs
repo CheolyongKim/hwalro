@@ -181,7 +181,13 @@ const metricRows = simulations.flatMap((simulation) => [
   [
     simulation.resultId,
     escapeSql('SECOND'),
-    escapeSql('TOTAL_EVACUATION_TIME'),
+    escapeSql('SIMULATION_DURATION_SECONDS'),
+    simulation.duration,
+  ],
+  [
+    simulation.resultId,
+    escapeSql('SECOND'),
+    escapeSql('TOTAL_EVACUATION_TIME_SECONDS'),
     simulation.duration,
   ],
   [simulation.resultId, escapeSql('PERSON_PER_M2'), escapeSql('MAX_DENSITY'), simulation.density],
