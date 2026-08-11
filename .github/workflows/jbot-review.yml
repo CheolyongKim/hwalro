@@ -1,0 +1,39 @@
+name: J-Bot Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: write
+  issues: write
+  checks: read
+
+concurrency:
+  group: jbot-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: J-Bot Code Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Run J-Bot review
+        uses: pgup-ai/jbot-review-action@v0
+        with:
+          provider: opencode-go
+          model: opencode-go/deepseek-v4-flash
+          opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
