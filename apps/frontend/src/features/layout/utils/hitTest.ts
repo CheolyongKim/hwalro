@@ -20,6 +20,7 @@ import {
 export const HIT_RADIUS_PX = 6;
 export const HANDLE_RADIUS_PX = 8;
 export const TEXT_FONT_PX = 11;
+export const MIN_TEXT_SCREEN_PX = 4;
 export const ROTATE_HANDLE_OFFSET_PX = 16;
 
 function pxToWorld(px: number, zoom: number): number {
@@ -33,12 +34,16 @@ export interface WorldBox {
   h: number;
 }
 
-export function textWorldBox(text: LayoutText, zoom: number): WorldBox {
+export function textWorldBox(text: LayoutText): WorldBox {
+  const lines = text.text.split('\n');
+  const longestLine = lines.reduce((longest, line) =>
+    line.length > longest.length ? line : longest,
+  );
   return {
     x: text.x,
     y: text.y,
-    w: estimateTextWidthPx(text.text, TEXT_FONT_PX) / (zoom * PX_PER_METER),
-    h: TEXT_FONT_PX / (zoom * PX_PER_METER),
+    w: estimateTextWidthPx(longestLine, TEXT_FONT_PX) / PX_PER_METER,
+    h: (lines.length * TEXT_FONT_PX) / PX_PER_METER,
   };
 }
 
@@ -61,7 +66,10 @@ export function hitTestExit(point: Vec2, exit: Exit, zoom: number): boolean {
 }
 
 export function hitTestText(point: Vec2, text: LayoutText, zoom: number): boolean {
-  const box = textWorldBox(text, zoom);
+  if (TEXT_FONT_PX * zoom < MIN_TEXT_SCREEN_PX) {
+    return false;
+  }
+  const box = textWorldBox(text);
   const pad = pxToWorld(HIT_RADIUS_PX, zoom);
   return (
     point.x >= box.x - pad &&

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { Dispatch, PointerEvent as ReactPointerEvent } from 'react';
+import type { Dispatch, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 import type {
   Camera,
@@ -135,6 +135,18 @@ export function LayoutCanvas({
     panRef.current = null;
     setPanning(false);
   }, []);
+
+  const onDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (readOnly || tool !== 'select') {
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
+    const hit = hitAt(world);
+    if (hit.textId !== null) {
+      dispatch({ type: 'textEditStart', textId: hit.textId });
+    }
+  };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button === 1 || (event.button === 0 && spaceDown)) {
@@ -510,6 +522,7 @@ export function LayoutCanvas({
       className={`layout-canvas-wrap ${cursorClass}`}
       role="application"
       aria-label="도면 캔버스"
+      onDoubleClick={onDoubleClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

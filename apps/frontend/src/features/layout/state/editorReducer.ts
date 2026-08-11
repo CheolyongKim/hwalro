@@ -61,6 +61,7 @@ export type EditorAction =
   | { type: 'fabricUpdate'; point: Vec2 }
   | { type: 'fabricCommit' }
   | { type: 'textPlace'; point: Vec2 }
+  | { type: 'textEditStart'; textId: string }
   | { type: 'textCommit'; text: string }
   | { type: 'textCancel' }
   | {
@@ -441,30 +442,60 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'textPlace':
       return {
         ...state,
-        textDraft: { point: action.point },
+        textDraft: { point: action.point, textId: null },
         draft: null,
         snapHint: null,
         error: null,
       };
+
+    case 'textEditStart': {
+      const existing = state.doc.layoutTexts.find((t) => t.id === action.textId);
+      if (!existing) {
+        return state;
+      }
+      return {
+        ...state,
+        textDraft: { point: { x: existing.x, y: existing.y }, textId: existing.id },
+        draft: null,
+        snapHint: null,
+        error: null,
+      };
+    }
 
     case 'textCommit': {
       if (!state.textDraft) {
         return state;
       }
       const trimmed = action.text.trim();
-      if (trimmed === '') {
+      const textId = state.textDraft.textId;
+      if (textId === null) {
+        if (trimmed === '') {
+          return { ...state, textDraft: null };
+        }
+        if (!isInsideBounds(state.doc, state.textDraft.point.x, state.textDraft.point.y)) {
+          return { ...state, textDraft: null };
+        }
+        const text: LayoutText = {
+          id: uid(),
+          text: trimmed,
+          x: round1(state.textDraft.point.x),
+          y: round1(state.textDraft.point.y),
+        };
+        const next = { ...state.doc, layoutTexts: [...state.doc.layoutTexts, text] };
+        return commit(state, state.doc, next);
+      }
+      const existing = state.doc.layoutTexts.find((t) => t.id === textId);
+      if (!existing) {
         return { ...state, textDraft: null };
       }
-      if (!isInsideBounds(state.doc, state.textDraft.point.x, state.textDraft.point.y)) {
+      if (trimmed === '' || trimmed === existing.text) {
         return { ...state, textDraft: null };
       }
-      const text: LayoutText = {
-        id: uid(),
-        text: trimmed,
-        x: round1(state.textDraft.point.x),
-        y: round1(state.textDraft.point.y),
+      const nextText: LayoutText = { ...existing, text: trimmed };
+      const next = {
+        ...state.doc,
+        layoutTexts: state.doc.layoutTexts.map((t) => (t.id === textId ? nextText : t)),
       };
-      const next = { ...state.doc, layoutTexts: [...state.doc.layoutTexts, text] };
       return commit(state, state.doc, next);
     }
 
