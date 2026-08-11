@@ -36,7 +36,7 @@ describe('findNewlyCompletedSimulations', () => {
       simulation(1, 7, 'COMPLETED'),
       simulation(2, 7, 'COMPLETED'),
       simulation(3, 8, 'COMPLETED'),
-      simulation(4, 7, 'RUNNING'),
+      simulation(4, 7, 'CANCELLED'),
       simulation(5, 7, 'COMPLETED'),
     ];
 

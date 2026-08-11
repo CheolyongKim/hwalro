@@ -6,6 +6,7 @@ export const STATUS_LABELS: Record<SimulationExecutionStatus, string> = {
   RUNNING: '실행 중',
   COMPLETED: '실행 완료',
   FAILED: '실행 실패',
+  CANCELLED: '실행 취소',
 };
 
 export const STATUS_STYLES: Record<SimulationExecutionStatus, string> = {
@@ -14,4 +15,5 @@ export const STATUS_STYLES: Record<SimulationExecutionStatus, string> = {
   RUNNING: 'bg-primary-soft text-primary',
   COMPLETED: 'bg-emerald-50 text-emerald-700',
   FAILED: 'bg-red-50 text-red-700',
+  CANCELLED: 'bg-soft-gray text-text-muted',
 };

@@ -7,13 +7,16 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Configuration
 public class SimulationExecutionConfig {
+    public static final int MAX_CONCURRENT_EXECUTIONS = 4;
+    public static final int EXECUTION_QUEUE_CAPACITY = 20;
+
     @Bean(name = "simulationExecutionExecutor")
     public ThreadPoolTaskExecutor simulationExecutionExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("simulation-engine-");
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
-        executor.setQueueCapacity(20);
+        executor.setCorePoolSize(MAX_CONCURRENT_EXECUTIONS);
+        executor.setMaxPoolSize(MAX_CONCURRENT_EXECUTIONS);
+        executor.setQueueCapacity(EXECUTION_QUEUE_CAPACITY);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(false);
         executor.initialize();

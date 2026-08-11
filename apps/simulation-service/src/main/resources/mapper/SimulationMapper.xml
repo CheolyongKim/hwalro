@@ -354,7 +354,7 @@
             finished_at = NULL,
             failure_message = NULL
         WHERE id = #{simulationId}
-          AND status IN ('DRAFT', 'FAILED')
+          AND status IN ('DRAFT', 'FAILED', 'CANCELLED')
     </update>
 
     <update id="markExecutionRunning">
@@ -379,6 +379,15 @@
         SET status = 'FAILED',
             finished_at = CURRENT_TIMESTAMP(6),
             failure_message = #{message}
+        WHERE id = #{simulationId}
+          AND status IN ('REQUESTED', 'RUNNING')
+    </update>
+
+    <update id="cancelExecution">
+        UPDATE simulations
+        SET status = 'CANCELLED',
+            finished_at = CURRENT_TIMESTAMP(6),
+            failure_message = NULL
         WHERE id = #{simulationId}
           AND status IN ('REQUESTED', 'RUNNING')
     </update>

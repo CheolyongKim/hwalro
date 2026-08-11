@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { simulationApi } from '../api/simulationApi';
 import { SimulationCanvas } from '../components/SimulationCanvas';
+import { STATUS_LABELS } from '../constants/simulationStatus';
 import type {
   EditableHazardZone,
   SimulationExecution,
@@ -37,6 +38,7 @@ function SimulationResultPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [pollingStopped, setPollingStopped] = useState(false);
   const [refreshingStatus, setRefreshingStatus] = useState(false);
   const lastAnimationTimeRef = useRef<number | null>(null);
@@ -222,6 +224,20 @@ function SimulationResultPage() {
     }
   };
 
+  const cancel = async () => {
+    if (!window.confirm('진행 중인 시뮬레이션을 취소하시겠습니까?')) return;
+    setCancelling(true);
+    setMessage(null);
+    try {
+      setExecution(await simulationApi.cancel(id));
+      setPollingStopped(false);
+    } catch (error) {
+      setMessage(getSimulationErrorMessage(error));
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const refreshStoppedPolling = async () => {
     setRefreshingStatus(true);
     setMessage(null);
@@ -264,16 +280,7 @@ function SimulationResultPage() {
   }
 
   const running = execution.status === 'REQUESTED' || execution.status === 'RUNNING';
-  const statusLabel =
-    execution.status === 'REQUESTED'
-      ? '실행 대기'
-      : execution.status === 'RUNNING'
-        ? '실행 중'
-        : execution.status === 'COMPLETED'
-          ? '실행 완료'
-          : execution.status === 'FAILED'
-            ? '실행 실패'
-            : '실행 전';
+  const statusLabel = STATUS_LABELS[execution.status];
 
   return (
     <main className="flex h-dvh min-w-[960px] flex-col overflow-hidden bg-background text-ink">
@@ -346,16 +353,26 @@ function SimulationResultPage() {
                     ? '자동 상태 확인이 중단되었습니다.'
                     : 'JuPedSim이 대피 경로를 계산하고 있습니다.'}
                 </p>
-                {pollingStopped && (
+                <div className="mt-4 flex justify-center gap-2">
+                  {pollingStopped && (
+                    <button
+                      type="button"
+                      onClick={() => void refreshStoppedPolling()}
+                      disabled={refreshingStatus || cancelling}
+                      className="h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
+                    >
+                      {refreshingStatus ? '확인 중…' : '상태 다시 확인'}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => void refreshStoppedPolling()}
-                    disabled={refreshingStatus}
-                    className="mt-4 h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
+                    onClick={() => void cancel()}
+                    disabled={cancelling || refreshingStatus}
+                    className="h-9 rounded-lg border border-red-200 bg-white px-4 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
-                    {refreshingStatus ? '확인 중…' : '상태 다시 확인'}
+                    {cancelling ? '취소 중…' : '실행 취소'}
                   </button>
-                )}
+                </div>
               </div>
             </div>
           )}
@@ -409,6 +426,22 @@ function SimulationResultPage() {
                 className="mt-4 h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
               >
                 {retrying ? '재시도 중…' : '동일 설정으로 재시도'}
+              </button>
+            </div>
+          )}
+          {execution.status === 'CANCELLED' && (
+            <div className="mt-4 rounded-xl border border-line bg-surface p-4">
+              <p className="font-bold text-text-strong">실행을 취소했습니다.</p>
+              <p className="mt-2 text-sm leading-5 text-text-muted">
+                필요하면 같은 설정으로 다시 실행할 수 있습니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => void retry()}
+                disabled={retrying}
+                className="mt-4 h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {retrying ? '재실행 중…' : '동일 설정으로 재실행'}
               </button>
             </div>
           )}

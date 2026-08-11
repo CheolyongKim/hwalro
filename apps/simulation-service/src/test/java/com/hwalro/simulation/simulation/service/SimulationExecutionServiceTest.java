@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,7 +35,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -180,6 +186,109 @@ class SimulationExecutionServiceTest {
 
         assertThat(capacity.availablePermits()).isEqualTo(availableBefore);
         verify(simulationMapper).markExecutionFailed(eq(21L), contains("SERVICE_UNAVAILABLE"));
+    }
+
+    @Test
+    void cancelsQueuedExecutionAndReleasesCapacity() {
+        stubDraftAndRequestedStatus();
+        captureWorker();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationMapper.cancelExecution(21L)).thenReturn(1);
+        ThreadPoolExecutor threadPool = mock(ThreadPoolExecutor.class);
+        when(executor.getThreadPoolExecutor()).thenReturn(threadPool);
+
+        service.execute(21L, user);
+        Semaphore capacity = (Semaphore) ReflectionTestUtils.getField(service, "executionCapacity");
+        assertThat(capacity.availablePermits()).isEqualTo(23);
+        when(simulationService.getAccessibleSimulation(21L, user))
+                .thenReturn(simulation("REQUESTED"), simulation("CANCELLED"));
+
+        var response = service.cancel(21L, user);
+
+        assertThat(response.status()).isEqualTo("CANCELLED");
+        assertThat(((Future<?>) queued.get()).isCancelled()).isTrue();
+        assertThat(capacity.availablePermits()).isEqualTo(24);
+        verify(threadPool).remove(queued.get());
+    }
+
+    @Test
+    void interruptsRunningExecutionWhenCancelled() throws Exception {
+        stubDraftAndRequestedStatus();
+        captureWorker();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
+        when(simulationMapper.cancelExecution(21L)).thenReturn(1);
+        CountDownLatch engineStarted = new CountDownLatch(1);
+        AtomicBoolean interrupted = new AtomicBoolean();
+        when(engineRunner.run(eq(21L), any())).thenAnswer(invocation -> {
+            engineStarted.countDown();
+            try {
+                new CountDownLatch(1).await();
+                throw new AssertionError("취소되지 않은 엔진 실행");
+            } catch (InterruptedException exception) {
+                interrupted.set(true);
+                throw new EngineRunException("cancelled", false, exception);
+            }
+        });
+
+        service.execute(21L, user);
+        Thread worker = new Thread(queued.get());
+        worker.start();
+        assertThat(engineStarted.await(1, TimeUnit.SECONDS)).isTrue();
+        when(simulationService.getAccessibleSimulation(21L, user))
+                .thenReturn(simulation("RUNNING"), simulation("CANCELLED"));
+
+        service.cancel(21L, user);
+        worker.join(1000);
+
+        assertThat(interrupted).isTrue();
+        assertThat(worker.isAlive()).isFalse();
+    }
+
+    @Test
+    void cancellationIsIdempotent() {
+        when(simulationService.getAccessibleSimulation(21L, user))
+                .thenReturn(simulation("CANCELLED"), simulation("CANCELLED"));
+
+        var response = service.cancel(21L, user);
+
+        assertThat(response.status()).isEqualTo("CANCELLED");
+        verify(simulationMapper, never()).cancelExecution(anyLong());
+    }
+
+    @Test
+    void rejectsCancellationAfterCompletionWinsRace() {
+        when(simulationService.getAccessibleSimulation(21L, user))
+                .thenReturn(simulation("RUNNING"), simulation("COMPLETED"));
+        when(simulationMapper.cancelExecution(21L)).thenReturn(0);
+
+        assertThatThrownBy(() -> service.cancel(21L, user)).isInstanceOf(SimulationConflictException.class);
+    }
+
+    @Test
+    void rejectsCancellationBeforeExecutionStarts() {
+        when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(simulation("DRAFT"));
+
+        assertThatThrownBy(() -> service.cancel(21L, user)).isInstanceOf(SimulationConflictException.class);
+
+        verify(simulationMapper, never()).cancelExecution(anyLong());
+    }
+
+    @Test
+    void executesCancelledSimulationAgain() {
+        captureWorker();
+        when(simulationMapper.updateExecutionProfiles(21L, "SFM_DEFAULT_V2", "HAZARD_RADIAL_EXP_V3"))
+                .thenReturn(1);
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationService.getAccessibleSimulation(21L, user))
+                .thenReturn(simulation("CANCELLED"), simulation("REQUESTED"));
+
+        var response = service.execute(21L, user);
+
+        assertThat(response.status()).isEqualTo("REQUESTED");
     }
 
     @Test

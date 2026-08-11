@@ -54,6 +54,7 @@ function stepStates({
     case 'REQUESTED':
     case 'RUNNING':
     case 'FAILED':
+    case 'CANCELLED':
       return ['done', 'done', 'done', 'current'];
     case 'COMPLETED':
       return analysisOpened
@@ -84,6 +85,8 @@ export function currentStageLabel({
       return analysisOpened ? '결과 분석 중' : '결과 분석 대기';
     case 'FAILED':
       return '실행 실패';
+    case 'CANCELLED':
+      return '실행 취소';
   }
 }
 

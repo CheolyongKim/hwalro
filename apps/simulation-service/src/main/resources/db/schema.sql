@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS simulations (
     CONSTRAINT pk_simulations PRIMARY KEY (id),
     CONSTRAINT uk_simulations_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT uk_simulations_id_parent UNIQUE (id, parent_simulation_id),
-    CONSTRAINT ck_simulations_status CHECK (status IN ('DRAFT', 'REQUESTED', 'RUNNING', 'COMPLETED', 'FAILED')),
+    CONSTRAINT ck_simulations_status CHECK (status IN ('DRAFT', 'REQUESTED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED')),
     CONSTRAINT fk_simulations_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE

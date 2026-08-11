@@ -47,6 +47,11 @@ export const simulationApi = {
       .post<SimulationExecution>(`/api/simulations/${simulationId}/execute`)
       .then((response) => response.data),
 
+  cancel: (simulationId: number) =>
+    apiClient
+      .post<SimulationExecution>(`/api/simulations/${simulationId}/cancel`)
+      .then((response) => response.data),
+
   getExecution: (simulationId: number) =>
     apiClient
       .get<SimulationExecution>(`/api/simulations/${simulationId}/execution`)

@@ -60,14 +60,17 @@ describe('reviewSteps', () => {
     expect(steps.map((step) => step.state)).toEqual(['done', 'done', 'current', 'upcoming']);
   });
 
-  it.each(['REQUESTED', 'RUNNING', 'FAILED'] as const)('%s는 결과 분석 단계에 있다', (status) => {
-    expect(reviewSteps(progress({ status, totalPeople: 12 })).map((step) => step.state)).toEqual([
-      'done',
-      'done',
-      'done',
-      'current',
-    ]);
-  });
+  it.each(['REQUESTED', 'RUNNING', 'FAILED', 'CANCELLED'] as const)(
+    '%s는 결과 분석 단계에 있다',
+    (status) => {
+      expect(reviewSteps(progress({ status, totalPeople: 12 })).map((step) => step.state)).toEqual([
+        'done',
+        'done',
+        'done',
+        'current',
+      ]);
+    },
+  );
 
   it('완료했지만 결과를 아직 열지 않았으면 결과 분석이 진행 중이다', () => {
     const steps = reviewSteps(progress({ status: 'COMPLETED', totalPeople: 12 }));
@@ -119,5 +122,9 @@ describe('currentStageLabel', () => {
 
   it('실패는 실행 실패', () => {
     expect(currentStageLabel(progress({ status: 'FAILED', totalPeople: 12 }))).toBe('실행 실패');
+  });
+
+  it('취소는 실행 취소', () => {
+    expect(currentStageLabel(progress({ status: 'CANCELLED', totalPeople: 12 }))).toBe('실행 취소');
   });
 });
