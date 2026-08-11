@@ -15,6 +15,11 @@ export function useRiskForm(initial: RiskFormValues) {
   const [description, setDescription] = useState(initial.description);
 
   const toCreateRequest = (): RiskCreateRequest => ({
+    simulationResultId: null,
+    startX: null,
+    startY: null,
+    endX: null,
+    endY: null,
     title: title.trim(),
     severity: severity.trim(),
     status: status.trim(),

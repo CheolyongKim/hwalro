@@ -2,6 +2,8 @@ import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { reportApi } from '../../reports/api/reportApi';
+import { riskApi } from '../../risks/api/riskApi';
+import type { Risk } from '../../risks/types/risks';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import type { SimulationResultSummary } from '../../simulations/types';
 import { simulationResultProvider } from '../api/simulationResultProvider';
@@ -31,6 +33,19 @@ const NARROW_RESULT_VIEWPORT_QUERY = '(max-width: 1100px)';
 
 function matchesMediaQuery(query: string) {
   return typeof window !== 'undefined' && window.matchMedia(query).matches;
+}
+
+function toRiskZone(risk: Risk): RiskZone {
+  const startX = risk.startX ?? 0;
+  const startY = risk.startY ?? 0;
+  return {
+    id: String(risk.id),
+    name: risk.title,
+    x: startX,
+    y: startY,
+    width: (risk.endX ?? startX) - startX,
+    height: (risk.endY ?? startY) - startY,
+  };
 }
 
 function getReportDraftErrorMessage(error: unknown) {
@@ -87,6 +102,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
   const [riskDrawingMode, setRiskDrawingMode] = useState(false);
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
   const [pendingBounds, setPendingBounds] = useState<Bounds | null>(null);
+  const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -129,6 +145,22 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     setPendingBounds(bounds);
     setRiskDrawingMode(false);
   };
+
+  useEffect(() => {
+    let active = true;
+    setRiskLoadError(null);
+    riskApi
+      .listBySimulationResult(summary.simulationResultId)
+      .then((risks) => {
+        if (active) setRiskZones(risks.filter((risk) => risk.startX !== null).map(toRiskZone));
+      })
+      .catch(() => {
+        if (active) setRiskLoadError('저장된 위험 항목을 불러오지 못했습니다.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [summary.simulationResultId]);
 
   const handleRevealResults = () => {
     playback.pause();
@@ -216,6 +248,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         >
           {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 항목 설정'}
         </button>
+        {riskLoadError && <p className="risk-zone-load-error">{riskLoadError}</p>}
       </div>
 
       <ResultSummaryPanel
@@ -271,9 +304,10 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         <RiskZoneEditorDialog
           bounds={pendingBounds}
           drawingWidth={result.drawing.width}
+          simulationResultId={summary.simulationResultId}
           onCancel={() => setPendingBounds(null)}
-          onConfirm={(zone) => {
-            setRiskZones((zones) => [...zones, zone]);
+          onConfirm={(risk) => {
+            setRiskZones((zones) => [...zones, toRiskZone(risk)]);
             setPendingBounds(null);
           }}
         />
