@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hwalro.auth.mapper.UserLastActivityMapper">
+
+    <select id="findByUserId" resultType="com.hwalro.auth.domain.UserLastActivity">
+        SELECT user_id,
+               activity_type,
+               resource_id,
+               occurred_at
+        FROM user_last_activities
+        WHERE user_id = #{userId}
+    </select>
+
+    <!-- 사용자당 1행만 유지한다. PK(user_id) 충돌 시 마지막 작업으로 덮어쓴다. -->
+    <insert id="upsert">
+        INSERT INTO user_last_activities (user_id, activity_type, resource_id, occurred_at)
+        VALUES (#{userId}, #{activityType}, #{resourceId}, CURRENT_TIMESTAMP(6))
+        ON DUPLICATE KEY UPDATE
+            activity_type = VALUES(activity_type),
+            resource_id   = VALUES(resource_id),
+            occurred_at   = CURRENT_TIMESTAMP(6)
+    </insert>
+
+</mapper>
