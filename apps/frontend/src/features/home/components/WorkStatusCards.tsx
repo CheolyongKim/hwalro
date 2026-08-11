@@ -8,7 +8,11 @@ interface WorkStatusCardsProps {
   onRetry: () => void;
 }
 
-function StatusCard({ label, count, dotClassName }: {
+function StatusCard({
+  label,
+  count,
+  dotClassName,
+}: {
   label: string;
   count: number;
   dotClassName: string;

@@ -39,7 +39,11 @@ export function resumePath(activity: LastActivity): string {
  * 시뮬레이션 배치와 시뮬레이션 설정은 같은 화면에서 이루어지므로
  * 에이전트 배치 여부(totalPeople)로 두 단계를 구분한다.
  */
-function stepStates({ status, totalPeople, analysisOpened }: ReviewProgressInput): ReviewStepState[] {
+function stepStates({
+  status,
+  totalPeople,
+  analysisOpened,
+}: ReviewProgressInput): ReviewStepState[] {
   switch (status) {
     case null:
       return ['current', 'upcoming', 'upcoming', 'upcoming'];
