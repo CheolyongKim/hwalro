@@ -46,7 +46,7 @@ function parseValidationProblems(data: unknown): ValidationProblem[] {
 function LayoutPage() {
   const { drawingId = '' } = useParams();
   const navigate = useNavigate();
-  useRecordLastActivity('LAYOUT_EDIT', Number(drawingId));
+  const recordLastActivity = useRecordLastActivity();
   const [state, dispatch] = useReducer(editorReducer, undefined, createInitialState);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -123,6 +123,7 @@ function LayoutPage() {
         version,
       };
       dispatch({ type: 'setValidationProblems', problems: [] });
+      recordLastActivity('LAYOUT_EDIT', Number(drawingId));
       setSaveStatus('saved');
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -154,7 +155,7 @@ function LayoutPage() {
         saveTimerRef.current = null;
       }, 2000);
     }
-  }, [saveStatus, loadStatus, drawingId]);
+  }, [saveStatus, loadStatus, drawingId, recordLastActivity]);
 
   const handleOpenDraftDialog = useCallback(async () => {
     const session = sessionRef.current;
@@ -168,13 +169,14 @@ function LayoutPage() {
     try {
       const version = await saveDrawing(drawingId, { ...session, doc: stateRef.current.doc });
       sessionRef.current = { ...session, doc: stateRef.current.doc, version };
+      recordLastActivity('LAYOUT_EDIT', Number(drawingId));
       setDraftDialogOpen(true);
     } catch (error) {
       dispatch({ type: 'setError', message: getSimulationErrorMessage(error) });
     } finally {
       setDraftPending(false);
     }
-  }, [draftPending, drawingId]);
+  }, [draftPending, drawingId, recordLastActivity]);
 
   const handleCreateDraft = useCallback(
     async (parentSimulationId?: number) => {
