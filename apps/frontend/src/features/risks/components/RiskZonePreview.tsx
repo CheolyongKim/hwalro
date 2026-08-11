@@ -31,18 +31,30 @@ function strokeSegment(
   context.stroke();
 }
 
-function strokeRect(
+function fillRotatedRect(
   context: CanvasRenderingContext2D,
   segment: DrawingSegment,
   scale: number,
   offsetX: number,
   offsetY: number,
 ) {
-  const x = offsetX + Math.min(segment.startX, segment.endX) * scale;
-  const y = offsetY + Math.min(segment.startY, segment.endY) * scale;
-  const width = Math.abs(segment.endX - segment.startX) * scale;
-  const height = Math.abs(segment.endY - segment.startY) * scale;
-  context.fillRect(x, y, width, height);
+  const worldX = Math.min(segment.startX, segment.endX);
+  const worldY = Math.min(segment.startY, segment.endY);
+  const worldWidth = Math.abs(segment.endX - segment.startX);
+  const worldHeight = Math.abs(segment.endY - segment.startY);
+  const centerX = offsetX + (worldX + worldWidth / 2) * scale;
+  const centerY = offsetY + (worldY + worldHeight / 2) * scale;
+  const rotation = ((segment.rotation ?? 0) * Math.PI) / 180;
+  context.save();
+  context.translate(centerX, centerY);
+  context.rotate(rotation);
+  context.fillRect(
+    (-worldWidth * scale) / 2,
+    (-worldHeight * scale) / 2,
+    worldWidth * scale,
+    worldHeight * scale,
+  );
+  context.restore();
 }
 
 export function RiskZonePreview({ drawing, zone, width = 240, height = 160 }: Props) {
@@ -97,9 +109,9 @@ export function RiskZonePreview({ drawing, zone, width = 240, height = 160 }: Pr
     for (const exit of drawing.exits) strokeSegment(context, exit, scale, offsetX, offsetY);
 
     context.fillStyle = 'rgba(148, 163, 184, 0.55)';
-    for (const pillar of drawing.pillars) strokeRect(context, pillar, scale, offsetX, offsetY);
+    for (const pillar of drawing.pillars) fillRotatedRect(context, pillar, scale, offsetX, offsetY);
     context.fillStyle = 'rgba(203, 213, 225, 0.75)';
-    for (const fabric of drawing.fabrics) strokeRect(context, fabric, scale, offsetX, offsetY);
+    for (const fabric of drawing.fabrics) fillRotatedRect(context, fabric, scale, offsetX, offsetY);
 
     const zoneX = offsetX + Math.min(zone.startX, zone.endX) * scale;
     const zoneY = offsetY + Math.min(zone.startY, zone.endY) * scale;

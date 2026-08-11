@@ -78,6 +78,7 @@ public class RiskService {
 
     public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
+        validateSimulationResultId(request.simulationResultId());
         validateGeometry(request);
         Risk risk = new Risk();
         risk.setAssigneeId(assigneeId);
@@ -160,6 +161,12 @@ public class RiskService {
                 risk.getCreatedAt());
     }
 
+    private void validateSimulationResultId(Long simulationResultId) {
+        if (simulationResultId != null && simulationResultId <= 0) {
+            throw new IllegalArgumentException("시뮬레이션 결과 ID는 양수여야 합니다.");
+        }
+    }
+
     private void validateGeometry(RiskCreateRequest request) {
         boolean anyProvided = request.startX() != null
                 || request.startY() != null
@@ -171,6 +178,9 @@ public class RiskService {
                 && request.endY() != null;
         if (anyProvided != allProvided) {
             throw new IllegalArgumentException("위험 구역 좌표는 startX, startY, endX, endY를 모두 함께 입력해야 합니다.");
+        }
+        if (allProvided && (request.endX() < request.startX() || request.endY() < request.startY())) {
+            throw new IllegalArgumentException("위험 구역 좌표는 endX가 startX 이상, endY가 startY 이상이어야 합니다.");
         }
     }
 
