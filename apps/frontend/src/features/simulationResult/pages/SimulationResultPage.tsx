@@ -12,6 +12,7 @@ import { ReportDraftDialog } from '../components/ReportDraftDialog';
 import { ResultSummaryPanel } from '../components/ResultSummaryPanel';
 import { RiskZoneEditorDialog } from '../components/RiskZoneEditorDialog';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
+import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
 import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
@@ -296,6 +297,7 @@ export default function SimulationResultPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
   const numericSimulationId = Number(simulationId);
+  useRecordLastActivity('SIMULATION_RESULT', numericSimulationId);
   const [summary, setSummary] = useState<SimulationResultSummaryViewModel | null>(null);
   const [executionResult, setExecutionResult] = useState<SimulationResultSummary | null>(null);
   const [loadingTotalPeople, setLoadingTotalPeople] = useState<number | null>(null);

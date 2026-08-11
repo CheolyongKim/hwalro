@@ -12,6 +12,7 @@ import {
   eraseAgents,
 } from '../utils/placement';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
+import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 
 interface PlacementSnapshot {
   agents: SimulationPoint[];
@@ -64,6 +65,7 @@ function sameSnapshot(a: PlacementSnapshot, b: PlacementSnapshot): boolean {
 function SimulationSetupPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
+  useRecordLastActivity('SIMULATION_SETUP', Number(simulationId));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [executing, setExecuting] = useState(false);

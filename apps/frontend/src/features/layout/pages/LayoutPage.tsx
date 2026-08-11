@@ -15,6 +15,7 @@ import { CreateSimulationDraftDialog } from '../../simulations/components/Create
 import { simulationApi } from '../../simulations/api/simulationApi';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
+import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
@@ -45,6 +46,7 @@ function parseValidationProblems(data: unknown): ValidationProblem[] {
 function LayoutPage() {
   const { drawingId = '' } = useParams();
   const navigate = useNavigate();
+  useRecordLastActivity('LAYOUT_EDIT', Number(drawingId));
   const [state, dispatch] = useReducer(editorReducer, undefined, createInitialState);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
