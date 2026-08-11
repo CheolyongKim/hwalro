@@ -77,7 +77,8 @@ function SimulationSetupPage() {
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
   const [reactionTime, setReactionTime] = useState(0.5);
   const [tool, setTool] = useState<SimulationTool>('spray');
-  const [brushRadius, setBrushRadius] = useState(1);
+  const [sprayRadius, setSprayRadius] = useState(1);
+  const [eraserRadius, setEraserRadius] = useState(1);
   const [uniformCount, setUniformCount] = useState(100);
   const [selectedHazardId, setSelectedHazardId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -246,7 +247,7 @@ function SimulationSetupPage() {
   const applySpray = (point: SimulationPoint) => {
     if (!editable) return;
     const current = placementRef.current;
-    const nextAgents = addSprayedAgents(point, brushRadius, setup.drawing, current.agents);
+    const nextAgents = addSprayedAgents(point, sprayRadius, setup.drawing, current.agents);
     if (nextAgents !== current.agents) replacePlacement({ ...current, agents: nextAgents });
     if (nextAgents.length >= MAX_AGENTS)
       setMessage(`최대 ${MAX_AGENTS.toLocaleString()}명까지 배치할 수 있습니다.`);
@@ -255,7 +256,7 @@ function SimulationSetupPage() {
   const applyErase = (point: SimulationPoint) => {
     if (!editable) return;
     const current = placementRef.current;
-    const nextAgents = eraseAgents(point, brushRadius, current.agents);
+    const nextAgents = eraseAgents(point, eraserRadius, current.agents);
     if (nextAgents.length !== current.agents.length) {
       replacePlacement({ ...current, agents: nextAgents });
     }
@@ -300,6 +301,18 @@ function SimulationSetupPage() {
       return;
     }
     commitPlacement({ ...placementRef.current, agents: result.positions });
+  };
+
+  const handleClearAgents = () => {
+    if (!editable || agents.length === 0) return;
+    if (
+      !window.confirm(
+        `배치된 에이전트 ${agents.length.toLocaleString()}명을 모두 삭제할까요?\n위험구역과 시뮬레이션 조건은 유지됩니다.`,
+      )
+    ) {
+      return;
+    }
+    commitPlacement({ ...placementRef.current, agents: [] });
   };
 
   const validateOptions = (): string | null => {
@@ -452,7 +465,7 @@ function SimulationSetupPage() {
             agents={agents}
             hazards={hazards}
             tool={editable ? tool : 'select'}
-            brushRadius={brushRadius}
+            brushRadius={tool === 'erase' ? eraserRadius : sprayRadius}
             selectedHazardId={selectedHazardId}
             selectedExitIds={selectedExitIds}
             highlightedExitId={highlightedExitId}
@@ -514,19 +527,26 @@ function SimulationSetupPage() {
 
           <section className="mt-6 border-t border-line pt-5">
             <h2 className="text-sm font-black">에이전트 배치</h2>
-            <label className="mt-4 block text-xs font-bold text-text-muted">
-              스프레이 크기 · {brushRadius.toFixed(1)}m
-              <input
-                type="range"
-                min={AGENT_RADIUS}
-                max={5}
-                step={0.1}
-                value={brushRadius}
-                onChange={(event) => setBrushRadius(Number(event.target.value))}
-                disabled={!editable}
-                className="mt-2 w-full accent-primary"
-              />
-            </label>
+            {(tool === 'spray' || tool === 'erase') && (
+              <label className="mt-4 block text-xs font-bold text-text-muted">
+                {tool === 'erase' ? '지우개' : '스프레이'} 크기 ·{' '}
+                {(tool === 'erase' ? eraserRadius : sprayRadius).toFixed(1)}m
+                <input
+                  type="range"
+                  min={AGENT_RADIUS}
+                  max={5}
+                  step={0.1}
+                  value={tool === 'erase' ? eraserRadius : sprayRadius}
+                  onChange={(event) => {
+                    const radius = Number(event.target.value);
+                    if (tool === 'erase') setEraserRadius(radius);
+                    else setSprayRadius(radius);
+                  }}
+                  disabled={!editable}
+                  className="mt-2 w-full accent-primary"
+                />
+              </label>
+            )}
             <div className="mt-4 flex gap-2">
               <label className="min-w-0 flex-1 text-xs font-bold text-text-muted">
                 균등 배치 인원
@@ -549,6 +569,14 @@ function SimulationSetupPage() {
                 균등분포 배치
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handleClearAgents}
+              disabled={!editable || agents.length === 0}
+              className="mt-3 h-10 w-full rounded-lg border border-red-200 text-xs font-bold text-danger disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              에이전트 전체 삭제
+            </button>
           </section>
 
           <section className="mt-6 border-t border-line pt-5">
