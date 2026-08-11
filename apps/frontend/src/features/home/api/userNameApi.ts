@@ -1,7 +1,8 @@
 import { apiClient } from '../../../api/client';
 
+/** auth-service의 UserSummaryResponse record와 필드명이 같아야 한다. */
 interface UserSummaryResponse {
-  userId: number;
+  id: number;
   name: string;
 }
 
@@ -13,5 +14,5 @@ export const userNameApi = {
   listNames: (ids: number[]) =>
     apiClient
       .get<UserSummaryResponse[]>('/api/auth/users', { params: { ids: ids.join(',') } })
-      .then((res) => new Map(res.data.map((user) => [user.userId, user.name]))),
+      .then((res) => new Map(res.data.map((user) => [user.id, user.name]))),
 };

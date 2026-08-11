@@ -90,25 +90,31 @@ export function useHomeDashboard() {
     if (drawingPointerId != null) {
       const drawing = pointedDrawingQuery.data;
       if (!drawing) return null;
+      const progress = { status: null, totalPeople: 0, analysisOpened: false };
       return {
         title: drawing.title,
         resumePath: resumePath(activity),
         subtitle: `도면 #${drawing.id} · 버전 ${drawing.layoutVersionNumber}`,
         occurredAt: activity.occurredAt,
-        currentStageLabel: currentStageLabel(null),
-        steps: reviewSteps(null),
+        currentStageLabel: currentStageLabel(progress),
+        steps: reviewSteps(progress),
       };
     }
 
     const simulation = pointedSimulationQuery.data;
     if (!simulation) return null;
+    const progress = {
+      status: simulation.status,
+      totalPeople: simulation.totalPeople,
+      analysisOpened: activity.activityType === 'SIMULATION_RESULT',
+    };
     return {
       title: simulation.layoutTitle,
       resumePath: resumePath(activity),
       subtitle: `도면 #${simulation.layoutId} · 버전 ${simulation.layoutVersionNumber} · 시뮬레이션 #${simulation.id}`,
       occurredAt: activity.occurredAt,
-      currentStageLabel: currentStageLabel(simulation.status),
-      steps: reviewSteps(simulation.status),
+      currentStageLabel: currentStageLabel(progress),
+      steps: reviewSteps(progress),
     };
   }, [activity, drawingPointerId, pointedDrawingQuery.data, pointedSimulationQuery.data]);
 

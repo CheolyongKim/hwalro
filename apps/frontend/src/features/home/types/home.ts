@@ -14,8 +14,11 @@ export interface SimulationWorkSummary {
   completedThisWeekCount: number;
 }
 
-/** 검토 파이프라인 3단계. 디자인의 스텝퍼 순서와 같다. */
-export type ReviewStepKey = 'LAYOUT' | 'SETUP' | 'ANALYSIS';
+/**
+ * 검토 파이프라인 4단계.
+ * SCENARIO.md의 "도면 배치 및 저장 → 위험구역, 사람 배치 및 저장 → 시뮬레이션 실행 → 결과 확인" 흐름을 따른다.
+ */
+export type ReviewStepKey = 'LAYOUT' | 'SIMULATION_LAYOUT' | 'SETUP' | 'ANALYSIS';
 
 export type ReviewStepState = 'done' | 'current' | 'upcoming';
 

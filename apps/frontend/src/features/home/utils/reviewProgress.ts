@@ -3,9 +3,19 @@ import type { LastActivity, LastActivityType, ReviewStep, ReviewStepState } from
 
 const STEP_LABELS: Array<{ key: ReviewStep['key']; label: string }> = [
   { key: 'LAYOUT', label: '도면 배치' },
+  { key: 'SIMULATION_LAYOUT', label: '시뮬레이션 배치' },
   { key: 'SETUP', label: '시뮬레이션 설정' },
   { key: 'ANALYSIS', label: '결과 분석' },
 ];
+
+export interface ReviewProgressInput {
+  /** 아직 시뮬레이션을 만들지 않았으면 null. */
+  status: SimulationExecutionStatus | null;
+  /** 배치된 에이전트 수. 0이면 아직 시뮬레이션 배치를 하지 않은 것으로 본다. */
+  totalPeople: number;
+  /** 결과 분석 화면을 실제로 열었는지. */
+  analysisOpened: boolean;
+}
 
 /**
  * 마지막 작업 종류에 대응하는 화면 경로.
@@ -24,39 +34,50 @@ export function resumePath(activity: LastActivity): string {
 
 /**
  * 시뮬레이션 상태에서 스텝퍼 진행도를 파생한다.
- * 진행도는 별도로 저장하지 않고 항상 status에서 계산한다.
+ * 진행도는 별도로 저장하지 않고 항상 조회한 값에서 계산한다.
+ *
+ * 시뮬레이션 배치와 시뮬레이션 설정은 같은 화면에서 이루어지므로
+ * 에이전트 배치 여부(totalPeople)로 두 단계를 구분한다.
  */
-function stepStates(status: SimulationExecutionStatus | null): ReviewStepState[] {
+function stepStates({ status, totalPeople, analysisOpened }: ReviewProgressInput): ReviewStepState[] {
   switch (status) {
-    // 도면만 편집 중이면 아직 시뮬레이션이 만들어지지 않은 상태다.
     case null:
-      return ['current', 'upcoming', 'upcoming'];
+      return ['current', 'upcoming', 'upcoming', 'upcoming'];
     case 'DRAFT':
-      return ['done', 'current', 'upcoming'];
+      return totalPeople > 0
+        ? ['done', 'done', 'current', 'upcoming']
+        : ['done', 'current', 'upcoming', 'upcoming'];
     case 'REQUESTED':
     case 'RUNNING':
-    case 'COMPLETED':
     case 'FAILED':
-      return ['done', 'done', 'current'];
+      return ['done', 'done', 'done', 'current'];
+    case 'COMPLETED':
+      return analysisOpened
+        ? ['done', 'done', 'done', 'done']
+        : ['done', 'done', 'done', 'current'];
   }
 }
 
-export function reviewSteps(status: SimulationExecutionStatus | null): ReviewStep[] {
-  const states = stepStates(status);
+export function reviewSteps(input: ReviewProgressInput): ReviewStep[] {
+  const states = stepStates(input);
   return STEP_LABELS.map((step, index) => ({ ...step, state: states[index] }));
 }
 
-export function currentStageLabel(status: SimulationExecutionStatus | null): string {
+export function currentStageLabel({
+  status,
+  totalPeople,
+  analysisOpened,
+}: ReviewProgressInput): string {
   switch (status) {
     case null:
       return '도면 배치 중';
     case 'DRAFT':
-      return '시뮬레이션 설정 중';
+      return totalPeople > 0 ? '시뮬레이션 설정 중' : '시뮬레이션 배치 중';
     case 'REQUESTED':
     case 'RUNNING':
       return '시뮬레이션 실행 중';
     case 'COMPLETED':
-      return '결과 분석 대기';
+      return analysisOpened ? '결과 분석 중' : '결과 분석 대기';
     case 'FAILED':
       return '실행 실패';
   }
