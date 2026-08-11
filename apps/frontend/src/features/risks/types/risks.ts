@@ -39,3 +39,29 @@ export interface RiskListResponse {
   hasNext: boolean;
   items: Risk[];
 }
+
+export interface DrawingSegment {
+  name: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rotation?: number;
+}
+
+export interface RiskDrawingContext {
+  simulationResultId: number;
+  simulationId: number;
+  layoutTitle: string;
+  drawing: {
+    name: string;
+    width: number;
+    height: number;
+    outsideBoundary: Array<{ x: number; y: number }>;
+    walls: DrawingSegment[];
+    exits: DrawingSegment[];
+    pillars: DrawingSegment[];
+    fabrics: DrawingSegment[];
+    layoutTexts: Array<{ text: string; x: number; y: number }>;
+  };
+}
