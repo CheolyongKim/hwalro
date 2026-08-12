@@ -8,6 +8,7 @@ import type { ChartBounds, ChartRenderContext } from '@tanstack/charts';
 import type { ChartTooltipBodyRenderContext } from '@tanstack/charts/react/tooltip';
 import type { EvacuationPoint } from '../types';
 import { calculateEvacuationRate } from '../utils/evacuationRate';
+import { getEvacuationProgressDisplay } from '../utils/evacuationProgressDisplay';
 import { formatDuration } from '../utils/playback';
 
 const GRADIENT_ID = 'evacuation-gradient';
@@ -17,6 +18,7 @@ export function EvacuationProgressChart({
   currentTime,
   duration,
   totalPeople,
+  isPlaybackDataStale = false,
   isCollapsing = false,
   isExpanding = false,
   onCollapseEnd,
@@ -26,6 +28,7 @@ export function EvacuationProgressChart({
   currentTime: number;
   duration: number;
   totalPeople: number;
+  isPlaybackDataStale?: boolean;
   isCollapsing?: boolean;
   isExpanding?: boolean;
   onCollapseEnd?: () => void;
@@ -46,6 +49,11 @@ export function EvacuationProgressChart({
 
   const current = visible.length > 0 ? visible[visible.length - 1].evacuatedCount : 0;
   const ratePercent = calculateEvacuationRate(current, totalPeople);
+  const evacuationProgress = getEvacuationProgressDisplay(
+    current,
+    ratePercent,
+    isPlaybackDataStale,
+  );
 
   const definition = useMemo(() => {
     const curve = d3Curve(curveMonotoneX);
@@ -170,8 +178,8 @@ export function EvacuationProgressChart({
     >
       <div className="floating-title-row">
         <strong>시간별 대피 인원</strong>
-        <span>
-          {current.toLocaleString('ko-KR')}명 · {ratePercent}%
+        <span aria-busy={isPlaybackDataStale} aria-live="polite">
+          {evacuationProgress.countLabel} · {evacuationProgress.rateLabel}
         </span>
       </div>
       <div className="evacuation-chart-plot">

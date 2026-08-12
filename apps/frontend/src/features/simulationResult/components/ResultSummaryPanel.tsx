@@ -1,12 +1,14 @@
 import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { BOTTLENECK_DISPLAY_BATCH_SIZE } from '../utils/bottleneckDisplay';
+import { getEvacuationProgressDisplay } from '../utils/evacuationProgressDisplay';
 
 interface Props {
   result: SimulationResultViewModel;
   bottlenecks: DetectedBottleneck[];
   evacuatedCount: number;
   evacuationRate: number;
+  isPlaybackDataStale: boolean;
   bottlenecksVisible: boolean;
   selectedBottleneckId: number | null;
   displayedBottleneckCount: number;
@@ -23,6 +25,7 @@ export function ResultSummaryPanel({
   bottlenecks,
   evacuatedCount,
   evacuationRate,
+  isPlaybackDataStale,
   bottlenecksVisible,
   selectedBottleneckId,
   displayedBottleneckCount,
@@ -37,6 +40,11 @@ export function ResultSummaryPanel({
   const selectedBottleneck = bottlenecks.find((item) => item.id === selectedBottleneckId);
   const remainingBottleneckCount = totalBottleneckCount - displayedBottleneckCount;
   const nextBottleneckCount = Math.min(BOTTLENECK_DISPLAY_BATCH_SIZE, remainingBottleneckCount);
+  const evacuationProgress = getEvacuationProgressDisplay(
+    evacuatedCount,
+    evacuationRate,
+    isPlaybackDataStale,
+  );
 
   if (panel.isMinimized) {
     return (
@@ -75,9 +83,9 @@ export function ResultSummaryPanel({
             <strong>{result.bottlenecks.length}곳</strong>
           </div>
         </div>
-        <div className="evacuation-complete">
-          <span>대피 진행 · {evacuatedCount.toLocaleString()}명</span>
-          <strong>{evacuationRate}%</strong>
+        <div className="evacuation-complete" aria-busy={isPlaybackDataStale} aria-live="polite">
+          <span>대피 진행 · {evacuationProgress.countLabel}</span>
+          <strong>{evacuationProgress.rateLabel}</strong>
         </div>
         <h2>병목 분석</h2>
         {bottlenecksVisible ? (

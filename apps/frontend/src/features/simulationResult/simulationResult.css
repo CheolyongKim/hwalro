@@ -679,6 +679,23 @@
   color: #d8f77b;
   opacity: 1;
 }
+.playback-controls .playback-buffering {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  border: 1px solid color-mix(in srgb, var(--color-lime) 20%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
+  padding: 4px 8px;
+  color: var(--color-panel-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+}
 .simulation-result-page .playback-controls .playback-result.is-visible:disabled {
   cursor: default;
 }
