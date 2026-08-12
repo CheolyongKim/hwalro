@@ -19,7 +19,6 @@ import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
 import CreateDrawingPage from '../features/drawings/pages/CreateDrawingPage';
 import SimulationSetupPage from '../features/simulations/pages/SimulationSetupPage';
-import SimulationExecutionResultPage from '../features/simulations/pages/SimulationResultPage';
 import SimulationListPage from '../features/simulations/pages/SimulationListPage';
 
 const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
@@ -91,10 +90,6 @@ export const router = createBrowserRouter([
             ),
           },
           { path: 'simulations/:simulationId/setup', element: <SimulationSetupPage /> },
-          {
-            path: 'simulations/:simulationId/result',
-            element: <SimulationExecutionResultPage />,
-          },
           {
             path: 'simulations/:simulationId/results',
             element: (

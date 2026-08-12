@@ -54,5 +54,5 @@ export interface RecentSimulationRow {
   createdBy: number;
   assigneeName: string | null;
   status: SimulationExecutionStatus;
-  path: string;
+  path: string | null;
 }

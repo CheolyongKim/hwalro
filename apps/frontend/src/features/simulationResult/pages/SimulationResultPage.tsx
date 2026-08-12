@@ -413,7 +413,7 @@ export default function SimulationResultPage() {
       .then(async (execution) => {
         if (!active) return;
         if (execution.status !== 'COMPLETED' || !execution.result) {
-          navigate(`/simulations/${simulationId}/result`, { replace: true });
+          navigate('/simulations', { replace: true });
           return;
         }
         const loadedSummary = await simulationResultProvider.getSummary(simulationId);

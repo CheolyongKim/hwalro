@@ -5,6 +5,7 @@ import { drawingApi } from '../../drawings/api/drawingApi';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import { riskApi } from '../../risks/api/riskApi';
 import { simulationApi } from '../../simulations/api/simulationApi';
+import { getSimulationListAction } from '../../simulations/utils/simulationListAction';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { homeApi } from '../api/homeApi';
 import { userNameApi } from '../api/userNameApi';
@@ -127,18 +128,23 @@ export function useHomeDashboard() {
 
   const recentSimulations = useMemo<RecentSimulationRow[]>(
     () =>
-      (recentQuery.data?.items ?? []).map((item) => ({
-        id: item.id,
-        layoutTitle: item.layoutTitle,
-        executedAt: item.startedAt ?? item.requestedAt ?? item.createdAt,
-        createdBy: item.createdBy,
-        assigneeName: nameById?.get(item.createdBy) ?? null,
-        status: item.status,
-        path:
-          item.status === 'DRAFT'
-            ? `/simulations/${item.id}/setup`
-            : `/simulations/${item.id}/result`,
-      })),
+      (recentQuery.data?.items ?? []).map((item) => {
+        const action = getSimulationListAction(item);
+        return {
+          id: item.id,
+          layoutTitle: item.layoutTitle,
+          executedAt: item.startedAt ?? item.requestedAt ?? item.createdAt,
+          createdBy: item.createdBy,
+          assigneeName: nameById?.get(item.createdBy) ?? null,
+          status: item.status,
+          path:
+            action.type === 'navigate'
+              ? action.to
+              : action.type === 'disabled'
+                ? null
+                : '/simulations',
+        };
+      }),
     [recentQuery.data, nameById],
   );
 

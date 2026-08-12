@@ -49,7 +49,7 @@ function CompletionToast({ simulation, onDismiss }: CompletionToastProps) {
             {simulation.layoutTitle} · 시뮬레이션 #{simulation.id}
           </p>
           <Link
-            to={`/simulations/${simulation.id}/result`}
+            to={`/simulations/${simulation.id}/results`}
             onClick={() => onDismiss(simulation.id)}
             className="mt-3 inline-flex text-sm font-bold text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
