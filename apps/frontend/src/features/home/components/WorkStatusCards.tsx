@@ -23,7 +23,7 @@ function StatusCard({
         <span aria-hidden="true" className={`h-3 w-3 rounded-full ${dotClassName}`} />
         <p className="text-sm font-bold text-text-strong">{label}</p>
       </div>
-      <p className="mt-4 text-3xl font-black text-ink">
+      <p className="mt-4 text-3xl font-black tabular-nums text-ink">
         {count.toLocaleString()}
         <span className="ml-1.5 text-sm font-medium text-text-muted">건</span>
       </p>
@@ -51,7 +51,7 @@ export function WorkStatusCards({
       <section aria-label="내 업무 현황" className="flex flex-wrap items-center gap-3">
         <p
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"
+          className="rounded-xl border border-danger/25 bg-danger-soft px-4 py-2.5 text-sm text-danger-strong"
         >
           {errorMessage}
         </p>
@@ -71,7 +71,7 @@ export function WorkStatusCards({
       <StatusCard
         label="시뮬레이션 처리 중"
         count={summary.inProgressCount}
-        dotClassName="bg-blue-500"
+        dotClassName="bg-info"
       />
       <StatusCard
         label="이번 주 완료"

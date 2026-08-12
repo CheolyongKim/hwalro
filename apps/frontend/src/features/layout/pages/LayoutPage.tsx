@@ -319,7 +319,7 @@ function LayoutPage() {
         type="button"
         onClick={() => navigate('/drawings')}
         aria-label="도면 목록으로 돌아가기"
-        className="fixed left-4 top-4 z-30 flex h-8 w-8 items-center justify-center rounded-md border border-panel-divider bg-panel text-panel-muted shadow-[0_2px_8px_rgba(0,0,0,0.25)] transition-colors hover:bg-panel-soft hover:text-panel-text"
+        className="fixed left-4 top-4 z-30 flex h-8 w-8 items-center justify-center rounded-lg border border-panel-divider bg-panel text-panel-muted shadow-raised transition-colors hover:bg-panel-soft hover:text-panel-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <svg
           width="16"
@@ -342,7 +342,7 @@ function LayoutPage() {
         onSizeChange={onSizeChange}
         readOnly={readOnly}
       />
-      <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+      <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-overlay">
         <LayoutToolbar
           state={state}
           saveStatus={saveStatus}
@@ -387,14 +387,14 @@ function LayoutPage() {
       {state.error && (
         <div
           role="alert"
-          className="absolute bottom-4 right-4 z-20 flex max-w-[320px] items-center gap-2 rounded-md border border-danger bg-white px-3 py-2 text-[13px] text-danger shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+          className="absolute bottom-4 right-4 z-20 flex max-w-[320px] items-center gap-2 rounded-md border border-danger bg-white px-3 py-2 text-sm text-danger shadow-raised"
         >
           <span className="min-w-0">{state.error}</span>
           <button
             type="button"
             onClick={() => dispatch({ type: 'setError', message: null })}
             aria-label="닫기"
-            className="shrink-0 text-danger transition-colors hover:opacity-70"
+            className="shrink-0 text-danger transition-colors hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             ×
           </button>

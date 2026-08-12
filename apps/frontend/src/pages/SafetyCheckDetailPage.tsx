@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
+import { Check, X } from 'lucide-react';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type {
@@ -8,10 +10,53 @@ import type {
   InspectionResult,
   InspectionStatus,
 } from '../features/safetyChecks/types';
-import { getSafetyCheckError, RESULT_LABELS, RESULT_STYLES } from '../features/safetyChecks/utils';
+import { getSafetyCheckError, RESULT_LABELS } from '../features/safetyChecks/utils';
+import { Badge, Button, Card, ErrorState, Input, Skeleton, Textarea } from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
 const RESULT_OPTIONS = Object.keys(RESULT_LABELS) as InspectionResult[];
+
+const RESULT_SELECT_STYLES: Record<InspectionResult, string> = {
+  PENDING: 'border-line bg-surface text-text-muted',
+  REVIEW_REQUIRED: 'border-line bg-warning-soft text-warning-strong',
+  PASS: 'border-line bg-success-soft text-success-strong',
+  FAIL: 'border-line bg-danger-soft text-danger-strong',
+};
+
+function getResultIndicatorClass(result: InspectionResult): string {
+  switch (result) {
+    case 'PASS':
+      return 'bg-success-soft text-success-strong';
+    case 'FAIL':
+      return 'bg-danger-soft text-danger-strong';
+    default:
+      return 'bg-soft-gray text-text-muted';
+  }
+}
+
+function getResultIndicatorIcon(result: InspectionResult, displayOrder: number): ReactNode {
+  switch (result) {
+    case 'PASS':
+      return <Check aria-hidden="true" className="h-4 w-4" />;
+    case 'FAIL':
+      return <X aria-hidden="true" className="h-4 w-4" />;
+    default:
+      return <span className="text-xs font-black tabular-nums">{displayOrder}</span>;
+  }
+}
+
+function getSummaryPanelClass(failCount: number, reviewCount: number): string {
+  if (failCount > 0) return 'bg-danger-soft';
+  if (reviewCount > 0) return 'bg-warning-soft';
+  return 'bg-primary-soft';
+}
+
+function getSummaryTitle(failCount: number, reviewCount: number, pendingCount: number): string {
+  if (failCount > 0) return '재점검 필요';
+  if (reviewCount > 0) return '확인 필요';
+  if (pendingCount > 0) return '점검 진행 중';
+  return '점검 항목 적합';
+}
 
 function SafetyCheckDetailPage() {
   const { inspectionId: inspectionIdParam } = useParams();
@@ -97,19 +142,31 @@ function SafetyCheckDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex min-h-96 w-full max-w-[1360px] items-center justify-center rounded-xl border border-line bg-white text-sm text-text-muted">
-        체크리스트를 불러오는 중입니다.
+      <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
+        <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+          <div className="rounded-xl border border-line bg-white p-6 shadow-card">
+            <Skeleton className="h-5 w-24" />
+            <div className="mt-6 space-y-5">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-2 w-full" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            {[0, 1, 2].map((index) => (
+              <Skeleton key={index} className="h-28 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!inspection) {
     return (
-      <div
-        role="alert"
-        className="mx-auto flex min-h-96 w-full max-w-[1360px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm text-red-600"
-      >
-        {error ?? '점검 정보를 찾을 수 없습니다.'}
+      <div className="mx-auto flex min-h-96 w-full max-w-[1360px] items-center justify-center px-6">
+        <ErrorState message={error ?? '점검 정보를 찾을 수 없습니다.'} className="w-full" />
       </div>
     );
   }
@@ -125,28 +182,29 @@ function SafetyCheckDetailPage() {
         action={
           canEdit ? (
             <div className="flex gap-3">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="lg"
                 onClick={() => void save('DRAFT')}
                 disabled={isSaving}
-                className="h-11 rounded-lg border border-line-strong bg-white px-5 text-sm font-bold text-text-strong hover:bg-surface disabled:opacity-50"
               >
                 임시 저장
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                size="lg"
                 onClick={() => void save('COMPLETED')}
                 disabled={isSaving || counts.pending > 0}
                 title={counts.pending > 0 ? '모든 항목을 판정한 뒤 완료할 수 있습니다.' : undefined}
-                className="h-11 rounded-lg bg-primary px-5 text-sm font-bold text-white hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 점검 완료
-              </button>
+              </Button>
             </div>
           ) : (
-            <span className="rounded-full bg-primary-soft px-4 py-2 text-sm font-bold text-primary">
+            <Badge tone={inspection.status === 'COMPLETED' ? 'success' : 'neutral'}>
               {inspection.status === 'COMPLETED' ? '완료된 점검' : '읽기 전용'}
-            </span>
+            </Badge>
           )
         }
       />
@@ -154,14 +212,14 @@ function SafetyCheckDetailPage() {
       {(error || notice) && (
         <div
           role={error ? 'alert' : 'status'}
-          className={`mt-5 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-600' : 'border-primary/20 bg-primary-soft text-primary'}`}
+          className={`mt-5 rounded-lg border border-line px-4 py-3 text-sm font-medium ${error ? 'bg-danger-soft text-danger-strong' : 'bg-success-soft text-success-strong'}`}
         >
           {error ?? notice}
         </div>
       )}
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-line bg-white p-6 shadow-sm shadow-ink/5">
+        <Card padded={false} className="p-6">
           <h2 className="text-lg font-black text-ink">점검 정보</h2>
           <dl className="mt-6 space-y-5">
             <div>
@@ -172,7 +230,7 @@ function SafetyCheckDetailPage() {
             </div>
             <div>
               <dt className="text-xs font-bold text-text-muted">점검 담당자</dt>
-              <dd className="mt-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm font-bold text-text-strong">
+              <dd className="mt-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm font-bold tabular-nums text-text-strong">
                 {inspectorName}
               </dd>
             </div>
@@ -181,7 +239,7 @@ function SafetyCheckDetailPage() {
           <div className="mt-12">
             <div className="flex items-center justify-between text-xs font-bold text-text-strong">
               <span>점검 진행률</span>
-              <span>
+              <span className="tabular-nums">
                 {counts.completed} / {items.length}
               </span>
             </div>
@@ -196,32 +254,26 @@ function SafetyCheckDetailPage() {
           </div>
 
           <div
-            className={`mt-8 rounded-xl border p-5 ${counts.fail > 0 ? 'border-orange-200 bg-orange-50' : counts.review > 0 ? 'border-orange-200 bg-orange-50' : 'border-primary/20 bg-primary-soft'}`}
+            className={`mt-8 rounded-xl border border-line p-5 ${getSummaryPanelClass(counts.fail, counts.review)}`}
           >
             <p className="text-sm font-black text-ink">
-              {counts.fail > 0
-                ? '재점검 필요'
-                : counts.review > 0
-                  ? '확인 필요'
-                  : counts.pending > 0
-                    ? '점검 진행 중'
-                    : '점검 항목 적합'}
+              {getSummaryTitle(counts.fail, counts.review, counts.pending)}
             </p>
-            <p className="mt-3 text-xs font-bold text-text-strong">
+            <p className="mt-3 text-xs font-bold tabular-nums text-text-strong">
               부적합 항목 {counts.fail}건 · 확인 필요 {counts.review}건
             </p>
-            <textarea
+            <Textarea
               value={comment}
               onChange={(event) => setComment(event.target.value)}
               readOnly={!canEdit}
               aria-label="점검 종합 의견"
               placeholder="종합 의견을 입력하세요."
-              className="mt-4 min-h-20 w-full resize-none rounded-lg border border-line bg-white px-3 py-2 text-xs leading-5 text-text-strong outline-none focus:border-primary read-only:bg-transparent"
+              className="mt-4 min-h-20 text-xs leading-5 read-only:bg-transparent"
             />
           </div>
-        </aside>
+        </Card>
 
-        <section className="rounded-xl border border-line bg-white p-5 shadow-sm shadow-ink/5 sm:p-7">
+        <Card padded={false} className="p-5 sm:p-7">
           <div className="flex items-end justify-between gap-4">
             <div>
               <h2 className="text-xl font-black text-ink">점검 항목</h2>
@@ -230,9 +282,9 @@ function SafetyCheckDetailPage() {
               </p>
             </div>
             {inspection.simulationResultId && (
-              <span className="rounded-full bg-surface px-3 py-1.5 text-xs font-bold text-text-muted">
+              <Badge tone="neutral" className="tabular-nums">
                 시뮬레이션 결과 #{inspection.simulationResultId}
-              </span>
+              </Badge>
             )}
           </div>
 
@@ -240,15 +292,15 @@ function SafetyCheckDetailPage() {
             {items.map((item) => (
               <article
                 key={item.id}
-                className={`rounded-xl border p-5 transition-colors ${item.result === 'FAIL' ? 'border-red-200 bg-danger-soft/70' : 'border-line bg-surface/70'}`}
+                className={`rounded-xl border border-line p-5 transition-colors ${item.result === 'FAIL' ? 'bg-danger-soft' : 'bg-surface/70'}`}
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 gap-4">
                     <div
                       aria-hidden="true"
-                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-black ${item.result === 'PASS' ? 'border-primary bg-primary text-white' : item.result === 'FAIL' ? 'border-danger bg-danger text-white' : 'border-line-strong bg-white text-text-muted'}`}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${getResultIndicatorClass(item.result)}`}
                     >
-                      {item.result === 'PASS' ? '✓' : item.displayOrder}
+                      {getResultIndicatorIcon(item.result, item.displayOrder)}
                     </div>
                     <div className="min-w-0">
                       <h3 className="text-sm font-black text-ink">{item.title}</h3>
@@ -265,7 +317,7 @@ function SafetyCheckDetailPage() {
                         updateItem(item.id, { result: event.target.value as InspectionResult })
                       }
                       disabled={!canEdit}
-                      className={`h-9 min-w-28 rounded-full border px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 disabled:appearance-none ${RESULT_STYLES[item.result]}`}
+                      className={`h-9 min-w-28 rounded-full border px-3 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:appearance-none ${RESULT_SELECT_STYLES[item.result]}`}
                     >
                       {RESULT_OPTIONS.map((result) => (
                         <option key={result} value={result}>
@@ -275,19 +327,19 @@ function SafetyCheckDetailPage() {
                     </select>
                   </label>
                 </div>
-                <input
+                <Input
                   type="text"
                   value={item.comment ?? ''}
                   onChange={(event) => updateItem(item.id, { comment: event.target.value })}
                   readOnly={!canEdit}
                   aria-label={`${item.title} 확인 내용`}
                   placeholder="확인 내용 또는 필요한 조치를 입력하세요."
-                  className="mt-4 h-10 w-full rounded-lg border border-line bg-white px-3 text-xs text-text-strong outline-none placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/10 read-only:bg-white/50"
+                  className="mt-4 text-xs read-only:bg-surface/60"
                 />
               </article>
             ))}
           </div>
-        </section>
+        </Card>
       </div>
     </div>
   );

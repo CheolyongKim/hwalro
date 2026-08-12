@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { FileText } from 'lucide-react';
 import { useDeleteDrawing, useDrawingList } from '../hooks';
 import DrawingListTable from '../components/DrawingListTable';
+import {
+  Button,
+  buttonClassName,
+  Card,
+  EmptyState,
+  ErrorState,
+  Modal,
+  PageHeader,
+} from '../../../components/ui';
 import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
 import type { DrawingSummary } from '../types/drawing';
 
@@ -10,6 +20,7 @@ const PAGE_BUTTON_COUNT = 5;
 
 function DrawingListPage() {
   const [page, setPage] = useState(1);
+  const [drawingToDelete, setDrawingToDelete] = useState<DrawingSummary | null>(null);
   const { items, totalCount, isPending, isError, error } = useDrawingList(page, PAGE_SIZE);
   const deleteDrawing = useDeleteDrawing();
 
@@ -24,62 +35,66 @@ function DrawingListPage() {
   }, [isPending, isError, page, pageCount]);
 
   const handleDelete = (drawing: DrawingSummary) => {
-    const confirmed = window.confirm(
-      `도면 "${drawing.title}"을(를) 삭제하시겠습니까? 삭제한 도면은 복구할 수 없습니다.`,
-    );
-    if (!confirmed) {
+    setDrawingToDelete(drawing);
+  };
+
+  const confirmDelete = () => {
+    if (drawingToDelete === null) {
       return;
     }
-    deleteDrawing.mutate(drawing.id, {
+    deleteDrawing.mutate(drawingToDelete.id, {
       onError: (deleteError) => {
         window.alert(getDrawingErrorMessage(deleteError));
       },
     });
+    setDrawingToDelete(null);
   };
 
   return (
     <main className="bg-background">
       <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
-        <header className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-bold text-primary">시뮬레이션 검토</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-ink sm:text-4xl">
-              도면 목록
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-text-muted">
-              등록된 도면을 확인하고 관리합니다. 도면명을 선택하면 수정 화면으로 이동합니다.
-            </p>
-          </div>
-          <Link
-            to="/drawings/new"
-            className="inline-flex h-11 shrink-0 items-center rounded-lg bg-primary px-5 text-sm font-bold text-white transition-colors hover:bg-primary/85"
-          >
-            도면 등록
-          </Link>
-        </header>
+        <PageHeader
+          eyebrow="도면"
+          title="도면 목록"
+          description="등록된 도면을 확인하고 관리합니다. 도면명을 선택하면 수정 화면으로 이동합니다."
+          actions={
+            <Link to="/drawings/new" className={buttonClassName({ variant: 'primary', size: 'lg' })}>
+              도면 등록
+            </Link>
+          }
+        />
 
-        <section
-          className="mt-4 overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5"
-          aria-label="도면 목록"
-        >
+        <Card padded={false} className="mt-4 overflow-hidden" aria-label="도면 목록">
           {isPending ? (
             <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
               도면을 불러오는 중...
             </div>
           ) : isError ? (
-            <div className="flex min-h-64 items-center justify-center px-6 text-center">
-              <p className="rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
-                {getDrawingErrorMessage(error)}
-              </p>
+            <div className="flex min-h-64 items-center justify-center px-6">
+              <ErrorState message={getDrawingErrorMessage(error)} className="w-full" />
             </div>
           ) : items.length > 0 ? (
             <DrawingListTable items={items} onDelete={handleDelete} />
+          ) : totalCount > 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="페이지에 표시할 도면이 없습니다."
+              description="다른 페이지로 이동해 도면을 확인해 보세요."
+            />
           ) : (
-            <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
-              {totalCount > 0
-                ? '페이지에 표시할 도면이 없습니다.'
-                : '등록된 도면이 없습니다. 도면 등록 버튼으로 첫 도면을 만들어 보세요.'}
-            </div>
+            <EmptyState
+              icon={FileText}
+              title="등록된 도면이 없습니다."
+              description="도면 등록 버튼으로 첫 도면을 만들어 보세요."
+              action={
+                <Link
+                  to="/drawings/new"
+                  className={buttonClassName({ variant: 'primary', size: 'md' })}
+                >
+                  도면 등록
+                </Link>
+              }
+            />
           )}
           {pageCount > 1 && (
             <nav
@@ -90,7 +105,7 @@ function DrawingListPage() {
                 type="button"
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
-                className="rounded-md px-3 py-1.5 text-xs font-bold text-text-muted disabled:opacity-40"
+                className="rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted outline-none transition hover:bg-surface hover:text-text-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
               >
                 이전
               </button>
@@ -103,7 +118,7 @@ function DrawingListPage() {
                   type="button"
                   onClick={() => setPage(pageNumber)}
                   aria-current={page === pageNumber ? 'page' : undefined}
-                  className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold ${page === pageNumber ? 'bg-primary text-white' : 'text-text-muted hover:bg-surface'}`}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring ${page === pageNumber ? 'bg-primary text-white' : 'text-text-muted hover:bg-surface hover:text-text-strong'}`}
                 >
                   {pageNumber}
                 </button>
@@ -112,13 +127,37 @@ function DrawingListPage() {
                 type="button"
                 onClick={() => setPage(page + 1)}
                 disabled={page === pageCount}
-                className="rounded-md px-3 py-1.5 text-xs font-bold text-text-muted disabled:opacity-40"
+                className="rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted outline-none transition hover:bg-surface hover:text-text-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
               >
                 다음
               </button>
             </nav>
           )}
-        </section>
+        </Card>
+
+        <Modal
+          open={drawingToDelete !== null}
+          onClose={() => setDrawingToDelete(null)}
+          title="도면 삭제"
+          size="sm"
+          description={
+            drawingToDelete !== null
+              ? `도면 "${drawingToDelete.title}"을(를) 삭제하시겠습니까?`
+              : undefined
+          }
+          footer={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setDrawingToDelete(null)}>
+                취소
+              </Button>
+              <Button type="button" variant="danger" onClick={confirmDelete}>
+                삭제
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-text-muted">삭제한 도면은 복구할 수 없습니다.</p>
+        </Modal>
       </div>
     </main>
   );

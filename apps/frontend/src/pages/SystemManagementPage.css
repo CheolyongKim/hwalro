@@ -4,6 +4,11 @@
   color: var(--color-ink);
 }
 
+.system-management-page {
+  --role-reviewer: #7655c9;
+  --role-reviewer-soft: #f0ecfa;
+}
+
 .system-management-content {
   width: 100%;
   max-width: 1360px;
@@ -66,6 +71,20 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.system-management-page .account-control button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.system-management-page .account-control button:active:not(:disabled) {
+  background: var(--color-primary-active);
+}
+
+.system-management-page .account-control button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .system-management-page .account-control button:disabled {
@@ -79,7 +98,7 @@
   border: 1px solid var(--color-line);
   border-radius: 12px;
   background: var(--color-white);
-  box-shadow: 0 1px 3px rgb(13 25 23 / 5%);
+  box-shadow: var(--shadow-card);
 }
 
 .system-management-page .card-heading {
@@ -151,7 +170,7 @@
 }
 
 .system-management-page tbody tr.selected {
-  background: #dff2ef;
+  background: var(--color-primary-soft);
 }
 
 .system-management-page .status {
@@ -161,21 +180,26 @@
   padding: 0 10px;
   place-items: center;
   border-radius: 999px;
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
+  color: var(--color-success);
+  background: var(--color-success-soft);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  transition: box-shadow 150ms ease;
 }
 
 .system-management-page .status.stopped {
-  color: var(--color-text-muted);
-  background: var(--color-surface);
+  color: var(--color-danger-strong);
+  background: var(--color-danger-soft);
 }
 
 .system-management-page .status:hover:not(:disabled),
 .system-management-page .status:focus-visible {
-  box-shadow: 0 0 0 2px rgb(14 139 125 / 18%);
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.system-management-page .status:focus-visible {
+  outline: none;
 }
 
 .system-management-page .status:disabled {
@@ -185,16 +209,16 @@
 
 .system-management-page .status-error {
   margin: 0 0 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  color: #9e3434;
-  background: #fff0f0;
-  font-size: 9px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--color-danger-strong);
+  background: var(--color-danger-soft);
+  font-size: 12px;
 }
 
 .system-management-page .empty-row {
   height: 90px;
-  color: #718985;
+  color: var(--color-text-muted);
   text-align: center;
 }
 
@@ -203,14 +227,14 @@
   min-height: 180px;
   margin: 0;
   place-items: center;
-  color: #718985;
-  font-size: 9px;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .system-management-page .error-state {
   align-content: center;
   gap: 10px;
-  color: #b44343;
+  color: var(--color-danger-strong);
 }
 
 .system-management-page .error-state p {
@@ -219,10 +243,24 @@
 
 .system-management-page .error-state button {
   padding: 6px 12px;
-  border-radius: 5px;
-  color: #fff;
-  background: #0e8b7d;
+  border-radius: 8px;
+  color: var(--color-white);
+  background: var(--color-primary);
   cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.system-management-page .error-state button:hover {
+  background: var(--color-primary-hover);
+}
+
+.system-management-page .error-state button:active {
+  background: var(--color-primary-active);
+}
+
+.system-management-page .error-state button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .system-management-page .role-section {
@@ -247,10 +285,10 @@
 .system-management-page .role-empty-state {
   margin: 0;
   padding: 24px;
-  border: 1px dashed #cddfdb;
-  border-radius: 8px;
-  color: #718985;
-  background: #f7faf9;
+  border: 1px dashed var(--color-line);
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
   font-size: 12px;
   text-align: center;
 }
@@ -261,7 +299,7 @@
   padding: 16px;
   overflow: hidden;
   border: 1px solid var(--color-line);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .system-management-page .role-card::before {
@@ -285,18 +323,18 @@
 }
 
 .system-management-page .role-card.operator {
-  color: #0c9e91;
-  background: #e5f5f2;
+  color: var(--color-info);
+  background: var(--color-info-soft);
 }
 
 .system-management-page .role-card.reviewer {
-  color: #7655c9;
-  background: #f0ecfa;
+  color: var(--role-reviewer);
+  background: var(--role-reviewer-soft);
 }
 
 .system-management-page .role-card.admin {
-  color: #ec8117;
-  background: #fff1e3;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .system-management-page .sr-only {
@@ -317,17 +355,17 @@
   display: grid;
   padding: 24px;
   place-items: center;
-  background: rgb(10 32 29 / 45%);
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
 }
 
 .system-management-page .invite-modal {
   width: min(440px, 100%);
-  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 2.5rem);
   padding: 24px;
   overflow-y: auto;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 24px 70px rgb(12 51 46 / 24%);
+  border-radius: 16px;
+  background: var(--color-white);
+  box-shadow: var(--shadow-overlay);
 }
 
 .system-management-page .modal-heading {
@@ -339,23 +377,33 @@
 
 .system-management-page .modal-heading h2 {
   margin: 0 0 6px;
+  color: var(--color-ink);
   font-size: 19px;
 }
 
 .system-management-page .modal-heading p {
   margin: 0;
-  color: #718985;
-  font-size: 11px;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .system-management-page .close-button {
   width: 28px;
   height: 28px;
-  color: #718985;
+  color: var(--color-text-muted);
   background: transparent;
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
+}
+
+.system-management-page .close-button:hover {
+  color: var(--color-text-strong);
+}
+
+.system-management-page .close-button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .system-management-page .invite-modal form {
@@ -365,8 +413,8 @@
 
 .system-management-page .invite-modal form > label,
 .system-management-page .invite-modal legend {
-  color: #264a45;
-  font-size: 11px;
+  color: var(--color-text-strong);
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -381,23 +429,24 @@
   width: 100%;
   height: 39px;
   padding: 0 11px;
-  border: 1px solid #cddfdb;
-  border-radius: 6px;
-  color: #163b37;
-  background: #fff;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  color: var(--color-ink-deep);
+  background: var(--color-white);
   font: inherit;
   font-size: 12px;
   outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .system-management-page .invite-modal input:focus {
-  border-color: #0e8b7d;
-  box-shadow: 0 0 0 3px rgb(14 139 125 / 12%);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .system-management-page .invite-modal label > small {
-  color: #829793;
-  font-size: 9px;
+  color: var(--color-text-faint);
+  font-size: 12px;
   font-weight: 400;
 }
 
@@ -422,18 +471,28 @@
   align-items: flex-start;
   gap: 9px;
   padding: 10px 11px;
-  border: 1px solid #d7e2e0;
-  border-radius: 7px;
-  color: #264a45;
-  font-size: 11px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  color: var(--color-text-strong);
+  font-size: 12px;
   cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.system-management-page .role-options label:hover {
+  border-color: var(--color-line-strong);
+}
+
+.system-management-page .role-options label:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .system-management-page .role-options input {
   width: 15px;
   height: 15px;
   margin: 1px 0 0;
-  accent-color: #0e8b7d;
+  accent-color: var(--color-primary);
 }
 
 .system-management-page .role-options span {
@@ -443,18 +502,18 @@
 }
 
 .system-management-page .role-options small {
-  color: #718985;
-  font-size: 9px;
+  color: var(--color-text-muted);
+  font-size: 12px;
   font-weight: 400;
 }
 
 .system-management-page .form-error {
   margin: 0;
-  padding: 9px 11px;
-  border-radius: 6px;
-  color: #9e3434;
-  background: #fff0f0;
-  font-size: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--color-danger-strong);
+  background: var(--color-danger-soft);
+  font-size: 12px;
 }
 
 .system-management-page .modal-actions {
@@ -471,16 +530,34 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.system-management-page .modal-actions button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .system-management-page .secondary-button {
-  color: #4d6763;
-  background: #edf2f1;
+  color: var(--color-text-strong);
+  background: var(--color-soft-gray);
+}
+
+.system-management-page .secondary-button:hover:not(:disabled) {
+  background: var(--color-line-subtle);
 }
 
 .system-management-page .primary-button {
   color: var(--color-white);
   background: var(--color-primary);
+}
+
+.system-management-page .primary-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.system-management-page .primary-button:active:not(:disabled) {
+  background: var(--color-primary-active);
 }
 
 .system-management-page .primary-button:disabled {

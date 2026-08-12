@@ -1,60 +1,122 @@
 @import 'tailwindcss';
 
 @theme {
+  /* 브랜드 */
   --color-ink: #0d1917;
   --color-ink-deep: #172a26;
   --color-lime: #c2e84b;
   --color-background: #f3f6f4;
   --color-white: #ffffff;
 
-  /* 위험 예상 항목 관리 페이지 */
-  --color-primary: #168f80; /* 주요 CTA: 항목 등록 버튼, 삭제 버튼 */
-  --color-primary-soft: #e4f3f0; /* 목록에서 선택된 행 배경, 낮음 배지 배경 */
-  --color-surface: #f7faf9; /* 표 헤더 행 배경, 증빙 파일 박스 배경, 보통 배지 배경 */
-  --color-line: #d6e2df; /* 카드·표 행·상세 박스 테두리 */
-  --color-line-strong: #b8cbc7; /* 아웃라인 버튼(임시 저장) 테두리 */
-  --color-text-strong: #2f514c; /* 표 본문·심각도·담당자·기한 텍스트 */
-  --color-text-muted: #718884; /* 부제목·표 헤더·섹션 라벨 텍스트 */
-  --color-danger: #c94f47; /* 높음 배지(심각도) 텍스트 */
-  --color-danger-soft: #fcecea; /* 높음 배지(심각도) 배경 */
-  --color-soft-gray: #edf2f1; /* 도면 목록: 작성 중 배지, 필터 배경 */
-  --color-soft-blue: #eaf3f6; /* 도면 목록: 검토 중 배지 */
-  --color-soft-orange: #fff2e6; /* 도면 목록: 검토 대기 배지 */
-  --color-soft-purple: #f2effa; /* 도면 목록: 위험 발견 배지 */
+  /* 브랜드 에메랄드 램프 */
+  --color-primary: #168f80;
+  --color-primary-hover: #14796d;
+  --color-primary-active: #11695f;
+  --color-primary-soft: #e4f3f0;
+  --color-primary-faint: #eef7f5;
 
-  /* 도면 배치 편집기 페이지 */
-  --color-toolbar: #edf2f1; /* 비활성 툴 필 배경 */
+  /* 뉴트럴(그린 틴트) */
+  --color-surface: #f7faf9;
+  --color-line-subtle: #e5edeb;
+  --color-line: #d6e2df;
+  --color-line-strong: #b8cbc7;
+
+  /* 텍스트 */
+  --color-text-strong: #2f514c;
+  --color-text-muted: #718884;
+  --color-text-faint: #96aaa5;
+
+  /* 시맨틱 상태 */
+  --color-success: #188e63;
+  --color-success-strong: #106841;
+  --color-success-soft: #e5f4ec;
+  --color-warning: #b4721e;
+  --color-warning-strong: #8a5a14;
+  --color-warning-soft: #faf0e1;
+  --color-info: #3a7a9e;
+  --color-info-strong: #2d5f7d;
+  --color-info-soft: #eaf3f6;
+  --color-danger: #c94f47;
+  --color-danger-strong: #a83a33;
+  --color-danger-soft: #fcecea;
+
+  /* 상태 배지 공용 (기존 soft-gray 유지) */
+  --color-soft-gray: #edf2f1;
+
+  /* 포커스 링 */
+  --color-focus-ring: rgb(22 143 128 / 0.3);
 
   /* 도면 배치 편집기 페이지 — 오른쪽 상단 플로팅 패널 */
-  --color-panel: #19312d; /* 패널 배경 */
-  --color-panel-soft: #243e39; /* 입력 필드·비활성 도구 버튼 배경 */
-  --color-panel-border: #39534d; /* 입력 필드 테두리 */
-  --color-panel-text: #e7efed; /* 패널 본문 텍스트 */
-  --color-panel-muted: #b9cac6; /* 섹션 라벨·설명 텍스트 */
-  --color-panel-faint: #8fa6a0; /* 단위·보조 텍스트 */
-  --color-panel-divider: #34504a; /* 섹션 구분선 */
-  --color-panel-accent: #c9f438; /* 주요 동작(저장)·활성 도구 */
-  --color-panel-danger: #e95a52; /* 오류·위험 배지 */
+  --color-panel: #19312d;
+  --color-panel-soft: #243e39;
+  --color-panel-border: #39534d;
+  --color-panel-text: #e7efed;
+  --color-panel-muted: #b9cac6;
+  --color-panel-faint: #8fa6a0;
+  --color-panel-divider: #34504a;
+  --color-panel-accent: #c9f438;
+  --color-panel-danger: #e95a52;
 
   /* 도면 배치 편집기 페이지 — 좌상단 줌 컨트롤 */
-  --color-zoom-soft: #e9f8f1; /* 줌 컨트롤 배경 */
-  --color-zoom-border: #32a96b; /* 줌 컨트롤 테두리 */
-  --color-zoom-text: #23945a; /* 줌 아이콘·텍스트 */
+  --color-zoom-soft: #e9f8f1;
+  --color-zoom-border: #32a96b;
+  --color-zoom-text: #23945a;
 
-  /* 시뮬레이션 결과 페이지 — 시간별 대피 인원 차트 */
+  /* 시뮬레이션 결과 페이지 — 차트 툴팁 */
   --color-chart-tooltip-bg: rgba(13, 25, 23, 0.92);
   --color-chart-tooltip-border: rgba(255, 255, 255, 0.08);
   --color-chart-tooltip-shadow: rgba(7, 32, 28, 0.28);
+
+  /* 승강도(그린 틴트 그림자) */
+  --shadow-card: 0 1px 2px rgb(22 55 49 / 0.04), 0 1px 4px rgb(22 55 49 / 0.05);
+  --shadow-raised: 0 4px 10px rgb(22 55 49 / 0.07), 0 1px 3px rgb(22 55 49 / 0.05);
+  --shadow-floating: 0 18px 50px rgb(22 55 49 / 0.12), 0 2px 8px rgb(22 55 49 / 0.06);
+  --shadow-overlay: 0 24px 64px rgb(13 25 23 / 0.24), 0 8px 20px rgb(13 25 23 / 0.12);
 
   --font-sans:
     'Happiness Sans Print', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',
     sans-serif;
 }
 
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    background-color: rgb(194 232 75 / 0.35);
+    color: var(--color-ink);
+  }
+}
+
 @font-face {
   font-family: 'Happiness Sans Print';
   src: url('/fonts/Happiness-Sans-Print-Regular.ttf') format('truetype');
   font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Happiness Sans Print';
+  src: url('/fonts/Happiness-Sans-Print-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Happiness Sans Print';
+  src: url('/fonts/Happiness-Sans-Print-Title.ttf') format('truetype');
+  font-weight: 900;
   font-style: normal;
   font-display: swap;
 }
@@ -77,20 +139,4 @@
     border: 0 !important;
     box-shadow: none !important;
   }
-}
-
-@font-face {
-  font-family: 'Happiness Sans Print';
-  src: url('/fonts/Happiness-Sans-Print-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Happiness Sans Print';
-  src: url('/fonts/Happiness-Sans-Print-Title.ttf') format('truetype');
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
 }

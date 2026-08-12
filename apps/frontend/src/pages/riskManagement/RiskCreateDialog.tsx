@@ -1,11 +1,16 @@
-import { useEffect, useRef } from 'react';
+import {
+  Button,
+  ErrorState,
+  Field,
+  Input,
+  Modal,
+  Select,
+  Textarea,
+} from '../../components/ui';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../features/risks/constants/riskOptions';
 import { useRiskForm } from '../../features/risks/hooks/useRiskForm';
 import { useCreateRisk } from '../../features/risks/hooks/useRiskMutations';
 import { getRiskErrorMessage } from '../../features/risks/utils/getRiskErrorMessage';
-
-const INPUT_CLASSES =
-  'mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink';
 
 function RiskCreateDialog({ onClose }: { onClose: () => void }) {
   const {
@@ -29,159 +34,80 @@ function RiskCreateDialog({ onClose }: { onClose: () => void }) {
 
   const errorMessage = createMutation.isError ? getRiskErrorMessage(createMutation.error) : null;
 
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-        return;
-      }
-      if (event.key === 'Tab' && panelRef.current) {
-        const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        if (focusable.length === 0) {
-          return;
-        }
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        const active = document.activeElement;
-        if (!panelRef.current.contains(active)) {
-          event.preventDefault();
-          first.focus();
-        } else if (event.shiftKey && active === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && active === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [onClose]);
-
   const handleSubmit = () => {
     createMutation.mutate(toCreateRequest(), { onSuccess: onClose });
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="risk-create-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-6"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
-    >
-      <div
-        ref={panelRef}
-        className="relative w-full max-w-[520px] rounded-2xl bg-white p-8 shadow-xl"
-      >
-        <button
-          type="button"
-          aria-label="닫기"
-          onClick={onClose}
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-lg text-text-muted transition-colors hover:bg-surface hover:text-ink"
-        >
-          ×
-        </button>
-
-        <h2 id="risk-create-title" className="text-xl font-black text-ink">
-          위험 예상 항목 등록
-        </h2>
-
-        <label className="mt-6 block text-sm font-bold text-ink" htmlFor="risk-create-name">
-          위험 항목명
-        </label>
-        <input
-          id="risk-create-name"
-          required
-          autoFocus
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder="예: 중앙 통로 밀집도 초과"
-          className={INPUT_CLASSES}
-        />
-
-        <label className="mt-5 block text-sm font-bold text-ink" htmlFor="risk-create-severity">
-          심각도
-        </label>
-        <select
-          id="risk-create-severity"
-          value={severity}
-          onChange={(event) => setSeverity(event.target.value)}
-          className={INPUT_CLASSES}
-        >
-          {SEVERITY_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-
-        <label className="mt-5 block text-sm font-bold text-ink" htmlFor="risk-create-status">
-          상태
-        </label>
-        <select
-          id="risk-create-status"
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-          className={INPUT_CLASSES}
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-
-        <label className="mt-5 block text-sm font-bold text-ink" htmlFor="risk-create-description">
-          설명
-        </label>
-        <textarea
-          id="risk-create-description"
-          rows={4}
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          placeholder="선택"
-          className={INPUT_CLASSES}
-        />
-
-        {errorMessage && (
-          <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
-            {errorMessage}
-          </p>
-        )}
-
-        <div className="mt-8 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-line-strong bg-white px-4 py-3 text-sm font-bold text-text-strong transition-colors hover:bg-surface"
-          >
+    <Modal
+      open
+      onClose={onClose}
+      title="위험 예상 항목 등록"
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>
             취소
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleSubmit}
             disabled={createMutation.isPending || !title.trim()}
-            className="rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {createMutation.isPending ? '등록 중...' : '등록'}
-          </button>
-        </div>
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <Field label="위험 항목명" htmlFor="risk-create-name" required>
+          <Input
+            id="risk-create-name"
+            required
+            autoFocus
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="예: 중앙 통로 밀집도 초과"
+          />
+        </Field>
+        <Field label="심각도" htmlFor="risk-create-severity">
+          <Select
+            id="risk-create-severity"
+            value={severity}
+            onChange={(event) => setSeverity(event.target.value)}
+          >
+            {SEVERITY_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="상태" htmlFor="risk-create-status">
+          <Select
+            id="risk-create-status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="설명" htmlFor="risk-create-description">
+          <Textarea
+            id="risk-create-description"
+            rows={4}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="선택"
+          />
+        </Field>
+        {errorMessage && <ErrorState message={errorMessage} />}
       </div>
-    </div>
+    </Modal>
   );
 }
 

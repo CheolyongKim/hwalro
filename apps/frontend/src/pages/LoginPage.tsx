@@ -80,7 +80,7 @@ function LoginPage() {
           </label>
 
           {errorMessage && (
-            <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
+            <p className="mt-5 rounded-2xl border border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong">
               {errorMessage}
             </p>
           )}

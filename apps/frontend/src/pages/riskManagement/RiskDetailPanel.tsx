@@ -1,6 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Button,
+  ErrorState,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+} from '../../components/ui';
 import { riskApi } from '../../features/risks/api/riskApi';
 import { RiskZonePreview } from '../../features/risks/components/RiskZonePreview';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../features/risks/constants/riskOptions';
@@ -8,12 +17,6 @@ import { useRiskForm } from '../../features/risks/hooks/useRiskForm';
 import { useDeleteRisk, useUpdateRisk } from '../../features/risks/hooks/useRiskMutations';
 import type { Risk } from '../../features/risks/types/risks';
 import { getRiskErrorMessage } from '../../features/risks/utils/getRiskErrorMessage';
-
-const INPUT_CLASSES =
-  'mt-2 w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-text-muted outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15';
-
-const SELECT_CLASSES =
-  'rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-bold text-text-strong outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15';
 
 function RiskDetailPanel({ risk }: { risk: Risk }) {
   const navigate = useNavigate();
@@ -93,62 +96,61 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3">
-        <select
-          aria-label="위험도"
-          value={severity}
-          onChange={(event) => setSeverity(event.target.value)}
-          className={SELECT_CLASSES}
-        >
-          {SEVERITY_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="상태"
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-          className={`ml-auto ${SELECT_CLASSES}`}
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+        <div className="w-40">
+          <Select
+            aria-label="위험도"
+            value={severity}
+            onChange={(event) => setSeverity(event.target.value)}
+          >
+            {SEVERITY_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="ml-auto w-40">
+          <Select
+            aria-label="상태"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
-      <label className="mt-6 block text-xs font-bold text-text-muted" htmlFor="risk-title">
-        위험 항목명
-      </label>
-      <input
-        id="risk-title"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        className={INPUT_CLASSES}
-      />
-
-      <label className="mt-6 block text-xs font-bold text-text-muted" htmlFor="risk-description">
-        설명
-      </label>
-      <textarea
-        id="risk-description"
-        rows={4}
-        value={description}
-        onChange={(event) => setDescription(event.target.value)}
-        className={INPUT_CLASSES}
-      />
+      <div className="mt-6 space-y-6">
+        <Field label="위험 항목명" htmlFor="risk-title">
+          <Input
+            id="risk-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </Field>
+        <Field label="설명" htmlFor="risk-description">
+          <Textarea
+            id="risk-description"
+            rows={4}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </Field>
+      </div>
 
       {zoneBounds && (
         <section className="mt-6" aria-label="시뮬레이션 구역">
           <span className="text-xs font-bold text-text-muted">시뮬레이션 구역</span>
           {drawingContextQuery.isPending ? (
-            <p className="mt-2 text-sm text-text-muted">도면 불러오는 중...</p>
+            <Skeleton className="mt-2 h-40 w-full" />
           ) : drawingContextQuery.isError ? (
-            <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-              {getRiskErrorMessage(drawingContextQuery.error)}
-            </p>
+            <div className="mt-2">
+              <ErrorState message={getRiskErrorMessage(drawingContextQuery.error)} />
+            </div>
           ) : (
             drawingContextQuery.data && (
               <div className="mt-2 space-y-2">
@@ -156,14 +158,14 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
                   type="button"
                   onClick={handleOpenSimulation}
                   title="시뮬레이션 결과 페이지로 이동"
-                  className="block w-full overflow-hidden rounded-xl border border-line bg-white transition-colors hover:border-primary"
+                  className="block w-full overflow-hidden rounded-xl border border-line bg-white text-left outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
                 >
                   <RiskZonePreview drawing={drawingContextQuery.data.drawing} zone={zoneBounds} />
                 </button>
                 <button
                   type="button"
                   onClick={handleOpenSimulation}
-                  className="h-10 w-full rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary transition-colors hover:bg-primary/15"
+                  className="h-10 w-full rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   시뮬레이션 결과 보러가기
                 </button>
@@ -174,28 +176,30 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       )}
 
       {errorMessage && (
-        <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">
-          {errorMessage}
-        </p>
+        <div className="mt-5">
+          <ErrorState message={errorMessage} />
+        </div>
       )}
 
       <div className="mt-6 grid grid-cols-2 gap-3 pb-1">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="lg"
           onClick={handleSave}
           disabled={updateMutation.isPending}
-          className="h-11 rounded-lg bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full"
         >
           {updateMutation.isPending ? '저장 중...' : '저장'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
+          size="lg"
           onClick={handleDelete}
           disabled={deleteMutation.isPending}
-          className="h-11 rounded-lg border border-line-strong bg-white px-4 text-sm font-bold text-text-strong transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full"
         >
           {deleteMutation.isPending ? '삭제 중...' : '삭제'}
-        </button>
+        </Button>
       </div>
     </div>
   );

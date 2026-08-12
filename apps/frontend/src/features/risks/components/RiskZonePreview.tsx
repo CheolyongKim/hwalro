@@ -93,7 +93,7 @@ export function RiskZonePreview({ drawing, zone, width = 240, height = 160 }: Pr
         context.lineTo(offsetX + point.x * scale, offsetY + point.y * scale);
       }
       context.closePath();
-      context.fillStyle = 'rgba(226, 232, 230, 0.6)';
+      context.fillStyle = 'rgba(237, 242, 241, 0.6)';
       context.fill();
       context.strokeStyle = '#94a3b8';
       context.lineWidth = 1;
@@ -104,7 +104,7 @@ export function RiskZonePreview({ drawing, zone, width = 240, height = 160 }: Pr
     context.lineWidth = 1.5;
     for (const wall of drawing.walls) strokeSegment(context, wall, scale, offsetX, offsetY);
 
-    context.strokeStyle = '#16a34a';
+    context.strokeStyle = '#188e63';
     context.lineWidth = 2;
     for (const exit of drawing.exits) strokeSegment(context, exit, scale, offsetX, offsetY);
 
@@ -118,9 +118,9 @@ export function RiskZonePreview({ drawing, zone, width = 240, height = 160 }: Pr
     const zoneWidth = Math.abs(zone.endX - zone.startX) * scale;
     const zoneHeight = Math.abs(zone.endY - zone.startY) * scale;
     if (zoneWidth > 0 && zoneHeight > 0) {
-      context.fillStyle = 'rgba(225, 29, 72, 0.18)';
+      context.fillStyle = 'rgba(201, 79, 71, 0.18)';
       context.fillRect(zoneX, zoneY, zoneWidth, zoneHeight);
-      context.strokeStyle = '#e11d48';
+      context.strokeStyle = '#c94f47';
       context.lineWidth = 2;
       context.strokeRect(zoneX, zoneY, zoneWidth, zoneHeight);
     }
