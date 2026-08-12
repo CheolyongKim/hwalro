@@ -208,22 +208,74 @@
 }
 .floating-title-row {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
   font-size: 12px;
 }
+.floating-title-row strong {
+  font-size: 12px;
+  font-weight: 700;
+}
 .floating-title-row span {
-  color: #168f80;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.chart-grid {
-  stroke: #dae6e2;
-  stroke-width: 1;
-  fill: none;
+.evacuation-chart-plot {
+  position: relative;
+  margin-top: 4px;
 }
-.chart-line {
-  stroke: #168f80;
-  stroke-width: 3;
-  fill: none;
-  stroke-linecap: round;
+.evacuation-chart-playhead {
+  position: absolute;
+  left: 0;
+  width: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-lime) 95%, transparent),
+    color-mix(in srgb, var(--color-lime) 45%, transparent)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-lime) 55%, transparent);
+  pointer-events: none;
+  will-change: transform;
+}
+.evacuation-chart-playhead-dot {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-lime);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-lime) 25%, transparent),
+    0 1px 4px color-mix(in srgb, var(--color-ink-deep) 35%, transparent);
+  transform: translateX(-50%);
+}
+.evacuation-chart-tooltip {
+  --ts-chart-tooltip-background: var(--color-chart-tooltip-bg);
+  --ts-chart-tooltip-color: var(--color-panel-text);
+  --ts-chart-tooltip-border: 1px solid var(--color-chart-tooltip-border);
+  --ts-chart-tooltip-border-radius: 12px;
+  --ts-chart-tooltip-padding: 8px 12px;
+  --ts-chart-tooltip-shadow: 0 12px 30px var(--color-chart-tooltip-shadow);
+  --ts-chart-tooltip-max-width: 13rem;
+  --ts-chart-tooltip-font: 400 0.6875rem/1.35 var(--font-sans);
+  backdrop-filter: blur(10px);
+}
+.evacuation-chart-tooltip span {
+  color: var(--color-panel-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.evacuation-chart-tooltip strong {
+  font-size: 14px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-lime);
 }
 .playback-controls button {
   border: 0;
