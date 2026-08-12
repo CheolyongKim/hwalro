@@ -22,6 +22,11 @@ export const simulationApi = {
       .get<SimulationOverviewPage>('/api/simulations/overview', { params: { page, size } })
       .then((response) => response.data),
 
+  getOverview: (simulationId: number) =>
+    apiClient
+      .get<SimulationOverview>(`/api/simulations/${simulationId}/overview`)
+      .then((response) => response.data),
+
   listByLayoutVersion: (layoutVersionId: number) =>
     apiClient
       .get<SimulationSummary[]>('/api/simulations', { params: { layoutVersionId } })
@@ -55,13 +60,6 @@ export const simulationApi = {
   getExecution: (simulationId: number) =>
     apiClient
       .get<SimulationExecution>(`/api/simulations/${simulationId}/execution`)
-      .then((response) => response.data),
-
-  createPlacementAdjustmentDraft: (simulationId: number, applyRecommendation: boolean) =>
-    apiClient
-      .post<SimulationSetup>(`/api/simulations/${simulationId}/placement-adjustment-draft`, {
-        applyRecommendation,
-      })
       .then((response) => response.data),
 
   getTimelineChunk: (simulationId: number, sequence: number) =>

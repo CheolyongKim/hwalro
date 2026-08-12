@@ -1,11 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import { simulationApi } from '../api/simulationApi';
+import { SimulationStatusDialog } from '../components/SimulationStatusDialog';
 import { STATUS_LABELS, STATUS_STYLES } from '../constants/simulationStatus';
-import type { SimulationOverview } from '../types';
+import type { SimulationExecution, SimulationOverview } from '../types';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
+import {
+  getSimulationListAction,
+  readStatusDialogSimulationId,
+} from '../utils/simulationListAction';
 import { buttonClassName, Card, EmptyState, ErrorState, PageHeader } from '../../../components/ui';
 
 const PAGE_SIZE = 20;
@@ -28,16 +33,19 @@ function resultLabel(simulation: SimulationOverview): string {
   return '-';
 }
 
-function destination(simulation: SimulationOverview): string {
-  return simulation.status === 'DRAFT'
-    ? `/simulations/${simulation.id}/setup`
-    : `/simulations/${simulation.id}/result`;
-}
-
 function SimulationListPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectedSimulation, setSelectedSimulation] = useState<SimulationOverview | null>(null);
+  const [selectedExecution, setSelectedExecution] = useState<SimulationExecution | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const detailRequestSequenceRef = useRef(0);
+  const statusDialogSimulationId = readStatusDialogSimulationId(location.state);
   const query = useQuery({
     queryKey: ['simulations', 'overview', page],
     queryFn: () => simulationApi.listOverview(page, PAGE_SIZE),
@@ -73,8 +81,123 @@ function SimulationListPage() {
     }
   };
 
+  const closeStatusDialog = () => {
+    detailRequestSequenceRef.current += 1;
+    setSelectedSimulation(null);
+    setSelectedExecution(null);
+    setIsDetailLoading(false);
+    setDialogError(null);
+  };
+
+  const openStatusDialog = useCallback(async (simulation: SimulationOverview) => {
+    const action = getSimulationListAction(simulation);
+    if (action.type !== 'show-failure' && action.type !== 'show-cancelled') return;
+
+    setSelectedSimulation(simulation);
+    setSelectedExecution(null);
+    setDialogError(null);
+    if (action.type === 'show-cancelled') {
+      setIsDetailLoading(false);
+      return;
+    }
+
+    const requestSequence = detailRequestSequenceRef.current + 1;
+    detailRequestSequenceRef.current = requestSequence;
+    setIsDetailLoading(true);
+    try {
+      const execution = await simulationApi.getExecution(simulation.id);
+      if (detailRequestSequenceRef.current === requestSequence) setSelectedExecution(execution);
+    } catch (error) {
+      if (detailRequestSequenceRef.current === requestSequence) {
+        setDialogError(getSimulationErrorMessage(error));
+      }
+    } finally {
+      if (detailRequestSequenceRef.current === requestSequence) setIsDetailLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (statusDialogSimulationId === null) return;
+    let active = true;
+    setActionError(null);
+
+    void simulationApi
+      .getOverview(statusDialogSimulationId)
+      .then((simulation) => {
+        if (active) return openStatusDialog(simulation);
+      })
+      .catch((error) => {
+        if (active) setActionError(getSimulationErrorMessage(error));
+      })
+      .finally(() => {
+        if (active) {
+          navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, location.search, navigate, openStatusDialog, statusDialogSimulationId]);
+
+  const retrySelectedSimulation = async () => {
+    if (!selectedSimulation) return;
+    setIsRetrying(true);
+    setDialogError(null);
+    try {
+      await simulationApi.execute(selectedSimulation.id);
+      closeStatusDialog();
+      await query.refetch();
+    } catch (error) {
+      setDialogError(getSimulationErrorMessage(error));
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const renderSimulationLink = (simulation: SimulationOverview) => {
+    const action = getSimulationListAction(simulation);
+    const content = (
+      <>
+        <span className="block max-w-64 truncate text-sm font-bold text-ink group-hover:text-primary">
+          {simulation.layoutTitle}
+        </span>
+        <span className="mt-1 block text-xs tabular-nums text-text-muted">
+          도면 #{simulation.layoutId} · 버전 {simulation.layoutVersionNumber}
+        </span>
+      </>
+    );
+
+    if (action.type === 'navigate') {
+      return (
+        <Link
+          to={action.to}
+          className="group block rounded outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        >
+          {content}
+        </Link>
+      );
+    }
+    if (action.type === 'show-failure' || action.type === 'show-cancelled') {
+      return (
+        <button
+          type="button"
+          onClick={() => void openStatusDialog(simulation)}
+          className="group block w-full rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        >
+          {content}
+        </button>
+      );
+    }
+    return (
+      <div aria-disabled="true" className="cursor-not-allowed opacity-60">
+        {content}
+      </div>
+    );
+  };
+
   return (
-    <main className="bg-background">
+    <main className="bg-background [&_a[href]]:cursor-pointer [&_button:not(:disabled)]:cursor-pointer">
       <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
         <div className="border-b border-line pb-6">
           <PageHeader
@@ -130,19 +253,7 @@ function SimulationListPage() {
                   <tbody className="divide-y divide-line">
                     {items.map((simulation) => (
                       <tr key={simulation.id} className="transition-colors hover:bg-primary-faint">
-                        <td className="px-6 py-4">
-                          <Link
-                            to={destination(simulation)}
-                            className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                          >
-                            <span className="block max-w-64 truncate text-sm font-bold text-ink hover:text-primary">
-                              {simulation.layoutTitle}
-                            </span>
-                            <span className="mt-1 block text-xs tabular-nums text-text-muted">
-                              도면 #{simulation.layoutId} · 버전 {simulation.layoutVersionNumber}
-                            </span>
-                          </Link>
-                        </td>
+                        <td className="px-6 py-4">{renderSimulationLink(simulation)}</td>
                         <td className="px-4 py-4 text-sm font-bold tabular-nums text-text-strong">
                           #{simulation.id}
                         </td>
@@ -248,6 +359,15 @@ function SimulationListPage() {
           )}
         </Card>
       </div>
+      <SimulationStatusDialog
+        simulation={selectedSimulation}
+        execution={selectedExecution}
+        isLoading={isDetailLoading}
+        isRetrying={isRetrying}
+        error={dialogError}
+        onClose={closeStatusDialog}
+        onRetry={() => void retrySelectedSimulation()}
+      />
     </main>
   );
 }
