@@ -84,14 +84,14 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     simulationId: Number(summary.simulationId),
     totalPeople: summary.totalPeople,
     maxDensity: summary.maxDensity,
-    currentTimeSeconds: playback.currentTimeSeconds,
+    currentTimeSeconds: playback.chunkLookupTimeSeconds,
     chunkDurationSeconds: executionResult.timelineChunkDurationSeconds,
     timelineChunkCount: executionResult.timelineChunkCount,
     heatmapChunkCount: executionResult.heatmapChunkCount,
   });
   const result = useMemo<SimulationResultViewModel | null>(
     () =>
-      chunks.readyForCurrentTime && chunks.heatmap && chunks.agentFrames.length > 0
+      chunks.heatmap && chunks.agentFrames.length > 0
         ? {
             ...summary,
             agentFrames: chunks.agentFrames,
@@ -99,13 +99,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
             evacuationProgress: chunks.evacuationProgress,
           }
         : null,
-    [
-      chunks.agentFrames,
-      chunks.evacuationProgress,
-      chunks.heatmap,
-      chunks.readyForCurrentTime,
-      summary,
-    ],
+    [chunks.agentFrames, chunks.evacuationProgress, chunks.heatmap, summary],
   );
   const evacuationChart = useCollapsiblePanel(() =>
     matchesMediaQuery(NARROW_RESULT_VIEWPORT_QUERY),
@@ -127,11 +121,20 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
 
   const bottlenecksVisible = playback.hasCompletedPlayback || resultsRevealed;
   const currentFrame = result
-    ? selectFramePair(result.agentFrames, playback.currentTimeSeconds).previous
+    ? selectFramePair(result.agentFrames, playback.displayTimeSeconds).previous
     : null;
   const evacuationRate = currentFrame
     ? calculateEvacuationRate(currentFrame.evacuatedCount, summary.totalPeople)
     : 0;
+  const firstLoadedFrame = result?.agentFrames[0];
+  const lastLoadedFrame = result?.agentFrames[result.agentFrames.length - 1];
+  const scrubPreviewOutsideLoadedWindow = Boolean(
+    playback.isScrubbing &&
+    firstLoadedFrame &&
+    lastLoadedFrame &&
+    (playback.displayTimeSeconds < firstLoadedFrame.timeSeconds ||
+      playback.displayTimeSeconds > lastLoadedFrame.timeSeconds),
+  );
 
   useEffect(() => {
     setDisplayedBottleneckCount(BOTTLENECK_DISPLAY_BATCH_SIZE);
@@ -247,7 +250,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
       <SimulationPlaybackStage
         result={result}
         bottlenecks={displayedBottlenecks}
-        currentTimeSeconds={playback.currentTimeSeconds}
+        currentTimeSeconds={playback.displayTimeSeconds}
         selectedBottleneckId={selectedBottleneckId}
         showBottlenecks={bottlenecksVisible}
         riskDrawingMode={riskDrawingMode}
@@ -307,7 +310,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
       ) : (
         <EvacuationProgressChart
           points={result.evacuationProgress}
-          currentTime={playback.currentTimeSeconds}
+          currentTime={playback.displayTimeSeconds}
           duration={result.durationSeconds}
           totalPeople={result.totalPeople}
           isCollapsing={evacuationChart.isCollapsing}
@@ -318,13 +321,19 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
       )}
 
       <PlaybackControls
-        currentTimeSeconds={playback.currentTimeSeconds}
+        currentTimeSeconds={playback.displayTimeSeconds}
         durationSeconds={result.durationSeconds}
         isPlaying={playback.isPlaying}
         playbackRate={playback.playbackRate}
         resultsVisible={bottlenecksVisible}
+        isBuffering={
+          scrubPreviewOutsideLoadedWindow || (chunks.loading && !chunks.readyForCurrentTime)
+        }
         onToggle={playback.toggle}
         onSeek={playback.seek}
+        onScrubStart={playback.startScrub}
+        onScrubChange={playback.scrubTo}
+        onScrubEnd={playback.endScrub}
         onPlaybackRateChange={playback.setPlaybackRate}
         onRevealResults={handleRevealResults}
       />

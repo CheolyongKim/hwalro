@@ -679,6 +679,23 @@
   color: #d8f77b;
   opacity: 1;
 }
+.playback-controls .playback-buffering {
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  border: 1px solid rgba(194, 232, 75, 0.2);
+  border-radius: 999px;
+  background: rgba(15, 48, 42, 0.88);
+  padding: 4px 9px;
+  color: #d8f77b;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+}
 .simulation-result-page .playback-controls .playback-result.is-visible:disabled {
   cursor: default;
 }
