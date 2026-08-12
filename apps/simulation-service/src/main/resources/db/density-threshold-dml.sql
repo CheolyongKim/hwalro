@@ -19,5 +19,5 @@ CREATE TABLE IF NOT EXISTS density_threshold_settings (
   COLLATE = utf8mb4_0900_ai_ci;
 
 INSERT INTO density_threshold_settings (id, threshold_value, unit)
-VALUES (1, 3.500, 'PERSON_PER_M2')
+VALUES (1, 3.000, 'PERSON_PER_M2')
 ON DUPLICATE KEY UPDATE id = 1;
