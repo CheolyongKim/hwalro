@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
+import { ArrowLeft } from 'lucide-react';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutToolbar } from '../components/LayoutToolbar';
 import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { InlineTextInput } from '../components/InlineTextInput';
+import { Button } from '../../../components/ui';
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
@@ -315,26 +317,16 @@ function LayoutPage() {
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-background">
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         onClick={() => navigate('/drawings')}
-        aria-label="도면 목록으로 돌아가기"
-        className="fixed left-4 top-4 z-30 flex h-8 w-8 items-center justify-center rounded-lg border border-panel-divider bg-panel text-panel-muted shadow-raised transition-colors hover:bg-panel-soft hover:text-panel-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="fixed left-4 top-4 z-30 shadow-raised"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M10 3 L5 8 L10 13" />
-        </svg>
-      </button>
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+        뒤로
+      </Button>
       <LayoutCanvas
         state={state}
         dispatch={dispatch}

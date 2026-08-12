@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft } from 'lucide-react';
 import { simulationApi } from '../api/simulationApi';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import { STATUS_LABELS, STATUS_STYLES } from '../constants/simulationStatus';
@@ -308,6 +308,7 @@ function SimulationResultPage() {
           size="sm"
           onClick={() => navigate(`/simulations/${id}/setup`)}
         >
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
           배치 화면
         </Button>
         <div className="min-w-0">
