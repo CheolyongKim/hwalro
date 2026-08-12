@@ -7,15 +7,9 @@ import { curveMonotoneX } from 'd3-shape';
 import type { ChartBounds, ChartRenderContext } from '@tanstack/charts';
 import type { ChartTooltipBodyRenderContext } from '@tanstack/charts/react/tooltip';
 import type { EvacuationPoint } from '../types';
+import { formatDuration } from '../utils/playback';
 
 const GRADIENT_ID = 'evacuation-gradient';
-
-function formatClock(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.round(totalSeconds));
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return `${minutes}:${String(rest).padStart(2, '0')}`;
-}
 
 export function EvacuationProgressChart({
   points,
@@ -79,7 +73,7 @@ export function EvacuationProgressChart({
           line: false,
           ticks: {
             count: 5,
-            format: (value) => formatClock(Number(value)),
+            format: (value) => formatDuration(Number(value)),
           },
           tickLabels: { fontSize: 9, dy: 5, thin: true },
         },
@@ -151,7 +145,7 @@ export function EvacuationProgressChart({
       if (!point) return null;
       return (
         <>
-          <span>{formatClock(Number(point.xValue))}</span>
+          <span>{formatDuration(Number(point.xValue))}</span>
           <strong>{Math.round(Number(point.yValue)).toLocaleString('ko-KR')}명</strong>
         </>
       );
