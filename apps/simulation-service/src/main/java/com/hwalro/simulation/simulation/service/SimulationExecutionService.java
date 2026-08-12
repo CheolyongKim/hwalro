@@ -55,7 +55,6 @@ public class SimulationExecutionService {
     private static final String MODEL_PROFILE = "SFM_DEFAULT_V2";
     private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 1000;
-    private static final double MAX_SIMULATION_DURATION_SECONDS = 600.0;
     private static final int LEGACY_TIMELINE_FRAMES_PER_CHUNK = 10;
     private static final int TIMELINE_FRAMES_PER_CHUNK = 20;
 
@@ -362,7 +361,7 @@ public class SimulationExecutionService {
 
     private void persistResult(Long simulationId, SimulationSetupResponse setup, EngineRun run) {
         EngineResult output = run.result();
-        validateEngineResult(output, setup);
+        validateEngineResult(output, setup, run.maxSimulationTimeSeconds());
         if (output.timelineChunkCount() != run.timelineChunks().size()) {
             throw new IllegalStateException("타임라인 청크 수가 결과 요약과 일치하지 않습니다.");
         }
@@ -482,12 +481,13 @@ public class SimulationExecutionService {
         return metric;
     }
 
-    private static void validateEngineResult(EngineResult output, SimulationSetupResponse setup) {
+    static void validateEngineResult(
+            EngineResult output, SimulationSetupResponse setup, double maxSimulationTimeSeconds) {
         if (output.engineVersion() == null || output.engineVersion().isBlank()) {
             throw new IllegalStateException("엔진 버전이 누락되었습니다.");
         }
-        requireFiniteRange(output.simulationDurationSeconds(), 0, MAX_SIMULATION_DURATION_SECONDS, "모의시간");
-        requireFiniteRange(output.frameIntervalSeconds(), 0.001, MAX_SIMULATION_DURATION_SECONDS, "프레임 간격");
+        requireFiniteRange(output.simulationDurationSeconds(), 0, maxSimulationTimeSeconds, "모의시간");
+        requireFiniteRange(output.frameIntervalSeconds(), 0.001, maxSimulationTimeSeconds, "프레임 간격");
         if (output.evacuatedPeople() == null
                 || output.remainingPeople() == null
                 || output.evacuatedPeople() < 0
@@ -517,7 +517,7 @@ public class SimulationExecutionService {
         } else if ("MAX_DURATION".equals(output.terminationReason())) {
             if (output.remainingPeople() < 1
                     || output.totalEvacuationTimeSeconds() != null
-                    || output.simulationDurationSeconds() < MAX_SIMULATION_DURATION_SECONDS - 0.02) {
+                    || output.simulationDurationSeconds() < maxSimulationTimeSeconds - 0.02) {
                 throw new IllegalStateException("최대 모의시간 종료 결과가 잔류 인원 또는 시간과 일치하지 않습니다.");
             }
         } else {

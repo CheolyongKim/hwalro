@@ -6,12 +6,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 from shapely.geometry import LineString, box
 
 from runner import (
     WAYPOINT_REACHED_DISTANCE_METERS,
     AgentRouteState,
     HeatmapWriter,
+    RunnerError,
     SimulationContext,
     TimelineWriter,
     _advance_context,
@@ -365,11 +367,30 @@ class BulkAgentAccessTest(unittest.TestCase):
         def can_connect(self, _start, _end):
             return True
 
+        def can_connect_many(self, starts, ends):
+            return [
+                self.can_connect(start, end)
+                for start, end in zip(starts, ends, strict=True)
+            ]
+
         def can_reach_exit(self, _start, _end):
             return True
 
+        def can_reach_exits(self, starts, ends):
+            return [
+                self.can_reach_exit(start, end) for start, end in zip(starts, ends, strict=True)
+            ]
+
         def crossed_exit(self, _start, _end, _exit_start, _exit_end):
             return False
+
+        def crossed_exits(self, starts, ends, exit_starts, exit_ends):
+            return [
+                self.crossed_exit(start, end, exit_start, exit_end)
+                for start, end, exit_start, exit_end in zip(
+                    starts, ends, exit_starts, exit_ends, strict=True
+                )
+            ]
 
     @staticmethod
     def _state(stable_id, waypoint):
@@ -390,13 +411,22 @@ class BulkAgentAccessTest(unittest.TestCase):
             simulation,
             self.Router(),
             {1: self._state(1, (0.0, 0.0)), 2: self._state(2, (10.0, 0.0))},
+            numpy=np,
         )
+        position_buffers = {id(context.positions), id(context.next_positions)}
+        np.testing.assert_array_equal(context.agent_ids, [1, 2])
+        np.testing.assert_array_equal(context.stable_ids, [1, 2])
+        np.testing.assert_array_equal(context.waypoint_counts, [1, 1])
+        np.testing.assert_array_equal(context.waypoint_offsets, [0, 1, 2])
+        self.assertEqual(context.slot_by_id, {1: 0, 2: 1})
 
         self.assertEqual(_initialize_targets(context), [])
         self.assertEqual((first.target_writes, second.target_writes), (1, 1))
 
         simulation.next_positions[1] = (0.0, 0.0)
         self.assertEqual(_advance_context(context, 1), [1])
+        self.assertEqual(context.active.tolist(), [False, True])
+        self.assertEqual({id(context.positions), id(context.next_positions)}, position_buffers)
         context.states.pop(1)
         self.assertEqual((first.target_writes, second.target_writes), (1, 1))
 
@@ -404,9 +434,10 @@ class BulkAgentAccessTest(unittest.TestCase):
         self.assertEqual(frame["agents"], [{"agentId": 2, "x": 5.0, "y": 0.0}])
 
         self.assertEqual(_advance_context(context, 2), [])
-        self.assertEqual((first.position_reads, second.position_reads), (3, 6))
+        self.assertEqual({id(context.positions), id(context.next_positions)}, position_buffers)
+        self.assertEqual((first.position_reads, second.position_reads), (2, 3))
         self.assertEqual((first.target_writes, second.target_writes), (1, 1))
-        self.assertEqual(simulation.traversals, 6)
+        self.assertEqual(simulation.traversals, 3)
 
     def test_sets_a_new_target_once_when_the_waypoint_changes(self):
         agent = self.BackingAgent(1, (-1.0, 0.0))
@@ -419,7 +450,7 @@ class BulkAgentAccessTest(unittest.TestCase):
             exit_start=(20.0, 0.0),
             exit_end=(20.0, 1.0),
         )
-        context = SimulationContext(simulation, self.Router(), {1: state})
+        context = SimulationContext(simulation, self.Router(), {1: state}, numpy=np)
 
         self.assertEqual(_initialize_targets(context), [])
         simulation.next_positions[1] = (0.0, 0.0)
@@ -431,12 +462,105 @@ class BulkAgentAccessTest(unittest.TestCase):
 
     def test_snapshot_skips_bulk_traversal_for_an_empty_context(self):
         simulation = self.Simulation([self.BackingAgent(1, (1.0, 1.0))])
-        context = SimulationContext(simulation, self.Router(), {})
+        context = SimulationContext(simulation, self.Router(), {}, numpy=np)
 
         frame = _snapshot([context], {}, 0.01)
 
         self.assertEqual(frame["agents"], [])
         self.assertEqual(simulation.traversals, 0)
+
+    def test_initializes_empty_context_with_empty_numpy_masks(self):
+        simulation = self.Simulation([])
+        context = SimulationContext(simulation, self.Router(), {}, numpy=np)
+
+        self.assertEqual(_initialize_targets(context), [])
+
+        self.assertEqual(context.positions.shape, (0, 2))
+        self.assertEqual(context.active_count, 0)
+        self.assertEqual(simulation.traversals, 1)
+
+    def test_snapshot_uses_cached_positions_and_stable_agent_order(self):
+        first = self.BackingAgent(1, (9.0, 9.0))
+        second = self.BackingAgent(2, (8.0, 8.0))
+        simulation = self.Simulation([first, second])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(2, (0.0, 0.0)), 2: self._state(1, (0.0, 0.0))},
+            {1: (2.0, 2.0), 2: (1.0, 1.0)},
+            numpy=np,
+        )
+
+        frame = _snapshot([context], {}, 0.01)
+
+        self.assertEqual(
+            frame["agents"],
+            [
+                {"agentId": 1, "x": 1.0, "y": 1.0},
+                {"agentId": 2, "x": 2.0, "y": 2.0},
+            ],
+        )
+        self.assertEqual(simulation.traversals, 0)
+        self.assertEqual((first.position_reads, second.position_reads), (0, 0))
+
+    def test_missing_active_agent_is_still_rejected(self):
+        simulation = self.Simulation([self.BackingAgent(1, (1.0, 1.0))])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(1, (10.0, 0.0)), 2: self._state(2, (10.0, 0.0))},
+            numpy=np,
+        )
+
+        with self.assertRaisesRegex(RunnerError, r"active JuPedSim agents are missing: \[2\]"):
+            _initialize_targets(context)
+
+    def test_batches_multi_waypoint_progress_and_cleans_evacuated_position(self):
+        agent = self.BackingAgent(1, (-1.0, 0.0))
+        simulation = self.Simulation([agent])
+        state = AgentRouteState(
+            stable_id=1,
+            exit_id=501,
+            waypoints=((0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0)),
+            terminal_point=(3.0, 0.0),
+            exit_start=(3.0, -1.0),
+            exit_end=(3.0, 1.0),
+            cursor=1,
+        )
+        context = SimulationContext(simulation, self.Router(), {1: state}, numpy=np)
+        self.assertEqual(_initialize_targets(context), [])
+
+        simulation.next_positions[1] = (2.1, 0.0)
+        self.assertEqual(_advance_context(context, 1), [])
+        self.assertEqual(state.cursor, 3)
+        self.assertEqual(context.cursors.tolist(), [3])
+        self.assertEqual(agent.target, (3.0, 0.0))
+
+        simulation.next_positions[1] = (3.0, 0.0)
+        self.assertEqual(_advance_context(context, 2), [1])
+        self.assertEqual(context.active.tolist(), [False])
+        self.assertEqual(context.active_count, 0)
+        self.assertEqual(simulation.pending_removals, {1})
+
+    def test_removal_refusal_preserves_position_without_rewriting_target(self):
+        class RefusingSimulation(self.Simulation):
+            def mark_agent_for_removal(self, _agent_id):
+                return False
+
+        agent = self.BackingAgent(1, (0.0, 0.0))
+        simulation = RefusingSimulation([agent])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(1, (0.0, 0.0))},
+            numpy=np,
+        )
+
+        self.assertEqual(_initialize_targets(context), [])
+
+        np.testing.assert_array_equal(context.positions, [[0.0, 0.0]])
+        self.assertEqual(context.active.tolist(), [True])
+        self.assertEqual(agent.target_writes, 0)
 
     def test_rollback_happens_before_exit_crossing_is_checked(self):
         class RejectingRouter(self.Router):
@@ -459,6 +583,8 @@ class BulkAgentAccessTest(unittest.TestCase):
             simulation,
             RejectingRouter(),
             {1: self._state(1, (10.0, 0.0))},
+            {1: (-1.0, 0.0)},
+            numpy=np,
         )
 
         self.assertEqual(_advance_context(context, 1), [])
@@ -498,37 +624,60 @@ class MovementGuardTest(unittest.TestCase):
         def valid_moves(self, starts, _ends):
             return [self.valid] * len(starts)
 
+    @staticmethod
+    def _state():
+        return AgentRouteState(
+            stable_id=1,
+            exit_id=501,
+            waypoints=((10.0, 1.0),),
+            terminal_point=(10.0, 1.0),
+            exit_start=(20.0, 0.0),
+            exit_end=(20.0, 1.0),
+        )
+
     def test_invalid_move_rolls_back_position_and_zeroes_velocity(self):
         agent = self.Agent()
-        context = SimulationContext(self.Simulation(agent), self.Router(False), {})
-        current = {1: (2.0, 1.0)}
+        context = SimulationContext(
+            self.Simulation(agent),
+            self.Router(False),
+            {1: self._state()},
+            {1: (1.0, 1.0)},
+            numpy=np,
+        )
+        current = np.asarray([[2.0, 1.0]])
 
         _rollback_invalid_moves(
             context,
-            {1: (1.0, 1.0)},
+            context.positions,
             {1: agent},
             current,
         )
 
         self.assertEqual(agent.position, (1.0, 1.0))
         self.assertEqual(agent.model.velocity, (0.0, 0.0))
-        self.assertEqual(current, {1: (1.0, 1.0)})
+        np.testing.assert_array_equal(current, [[1.0, 1.0]])
 
     def test_valid_move_is_not_changed(self):
         agent = self.Agent()
-        context = SimulationContext(self.Simulation(agent), self.Router(True), {})
-        current = {1: (2.0, 1.0)}
+        context = SimulationContext(
+            self.Simulation(agent),
+            self.Router(True),
+            {1: self._state()},
+            {1: (1.0, 1.0)},
+            numpy=np,
+        )
+        current = np.asarray([[2.0, 1.0]])
 
         _rollback_invalid_moves(
             context,
-            {1: (1.0, 1.0)},
+            context.positions,
             {1: agent},
             current,
         )
 
         self.assertEqual(agent.position, (2.0, 1.0))
         self.assertEqual(agent.model.velocity, (3.0, 0.0))
-        self.assertEqual(current, {1: (2.0, 1.0)})
+        np.testing.assert_array_equal(current, [[2.0, 1.0]])
 
 
 if __name__ == "__main__":

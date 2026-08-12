@@ -92,32 +92,31 @@ flowchart TD
 
 같은 step 안에서 사람 목록을 여러 번 단건 검색했다는 것이 이 그림의 핵심이다.
 
-### 변경 후
+### 현재 변경 후
 
 ```mermaid
 flowchart TD
-    S["step 시작"] --> A["전체 Agent를 한 번 순회해<br/>이전 위치 저장"]
-    A --> I["JuPedSim iterate"]
-    I --> B["전체 Agent를 다시 한 번 순회해<br/>ID 표와 현재 위치 표 생성"]
-    B --> C["같은 표로 rollback"]
-    C --> D["같은 표로 출구와 target 검사"]
+    S["step 시작<br/>이전 위치 배열 재사용"] --> I["JuPedSim iterate"]
+    I --> B["전체 Agent를 한 번 순회해<br/>현재 위치 배열과 handle 표 갱신"]
+    B --> C["배치 이동 검사와 rollback"]
+    C --> D["배치 waypoint·출구·target 검사"]
     D --> F{"프레임 시간인가?"}
-    F -->|"예"| G["새 전체 순회로 snapshot 생성"]
+    F -->|"예"| G["캐시된 위치 배열로<br/>snapshot 생성"]
     F -->|"아니요"| E["다음 step"]
     G --> E
 ```
 
-`iterate()` 전의 Agent 객체는 `iterate()` 뒤에 재사용하지 않는다. 이전 위치 숫자만 보관하고, `iterate()`가 끝난 뒤 새 순회에서 새 Agent handle을 받는다. 따라서 JuPedSim 내부 저장소가 step 사이에 바뀌어도 오래된 handle을 붙잡지 않는다.
+이전 위치는 stable slot 기반 숫자 배열로 보관한다. `iterate()`가 끝난 뒤 한 번의 새 순회에서 현재 위치와 새 Agent handle을 받고, handle은 해당 iteration 안에서만 사용한다. 따라서 JuPedSim 내부 저장소가 step 사이에 바뀌어도 오래된 handle을 붙잡지 않는다.
 
 ## 6. 이번에 바꾼 것
 
 ### 6.1 Agent 전체 재검색 제거
 
-- `_capture_states()`는 `simulation.agents()`를 한 번 순회한다.
-- `_advance_context()`는 `iterate()` 뒤 새 순회로 `ID → Agent`, `ID → 현재 위치` 표를 만든다.
-- `_rollback_invalid_moves()`와 `_update_targets()`는 이 표를 함께 쓴다.
-- `_snapshot()`도 단건 `simulation.agent(id)`를 사용하지 않는다.
-- 대피가 끝난 빈 공간 그룹은 snapshot 순회에서 건너뛴다.
+- `SimulationContext`는 이전·현재 위치 double buffer와 Agent ID별 stable slot을 유지한다.
+- `_advance_context()`는 `iterate()` 뒤 `simulation.agents()`를 한 번만 순회해 현재 위치와 이번 iteration의 handle 표를 갱신한다.
+- `_rollback_invalid_moves()`와 `_update_targets()`는 같은 active slot과 NumPy 배열을 사용한다.
+- `_snapshot()`은 캐시된 위치 배열을 사용하므로 JuPedSim Agent를 다시 순회하지 않는다.
+- 대피가 끝난 공간 그룹은 iteration과 snapshot에서 건너뛴다.
 
 ### 6.2 같은 값 다시 읽고 쓰는 일 제거
 
@@ -451,3 +450,54 @@ trapped route        73e45085b4a7e87db150627f4069cd0514c82a2383ec72bc52ebc2c0c75
 운영 로그에서 `pythonProcessMs`가 크면 Python 내부에 route 준비, native iterate, 활로 전후 순회, JSON 쓰기 타이머를 추가한다. 그중 route 준비가 가장 크면 경로 단순화와 Agent별 계획을 2차 후보로 삼는다. `timelineChars`·`heatmapChars`와 `persistMs`가 크면 결과 streaming을 먼저 검토한다. `queueMs`가 크더라도 CPU·RAM과 중복 실행 방지 설계를 확인하기 전에는 worker 수를 바로 늘리지 않는다.
 
 2차 작업은 이 문서의 실측 근거로 별도 티켓에서 다룬다. 1차 코드에 물리 공식, 출력 해상도, 동시성 변경을 섞지 않는다.
+
+## 15. 2차 장시간 benchmark 사용법
+
+저장소와 로컬 임시 측정 자료를 확인했지만 커밋 가능한 익명화 5,000명 운영 입력은 발견되지 않았다. 운영 입력을 임의 생성하거나 기존 입력을 익명화됐다고 가정해 복사하지 않는다. 팀에서 별도로 검토한 파일을 `--production-fixture`로 전달하면 benchmark가 원본 파일은 수정하지 않고 임시 입력에 `maxSimulationTimeSeconds=600`, `frameIntervalSeconds=1`을 적용한다. 입력의 Agent가 정확히 5,000명이 아니면 실행을 거부한다.
+
+서로 다른 wheel 환경을 비교하는 운영 기준 명령은 다음과 같다.
+
+```powershell
+python .\apps\simulation-service\engine\benchmark.py `
+  --baseline-root C:\path\to\baseline-worktree `
+  --candidate-root C:\path\to\candidate-worktree `
+  --baseline-python C:\path\to\baseline-venv\Scripts\python.exe `
+  --candidate-python C:\path\to\candidate-venv\Scripts\python.exe `
+  --production-fixture C:\secure\anonymized-production-5000.json `
+  --scenario production-external-5000x60000 `
+  --runs 3 `
+  --candidate-median-threshold-seconds 600 `
+  --phase-profile `
+  --output C:\path\to\benchmark-result
+```
+
+기존처럼 하나의 wheel 환경을 사용할 때는 `--python` 하나만 전달해도 된다. 실제 입력을 받기 전에는 `runtime-long-fixed-density-{1000,2500,5000}x60000` 시나리오로 600초·1Hz 장시간 실행 경로를 점검할 수 있지만, 이 합성 시나리오를 운영 합격 판정의 대체물로 사용하지 않는다.
+
+600초 시나리오의 candidate 중앙값이 지정한 한도를 넘거나 baseline과 candidate 출력이 다르면 `results.json`의 `status`는 `failed`가 되고 프로세스는 종료 코드 1을 반환한다. 서로 다른 wheel 비교에서는 `result.json`의 `engineVersion`만 정규화하며, 나머지 결과와 파일은 그대로 비교한다. 실행기 오류나 잘못된 입력처럼 비교 자체가 성립하지 않는 경우는 종료 코드 2다.
+
+`--phase-profile`은 각 subprocess에 서로 다른 `HWALRO_PHASE_PROFILE_PATH`를 전달한다. runner는 다음 형태의 UTF-8 JSON sidecar를 기록하며, 이 파일은 출력 동등성 해시에 포함되지 않는다.
+
+```json
+{
+  "schemaVersion": 1,
+  "phasesNanoseconds": {
+    "inputAndContextSetup": 0,
+    "routePlanning": 0,
+    "iterate": 0,
+    "agentStateCapture": 0,
+    "moveValidation": 0,
+    "targetAndExitUpdate": 0,
+    "snapshotAndSerialization": 0
+  },
+  "counters": {}
+}
+```
+
+### 구현 결과와 현재 게이트 상태
+
+- runner는 Agent ID별 stable slot을 한 번 만들고 active mask, 위치 double buffer, cursor, flattened waypoint, terminal·exit 배열을 재사용한다.
+- 각 iteration은 fresh `simulation.agents()`를 한 번만 순회한다. Agent handle은 iteration 밖에 저장하지 않는다.
+- 이동·waypoint·출구 판정은 NumPy mask와 Shapely batch predicate로 처리하며 `dt=0.01`과 기존 판정 순서를 유지한다.
+- `8be5b4f` 대비 기존 correctness 5종은 route와 전체 출력 파일이 모두 byte 단위로 동일했다.
+- 보조 측정인 300명×2,000 step에서는 3회 중앙값이 10.968초에서 5.022초로 감소했다. 이 값은 hot loop 개선 확인용이며 5,000명 운영 합격값이 아니다.
+- 저장소에 승인된 익명화 5,000명 입력과 팀 기준 장비 정보가 아직 없으므로 5,000명×600초 중앙값 600초 이내 게이트와 C++ 포크 진입 조건은 미확정 상태다.

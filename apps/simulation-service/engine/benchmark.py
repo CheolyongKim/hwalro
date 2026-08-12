@@ -12,6 +12,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import statistics
 import subprocess
@@ -23,11 +24,19 @@ from typing import Any, Sequence
 
 DT_SECONDS = 0.01
 DEFAULT_RUNS = 7
+DEFAULT_CANDIDATE_MEDIAN_THRESHOLD_SECONDS = 600.0
 STARTUP_SCENARIO = "startup-default-v4-100x1"
+PRODUCTION_SCENARIO = "production-external-5000x60000"
+LONG_RUNTIME_COUNTS = (1000, 2500, 5000)
+PHASE_PROFILE_ENVIRONMENT_VARIABLE = "HWALRO_PHASE_PROFILE_PATH"
 
 
 class BenchmarkError(RuntimeError):
     """Raised when a benchmark cannot produce a trustworthy comparison."""
+
+
+class OutputMismatch(BenchmarkError):
+    """Raised when baseline and candidate outputs are not identical."""
 
 
 @dataclass(frozen=True)
@@ -46,6 +55,8 @@ class RunResult:
     tree_sha256: str
     files: dict[str, dict[str, Any]]
     summary: dict[str, Any]
+    phase_profile: dict[str, Any] | None
+    result_bytes: bytes = b""
 
 
 def _sha256_file(path: Path) -> str:
@@ -68,12 +79,12 @@ def _resolve_engine_root(value: str, label: str) -> Path:
     )
 
 
-def _resolve_python(value: str) -> str:
+def _resolve_python(value: str, label: str = "--python") -> str:
     resolved = shutil.which(value)
     if resolved is None and Path(value).expanduser().is_file():
         resolved = str(Path(value).expanduser().resolve())
     if resolved is None:
-        raise BenchmarkError(f"--python executable not found: {value}")
+        raise BenchmarkError(f"{label} executable not found: {value}")
     return str(Path(resolved).resolve())
 
 
@@ -82,6 +93,7 @@ def _base_payload(
     agents: list[dict[str, float]],
     selected_exit_ids: list[int],
     iterations: int,
+    frame_interval_seconds: float | None = None,
 ) -> dict[str, Any]:
     duration = iterations * DT_SECONDS
     return {
@@ -96,7 +108,9 @@ def _base_payload(
         "hazards": [],
         "selectedExitIds": selected_exit_ids,
         "maxSimulationTimeSeconds": duration,
-        "frameIntervalSeconds": duration,
+        "frameIntervalSeconds": duration
+        if frame_interval_seconds is None
+        else frame_interval_seconds,
     }
 
 
@@ -108,6 +122,7 @@ def _open_scenario(
     columns: int | None = None,
     exit_distance: float = 10.0,
     room_density: float | None = None,
+    frame_interval_seconds: float | None = None,
 ) -> Scenario:
     columns = columns or math.ceil(math.sqrt(agent_count))
     rows = math.ceil(agent_count / columns)
@@ -157,7 +172,13 @@ def _open_scenario(
         category=category,
         agent_count=agent_count,
         iterations=iterations,
-        payload=_base_payload(drawing, agents, [1], iterations),
+        payload=_base_payload(
+            drawing,
+            agents,
+            [1],
+            iterations,
+            frame_interval_seconds=frame_interval_seconds,
+        ),
         source={
             "kind": "generated-open-room",
             "spacingMeters": {"x": spacing_x, "y": spacing_y},
@@ -168,6 +189,63 @@ def _open_scenario(
             "roomDensityAgentsPerSquareMeter": agent_count / (width * height),
             "rightBoundaryMarginMeters": width
             - (origin + (columns - 1) * spacing_x),
+        },
+    )
+
+
+def _long_runtime_scenarios() -> list[Scenario]:
+    iterations = round(600.0 / DT_SECONDS)
+    return [
+        _open_scenario(
+            f"runtime-long-fixed-density-{count}x{iterations}",
+            "long-runtime",
+            agent_count=count,
+            iterations=iterations,
+            room_density=1.0,
+            frame_interval_seconds=1.0,
+        )
+        for count in LONG_RUNTIME_COUNTS
+    ]
+
+
+def _production_scenario(value: str) -> Scenario:
+    fixture_path = Path(value).expanduser().resolve()
+    if not fixture_path.is_file():
+        raise BenchmarkError(f"--production-fixture is not a file: {fixture_path}")
+    try:
+        payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise BenchmarkError(
+            f"--production-fixture must be valid UTF-8 JSON: {fixture_path}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise BenchmarkError("--production-fixture JSON root must be an object")
+    agents = payload.get("agents")
+    if not isinstance(agents, list) or len(agents) != 5000:
+        count = len(agents) if isinstance(agents, list) else "not an array"
+        raise BenchmarkError(
+            f"--production-fixture must contain exactly 5000 agents, found {count}"
+        )
+
+    original_duration = payload.get("maxSimulationTimeSeconds")
+    original_frame_interval = payload.get("frameIntervalSeconds")
+    payload["maxSimulationTimeSeconds"] = 600.0
+    payload["frameIntervalSeconds"] = 1.0
+    return Scenario(
+        name=PRODUCTION_SCENARIO,
+        category="production",
+        agent_count=5000,
+        iterations=round(600.0 / DT_SECONDS),
+        payload=payload,
+        source={
+            "kind": "external-anonymized-fixture",
+            "path": str(fixture_path),
+            "sha256": _sha256_file(fixture_path),
+            "bytes": fixture_path.stat().st_size,
+            "originalMaxSimulationTimeSeconds": original_duration,
+            "originalFrameIntervalSeconds": original_frame_interval,
+            "effectiveMaxSimulationTimeSeconds": 600.0,
+            "effectiveFrameIntervalSeconds": 1.0,
         },
     )
 
@@ -452,13 +530,18 @@ def _startup_scenario_for_root(engine_root: Path, python: str) -> Scenario:
     )
 
 
-def _startup_scenario(baseline_root: Path, candidate_root: Path, python: str) -> Scenario:
+def _startup_scenario(
+    baseline_root: Path,
+    candidate_root: Path,
+    baseline_python: str,
+    candidate_python: str,
+) -> Scenario:
     try:
-        baseline = _startup_scenario_for_root(baseline_root, python)
+        baseline = _startup_scenario_for_root(baseline_root, baseline_python)
     except (BenchmarkError, OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise BenchmarkError(f"baseline startup fixture is unavailable: {exc}") from exc
     try:
-        candidate = _startup_scenario_for_root(candidate_root, python)
+        candidate = _startup_scenario_for_root(candidate_root, candidate_python)
     except (BenchmarkError, OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise BenchmarkError(f"candidate startup fixture is unavailable: {exc}") from exc
     baseline_payload = json.dumps(
@@ -490,14 +573,22 @@ def _startup_scenario(baseline_root: Path, candidate_root: Path, python: str) ->
 def _build_scenarios(
     baseline_root: Path,
     candidate_root: Path,
-    python: str,
+    pythons: dict[str, str],
     filters: Sequence[str],
+    production_fixture: str | None,
 ) -> list[Scenario]:
     scenarios: list[Scenario] = []
     if not filters or any(
         fnmatch.fnmatchcase(STARTUP_SCENARIO, pattern) for pattern in filters
     ):
-        scenarios.append(_startup_scenario(baseline_root, candidate_root, python))
+        scenarios.append(
+            _startup_scenario(
+                baseline_root,
+                candidate_root,
+                pythons["baseline"],
+                pythons["candidate"],
+            )
+        )
 
     scenarios.append(
         _open_scenario(
@@ -520,10 +611,20 @@ def _build_scenarios(
             )
         )
     if filters:
+        scenarios.extend(_long_runtime_scenarios())
         scenarios.extend(
             scenario
             for scenario in _correctness_scenarios()
             if any(fnmatch.fnmatchcase(scenario.name, pattern) for pattern in filters)
+        )
+    if production_fixture is not None:
+        scenarios.append(_production_scenario(production_fixture))
+    elif filters and any(
+        fnmatch.fnmatchcase(PRODUCTION_SCENARIO, pattern) for pattern in filters
+    ):
+        raise BenchmarkError(
+            f"{PRODUCTION_SCENARIO} requires --production-fixture with an anonymized "
+            "5000-agent input"
         )
     return _select_scenarios(scenarios, filters)
 
@@ -567,6 +668,30 @@ def _output_summary(output_dir: Path) -> dict[str, Any]:
         chunk = json.loads(path.read_text(encoding="utf-8"))
         exit_events.extend(chunk.get("exitEvents", []))
     return {"result": result, "exitEvents": exit_events}
+
+
+def _comparable_files(
+    result: RunResult, ignore_engine_version: bool
+) -> dict[str, dict[str, Any]]:
+    if not ignore_engine_version:
+        return result.files
+    files = dict(result.files)
+    encoded = result.result_bytes
+    pattern = re.compile(rb'("engineVersion"\s*:\s*)("(?:\\.|[^"\\])*")')
+    matches = list(pattern.finditer(encoded))
+    if len(matches) != 1:
+        raise BenchmarkError("result.json must contain exactly one engineVersion string field")
+    match = matches[0]
+    encoded = (
+        encoded[: match.start(2)]
+        + b'"<normalized-engine-version>"'
+        + encoded[match.end(2) :]
+    )
+    files["result.json"] = {
+        "normalizedSha256": hashlib.sha256(encoded).hexdigest(),
+        "ignoredJsonFields": ["engineVersion"],
+    }
+    return files
 
 
 def _route_probe(python: str, engine_root: Path, input_path: Path) -> bytes:
@@ -633,11 +758,16 @@ def _run_runner(
     engine_root: Path,
     input_path: Path,
     output_dir: Path,
+    phase_profile_path: Path | None,
 ) -> RunResult:
     command = [python, str(engine_root / "runner.py"), str(input_path), str(output_dir)]
     environment = os.environ.copy()
     environment["PYTHONHASHSEED"] = "0"
     environment["PYTHONUTF8"] = "1"
+    environment.pop(PHASE_PROFILE_ENVIRONMENT_VARIABLE, None)
+    if phase_profile_path is not None:
+        phase_profile_path.parent.mkdir(parents=True, exist_ok=True)
+        environment[PHASE_PROFILE_ENVIRONMENT_VARIABLE] = str(phase_profile_path)
     started = time.perf_counter_ns()
     completed = subprocess.run(
         command,
@@ -656,12 +786,26 @@ def _run_runner(
             f"stdout:\n{completed.stdout[-4000:]}\n"
             f"stderr:\n{completed.stderr[-4000:]}"
         )
+    phase_profile = None
+    if phase_profile_path is not None and phase_profile_path.is_file():
+        try:
+            phase_profile = json.loads(phase_profile_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise BenchmarkError(
+                f"runner produced invalid phase profile JSON: {phase_profile_path}"
+            ) from exc
+        if not isinstance(phase_profile, dict):
+            raise BenchmarkError(
+                f"runner phase profile root must be an object: {phase_profile_path}"
+            )
     tree_digest, files = _hash_output_tree(output_dir)
     return RunResult(
         elapsed_ns=elapsed,
         tree_sha256=tree_digest,
         files=files,
         summary=_output_summary(output_dir),
+        phase_profile=phase_profile,
+        result_bytes=(output_dir / "result.json").read_bytes(),
     )
 
 
@@ -671,43 +815,59 @@ def _assert_same_output(
     baseline: RunResult,
     candidate: RunResult,
     reference: dict[str, dict[str, Any]] | None,
+    *,
+    ignore_engine_version: bool = False,
 ) -> dict[str, dict[str, Any]]:
-    if baseline.files != candidate.files:
-        names = sorted(set(baseline.files) | set(candidate.files))
+    baseline_comparable = _comparable_files(baseline, ignore_engine_version)
+    candidate_comparable = _comparable_files(candidate, ignore_engine_version)
+    if baseline_comparable != candidate_comparable:
+        names = sorted(set(baseline_comparable) | set(candidate_comparable))
         mismatch = next(
-            name for name in names if baseline.files.get(name) != candidate.files.get(name)
+            name
+            for name in names
+            if baseline_comparable.get(name) != candidate_comparable.get(name)
         )
-        raise BenchmarkError(
+        raise OutputMismatch(
             f"{scenario} {phase}: baseline/candidate output differs at {mismatch}: "
-            f"baseline={baseline.files.get(mismatch)}, candidate={candidate.files.get(mismatch)}"
+            f"baseline={baseline_comparable.get(mismatch)}, "
+            f"candidate={candidate_comparable.get(mismatch)}"
         )
-    if reference is not None and baseline.files != reference:
-        names = sorted(set(reference) | set(baseline.files))
-        mismatch = next(name for name in names if reference.get(name) != baseline.files.get(name))
-        raise BenchmarkError(
+    if reference is not None and baseline_comparable != reference:
+        names = sorted(set(reference) | set(baseline_comparable))
+        mismatch = next(
+            name
+            for name in names
+            if reference.get(name) != baseline_comparable.get(name)
+        )
+        raise OutputMismatch(
             f"{scenario} {phase}: output is nondeterministic at {mismatch}: "
-            f"reference={reference.get(mismatch)}, current={baseline.files.get(mismatch)}"
+            f"reference={reference.get(mismatch)}, "
+            f"current={baseline_comparable.get(mismatch)}"
         )
-    return baseline.files
+    return baseline_comparable
 
 
 def _run_pair(
     scenario: Scenario,
     phase: str,
     order: tuple[str, str],
-    python: str,
+    pythons: dict[str, str],
     roots: dict[str, Path],
     input_path: Path,
     work_dir: Path,
+    phase_profile: bool,
 ) -> dict[str, RunResult]:
     measured: dict[str, RunResult] = {}
     for label in order:
         print(f"[{scenario.name}] {phase}: {label}", file=sys.stderr, flush=True)
         measured[label] = _run_runner(
-            python,
+            pythons[label],
             roots[label],
             input_path,
             work_dir / scenario.name / f"{phase}-{label}",
+            work_dir / scenario.name / "phase-profiles" / f"{phase}-{label}.json"
+            if phase_profile
+            else None,
         )
     return measured
 
@@ -730,9 +890,11 @@ def _benchmark_scenario(
     scenario: Scenario,
     scenario_index: int,
     runs: int,
-    python: str,
+    pythons: dict[str, str],
     roots: dict[str, Path],
     work_dir: Path,
+    candidate_median_threshold_seconds: float,
+    phase_profile: bool,
 ) -> dict[str, Any]:
     input_bytes = json.dumps(
         scenario.payload,
@@ -746,10 +908,14 @@ def _benchmark_scenario(
 
     route_comparison = None
     if scenario.category == "correctness":
-        baseline_routes = _route_probe(python, roots["baseline"], input_path)
-        candidate_routes = _route_probe(python, roots["candidate"], input_path)
+        baseline_routes = _route_probe(
+            pythons["baseline"], roots["baseline"], input_path
+        )
+        candidate_routes = _route_probe(
+            pythons["candidate"], roots["candidate"], input_path
+        )
         if baseline_routes != candidate_routes:
-            raise BenchmarkError(f"{scenario.name}: baseline/candidate routes differ")
+            raise OutputMismatch(f"{scenario.name}: baseline/candidate routes differ")
         route_comparison = {
             "byteForByteEqual": True,
             "sha256": hashlib.sha256(baseline_routes).hexdigest(),
@@ -765,17 +931,20 @@ def _benchmark_scenario(
         scenario,
         "warmup",
         warmup_order,
-        python,
+        pythons,
         roots,
         input_path,
         work_dir,
+        phase_profile,
     )
+    ignore_engine_version = pythons["baseline"] != pythons["candidate"]
     reference = _assert_same_output(
         scenario.name,
         "warmup",
         warmup["baseline"],
         warmup["candidate"],
         None,
+        ignore_engine_version=ignore_engine_version,
     )
 
     baseline_times: list[int] = []
@@ -792,10 +961,11 @@ def _benchmark_scenario(
             scenario,
             phase,
             order,
-            python,
+            pythons,
             roots,
             input_path,
             work_dir,
+            phase_profile,
         )
         reference = _assert_same_output(
             scenario.name,
@@ -803,24 +973,52 @@ def _benchmark_scenario(
             result["baseline"],
             result["candidate"],
             reference,
+            ignore_engine_version=ignore_engine_version,
         )
         baseline_times.append(result["baseline"].elapsed_ns)
         candidate_times.append(result["candidate"].elapsed_ns)
-        rounds.append(
-            {
-                "round": round_index + 1,
-                "order": list(order),
-                "baselineNanoseconds": result["baseline"].elapsed_ns,
-                "candidateNanoseconds": result["candidate"].elapsed_ns,
-                "baselineOutputTreeSha256": result["baseline"].tree_sha256,
-                "candidateOutputTreeSha256": result["candidate"].tree_sha256,
+        round_result = {
+            "round": round_index + 1,
+            "order": list(order),
+            "baselineNanoseconds": result["baseline"].elapsed_ns,
+            "candidateNanoseconds": result["candidate"].elapsed_ns,
+            "baselineOutputTreeSha256": result["baseline"].tree_sha256,
+            "candidateOutputTreeSha256": result["candidate"].tree_sha256,
+        }
+        if phase_profile:
+            round_result["phaseProfiles"] = {
+                "baseline": result["baseline"].phase_profile,
+                "candidate": result["candidate"].phase_profile,
             }
-        )
+        rounds.append(round_result)
 
     baseline = _summary(baseline_times)
     candidate = _summary(candidate_times)
     saved_ns = baseline["medianNanoseconds"] - candidate["medianNanoseconds"]
-    return {
+    threshold_applies = scenario.iterations == round(600.0 / DT_SECONDS)
+    acceptance = {
+        "applies": threshold_applies,
+        "candidateMedianThresholdSeconds": candidate_median_threshold_seconds
+        if threshold_applies
+        else None,
+        "passed": candidate["medianSeconds"] <= candidate_median_threshold_seconds
+        if threshold_applies
+        else True,
+    }
+    warmup_result: dict[str, Any] = {
+        "excluded": True,
+        "order": list(warmup_order),
+        "baselineNanoseconds": warmup["baseline"].elapsed_ns,
+        "candidateNanoseconds": warmup["candidate"].elapsed_ns,
+        "baselineOutputTreeSha256": warmup["baseline"].tree_sha256,
+        "candidateOutputTreeSha256": warmup["candidate"].tree_sha256,
+    }
+    if phase_profile:
+        warmup_result["phaseProfiles"] = {
+            "baseline": warmup["baseline"].phase_profile,
+            "candidate": warmup["candidate"].phase_profile,
+        }
+    result = {
         "name": scenario.name,
         "category": scenario.category,
         "agentCount": scenario.agent_count,
@@ -829,14 +1027,7 @@ def _benchmark_scenario(
         "source": scenario.source,
         "inputBytes": len(input_bytes),
         "inputSha256": hashlib.sha256(input_bytes).hexdigest(),
-        "warmup": {
-            "excluded": True,
-            "order": list(warmup_order),
-            "baselineNanoseconds": warmup["baseline"].elapsed_ns,
-            "candidateNanoseconds": warmup["candidate"].elapsed_ns,
-            "baselineOutputTreeSha256": warmup["baseline"].tree_sha256,
-            "candidateOutputTreeSha256": warmup["candidate"].tree_sha256,
-        },
+        "warmup": warmup_result,
         "rounds": rounds,
         "baseline": baseline,
         "candidate": candidate,
@@ -847,10 +1038,33 @@ def _benchmark_scenario(
             "speedup": baseline["medianNanoseconds"] / candidate["medianNanoseconds"],
         },
         "outputTreeSha256": warmup["baseline"].tree_sha256,
-        "outputFiles": reference,
+        "outputFiles": warmup["baseline"].files,
+        "outputComparison": {
+            "equal": True,
+            "ignoredResultJsonFields": ["engineVersion"]
+            if ignore_engine_version
+            else [],
+            "normalizedFiles": reference,
+        },
         "outputSummary": warmup["baseline"].summary,
         "routeComparison": route_comparison,
+        "acceptance": acceptance,
     }
+    if phase_profile:
+        result["phaseProfiling"] = {
+            "requested": True,
+            "environmentVariable": PHASE_PROFILE_ENVIRONMENT_VARIABLE,
+            "baselineSidecars": int(warmup["baseline"].phase_profile is not None)
+            + sum(
+                item["phaseProfiles"]["baseline"] is not None for item in rounds
+            ),
+            "candidateSidecars": int(warmup["candidate"].phase_profile is not None)
+            + sum(
+                item["phaseProfiles"]["candidate"] is not None for item in rounds
+            ),
+            "expectedSidecarsPerImplementation": runs + 1,
+        }
+    return result
 
 
 def _find_git_root(path: Path) -> Path | None:
@@ -981,8 +1195,15 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--python",
-        required=True,
-        help="Python executable with the Hwalro JuPedSim wheel installed",
+        help="default Python executable for both implementations",
+    )
+    parser.add_argument(
+        "--baseline-python",
+        help="baseline Python executable; overrides --python",
+    )
+    parser.add_argument(
+        "--candidate-python",
+        help="candidate Python executable; overrides --python",
     )
     parser.add_argument(
         "--runs",
@@ -1002,42 +1223,122 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         metavar="GLOB",
         help="run only matching scenario names; repeatable and supports shell-style wildcards",
     )
+    parser.add_argument(
+        "--production-fixture",
+        metavar="PATH",
+        help=(
+            "external anonymized input containing exactly 5000 agents; benchmark "
+            "forces 600 simulated seconds and 1 Hz output"
+        ),
+    )
+    parser.add_argument(
+        "--candidate-median-threshold-seconds",
+        type=float,
+        default=DEFAULT_CANDIDATE_MEDIAN_THRESHOLD_SECONDS,
+        help=(
+            "maximum candidate median for 600-second scenarios "
+            f"(default: {DEFAULT_CANDIDATE_MEDIAN_THRESHOLD_SECONDS:g})"
+        ),
+    )
+    parser.add_argument(
+        "--phase-profile",
+        action="store_true",
+        help=(
+            "request per-phase JSON sidecars via HWALRO_PHASE_PROFILE_PATH; "
+            "runners without support remain valid"
+        ),
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         parser.error("--runs must be at least 1")
+    if args.python is None and (
+        args.baseline_python is None or args.candidate_python is None
+    ):
+        parser.error(
+            "provide --python, or provide both --baseline-python and --candidate-python"
+        )
+    if not math.isfinite(args.candidate_median_threshold_seconds) or (
+        args.candidate_median_threshold_seconds <= 0
+    ):
+        parser.error("--candidate-median-threshold-seconds must be finite and positive")
     return args
 
 
 def run(argv: Sequence[str] | None = None) -> Path:
     args = _parse_args(argv)
-    python = _resolve_python(args.python)
+    requested_pythons = {
+        "baseline": args.baseline_python or args.python,
+        "candidate": args.candidate_python or args.python,
+    }
+    pythons = {
+        label: _resolve_python(value, f"--{label}-python")
+        for label, value in requested_pythons.items()
+    }
     baseline_root = _resolve_engine_root(args.baseline_root, "baseline")
     candidate_root = _resolve_engine_root(args.candidate_root, "candidate")
     selected = _build_scenarios(
-        baseline_root, candidate_root, python, args.scenario
+        baseline_root,
+        candidate_root,
+        pythons,
+        args.scenario,
+        args.production_fixture,
     )
     roots = {"baseline": baseline_root, "candidate": candidate_root}
 
     started_at = datetime.now(timezone.utc)
     started_ns = time.perf_counter_ns()
+    scenario_results: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="hwalro-jupedsim-benchmark-") as directory:
         work_dir = Path(directory)
-        scenario_results = [
-            _benchmark_scenario(
-                scenario,
-                index,
-                args.runs,
-                python,
-                roots,
-                work_dir,
-            )
-            for index, scenario in enumerate(selected)
-        ]
+        for index, scenario in enumerate(selected):
+            try:
+                scenario_result = _benchmark_scenario(
+                    scenario,
+                    index,
+                    args.runs,
+                    pythons,
+                    roots,
+                    work_dir,
+                    args.candidate_median_threshold_seconds,
+                    args.phase_profile,
+                )
+            except OutputMismatch as exc:
+                failures.append(
+                    {
+                        "kind": "output-mismatch",
+                        "scenario": scenario.name,
+                        "message": str(exc),
+                    }
+                )
+                break
+            scenario_results.append(scenario_result)
+
+    failures.extend(
+        {
+            "kind": "candidate-median-threshold",
+            "scenario": scenario["name"],
+            "candidateMedianSeconds": scenario["candidate"]["medianSeconds"],
+            "thresholdSeconds": scenario["acceptance"][
+                "candidateMedianThresholdSeconds"
+            ],
+        }
+        for scenario in scenario_results
+        if not scenario["acceptance"]["passed"]
+    )
+
+    python_metadata_by_path = {
+        python: _python_metadata(python) for python in set(pythons.values())
+    }
+    target_pythons = {
+        label: python_metadata_by_path[python] for label, python in pythons.items()
+    }
 
     clock = time.get_clock_info("perf_counter")
     results = {
-        "schemaVersion": 1,
-        "status": "passed",
+        "schemaVersion": 2,
+        "status": "failed" if failures else "passed",
+        "failures": failures,
         "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
         "startedAtUtc": started_at.isoformat(),
         "benchmarkDurationSeconds": (time.perf_counter_ns() - started_ns) / 1_000_000_000,
@@ -1048,6 +1349,14 @@ def run(argv: Sequence[str] | None = None) -> Path:
             "scenarioFilters": args.scenario,
             "selectedScenarios": [scenario.name for scenario in selected],
             "requestedPython": args.python,
+            "requestedBaselinePython": args.baseline_python,
+            "requestedCandidatePython": args.candidate_python,
+            "resolvedPythons": pythons,
+            "productionFixture": str(Path(args.production_fixture).expanduser().resolve())
+            if args.production_fixture
+            else None,
+            "candidateMedianThresholdSeconds": args.candidate_median_threshold_seconds,
+            "phaseProfileRequested": args.phase_profile,
             "pythonHashSeed": "0",
         },
         "environment": {
@@ -1059,7 +1368,8 @@ def run(argv: Sequence[str] | None = None) -> Path:
             "logicalCpuCount": os.cpu_count(),
             "perfCounterImplementation": clock.implementation,
             "perfCounterResolutionNanoseconds": clock.resolution * 1_000_000_000,
-            "targetPython": _python_metadata(python),
+            "targetPython": target_pythons["baseline"],
+            "targetPythons": target_pythons,
         },
         "implementations": {
             "baseline": _implementation_metadata(args.baseline_root, baseline_root),
@@ -1081,8 +1391,9 @@ def run(argv: Sequence[str] | None = None) -> Path:
 
 def main(argv: Sequence[str] | None = None) -> int:
     try:
-        run(argv)
-        return 0
+        result_path = run(argv)
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        return 0 if result["status"] == "passed" else 1
     except BenchmarkError as exc:
         print(f"benchmark error: {exc}", file=sys.stderr)
         return 2

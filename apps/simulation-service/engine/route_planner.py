@@ -12,6 +12,7 @@ from shapely import (
     contains_xy,
     covers,
     distance as geometry_distance,
+    intersects,
     linestrings,
     points,
 )
@@ -69,6 +70,13 @@ class Route:
 
 class AgentRouteUnreachableError(ValueError):
     """Raised only when an otherwise valid agent cannot connect to the route grid."""
+
+
+def _point_array(values: Sequence[Point], count: int, label: str) -> np.ndarray:
+    result = np.asarray(values, dtype=float)
+    if result.shape != (count, 2):
+        raise ValueError(f"{label} must have shape ({count}, 2)")
+    return result
 
 
 def hazard_multiplier(point: Point, hazards: Iterable[Hazard]) -> float:
@@ -626,13 +634,29 @@ class GridRouter:
     def can_connect(self, start: Point, end: Point) -> bool:
         return self._prepared_walkable.covers(LineString((start, end)))
 
+    def can_connect_many(self, starts: Sequence[Point], ends: Sequence[Point]) -> np.ndarray:
+        if len(starts) != len(ends):
+            raise ValueError("connection start and end counts must match")
+        if len(starts) == 0:
+            return np.empty(0, dtype=bool)
+        count = len(starts)
+        coordinates = np.stack(
+            (
+                _point_array(starts, count, "connection starts"),
+                _point_array(ends, count, "connection ends"),
+            ),
+            axis=1,
+        )
+        return np.asarray(covers(self.walkable, linestrings(coordinates)), dtype=bool)
+
     def valid_moves(self, starts: Sequence[Point], ends: Sequence[Point]) -> np.ndarray:
         if len(starts) != len(ends):
             raise ValueError("movement start and end counts must match")
-        if not starts:
+        if len(starts) == 0:
             return np.empty(0, dtype=bool)
-        start_values = np.asarray(starts, dtype=float)
-        end_values = np.asarray(ends, dtype=float)
+        count = len(starts)
+        start_values = _point_array(starts, count, "movement starts")
+        end_values = _point_array(ends, count, "movement ends")
         coordinates = np.stack((start_values, end_values), axis=1)
         end_points = points(end_values[:, 0], end_values[:, 1])
         return np.asarray(
@@ -642,6 +666,21 @@ class GridRouter:
 
     def can_reach_exit(self, start: Point, end: Point) -> bool:
         return self._physical_edge_is_walkable(start, end)
+
+    def can_reach_exits(self, starts: Sequence[Point], ends: Sequence[Point]) -> np.ndarray:
+        if len(starts) != len(ends):
+            raise ValueError("exit approach start and end counts must match")
+        if len(starts) == 0:
+            return np.empty(0, dtype=bool)
+        count = len(starts)
+        coordinates = np.stack(
+            (
+                _point_array(starts, count, "exit approach starts"),
+                _point_array(ends, count, "exit approach ends"),
+            ),
+            axis=1,
+        )
+        return np.asarray(covers(self.physical_walkable, linestrings(coordinates)), dtype=bool)
 
     def crossed_exit(self, start: Point, end: Point, exit_start: Point, exit_end: Point) -> bool:
         if (
@@ -655,6 +694,57 @@ class GridRouter:
         return self._prepared_physical_walkable.covers(movement) and movement.intersects(
             LineString((exit_start, exit_end))
         )
+
+    def crossed_exits(
+        self,
+        starts: Sequence[Point],
+        ends: Sequence[Point],
+        exit_starts: Sequence[Point],
+        exit_ends: Sequence[Point],
+    ) -> np.ndarray:
+        count = len(starts)
+        if len(ends) != count or len(exit_starts) != count or len(exit_ends) != count:
+            raise ValueError("movement and exit segment counts must match")
+        result = np.zeros(count, dtype=bool)
+        if count == 0:
+            return result
+
+        start_values = _point_array(starts, count, "movement starts")
+        end_values = _point_array(ends, count, "movement ends")
+        exit_start_values = _point_array(exit_starts, count, "exit starts")
+        exit_end_values = _point_array(exit_ends, count, "exit ends")
+        candidates = (
+            (
+                np.maximum(start_values[:, 0], end_values[:, 0])
+                >= np.minimum(exit_start_values[:, 0], exit_end_values[:, 0])
+            )
+            & (
+                np.minimum(start_values[:, 0], end_values[:, 0])
+                <= np.maximum(exit_start_values[:, 0], exit_end_values[:, 0])
+            )
+            & (
+                np.maximum(start_values[:, 1], end_values[:, 1])
+                >= np.minimum(exit_start_values[:, 1], exit_end_values[:, 1])
+            )
+            & (
+                np.minimum(start_values[:, 1], end_values[:, 1])
+                <= np.maximum(exit_start_values[:, 1], exit_end_values[:, 1])
+            )
+        )
+        if not candidates.any():
+            return result
+
+        movement = linestrings(
+            np.stack((start_values[candidates], end_values[candidates]), axis=1)
+        )
+        exit_segments = linestrings(
+            np.stack((exit_start_values[candidates], exit_end_values[candidates]), axis=1)
+        )
+        result[candidates] = np.asarray(
+            covers(self.physical_walkable, movement) & intersects(movement, exit_segments),
+            dtype=bool,
+        )
+        return result
 
     def _physical_edge_is_walkable(self, start: Point, end: Point) -> bool:
         return self._prepared_physical_walkable.covers(LineString((start, end)))

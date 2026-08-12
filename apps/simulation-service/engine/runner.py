@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import metadata
 import json
 import math
+import os
 from pathlib import Path
 import sys
+import time
 from typing import Any, Callable, Sequence
 
 
@@ -24,6 +26,16 @@ MAX_AGENTS = 5000
 FRAMES_PER_CHUNK = 20
 HEATMAP_CELL_SIZE_METERS = 1.0
 WAYPOINT_REACHED_DISTANCE_METERS = max(AGENT_RADIUS_METERS, 0.25 * math.sqrt(2.0))
+PHASE_PROFILE_ENVIRONMENT_VARIABLE = "HWALRO_PHASE_PROFILE_PATH"
+PHASE_NAMES = (
+    "inputAndContextSetup",
+    "routePlanning",
+    "iterate",
+    "agentStateCapture",
+    "moveValidation",
+    "targetAndExitUpdate",
+    "snapshotAndSerialization",
+)
 
 
 class RunnerError(RuntimeError):
@@ -32,6 +44,30 @@ class RunnerError(RuntimeError):
 
 class AgentRouteUnreachableRunnerError(RunnerError):
     pass
+
+
+class PhaseProfile:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.phases = {name: 0 for name in PHASE_NAMES}
+        self.counters: dict[str, int] = {}
+
+    def add(self, name: str, started: int) -> None:
+        self.phases[name] += time.perf_counter_ns() - started
+
+    def increment(self, name: str, value: int = 1) -> None:
+        self.counters[name] = self.counters.get(name, 0) + value
+
+    def write(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(
+            self.path,
+            {
+                "schemaVersion": 1,
+                "phasesNanoseconds": self.phases,
+                "counters": self.counters,
+            },
+        )
 
 
 @dataclass
@@ -50,6 +86,68 @@ class SimulationContext:
     simulation: Any
     router: Any
     states: dict[int, AgentRouteState]
+    positions: Any = field(default_factory=dict)
+    numpy: Any = None
+    phase_profile: PhaseProfile | None = None
+    agent_ids: Any = field(init=False, repr=False)
+    slot_by_id: dict[int, int] = field(init=False, repr=False)
+    stable_ids: Any = field(init=False, repr=False)
+    active: Any = field(init=False, repr=False)
+    active_count: int = field(init=False)
+    next_positions: Any = field(init=False, repr=False)
+    cursors: Any = field(init=False, repr=False)
+    waypoint_counts: Any = field(init=False, repr=False)
+    waypoint_offsets: Any = field(init=False, repr=False)
+    waypoints: Any = field(init=False, repr=False)
+    terminal_points: Any = field(init=False, repr=False)
+    exit_starts: Any = field(init=False, repr=False)
+    exit_ends: Any = field(init=False, repr=False)
+    seen: Any = field(init=False, repr=False)
+    cursor_changed: Any = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        np = self.numpy
+        if np is None:
+            raise RunnerError("NumPy is unavailable for simulation context")
+
+        engine_ids = list(self.states)
+        state_values = list(self.states.values())
+        count = len(engine_ids)
+        self.agent_ids = np.asarray(engine_ids, dtype=np.int64)
+        self.slot_by_id = {agent_id: slot for slot, agent_id in enumerate(engine_ids)}
+        self.stable_ids = np.asarray([state.stable_id for state in state_values], dtype=np.int64)
+        self.active = np.ones(count, dtype=bool)
+        self.active_count = count
+
+        initial_positions = self.positions
+        if initial_positions:
+            self.positions = np.asarray(
+                [initial_positions[agent_id] for agent_id in engine_ids], dtype=float
+            ).reshape(count, 2)
+        else:
+            self.positions = np.empty((count, 2), dtype=float)
+        self.next_positions = np.empty_like(self.positions)
+        self.cursors = np.asarray([state.cursor for state in state_values], dtype=np.int64)
+        self.waypoint_counts = np.asarray(
+            [len(state.waypoints) for state in state_values], dtype=np.int64
+        )
+        self.waypoint_offsets = np.empty(count + 1, dtype=np.int64)
+        self.waypoint_offsets[0] = 0
+        np.cumsum(self.waypoint_counts, out=self.waypoint_offsets[1:])
+        self.waypoints = np.asarray(
+            [point for state in state_values for point in state.waypoints], dtype=float
+        ).reshape(-1, 2)
+        self.terminal_points = np.asarray(
+            [state.terminal_point for state in state_values], dtype=float
+        ).reshape(count, 2)
+        self.exit_starts = np.asarray(
+            [state.exit_start for state in state_values], dtype=float
+        ).reshape(count, 2)
+        self.exit_ends = np.asarray(
+            [state.exit_end for state in state_values], dtype=float
+        ).reshape(count, 2)
+        self.seen = np.zeros(count, dtype=bool)
+        self.cursor_changed = np.zeros(count, dtype=bool)
 
 
 class TimelineWriter:
@@ -193,6 +291,11 @@ class HeatmapWriter:
         self.frames = []
 
 
+def _phase_profile_from_environment() -> PhaseProfile | None:
+    value = os.environ.get(PHASE_PROFILE_ENVIRONMENT_VARIABLE)
+    return PhaseProfile(Path(value).expanduser().resolve()) if value else None
+
+
 def _load_dependencies():
     if sys.version_info < (3, 12):
         raise RunnerError("Python 3.12 or newer is required")
@@ -223,6 +326,8 @@ def _load_dependencies():
 
 
 def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
+    phase_profile = _phase_profile_from_environment()
+    setup_started = time.perf_counter_ns() if phase_profile is not None else 0
     jps, np, _shapely, engine_version = _load_dependencies()
     try:
         from route_planner import (
@@ -321,6 +426,9 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             continue
         routing_groups.append((physical_component, router, indexed_agents))
 
+    if phase_profile is not None:
+        phase_profile.add("inputAndContextSetup", setup_started)
+        route_started = time.perf_counter_ns()
     routes_by_index = {}
     indexed_routers = sorted(
         (index, position, router)
@@ -367,6 +475,9 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 "AGENT_ROUTE_UNREACHABLE"
             ) from None
 
+    if phase_profile is not None:
+        phase_profile.add("routePlanning", route_started)
+        setup_started = time.perf_counter_ns()
     for physical_component, router, indexed_agents in routing_groups:
         contexts.append(
             _create_context(
@@ -378,13 +489,20 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 [routes_by_index[index] for index, _position in indexed_agents],
                 walking_speed,
                 reaction_time,
+                phase_profile,
             )
         )
 
+    if phase_profile is not None:
+        phase_profile.add("inputAndContextSetup", setup_started)
     output_dir.mkdir(parents=True, exist_ok=True)
     timeline = TimelineWriter(output_dir, len(agents), frame_interval)
     heatmap = HeatmapWriter(output_dir, walkable.bounds, frame_interval)
+    snapshot_started = time.perf_counter_ns() if phase_profile is not None else 0
     heatmap.add(timeline.add(_snapshot(contexts, trapped, 0.0)))
+    if phase_profile is not None:
+        phase_profile.add("snapshotAndSerialization", snapshot_started)
+        phase_profile.increment("snapshots")
     evacuation_times: list[float] = []
     maximum_iterations = int(math.floor(max_time / DT_SECONDS + 1e-9))
     for context in contexts:
@@ -406,18 +524,25 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                     evacuation_times.append(elapsed)
                     timeline.add_exit_event(elapsed, state.stable_id, state.exit_id)
         if iteration % frame_steps == 0:
+            snapshot_started = time.perf_counter_ns() if phase_profile is not None else 0
             heatmap.add(timeline.add(_snapshot(contexts, trapped, elapsed)))
+            if phase_profile is not None:
+                phase_profile.add("snapshotAndSerialization", snapshot_started)
+                phase_profile.increment("snapshots")
 
     remaining = len(trapped) + sum(len(context.states) for context in contexts)
     evacuated = len(agents) - remaining
     termination_reason = "ALL_EVACUATED" if remaining == 0 else "MAX_DURATION"
     simulation_duration = min(iteration * DT_SECONDS, max_time)
+    serialization_started = time.perf_counter_ns() if phase_profile is not None else 0
     if (
         timeline.last_time_seconds is None
         or not math.isclose(timeline.last_time_seconds, simulation_duration, abs_tol=1e-9)
         or timeline.last_agent_count != remaining
     ):
         heatmap.add(timeline.add(_snapshot(contexts, trapped, simulation_duration)))
+        if phase_profile is not None:
+            phase_profile.increment("snapshots")
     timeline.finish()
     heatmap.flush()
     result = {
@@ -438,6 +563,9 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         "maxDensity": _rounded(heatmap.max_density),
     }
     _write_json(output_dir / "result.json", result)
+    if phase_profile is not None:
+        phase_profile.add("snapshotAndSerialization", serialization_started)
+        phase_profile.write()
     return result
 
 
@@ -450,6 +578,7 @@ def _create_context(
     routes,
     walking_speed: float,
     reaction_time: float,
+    phase_profile: PhaseProfile | None = None,
 ) -> SimulationContext:
     simulation = jps.Simulation(
         model=jps.SocialForceModel(), geometry=physical_component, dt=DT_SECONDS
@@ -457,6 +586,7 @@ def _create_context(
     stage_id = simulation.add_direct_steering_stage()
     journey_id = simulation.add_journey(jps.JourneyDescription([stage_id]))
     states: dict[int, AgentRouteState] = {}
+    positions: dict[int, tuple[float, float]] = {}
     for (index, position), route in zip(indexed_agents, routes, strict=True):
         target = route.waypoints[1] if len(route.waypoints) > 1 else route.waypoints[0]
         direction = np.asarray(target, dtype=float) - np.asarray(position, dtype=float)
@@ -485,96 +615,204 @@ def _create_context(
             exit_end=route.exit_end,
             cursor=1 if len(route.waypoints) > 1 else 0,
         )
-    return SimulationContext(simulation, router, states)
+        positions[agent_id] = position
+    return SimulationContext(simulation, router, states, positions, np, phase_profile)
 
 
-def _capture_states(context: SimulationContext):
-    _agents, positions = _active_agents_and_positions(context)
-    return positions
-
-
-def _active_agents_and_positions(context: SimulationContext):
+def _active_agents_and_positions(context: SimulationContext, positions):
+    context.seen.fill(False)
     available = {}
     for agent in context.simulation.agents():
         agent_id = agent.id
-        if agent_id in context.states:
-            available[agent_id] = agent
-    missing = context.states.keys() - available.keys()
-    if missing:
-        raise RunnerError(f"active JuPedSim agents are missing: {sorted(missing)}")
-
-    agents = {agent_id: available[agent_id] for agent_id in context.states}
-    positions = {}
-    for agent_id, agent in agents.items():
+        slot = context.slot_by_id.get(agent_id)
+        if slot is None or not context.active[slot]:
+            continue
+        available[agent_id] = agent
+        context.seen[slot] = True
         position = agent.position
-        positions[agent_id] = (float(position[0]), float(position[1]))
-    return agents, positions
+        positions[slot, 0] = float(position[0])
+        positions[slot, 1] = float(position[1])
+    missing_slots = context.numpy.flatnonzero(context.active & ~context.seen)
+    if missing_slots.size:
+        missing = sorted(context.agent_ids[missing_slots].tolist())
+        raise RunnerError(f"active JuPedSim agents are missing: {missing}")
+    return available
 
 
 def _initialize_targets(context: SimulationContext) -> list[int]:
-    agents, positions = _active_agents_and_positions(context)
-    return _update_targets(context, agents, positions)
+    profile = context.phase_profile
+    capture_started = time.perf_counter_ns() if profile is not None else 0
+    agents = _active_agents_and_positions(context, context.positions)
+    if profile is not None:
+        profile.add("agentStateCapture", capture_started)
+        target_started = time.perf_counter_ns()
+    evacuated = _update_targets(context, agents, context.positions)
+    if profile is not None:
+        profile.add("targetAndExitUpdate", target_started)
+    return evacuated
 
 
 def _advance_context(context: SimulationContext, iteration: int) -> list[int]:
-    previous = _capture_states(context)
+    previous = context.positions
+    profile = context.phase_profile
+    iterate_started = time.perf_counter_ns() if profile is not None else 0
     try:
         context.simulation.iterate()
     except Exception as exc:
         raise RunnerError(f"JuPedSim iteration {iteration} failed: {exc}") from exc
-    agents, current = _active_agents_and_positions(context)
+    if profile is not None:
+        profile.add("iterate", iterate_started)
+        profile.increment("contextIterations")
+        profile.increment("agentSteps", context.active_count)
+        capture_started = time.perf_counter_ns()
+    current = context.next_positions
+    agents = _active_agents_and_positions(context, current)
+    if profile is not None:
+        profile.add("agentStateCapture", capture_started)
+        movement_started = time.perf_counter_ns()
     _rollback_invalid_moves(context, previous, agents, current)
-    return _update_targets(context, agents, current, previous)
+    if profile is not None:
+        profile.add("moveValidation", movement_started)
+        target_started = time.perf_counter_ns()
+    evacuated = _update_targets(context, agents, current, previous)
+    context.positions, context.next_positions = current, previous
+    if profile is not None:
+        profile.add("targetAndExitUpdate", target_started)
+    return evacuated
 
 
 def _rollback_invalid_moves(context: SimulationContext, previous, agents, current) -> None:
-    agent_ids = list(previous)
-    valid = context.router.valid_moves(
-        [previous[agent_id] for agent_id in agent_ids],
-        [current[agent_id] for agent_id in agent_ids],
+    np = context.numpy
+    active_slots = np.flatnonzero(context.active)
+    valid = np.asarray(
+        context.router.valid_moves(previous[active_slots], current[active_slots]), dtype=bool
     )
-    for agent_id, is_valid in zip(agent_ids, valid, strict=True):
-        if is_valid:
-            continue
-        position = previous[agent_id]
+    invalid_slots = active_slots[~valid]
+    current[invalid_slots] = previous[invalid_slots]
+    for slot in invalid_slots:
+        agent_id = int(context.agent_ids[slot])
         agent = agents[agent_id]
-        agent.position = position
+        agent.position = tuple(previous[slot])
         agent.model.velocity = (0.0, 0.0)
-        current[agent_id] = position
 
 
 def _update_targets(context: SimulationContext, agents, positions, previous=None) -> list[int]:
-    evacuated = []
-    for agent_id, state in context.states.items():
-        agent = agents[agent_id]
-        position = positions[agent_id]
-        original_cursor = state.cursor
-        while (
-            state.cursor + 1 < len(state.waypoints)
-            and _waypoint_reached(position, state, context.router.can_connect)
-        ):
-            state.cursor += 1
-        if (
-            state.cursor + 1 == len(state.waypoints)
-            and (
-                (
-                    _waypoint_reached(position, state, context.router.can_connect)
-                    and context.router.can_reach_exit(position, state.terminal_point)
-                )
-                or (
-                    previous is not None
-                    and context.router.crossed_exit(
-                        previous[agent_id], position, state.exit_start, state.exit_end
-                    )
-                )
+    np = context.numpy
+    context.cursor_changed.fill(False)
+
+    while True:
+        route_slots = np.flatnonzero(
+            context.active & (context.cursors + 1 < context.waypoint_counts)
+        )
+        near, passed = _waypoint_masks(context, route_slots, positions)
+        advance = near.copy()
+        connector_indices = np.flatnonzero(~near & passed)
+        connector_slots = route_slots[connector_indices]
+        if connector_slots.size:
+            connected = context.router.can_connect_many(
+                positions[connector_slots],
+                context.waypoints[
+                    context.waypoint_offsets[connector_slots]
+                    + context.cursors[connector_slots]
+                    + 1
+                ],
             )
-        ):
-            if context.simulation.mark_agent_for_removal(agent_id):
-                evacuated.append(agent_id)
-            continue
-        if previous is None or state.cursor != original_cursor:
-            agent.target = state.waypoints[state.cursor]
+            advance[connector_indices] = connected
+        advanced_slots = route_slots[advance]
+        if not advanced_slots.size:
+            break
+        context.cursors[advanced_slots] += 1
+        context.cursor_changed[advanced_slots] = True
+        for slot in advanced_slots:
+            agent_id = int(context.agent_ids[slot])
+            context.states[agent_id].cursor = int(context.cursors[slot])
+
+    final_slots = np.flatnonzero(
+        context.active & (context.cursors + 1 == context.waypoint_counts)
+    )
+    final_near, _final_passed = _waypoint_masks(context, final_slots, positions)
+    ready = np.zeros(len(final_slots), dtype=bool)
+    near_indices = np.flatnonzero(final_near)
+    near_slots = final_slots[near_indices]
+    if near_slots.size:
+        ready[near_indices] = context.router.can_reach_exits(
+            positions[near_slots], context.terminal_points[near_slots]
+        )
+
+    if previous is not None:
+        crossing_indices = np.flatnonzero(~ready)
+        crossing_slots = final_slots[crossing_indices]
+        if crossing_slots.size:
+            ready[crossing_indices] = context.router.crossed_exits(
+                previous[crossing_slots],
+                positions[crossing_slots],
+                context.exit_starts[crossing_slots],
+                context.exit_ends[crossing_slots],
+            )
+
+    evacuated = []
+    ready_slots = final_slots[ready]
+    for slot in ready_slots:
+        agent_id = int(context.agent_ids[slot])
+        if context.simulation.mark_agent_for_removal(agent_id):
+            context.active[slot] = False
+            context.active_count -= 1
+            evacuated.append(agent_id)
+
+    target_mask = (
+        context.active.copy()
+        if previous is None
+        else context.active & context.cursor_changed
+    )
+    target_mask[ready_slots] = False
+    for slot in np.flatnonzero(target_mask):
+        agent_id = int(context.agent_ids[slot])
+        state = context.states[agent_id]
+        agents[agent_id].target = state.waypoints[state.cursor]
     return evacuated
+
+
+def _waypoint_masks(context: SimulationContext, slots, positions):
+    np = context.numpy
+    if not slots.size:
+        empty = np.empty(0, dtype=bool)
+        return empty, empty
+
+    waypoint_indices = context.waypoint_offsets[slots] + context.cursors[slots]
+    delta = positions[slots] - context.waypoints[waypoint_indices]
+    near = np.hypot(delta[:, 0], delta[:, 1]) <= WAYPOINT_REACHED_DISTANCE_METERS
+    passed = np.zeros(len(slots), dtype=bool)
+    pass_indices = np.flatnonzero(
+        (context.cursors[slots] > 0)
+        & (context.cursors[slots] + 1 < context.waypoint_counts[slots])
+    )
+    if pass_indices.size:
+        current_indices = waypoint_indices[pass_indices]
+        incoming = (
+            context.waypoints[current_indices] - context.waypoints[current_indices - 1]
+        )
+        pass_delta = delta[pass_indices]
+        passed[pass_indices] = (
+            pass_delta[:, 0] * incoming[:, 0] + pass_delta[:, 1] * incoming[:, 1] > 1e-9
+        )
+    return near, passed
+
+
+def _within_waypoint(position: tuple[float, float], state: AgentRouteState) -> bool:
+    return math.dist(position, state.waypoints[state.cursor]) <= WAYPOINT_REACHED_DISTANCE_METERS
+
+
+def _passed_waypoint(position: tuple[float, float], state: AgentRouteState) -> bool:
+    if state.cursor == 0 or state.cursor + 1 >= len(state.waypoints):
+        return False
+    waypoint = state.waypoints[state.cursor]
+    previous = state.waypoints[state.cursor - 1]
+    incoming = (waypoint[0] - previous[0], waypoint[1] - previous[1])
+    return (
+        (position[0] - waypoint[0]) * incoming[0]
+        + (position[1] - waypoint[1]) * incoming[1]
+        > 1e-9
+    )
 
 
 def _waypoint_reached(
@@ -582,18 +820,11 @@ def _waypoint_reached(
     state: AgentRouteState,
     can_connect: Callable[[tuple[float, float], tuple[float, float]], bool],
 ) -> bool:
-    waypoint = state.waypoints[state.cursor]
-    if math.dist(position, waypoint) <= WAYPOINT_REACHED_DISTANCE_METERS:
+    if _within_waypoint(position, state):
         return True
-    if state.cursor == 0 or state.cursor + 1 >= len(state.waypoints):
+    if not _passed_waypoint(position, state):
         return False
-
-    previous = state.waypoints[state.cursor - 1]
-    incoming = (waypoint[0] - previous[0], waypoint[1] - previous[1])
-    passed = (position[0] - waypoint[0]) * incoming[0] + (
-        position[1] - waypoint[1]
-    ) * incoming[1]
-    return passed > 1e-9 and can_connect(position, state.waypoints[state.cursor + 1])
+    return can_connect(position, state.waypoints[state.cursor + 1])
 
 
 def _snapshot(
@@ -608,12 +839,11 @@ def _snapshot(
     for context in contexts:
         if not context.states:
             continue
-        _active_agents, positions = _active_agents_and_positions(context)
-        for agent_id, state in context.states.items():
-            position = positions[agent_id]
+        for slot in context.numpy.flatnonzero(context.active):
+            position = context.positions[slot]
             agents.append(
                 {
-                    "agentId": state.stable_id,
+                    "agentId": int(context.stable_ids[slot]),
                     "x": _rounded(position[0]),
                     "y": _rounded(position[1]),
                 }

@@ -195,7 +195,7 @@ public class SimulationEngineRunner {
                     .mapToLong(chunk -> chunk.densityData().length())
                     .sum();
             outcome = "COMPLETED";
-            return new EngineRun(result, timeline, heatmaps);
+            return new EngineRun(result, timeline, heatmaps, maxSimulationTimeSeconds);
         } catch (EngineRunException exception) {
             outcome = exception.isTimeout() ? "TIMEOUT" : "ERROR";
             throw exception;
@@ -472,7 +472,10 @@ public class SimulationEngineRunner {
     }
 
     public record EngineRun(
-            EngineResult result, List<TimelineChunk> timelineChunks, List<HeatmapChunk> heatmapChunks) {}
+            EngineResult result,
+            List<TimelineChunk> timelineChunks,
+            List<HeatmapChunk> heatmapChunks,
+            double maxSimulationTimeSeconds) {}
 
     public record TimelineChunk(int sequence, String frameData) {}
 

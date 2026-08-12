@@ -103,7 +103,8 @@ class SimulationExecutionServiceTest {
                 .thenReturn(new EngineRun(
                         new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0),
                         List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
-                        List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}"))));
+                        List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                        400.0));
         when(simulationMapper.insertSimulationResult(any())).thenAnswer(invocation -> {
             SimulationResult result = invocation.getArgument(0);
             result.setId(31L);
@@ -119,6 +120,14 @@ class SimulationExecutionServiceTest {
         verify(simulationMapper).insertTimeline(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
         verify(simulationMapper).insertHeatmap(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
         verify(simulationMapper).markExecutionCompleted(21L);
+    }
+
+    @Test
+    void acceptsMaxDurationMatchingTheConfiguredRunLimit() {
+        SimulationExecutionService.validateEngineResult(
+                new EngineResult("1.4.2", "MAX_DURATION", 400.0, 0, 1, null, null, 1.0, 1, 1, 1.0),
+                validSetup(),
+                400.0);
     }
 
     @Test
