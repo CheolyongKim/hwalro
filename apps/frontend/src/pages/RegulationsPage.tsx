@@ -114,6 +114,7 @@ function RegulationsPage() {
     <main className="regulations-page">
       <div className="regulations-page__content">
         <header className="regulations-page__heading">
+          <p className="regulations-page__eyebrow">법령 조회</p>
           <h1>안전 법령</h1>
           <p>안전 검토에 필요한 법령을 검색합니다.</p>
         </header>

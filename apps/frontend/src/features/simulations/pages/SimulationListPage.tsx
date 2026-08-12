@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { LayoutGrid } from 'lucide-react';
 import { simulationApi } from '../api/simulationApi';
 import { STATUS_LABELS, STATUS_STYLES } from '../constants/simulationStatus';
 import type { SimulationOverview } from '../types';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
+import { buttonClassName, Card, EmptyState, ErrorState, PageHeader } from '../../../components/ui';
 
 const PAGE_SIZE = 20;
 
@@ -73,48 +75,41 @@ function SimulationListPage() {
   return (
     <main className="bg-background">
       <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
-        <header className="border-b border-line pb-5">
-          <p className="text-sm font-bold text-primary">시뮬레이션 검토</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-ink sm:text-4xl">
-            시뮬레이션 목록
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-text-muted">
-            실행 중인 작업과 이전 결과를 확인하고 배치 또는 결과 화면으로 다시 이동할 수 있습니다.
-          </p>
-        </header>
+        <div className="border-b border-line pb-6">
+          <PageHeader
+            eyebrow="시뮬레이션"
+            title="시뮬레이션 목록"
+            description="실행 중인 작업과 이전 결과를 확인하고 배치 또는 결과 화면으로 다시 이동할 수 있습니다."
+          />
+        </div>
 
-        <section
-          className="mt-5 overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5"
-          aria-label="시뮬레이션 목록"
-        >
+        <Card className="mt-5 overflow-hidden" padded={false} aria-label="시뮬레이션 목록">
           {query.isPending ? (
-            <div className="flex min-h-64 items-center justify-center text-sm text-text-muted">
+            <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
               시뮬레이션을 불러오는 중입니다.
             </div>
           ) : query.isError && items.length === 0 ? (
-            <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-6 text-center">
-              <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
-                {getSimulationErrorMessage(query.error)}
-              </p>
-              <button
-                type="button"
-                onClick={() => void query.refetch()}
-                disabled={query.isFetching}
-                className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-text-strong hover:bg-surface disabled:opacity-50"
-              >
-                {query.isFetching ? '불러오는 중...' : '다시 시도'}
-              </button>
+            <div className="flex min-h-64 items-center justify-center px-6">
+              <ErrorState
+                message={getSimulationErrorMessage(query.error)}
+                onRetry={() => void query.refetch()}
+                className="w-full"
+              />
             </div>
           ) : items.length === 0 ? (
-            <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-6 text-center text-sm text-text-muted">
-              <p>생성된 시뮬레이션이 없습니다.</p>
-              <Link
-                to="/drawings"
-                className="inline-flex h-10 items-center rounded-lg bg-primary px-4 font-bold text-white"
-              >
-                도면 목록으로 이동
-              </Link>
-            </div>
+            <EmptyState
+              icon={LayoutGrid}
+              title="생성된 시뮬레이션이 없습니다."
+              description="도면 목록에서 배치를 작성한 뒤 시뮬레이션을 시작할 수 있습니다."
+              action={
+                <Link
+                  to="/drawings"
+                  className={buttonClassName({ variant: 'primary', size: 'md' })}
+                >
+                  도면 목록으로 이동
+                </Link>
+              }
+            />
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -133,24 +128,21 @@ function SimulationListPage() {
                   </thead>
                   <tbody className="divide-y divide-line">
                     {items.map((simulation) => (
-                      <tr
-                        key={simulation.id}
-                        className="transition-colors hover:bg-primary-soft/30"
-                      >
+                      <tr key={simulation.id} className="transition-colors hover:bg-primary-faint">
                         <td className="px-6 py-4">
                           <Link
                             to={destination(simulation)}
-                            className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                           >
                             <span className="block max-w-64 truncate text-sm font-bold text-ink hover:text-primary">
                               {simulation.layoutTitle}
                             </span>
-                            <span className="mt-1 block text-xs text-text-muted">
+                            <span className="mt-1 block text-xs tabular-nums text-text-muted">
                               도면 #{simulation.layoutId} · 버전 {simulation.layoutVersionNumber}
                             </span>
                           </Link>
                         </td>
-                        <td className="px-4 py-4 text-sm font-bold text-text-strong">
+                        <td className="px-4 py-4 text-sm font-bold tabular-nums text-text-strong">
                           #{simulation.id}
                         </td>
                         <td className="px-4 py-4">
@@ -160,13 +152,13 @@ function SimulationListPage() {
                             {STATUS_LABELS[simulation.status]}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-sm text-text-strong">
+                        <td className="px-4 py-4 text-sm tabular-nums text-text-strong">
                           {simulation.totalPeople.toLocaleString()}명
                         </td>
                         <td className="px-4 py-4 text-sm text-text-strong">
                           {resultLabel(simulation)}
                         </td>
-                        <td className="px-4 py-4 text-sm text-text-muted">
+                        <td className="px-4 py-4 text-sm tabular-nums text-text-muted">
                           {formatDateTime(simulation.createdAt)}
                         </td>
                         <td className="px-4 py-4">
@@ -176,7 +168,7 @@ function SimulationListPage() {
                               type="button"
                               onClick={() => void cancelSimulation(simulation.id)}
                               disabled={cancellingId !== null}
-                              className="h-8 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="h-8 rounded-lg border border-danger/25 px-3 text-xs font-bold text-danger-strong transition hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {cancellingId === simulation.id ? '취소 중…' : '실행 취소'}
                             </button>
@@ -188,7 +180,7 @@ function SimulationListPage() {
                 </table>
               </div>
               <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
-                <p className="text-sm text-text-muted">
+                <p className="text-sm tabular-nums text-text-muted">
                   총 {(query.data?.totalCount ?? 0).toLocaleString()}건
                 </p>
                 <nav className="flex items-center gap-1" aria-label="시뮬레이션 목록 페이지">
@@ -196,7 +188,7 @@ function SimulationListPage() {
                     type="button"
                     onClick={() => setPage((current) => current - 1)}
                     disabled={page === 1 || query.isFetching}
-                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     이전
                   </button>
@@ -208,7 +200,7 @@ function SimulationListPage() {
                       disabled={query.isFetching}
                       aria-current={pageNumber === page ? 'page' : undefined}
                       aria-label={`${pageNumber}페이지`}
-                      className={`h-9 min-w-9 rounded-lg px-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                      className={`h-9 min-w-9 rounded-lg px-2 text-sm font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
                         pageNumber === page
                           ? 'bg-primary text-white'
                           : 'border border-line text-text-strong hover:bg-surface'
@@ -221,7 +213,7 @@ function SimulationListPage() {
                     type="button"
                     onClick={() => setPage((current) => current + 1)}
                     disabled={page === totalPages || query.isFetching}
-                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     다음
                   </button>
@@ -230,7 +222,7 @@ function SimulationListPage() {
               {actionError && (
                 <div
                   role="alert"
-                  className="border-t border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700"
+                  className="border-t border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong"
                 >
                   {actionError}
                 </div>
@@ -238,14 +230,14 @@ function SimulationListPage() {
               {query.isError && (
                 <div
                   role="alert"
-                  className="flex items-center justify-between gap-4 border-t border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700"
+                  className="flex items-center justify-between gap-4 border-t border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong"
                 >
                   <span>{getSimulationErrorMessage(query.error)}</span>
                   <button
                     type="button"
                     onClick={() => void query.refetch()}
                     disabled={query.isFetching}
-                    className="shrink-0 rounded-lg border border-red-300 px-3 py-1.5 font-bold disabled:opacity-50"
+                    className="shrink-0 rounded-lg border border-danger/40 px-3 py-1.5 font-bold outline-none transition hover:bg-danger-strong/10 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50"
                   >
                     다시 시도
                   </button>
@@ -253,7 +245,7 @@ function SimulationListPage() {
               )}
             </>
           )}
-        </section>
+        </Card>
       </div>
     </main>
   );

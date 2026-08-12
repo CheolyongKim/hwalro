@@ -46,13 +46,13 @@ export function ZoomControl({ state, dispatch, size, className }: ZoomControlPro
 
   return (
     <div
-      className={`flex items-center gap-0.5 rounded-full border border-zoom-border bg-zoom-soft p-1 shadow-[0_2px_8px_rgba(0,0,0,0.08)] ${className ?? ''}`}
+      className={`flex items-center gap-0.5 rounded-full border border-zoom-border bg-zoom-soft p-1 shadow-raised ${className ?? ''}`}
     >
       <button
         type="button"
         onClick={() => zoomAtCenter(1 / 1.25)}
         aria-label="축소"
-        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         −
       </button>
@@ -63,14 +63,14 @@ export function ZoomControl({ state, dispatch, size, className }: ZoomControlPro
         type="button"
         onClick={() => zoomAtCenter(1.25)}
         aria-label="확대"
-        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         +
       </button>
       <button
         type="button"
         onClick={fit}
-        className="h-7 rounded-full px-2.5 text-[13px] font-semibold text-zoom-text transition-colors hover:bg-white/70"
+        className="h-7 rounded-full px-2.5 text-sm font-semibold text-zoom-text transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         맞춤
       </button>

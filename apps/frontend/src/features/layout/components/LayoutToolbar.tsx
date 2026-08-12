@@ -30,7 +30,7 @@ export function LayoutToolbar({
           onClick={onToggleCollapse}
           aria-expanded={!collapsed}
           aria-label={collapsed ? '패널 펼치기' : '패널 접기'}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-panel-muted transition-colors hover:bg-panel-soft hover:text-panel-text"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-panel-muted transition-colors hover:bg-panel-soft hover:text-panel-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <svg
             width="14"
@@ -63,7 +63,7 @@ export function LayoutToolbar({
             type="button"
             onClick={onSave}
             disabled={readOnly}
-            className={`h-9 rounded-md text-[13px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`h-9 rounded-lg text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-45 ${
               saveStatus === 'error'
                 ? 'bg-panel-danger text-white'
                 : 'bg-panel-accent text-ink hover:opacity-85'
@@ -78,14 +78,14 @@ export function LayoutToolbar({
                   : '저장'}
           </button>
           {readOnly && (
-            <p className="rounded-md bg-panel-soft px-2 py-1.5 text-[11px] leading-4 text-panel-muted">
+            <p className="rounded-md bg-panel-soft px-2 py-1.5 text-xs leading-4 text-panel-muted">
               시뮬레이션에 사용된 버전으로, 도면 편집이 잠겨 있습니다.
             </p>
           )}
           <button
             type="button"
             onClick={onStartSimulation}
-            className="h-9 rounded-md border border-panel-accent text-[13px] font-bold text-panel-accent transition-colors hover:bg-panel-accent/10"
+            className="h-9 rounded-lg border border-panel-accent text-sm font-bold text-panel-accent transition-colors hover:bg-panel-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             시뮬레이션 배치
           </button>
