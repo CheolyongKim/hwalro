@@ -1,5 +1,6 @@
 package com.hwalro.simulation.simulation.mapper;
 
+import com.hwalro.simulation.analysis.domain.DetectedBottleneck;
 import com.hwalro.simulation.simulation.domain.HazardZone;
 import com.hwalro.simulation.simulation.domain.LayoutSimulationContext;
 import com.hwalro.simulation.simulation.domain.Simulation;
@@ -102,4 +103,8 @@ public interface SimulationMapper {
             @Param("simulationResultId") Long simulationResultId,
             @Param("chunkSequence") int chunkSequence,
             @Param("densityData") String densityData);
+
+    int insertDetectedBottlenecks(
+            @Param("simulationResultId") Long simulationResultId,
+            @Param("bottlenecks") List<DetectedBottleneck> bottlenecks);
 }

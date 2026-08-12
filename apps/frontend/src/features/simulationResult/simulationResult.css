@@ -185,6 +185,28 @@
   top: 13px;
   color: #ff8b75;
 }
+.bottleneck-list-toggle {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid rgba(209, 241, 75, 0.24);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 8px 10px;
+  color: #cbd9d6;
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+.bottleneck-list-toggle:hover {
+  border-color: rgba(209, 241, 75, 0.52);
+  background: rgba(209, 241, 75, 0.09);
+  color: #fff;
+}
 .primary-action,
 .improvement-action button {
   width: 100%;
@@ -345,41 +367,45 @@
 
 /* Refinements added after the initial result-page layout. */
 .result-summary {
+  --result-summary-surface: rgba(15, 48, 42, 0.92);
   position: absolute;
   right: 26px;
+  display: flex;
   width: 346px;
-  overflow: auto;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: 27px;
   color: #fff;
   box-shadow: 0 24px 70px rgba(7, 32, 28, 0.25);
   top: 78px;
   max-height: calc(100dvh - 102px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  background: rgba(15, 48, 42, 0.92);
-  padding: 18px;
+  background: var(--result-summary-surface);
+  padding: 0;
   font-size: 12px;
-  scrollbar-color: rgba(151, 205, 191, 0.62) transparent;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
   backdrop-filter: blur(16px) saturate(115%);
 }
-.result-summary::-webkit-scrollbar {
-  width: 6px;
+.result-summary.has-improvement-panel {
+  max-height: calc(100dvh - 262px);
 }
-.result-summary::-webkit-scrollbar-track {
-  background: transparent;
+.result-summary-scroll-content {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 18px 18px;
+  scrollbar-width: none;
 }
-.result-summary::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(151, 205, 191, 0.62);
-}
-.result-summary::-webkit-scrollbar-thumb:hover {
-  background: rgba(194, 232, 75, 0.72);
+.result-summary-scroll-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 .result-summary .summary-header {
+  z-index: 2;
+  flex: 0 0 auto;
   align-items: flex-start;
-  padding-bottom: 11px;
+  margin: 0;
+  border-bottom: 0;
+  padding: 18px 18px 11px;
 }
 .result-summary .summary-header small {
   font-size: 8px;
@@ -433,7 +459,11 @@
   font-size: 11px;
 }
 .result-summary .bottleneck-list button {
+  height: 56px;
   padding: 11px 12px;
+}
+.result-summary .bottleneck-list {
+  max-height: 312px;
 }
 .result-summary .bottleneck-list span,
 .result-summary .bottleneck-list em,
@@ -469,6 +499,36 @@
   display: grid;
   gap: 8px;
 }
+.result-summary .risk-zone-list {
+  max-height: 292px;
+}
+.result-summary .bottleneck-list,
+.result-summary .risk-zone-list {
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-color: rgba(151, 205, 191, 0.62) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.result-summary .bottleneck-list::-webkit-scrollbar,
+.result-summary .risk-zone-list::-webkit-scrollbar {
+  width: 5px;
+}
+.result-summary .bottleneck-list::-webkit-scrollbar-track,
+.result-summary .risk-zone-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.result-summary .bottleneck-list::-webkit-scrollbar-thumb,
+.result-summary .risk-zone-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(151, 205, 191, 0.62);
+}
+.result-summary .bottleneck-list::-webkit-scrollbar-thumb:hover,
+.result-summary .risk-zone-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(194, 232, 75, 0.72);
+}
 .risk-zone-summary-card {
   display: flex;
   flex-direction: column;
@@ -477,6 +537,9 @@
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.07);
   padding: 11px 12px;
+}
+.result-summary .risk-zone-summary-card {
+  height: 52px;
 }
 .risk-zone-summary-card strong {
   color: #ffffff;
@@ -741,6 +804,10 @@
   }
 }
 @media (max-width: 1400px), (max-height: 900px) {
+  .result-summary.has-improvement-panel {
+    max-height: calc(100dvh - 102px);
+  }
+
   .improvement-action-restore {
     top: 24px;
     bottom: auto;

@@ -1,4 +1,5 @@
 import type { EvacuationPoint } from '../types';
+import { calculateEvacuationRate } from '../utils/evacuationRate';
 
 export function EvacuationProgressChart({
   points,
@@ -23,7 +24,7 @@ export function EvacuationProgressChart({
   const current = visible.length > 0 ? visible[visible.length - 1].evacuatedCount : 0;
   const safeDuration = duration > 0 ? duration : 1;
   const safeTotalPeople = totalPeople > 0 ? totalPeople : 1;
-  const ratePercent = Math.round((current / safeTotalPeople) * 100);
+  const ratePercent = calculateEvacuationRate(current, totalPeople);
   const path = visible
     .map((point, index) => {
       const x = 10 + (point.timeSeconds / safeDuration) * 260;
