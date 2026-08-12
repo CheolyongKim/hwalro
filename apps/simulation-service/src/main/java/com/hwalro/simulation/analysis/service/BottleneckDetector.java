@@ -29,8 +29,10 @@ public class BottleneckDetector {
     private static final BigDecimal MINIMUM_CORE_DURATION_SECONDS = BigDecimal.valueOf(2);
     private static final BigDecimal MINIMUM_CORE_TEMPORAL_COVERAGE_RATIO = BigDecimal.valueOf(0.1);
     private static final BigDecimal NEAR_THRESHOLD_DENSITY_MARGIN = BigDecimal.valueOf(0.5);
-    private static final BigDecimal MAXIMUM_NEAR_THRESHOLD_DISTANCE_METERS = BigDecimal.valueOf(2);
-    private static final BigDecimal MAXIMUM_CORE_ANCHOR_DISTANCE_METERS = BigDecimal.valueOf(5);
+    private static final BigDecimal MAXIMUM_NEAR_THRESHOLD_DISTANCE_SQUARED_METERS =
+            BigDecimal.valueOf(2).pow(2);
+    private static final BigDecimal MAXIMUM_CORE_ANCHOR_DISTANCE_SQUARED_METERS =
+            BigDecimal.valueOf(5).pow(2);
     private static final BigDecimal MAXIMUM_MERGE_TIME_GAP_SECONDS = BigDecimal.valueOf(5);
     private static final double MINIMUM_MERGE_OVERLAP_RATIO = 0.5;
     private static final double REGION_PADDING_METERS = 1.0;
@@ -83,10 +85,8 @@ public class BottleneckDetector {
             throw invalidContract();
         }
         state.finish();
-        BigDecimal validatedFrameRate = referenceFrameRate;
-        List<EventAccumulator> persistentEvents = mergeNearbyEvents(state.completedEvents(), referenceGrid).stream()
-                .filter(event -> isPersistent(event, validatedFrameRate))
-                .toList();
+        List<EventAccumulator> persistentEvents =
+                persistentEvents(mergeNearbyEvents(state.completedEvents(), referenceGrid), referenceFrameRate);
         List<EventAccumulator> consolidatedEvents = consolidateUntilStable(persistentEvents, referenceGrid);
         return toBottlenecks(consolidatedEvents, referenceGrid, threshold.value());
     }
@@ -223,8 +223,6 @@ public class BottleneckDetector {
             assignedCells.add(new HashSet<>(core.cells()));
             peaks.add(core.peakDensity());
         }
-        BigDecimal maximumSquaredDistance =
-                MAXIMUM_NEAR_THRESHOLD_DISTANCE_METERS.multiply(MAXIMUM_NEAR_THRESHOLD_DISTANCE_METERS);
         nearCells.forEach((cell, density) -> {
             if (coreCells.containsKey(cell)) {
                 return;
@@ -234,7 +232,7 @@ public class BottleneckDetector {
             for (int index = 0; index < cores.size(); index++) {
                 BigDecimal squaredDistance =
                         squaredDistance(cell, cores.get(index).cells(), cellSize);
-                if (squaredDistance.compareTo(maximumSquaredDistance) <= 0
+                if (squaredDistance.compareTo(MAXIMUM_NEAR_THRESHOLD_DISTANCE_SQUARED_METERS) <= 0
                         && (nearestSquaredDistance == null || squaredDistance.compareTo(nearestSquaredDistance) < 0)) {
                     nearestCoreIndex = index;
                     nearestSquaredDistance = squaredDistance;
@@ -252,8 +250,7 @@ public class BottleneckDetector {
             result.add(new SpatialComponent(
                     Set.copyOf(assignedCells.get(index)),
                     core.bounds(),
-                    peaks.get(index).doubleValue(),
-                    true));
+                    peaks.get(index).doubleValue()));
         }
         return result;
     }
@@ -334,13 +331,26 @@ public class BottleneckDetector {
         return new TrackMatch(result.root(), false);
     }
 
+    private static Comparator<EventAccumulator> mergeEventOrder() {
+        return Comparator.comparing((EventAccumulator event) -> event.startTime)
+                .thenComparingInt(event -> event.anchorBounds.minRow())
+                .thenComparingInt(event -> event.anchorBounds.minColumn())
+                .thenComparingLong(event -> event.ordinal);
+    }
+
+    private static Comparator<EventAccumulator> resultEventOrder() {
+        return Comparator.comparing((EventAccumulator event) -> event.startTime)
+                .thenComparingInt(event -> event.minRow)
+                .thenComparingInt(event -> event.minColumn)
+                .thenComparingInt(event -> event.maxRow)
+                .thenComparingInt(event -> event.maxColumn)
+                .thenComparing(event -> event.endTime)
+                .thenComparingLong(event -> event.ordinal);
+    }
+
     private static List<EventAccumulator> mergeNearbyEvents(List<EventAccumulator> events, HeatmapGridResponse grid) {
-        List<EventAccumulator> ordered = events.stream()
-                .sorted(Comparator.comparing((EventAccumulator event) -> event.startTime)
-                        .thenComparingInt(event -> event.anchorBounds.minRow())
-                        .thenComparingInt(event -> event.anchorBounds.minColumn())
-                        .thenComparingLong(event -> event.ordinal))
-                .toList();
+        List<EventAccumulator> ordered =
+                events.stream().sorted(mergeEventOrder()).toList();
         List<MergeGroup> merged = new ArrayList<>();
         for (EventAccumulator event : ordered) {
             boolean included = false;
@@ -426,11 +436,13 @@ public class BottleneckDetector {
         return BigDecimal.valueOf(event.coreFrameIndexes.size()).compareTo(minimumCoreObservations) >= 0;
     }
 
+    private static List<EventAccumulator> persistentEvents(List<EventAccumulator> events, BigDecimal frameRate) {
+        return events.stream().filter(event -> isPersistent(event, frameRate)).toList();
+    }
+
     private static boolean withinAnchorDistance(EventAccumulator first, EventAccumulator second, BigDecimal cellSize) {
         BigDecimal squaredDistance = squaredDistance(first.anchorBounds, second.anchorBounds, cellSize);
-        BigDecimal maximumSquaredDistance =
-                MAXIMUM_CORE_ANCHOR_DISTANCE_METERS.multiply(MAXIMUM_CORE_ANCHOR_DISTANCE_METERS);
-        return squaredDistance.compareTo(maximumSquaredDistance) <= 0;
+        return squaredDistance.compareTo(MAXIMUM_CORE_ANCHOR_DISTANCE_SQUARED_METERS) <= 0;
     }
 
     private static int axisGap(int firstMin, int firstMax, int secondMin, int secondMax) {
@@ -467,15 +479,8 @@ public class BottleneckDetector {
 
     private static List<DetectedBottleneck> toBottlenecks(
             List<EventAccumulator> events, HeatmapGridResponse grid, BigDecimal threshold) {
-        List<EventAccumulator> ordered = events.stream()
-                .sorted(Comparator.comparing((EventAccumulator event) -> event.startTime)
-                        .thenComparingInt(event -> event.minRow)
-                        .thenComparingInt(event -> event.minColumn)
-                        .thenComparingInt(event -> event.maxRow)
-                        .thenComparingInt(event -> event.maxColumn)
-                        .thenComparing(event -> event.endTime)
-                        .thenComparingLong(event -> event.ordinal))
-                .toList();
+        List<EventAccumulator> ordered =
+                events.stream().sorted(resultEventOrder()).toList();
         List<DetectedBottleneck> result = new ArrayList<>(ordered.size());
         for (int index = 0; index < ordered.size(); index++) {
             int order = index + 1;
@@ -549,7 +554,7 @@ public class BottleneckDetector {
         if (cells.isEmpty()) {
             return null;
         }
-        return new SpatialComponent(Set.copyOf(cells), null, peak.doubleValue(), false);
+        return new SpatialComponent(Set.copyOf(cells), null, peak.doubleValue());
     }
 
     private static boolean finite(BigDecimal value) {
@@ -574,13 +579,21 @@ public class BottleneckDetector {
         private Cell offset(int rowOffset, int columnOffset) {
             return new Cell(row + rowOffset, column + columnOffset);
         }
+
+        private CellBounds bounds() {
+            return new CellBounds(row, column, row, column);
+        }
     }
 
     private record CellBounds(int minRow, int minColumn, int maxRow, int maxColumn) {}
 
     private record CoreComponent(Set<Cell> cells, CellBounds bounds, BigDecimal peakDensity) {}
 
-    private record SpatialComponent(Set<Cell> cells, CellBounds coreBounds, double peakDensity, boolean containsCore) {}
+    private record SpatialComponent(Set<Cell> cells, CellBounds coreBounds, double peakDensity) {
+        private boolean containsCore() {
+            return coreBounds != null;
+        }
+    }
 
     private record TrackMatch(Track track, boolean created) {}
 
@@ -769,20 +782,15 @@ public class BottleneckDetector {
                 return true;
             }
             BigDecimal squaredDistance = squaredDistance(anchorBounds, component.coreBounds(), cellSize);
-            BigDecimal maximumSquaredDistance =
-                    MAXIMUM_CORE_ANCHOR_DISTANCE_METERS.multiply(MAXIMUM_CORE_ANCHOR_DISTANCE_METERS);
-            return squaredDistance.compareTo(maximumSquaredDistance) <= 0;
+            return squaredDistance.compareTo(MAXIMUM_CORE_ANCHOR_DISTANCE_SQUARED_METERS) <= 0;
         }
 
         private boolean acceptsSupport(Cell cell, BigDecimal cellSize) {
             if (anchorBounds == null) {
                 return false;
             }
-            CellBounds cellBounds = new CellBounds(cell.row(), cell.column(), cell.row(), cell.column());
-            BigDecimal squaredDistance = squaredDistance(anchorBounds, cellBounds, cellSize);
-            BigDecimal maximumSquaredDistance =
-                    MAXIMUM_NEAR_THRESHOLD_DISTANCE_METERS.multiply(MAXIMUM_NEAR_THRESHOLD_DISTANCE_METERS);
-            return squaredDistance.compareTo(maximumSquaredDistance) <= 0;
+            BigDecimal squaredDistance = squaredDistance(anchorBounds, cell.bounds(), cellSize);
+            return squaredDistance.compareTo(MAXIMUM_NEAR_THRESHOLD_DISTANCE_SQUARED_METERS) <= 0;
         }
 
         private BigDecimal durationSeconds() {

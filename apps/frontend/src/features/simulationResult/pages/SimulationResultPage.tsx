@@ -22,8 +22,8 @@ import type {
   SimulationResultViewModel,
 } from '../types';
 import {
+  BOTTLENECK_DISPLAY_BATCH_SIZE,
   getNextDisplayedBottleneckCount,
-  MAX_DISPLAYED_BOTTLENECKS,
   rankBottlenecks,
 } from '../utils/bottleneckDisplay';
 import { calculateEvacuationRate } from '../utils/evacuationRate';
@@ -58,7 +58,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     [summary.bottlenecks],
   );
   const [displayedBottleneckCount, setDisplayedBottleneckCount] =
-    useState(MAX_DISPLAYED_BOTTLENECKS);
+    useState(BOTTLENECK_DISPLAY_BATCH_SIZE);
   const displayedBottlenecks = useMemo(
     () => rankedBottlenecks.slice(0, displayedBottleneckCount),
     [displayedBottleneckCount, rankedBottlenecks],
@@ -116,7 +116,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     : 0;
 
   useEffect(() => {
-    setDisplayedBottleneckCount(MAX_DISPLAYED_BOTTLENECKS);
+    setDisplayedBottleneckCount(BOTTLENECK_DISPLAY_BATCH_SIZE);
     setSelectedBottleneckId(rankedBottlenecks[0]?.id ?? null);
   }, [rankedBottlenecks, summary.simulationId]);
 

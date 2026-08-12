@@ -1,6 +1,6 @@
 import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
-import { MAX_DISPLAYED_BOTTLENECKS } from '../utils/bottleneckDisplay';
+import { BOTTLENECK_DISPLAY_BATCH_SIZE } from '../utils/bottleneckDisplay';
 
 interface Props {
   result: SimulationResultViewModel;
@@ -36,7 +36,10 @@ export function ResultSummaryPanel({
   const panel = useCollapsiblePanel();
   const selectedBottleneck = bottlenecks.find((item) => item.id === selectedBottleneckId);
   const remainingBottleneckCount = totalBottleneckCount - displayedBottleneckCount;
-  const nextBottleneckCount = Math.min(MAX_DISPLAYED_BOTTLENECKS, remainingBottleneckCount);
+  const nextBottleneckCount = Math.min(
+    BOTTLENECK_DISPLAY_BATCH_SIZE,
+    remainingBottleneckCount,
+  );
 
   if (panel.isMinimized) {
     return (

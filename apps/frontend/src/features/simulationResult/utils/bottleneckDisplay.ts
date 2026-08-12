@@ -1,9 +1,9 @@
 import type { DetectedBottleneck } from '../types';
 
-export const MAX_DISPLAYED_BOTTLENECKS = 5;
+export const BOTTLENECK_DISPLAY_BATCH_SIZE = 5;
 
 export function getNextDisplayedBottleneckCount(currentCount: number, totalCount: number): number {
-  return Math.min(totalCount, currentCount + MAX_DISPLAYED_BOTTLENECKS);
+  return Math.min(totalCount, currentCount + BOTTLENECK_DISPLAY_BATCH_SIZE);
 }
 
 function durationSeconds(bottleneck: DetectedBottleneck) {
@@ -19,10 +19,4 @@ export function rankBottlenecks(bottlenecks: DetectedBottleneck[]): DetectedBott
       left.order - right.order ||
       left.id - right.id,
   );
-}
-
-export function selectDisplayedBottlenecks(
-  bottlenecks: DetectedBottleneck[],
-): DetectedBottleneck[] {
-  return rankBottlenecks(bottlenecks).slice(0, MAX_DISPLAYED_BOTTLENECKS);
 }
