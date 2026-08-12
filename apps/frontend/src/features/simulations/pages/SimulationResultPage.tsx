@@ -27,6 +27,12 @@ function formatSeconds(value: number | undefined): string {
   return `${value.toFixed(1)}초`;
 }
 
+function terminationReasonLabel(reason: string): string {
+  if (reason === 'ALL_EVACUATED') return '전원 대피';
+  if (reason === 'STALLED') return '정체 종료';
+  return '최대시간 도달';
+}
+
 function SimulationResultPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
@@ -553,7 +559,7 @@ function SimulationResultPage() {
                 <div className="rounded-xl border border-line bg-surface p-4">
                   <dt className="text-xs font-bold text-text-muted">종료 사유</dt>
                   <dd className="mt-2 text-sm font-black">
-                    {result.terminationReason === 'ALL_EVACUATED' ? '전원 대피' : '최대시간 도달'}
+                    {terminationReasonLabel(result.terminationReason)}
                   </dd>
                 </div>
                 <div className="rounded-xl border border-line bg-surface p-4">

@@ -24,6 +24,8 @@ MAX_AGENTS = 5000
 FRAMES_PER_CHUNK = 20
 HEATMAP_CELL_SIZE_METERS = 1.0
 WAYPOINT_REACHED_DISTANCE_METERS = max(AGENT_RADIUS_METERS, 0.25 * math.sqrt(2.0))
+STALL_ITERATION_LIMIT = 500
+STALL_MOVEMENT_EPSILON_METERS = 0.001
 
 
 class RunnerError(RuntimeError):
@@ -394,9 +396,12 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             timeline.add_exit_event(0.0, state.stable_id, state.exit_id)
 
     iteration = 0
-    while (trapped or any(context.states for context in contexts)) and iteration < maximum_iterations:
+    stalled_iterations = 0
+    while any(context.states for context in contexts) and iteration < maximum_iterations:
         iteration += 1
         elapsed = iteration * DT_SECONDS
+        moved = 0.0
+        evacuated_this_iteration = False
         for context in contexts:
             if not context.states:
                 continue
@@ -405,18 +410,37 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 context.simulation.iterate()
             except Exception as exc:
                 raise RunnerError(f"JuPedSim iteration {iteration} failed: {exc}") from exc
-            _rollback_invalid_moves(context, previous)
-            for agent_id in _update_targets(context, previous):
+            raw = _capture_states(context)
+            crossed = _detect_exit_crossings(context, previous, raw)
+            _rollback_invalid_moves(context, previous, raw, crossed)
+            for agent_id in _update_targets(context, crossed):
                 state = context.states.pop(agent_id, None)
                 if state is not None:
+                    evacuated_this_iteration = True
                     evacuation_times.append(elapsed)
                     timeline.add_exit_event(elapsed, state.stable_id, state.exit_id)
+            moved += sum(
+                math.dist(previous[agent_id], raw[agent_id]) for agent_id in context.states
+            )
+        if evacuated_this_iteration:
+            stalled_iterations = 0
+        elif moved < STALL_MOVEMENT_EPSILON_METERS:
+            stalled_iterations += 1
+            if stalled_iterations >= STALL_ITERATION_LIMIT:
+                break
+        else:
+            stalled_iterations = 0
         if iteration % frame_steps == 0:
             heatmap.add(timeline.add(_snapshot(contexts, trapped, elapsed)))
 
     remaining = len(trapped) + sum(len(context.states) for context in contexts)
     evacuated = len(agents) - remaining
-    termination_reason = "ALL_EVACUATED" if remaining == 0 else "MAX_DURATION"
+    if remaining == 0:
+        termination_reason = "ALL_EVACUATED"
+    elif iteration >= maximum_iterations:
+        termination_reason = "MAX_DURATION"
+    else:
+        termination_reason = "STALLED"
     simulation_duration = min(iteration * DT_SECONDS, max_time)
     if (
         timeline.last_time_seconds is None
@@ -502,23 +526,51 @@ def _capture_states(context: SimulationContext):
     return captured
 
 
-def _rollback_invalid_moves(context: SimulationContext, previous) -> None:
-    agent_ids = list(previous)
-    current = []
-    for agent_id in agent_ids:
-        position = context.simulation.agent(agent_id).position
-        current.append((float(position[0]), float(position[1])))
-    valid = context.router.valid_moves([previous[agent_id] for agent_id in agent_ids], current)
-    for agent_id, is_valid in zip(agent_ids, valid, strict=True):
+def _detect_exit_crossings(context: SimulationContext, previous, raw) -> frozenset[int]:
+    crossed = set()
+    for agent_id, state in context.states.items():
+        if state.cursor + 1 != len(state.waypoints):
+            continue
+        if context.router.crossed_exit(
+            previous[agent_id], raw[agent_id], state.exit_start, state.exit_end
+        ):
+            crossed.add(agent_id)
+    return frozenset(crossed)
+
+
+def _rollback_invalid_moves(context: SimulationContext, previous, raw, crossed) -> None:
+    agent_ids = [agent_id for agent_id in previous if agent_id not in crossed]
+    if not agent_ids:
+        return
+    starts = [previous[agent_id] for agent_id in agent_ids]
+    ends = [raw[agent_id] for agent_id in agent_ids]
+    valid = context.router.valid_moves(starts, ends)
+    for agent_id, is_valid, start, end in zip(agent_ids, valid, starts, ends, strict=True):
         if is_valid:
             continue
         agent = context.simulation.agent(agent_id)
-        position = previous[agent_id]
-        agent.position = position
-        agent.model.velocity = (0.0, 0.0)
+        corrected = context.router.clamp_to_walkable(end)
+        if not context.router.can_connect(start, corrected):
+            corrected = start
+        agent.position = corrected
+        agent.model.velocity = _slide_velocity(end, corrected, agent.model.velocity)
 
 
-def _update_targets(context: SimulationContext, previous=None) -> list[int]:
+def _slide_velocity(end, corrected, velocity) -> tuple[float, float]:
+    dx = end[0] - corrected[0]
+    dy = end[1] - corrected[1]
+    length = math.hypot(dx, dy)
+    if length <= 1e-12:
+        return (0.0, 0.0)
+    nx, ny = dx / length, dy / length
+    dot = velocity[0] * nx + velocity[1] * ny
+    return (
+        float(velocity[0] - dot * nx),
+        float(velocity[1] - dot * ny),
+    )
+
+
+def _update_targets(context: SimulationContext, crossed: frozenset[int] = frozenset()) -> list[int]:
     evacuated = []
     for agent_id, state in context.states.items():
         agent = context.simulation.agent(agent_id)
@@ -531,16 +583,12 @@ def _update_targets(context: SimulationContext, previous=None) -> list[int]:
         if (
             state.cursor + 1 == len(state.waypoints)
             and (
-                (
+                agent_id in crossed
+                or (
                     _waypoint_reached(position, state, context.router.can_connect)
                     and context.router.can_reach_exit(position, state.terminal_point)
                 )
-                or (
-                    previous is not None
-                    and context.router.crossed_exit(
-                        previous[agent_id], position, state.exit_start, state.exit_end
-                    )
-                )
+                or context.router.reached_exit(position, state.exit_start, state.exit_end)
             )
         ):
             if context.simulation.mark_agent_for_removal(agent_id):

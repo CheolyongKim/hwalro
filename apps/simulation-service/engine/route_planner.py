@@ -17,7 +17,7 @@ from shapely import (
 )
 from shapely.affinity import rotate
 from shapely.geometry import LineString, Point as ShapelyPoint, Polygon, box
-from shapely.ops import unary_union
+from shapely.ops import nearest_points, unary_union
 from shapely.prepared import prep
 from shapely.strtree import STRtree
 
@@ -643,9 +643,21 @@ class GridRouter:
 
     def crossed_exit(self, start: Point, end: Point, exit_start: Point, exit_end: Point) -> bool:
         movement = LineString((start, end))
-        return self._prepared_physical_walkable.covers(movement) and movement.intersects(
+        return self._prepared_physical_walkable.covers(ShapelyPoint(start)) and movement.intersects(
             LineString((exit_start, exit_end))
         )
+
+    def reached_exit(self, position: Point, exit_start: Point, exit_end: Point) -> bool:
+        return geometry_distance(
+            ShapelyPoint(position), LineString((exit_start, exit_end))
+        ) <= self.exit_clearance + _EPSILON
+
+    def clamp_to_walkable(self, point: Point) -> Point:
+        target = ShapelyPoint(point)
+        if self._prepared_walkable.covers(target):
+            return point
+        nearest = nearest_points(target, self.walkable)[1]
+        return (float(nearest.x), float(nearest.y))
 
     def _physical_edge_is_walkable(self, start: Point, end: Point) -> bool:
         return self._prepared_physical_walkable.covers(LineString((start, end)))
