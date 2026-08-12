@@ -63,9 +63,7 @@ public class SimulationResultDetailService {
         double duration = requiredMetric(metrics, "SIMULATION_DURATION_SECONDS");
         double maxDensity = requiredMetric(metrics, "MAX_DENSITY");
 
-        List<Bottleneck> bottlenecks = mapper.findBottlenecks(summary.simulationResultId()).stream()
-                .map(this::toBottleneck)
-                .toList();
+        List<Bottleneck> bottlenecks = findBottlenecks(summary.simulationResultId());
         double threshold = densityThresholdProvider.getCurrent().value().doubleValue();
         Drawing drawing = assembleDrawing(summary);
         List<ComparableSimulation> comparableSimulations =
@@ -97,6 +95,15 @@ public class SimulationResultDetailService {
             throw new SimulationNotFoundException("시뮬레이션을 찾을 수 없습니다: " + simulationId);
         }
         return assembleDrawing(summary);
+    }
+
+    public List<Bottleneck> findBottlenecks(Long simulationResultId) {
+        if (simulationResultId == null || simulationResultId <= 0) {
+            throw new IllegalArgumentException("시뮬레이션 결과 ID는 양수여야 합니다.");
+        }
+        return mapper.findBottlenecks(simulationResultId).stream()
+                .map(this::toBottleneck)
+                .toList();
     }
 
     private SimulationResultDetailResponse.Drawing assembleDrawing(SummaryRow summary) {

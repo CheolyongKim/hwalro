@@ -357,7 +357,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
       {pendingBounds && (
         <RiskZoneEditorDialog
           bounds={pendingBounds}
-          drawingWidth={result.drawing.width}
+          drawing={result.drawing}
           simulationResultId={summary.simulationResultId}
           onCancel={() => setPendingBounds(null)}
           onConfirm={(risk) => {

@@ -20,3 +20,10 @@ export function rankBottlenecks(bottlenecks: DetectedBottleneck[]): DetectedBott
       left.id - right.id,
   );
 }
+
+export function selectTopBottlenecks(
+  bottlenecks: DetectedBottleneck[],
+  limit = BOTTLENECK_DISPLAY_BATCH_SIZE,
+): DetectedBottleneck[] {
+  return rankBottlenecks(bottlenecks).slice(0, Math.max(0, limit));
+}

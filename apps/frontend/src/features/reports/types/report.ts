@@ -39,3 +39,11 @@ export interface ReportUpdateRequest {
   content: ReportContent;
   status: Exclude<ReportStatus, '초안'>;
 }
+
+export interface ReportVisualContext {
+  simulationResultId: number;
+  simulationId: number;
+  layoutTitle: string;
+  drawing: import('../../simulationResult/types').SimulationDrawing;
+  bottlenecks: import('../../simulationResult/types').DetectedBottleneck[];
+}

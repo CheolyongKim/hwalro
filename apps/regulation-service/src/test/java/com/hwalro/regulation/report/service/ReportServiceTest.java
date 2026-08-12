@@ -6,11 +6,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
+import com.hwalro.regulation.report.client.SimulationReportVisualContextClient;
 import com.hwalro.regulation.report.dto.ReportContent;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
 import com.hwalro.regulation.report.dto.ReportDraftInsert;
@@ -34,11 +37,14 @@ class ReportServiceTest {
     @Mock
     private AuthorDirectoryClient authorDirectoryClient;
 
+    @Mock
+    private SimulationReportVisualContextClient visualContextClient;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void returnsSecondPageWithStatusFilter() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
+        ReportService reportService = reportService();
         JwtUser operator = new JwtUser(1L, Set.of("OPERATOR"));
         List<ReportListItem> reports = List.of(new ReportListItem(
                 6L, 1L, null, "야외 휴게 공간 비상 유도선 점검 보고서", "완료", LocalDateTime.of(2026, 7, 28, 17, 20)));
@@ -58,7 +64,7 @@ class ReportServiceTest {
 
     @Test
     void rejectsUnsupportedStatus() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
+        ReportService reportService = reportService();
         JwtUser operator = new JwtUser(1L, Set.of("OPERATOR"));
 
         assertThatThrownBy(() -> reportService.getReports(operator, "Bearer token", null, "보류", 1, 5))
@@ -68,7 +74,7 @@ class ReportServiceTest {
 
     @Test
     void safetyReviewerQueriesAllAuthors() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
+        ReportService reportService = reportService();
         JwtUser reviewer = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
         when(reportMapper.countReports(null, null, null)).thenReturn(2L);
         when(reportMapper.findReports(null, null, null, 5, 0L))
@@ -88,7 +94,7 @@ class ReportServiceTest {
 
     @Test
     void createsDraftAndLinksSimulationResultsWithoutStartingEditing() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
+        ReportService reportService = reportService();
         ReportContent content = new ReportContent("개요", "분석", "개선");
         LocalDateTime now = LocalDateTime.now();
         doAnswer(invocation -> {
@@ -123,7 +129,7 @@ class ReportServiceTest {
 
     @Test
     void rejectsInvalidDraftTitleAndSimulationResultIdsBeforeInsert() {
-        ReportService reportService = new ReportService(reportMapper, authorDirectoryClient, objectMapper);
+        ReportService reportService = reportService();
         ReportContent content = new ReportContent("개요", "분석", "개선");
 
         assertThatThrownBy(() -> reportService.createDraft(7L, "가".repeat(201), content, List.of(10L)))
@@ -134,5 +140,38 @@ class ReportServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(reportMapper, never()).insertDraft(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void returnsVisualContextsForLinkedResultsWithoutStartingEditing() {
+        ReportService reportService = reportService();
+        LocalDateTime now = LocalDateTime.now();
+        when(reportMapper.findDetailById(30L)).thenReturn(new ReportDetailRow(30L, 7L, "보고서", "{}", "초안", now, now));
+        when(reportMapper.findSimulationResultIds(30L)).thenReturn(List.of(20L, 10L));
+        when(visualContextClient.findAll(List.of(20L, 10L), "Bearer token")).thenReturn(List.of());
+
+        var response = reportService.getVisualContexts(new JwtUser(7L, Set.of("OPERATOR")), 30L, "Bearer token");
+
+        assertThat(response).isEmpty();
+        verify(visualContextClient).findAll(List.of(20L, 10L), "Bearer token");
+        verify(reportMapper, never()).startEditing(30L);
+    }
+
+    @Test
+    void rejectsVisualContextAccessBeforeCallingSimulationService() {
+        ReportService reportService = reportService();
+        LocalDateTime now = LocalDateTime.now();
+        when(reportMapper.findDetailById(30L))
+                .thenReturn(new ReportDetailRow(30L, 8L, "다른 사용자 보고서", "{}", "작성 중", now, now));
+
+        assertThatThrownBy(
+                        () -> reportService.getVisualContexts(new JwtUser(7L, Set.of("OPERATOR")), 30L, "Bearer token"))
+                .isInstanceOf(ForbiddenException.class);
+
+        verifyNoInteractions(visualContextClient);
+    }
+
+    private ReportService reportService() {
+        return new ReportService(reportMapper, authorDirectoryClient, visualContextClient, objectMapper);
     }
 }
