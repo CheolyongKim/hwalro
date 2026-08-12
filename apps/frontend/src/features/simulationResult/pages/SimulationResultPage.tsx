@@ -8,6 +8,7 @@ import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import type { SimulationResultSummary } from '../../simulations/types';
+import { getSimulationListNavigationState } from '../../simulations/utils/simulationListAction';
 import { simulationResultProvider } from '../api/simulationResultProvider';
 import { EvacuationProgressChart } from '../components/EvacuationProgressChart';
 import { ImprovementComparisonPanel } from '../components/ImprovementComparisonPanel';
@@ -413,7 +414,13 @@ export default function SimulationResultPage() {
       .then(async (execution) => {
         if (!active) return;
         if (execution.status !== 'COMPLETED' || !execution.result) {
-          navigate('/simulations', { replace: true });
+          navigate('/simulations', {
+            replace: true,
+            state: getSimulationListNavigationState({
+              id: numericSimulationId,
+              status: execution.status,
+            }),
+          });
           return;
         }
         const loadedSummary = await simulationResultProvider.getSummary(simulationId);

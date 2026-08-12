@@ -1,13 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import { simulationApi } from '../api/simulationApi';
 import { SimulationStatusDialog } from '../components/SimulationStatusDialog';
 import { STATUS_LABELS, STATUS_STYLES } from '../constants/simulationStatus';
 import type { SimulationExecution, SimulationOverview } from '../types';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
-import { getSimulationListAction } from '../utils/simulationListAction';
+import {
+  getSimulationListAction,
+  readStatusDialogSimulationId,
+} from '../utils/simulationListAction';
 import { buttonClassName, Card, EmptyState, ErrorState, PageHeader } from '../../../components/ui';
 
 const PAGE_SIZE = 20;
@@ -30,6 +33,8 @@ function resultLabel(simulation: SimulationOverview): string {
 }
 
 function SimulationListPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -39,6 +44,7 @@ function SimulationListPage() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const detailRequestSequenceRef = useRef(0);
+  const statusDialogSimulationId = readStatusDialogSimulationId(location.state);
   const query = useQuery({
     queryKey: ['simulations', 'overview', page],
     queryFn: () => simulationApi.listOverview(page, PAGE_SIZE),
@@ -82,7 +88,7 @@ function SimulationListPage() {
     setDialogError(null);
   };
 
-  const openStatusDialog = async (simulation: SimulationOverview) => {
+  const openStatusDialog = useCallback(async (simulation: SimulationOverview) => {
     const action = getSimulationListAction(simulation);
     if (action.type !== 'show-failure' && action.type !== 'show-cancelled') return;
 
@@ -107,7 +113,37 @@ function SimulationListPage() {
     } finally {
       if (detailRequestSequenceRef.current === requestSequence) setIsDetailLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (statusDialogSimulationId === null) return;
+    let active = true;
+    setActionError(null);
+
+    void simulationApi
+      .getOverview(statusDialogSimulationId)
+      .then((simulation) => {
+        if (active) return openStatusDialog(simulation);
+      })
+      .catch((error) => {
+        if (active) setActionError(getSimulationErrorMessage(error));
+      })
+      .finally(() => {
+        if (active) {
+          navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    location.pathname,
+    location.search,
+    navigate,
+    openStatusDialog,
+    statusDialogSimulationId,
+  ]);
 
   const retrySelectedSimulation = async () => {
     if (!selectedSimulation) return;

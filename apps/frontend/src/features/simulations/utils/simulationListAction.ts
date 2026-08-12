@@ -11,6 +11,10 @@ export type SimulationListAction =
   | { type: 'show-cancelled' }
   | { type: 'disabled' };
 
+export type SimulationListNavigationState = {
+  openStatusFor: number;
+};
+
 export function getSimulationListAction({ id, status }: SimulationListItem): SimulationListAction {
   switch (status) {
     case 'DRAFT':
@@ -25,4 +29,22 @@ export function getSimulationListAction({ id, status }: SimulationListItem): Sim
     case 'RUNNING':
       return { type: 'disabled' };
   }
+}
+
+export function getSimulationListNavigationState({
+  id,
+  status,
+}: SimulationListItem): SimulationListNavigationState | null {
+  if (status !== 'FAILED' && status !== 'CANCELLED') return null;
+  return { openStatusFor: id };
+}
+
+export function readStatusDialogSimulationId(state: unknown): number | null {
+  if (typeof state !== 'object' || state === null) return null;
+  const simulationId = (state as Record<string, unknown>).openStatusFor;
+  return typeof simulationId === 'number' &&
+    Number.isSafeInteger(simulationId) &&
+    simulationId > 0
+    ? simulationId
+    : null;
 }

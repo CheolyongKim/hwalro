@@ -22,6 +22,11 @@ export const simulationApi = {
       .get<SimulationOverviewPage>('/api/simulations/overview', { params: { page, size } })
       .then((response) => response.data),
 
+  getOverview: (simulationId: number) =>
+    apiClient
+      .get<SimulationOverview>(`/api/simulations/${simulationId}/overview`)
+      .then((response) => response.data),
+
   listByLayoutVersion: (layoutVersionId: number) =>
     apiClient
       .get<SimulationSummary[]>('/api/simulations', { params: { layoutVersionId } })
