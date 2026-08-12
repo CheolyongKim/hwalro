@@ -6,6 +6,7 @@ import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.ReportStatus;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
+import com.hwalro.regulation.report.client.SimulationReportVisualContextClient;
 import com.hwalro.regulation.report.dto.ReportContent;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
@@ -13,6 +14,7 @@ import com.hwalro.regulation.report.dto.ReportDraftInsert;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.dto.ReportUpdateRequest;
+import com.hwalro.regulation.report.dto.ReportVisualContextResponse;
 import com.hwalro.regulation.report.exception.ReportNotFoundException;
 import com.hwalro.regulation.report.mapper.ReportMapper;
 import java.util.HashSet;
@@ -30,12 +32,17 @@ public class ReportService {
 
     private final ReportMapper reportMapper;
     private final AuthorDirectoryClient authorDirectoryClient;
+    private final SimulationReportVisualContextClient visualContextClient;
     private final ObjectMapper objectMapper;
 
     public ReportService(
-            ReportMapper reportMapper, AuthorDirectoryClient authorDirectoryClient, ObjectMapper objectMapper) {
+            ReportMapper reportMapper,
+            AuthorDirectoryClient authorDirectoryClient,
+            SimulationReportVisualContextClient visualContextClient,
+            ObjectMapper objectMapper) {
         this.reportMapper = reportMapper;
         this.authorDirectoryClient = authorDirectoryClient;
+        this.visualContextClient = visualContextClient;
         this.objectMapper = objectMapper;
     }
 
@@ -87,6 +94,19 @@ public class ReportService {
         String updatedStatus = requireEditableStatus(request.status());
         reportMapper.updateReport(reportId, request.title().trim(), serializeContent(request.content()), updatedStatus);
         return getReport(user, reportId);
+    }
+
+    public List<ReportVisualContextResponse> getVisualContexts(JwtUser user, Long reportId, String authorization) {
+        if (!StringUtils.hasText(authorization)) {
+            throw new IllegalArgumentException("Authorization 헤더가 필요합니다.");
+        }
+        ReportDetailRow report = findReport(reportId);
+        requireAccessible(user, report);
+        List<Long> simulationResultIds = reportMapper.findSimulationResultIds(reportId);
+        if (simulationResultIds.isEmpty()) {
+            return List.of();
+        }
+        return visualContextClient.findAll(simulationResultIds, authorization);
     }
 
     @Transactional

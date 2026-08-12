@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { reportApi } from '../api/reportApi';
 import AutoResizeTextarea from '../components/AutoResizeTextarea';
-import type { ReportDetailResponse } from '../types/report';
+import { ReportSimulationCard } from '../components/ReportSimulationCard';
+import type { ReportDetailResponse, ReportVisualContext } from '../types/report';
 import { getReportErrorMessage } from '../utils/getReportErrorMessage';
 
 type EditableReportStatus = ReportDetailResponse['status'];
@@ -30,6 +31,9 @@ function ReportDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visualContexts, setVisualContexts] = useState<ReportVisualContext[]>([]);
+  const [isVisualsLoading, setIsVisualsLoading] = useState(true);
+  const [visualError, setVisualError] = useState<string | null>(null);
 
   function applyReport(report: ReportDetailResponse) {
     setTitle(report.title);
@@ -62,6 +66,32 @@ function ReportDetailPage() {
     };
   }, [reportId]);
 
+  useEffect(() => {
+    if (!reportId || isLoading || simulationResultIds.length === 0) {
+      setIsVisualsLoading(false);
+      return;
+    }
+    let active = true;
+    setIsVisualsLoading(true);
+    setVisualError(null);
+    void reportApi
+      .getVisualContexts(reportId)
+      .then((response) => {
+        if (active) setVisualContexts(response);
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setVisualError(getReportErrorMessage(requestError, '미니맵을 불러오지 못했습니다.'));
+        }
+      })
+      .finally(() => {
+        if (active) setIsVisualsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isLoading, reportId, simulationResultIds]);
+
   async function saveReport() {
     if (!reportId) return;
     setIsSaving(true);
@@ -87,6 +117,32 @@ function ReportDetailPage() {
     label: index === 0 ? '대표 결과' : '비교 결과',
     tone: index === 0 ? 'primary' : 'compare',
   }));
+
+  const visualContextByResultId = new Map(
+    visualContexts.map((context) => [context.simulationResultId, context]),
+  );
+
+  function renderSimulationCards(variant: 'document' | 'settings' | 'preview') {
+    if (simulationCards.length === 0) {
+      return (
+        <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-text-muted">
+          첨부된 시뮬레이션 결과가 없습니다.
+        </p>
+      );
+    }
+    return simulationCards.map((simulation) => (
+      <ReportSimulationCard
+        key={simulation.id}
+        resultId={simulation.id}
+        label={simulation.label}
+        tone={simulation.tone as 'primary' | 'compare'}
+        context={visualContextByResultId.get(simulation.id)}
+        isLoading={isVisualsLoading}
+        error={visualError}
+        variant={variant}
+      />
+    ));
+  }
 
   if (isLoading)
     return (
@@ -122,14 +178,16 @@ function ReportDetailPage() {
           <button
             type="button"
             onClick={() => setIsPreviewOpen(true)}
-            className="h-11 rounded-lg border border-line-strong bg-white px-7 text-sm font-bold text-text-strong hover:bg-surface"
+            disabled={isVisualsLoading}
+            className="h-11 rounded-lg border border-line-strong bg-white px-7 text-sm font-bold text-text-strong hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
           >
-            미리보기
+            {isVisualsLoading ? '미니맵 준비 중...' : '미리보기'}
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="h-11 rounded-lg bg-primary px-7 text-sm font-bold text-white hover:bg-primary/85"
+            disabled={isVisualsLoading}
+            className="h-11 rounded-lg bg-primary px-7 text-sm font-bold text-white hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
           >
             PDF 출력
           </button>
@@ -173,15 +231,7 @@ function ReportDetailPage() {
           <section className="mt-7">
             <h2 className="text-lg font-black text-ink">3. 첨부 시뮬레이션</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {simulationCards.map((simulation) => (
-                <div
-                  key={simulation.id}
-                  className={`rounded-xl border p-5 ${simulation.tone === 'primary' ? 'border-primary/20 bg-primary-soft' : 'border-orange-200 bg-orange-50'}`}
-                >
-                  <p className="text-base font-black text-ink">결과 #{simulation.id}</p>
-                  <p className="mt-2 text-sm text-text-muted">{simulation.label}</p>
-                </div>
-              ))}
+              {renderSimulationCards('document')}
             </div>
           </section>
 
@@ -213,15 +263,7 @@ function ReportDetailPage() {
           <div className="mt-7">
             <p className="text-xs font-bold text-text-muted">첨부 시뮬레이션</p>
             <div className="mt-3 space-y-3">
-              {simulationCards.map((simulation) => (
-                <div
-                  key={simulation.id}
-                  className={`rounded-xl border p-4 ${simulation.tone === 'primary' ? 'border-primary/20 bg-primary-soft' : 'border-orange-200 bg-orange-50'}`}
-                >
-                  <p className="font-black text-ink">결과 #{simulation.id}</p>
-                  <p className="mt-2 text-xs text-text-muted">{simulation.label}</p>
-                </div>
-              ))}
+              {renderSimulationCards('settings')}
             </div>
           </div>
           <div className="mt-auto pt-8">
@@ -284,15 +326,7 @@ function ReportDetailPage() {
               <section className="mt-7">
                 <h3 className="text-lg font-black text-ink">3. 첨부 시뮬레이션</h3>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {simulationCards.map((simulation) => (
-                    <div
-                      key={simulation.id}
-                      className="rounded-xl border border-line bg-surface p-4"
-                    >
-                      <p className="font-black text-ink">결과 #{simulation.id}</p>
-                      <p className="mt-2 text-sm text-text-muted">{simulation.label}</p>
-                    </div>
-                  ))}
+                  {renderSimulationCards('preview')}
                 </div>
               </section>
               <section className="mt-7">
