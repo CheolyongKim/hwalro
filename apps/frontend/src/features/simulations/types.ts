@@ -66,7 +66,7 @@ export interface SimulationSetup {
 export type SimulationExecutionStatus =
   'DRAFT' | 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
-export type SimulationTerminationReason = 'ALL_EVACUATED' | 'MAX_DURATION';
+export type SimulationTerminationReason = 'ALL_EVACUATED' | 'MAX_DURATION' | 'STALLED';
 
 export interface SimulationMetric {
   metricType: string;

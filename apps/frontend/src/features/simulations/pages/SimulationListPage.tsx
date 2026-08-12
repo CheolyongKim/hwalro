@@ -28,6 +28,7 @@ function formatDateTime(value: string | null): string {
 
 function resultLabel(simulation: SimulationOverview): string {
   if (simulation.terminationReason === 'ALL_EVACUATED') return '전원 대피';
+  if (simulation.terminationReason === 'STALLED') return '정체 종료';
   if (simulation.terminationReason === 'MAX_DURATION') return '최대시간 도달';
   return '-';
 }

@@ -443,6 +443,10 @@ public class SimulationExecutionService {
                     || output.simulationDurationSeconds() < MAX_SIMULATION_DURATION_SECONDS - 0.02) {
                 throw new IllegalStateException("최대 모의시간 종료 결과가 잔류 인원 또는 시간과 일치하지 않습니다.");
             }
+        } else if ("STALLED".equals(output.terminationReason())) {
+            if (output.remainingPeople() < 1 || output.totalEvacuationTimeSeconds() != null) {
+                throw new IllegalStateException("정체 종료 결과가 잔류 인원 또는 대피시간과 일치하지 않습니다.");
+            }
         } else {
             throw new IllegalStateException("지원하지 않는 종료 사유입니다: " + output.terminationReason());
         }

@@ -299,11 +299,14 @@ class MovementGuardTest(unittest.TestCase):
         def valid_moves(self, starts, _ends):
             return [self.valid] * len(starts)
 
+        def clamp_to_walkable(self, point):
+            return point
+
     def test_invalid_move_rolls_back_position_and_zeroes_velocity(self):
         agent = self.Agent()
         context = SimulationContext(self.Simulation(agent), self.Router(False), {})
 
-        _rollback_invalid_moves(context, {1: (1.0, 1.0)})
+        _rollback_invalid_moves(context, {1: (1.0, 1.0)}, {1: (2.0, 1.0)}, frozenset())
 
         self.assertEqual(agent.position, (1.0, 1.0))
         self.assertEqual(agent.model.velocity, (0.0, 0.0))
@@ -312,7 +315,16 @@ class MovementGuardTest(unittest.TestCase):
         agent = self.Agent()
         context = SimulationContext(self.Simulation(agent), self.Router(True), {})
 
-        _rollback_invalid_moves(context, {1: (1.0, 1.0)})
+        _rollback_invalid_moves(context, {1: (1.0, 1.0)}, {1: (2.0, 1.0)}, frozenset())
+
+        self.assertEqual(agent.position, (2.0, 1.0))
+        self.assertEqual(agent.model.velocity, (3.0, 0.0))
+
+    def test_crossed_agents_are_excluded_from_rollback(self):
+        agent = self.Agent()
+        context = SimulationContext(self.Simulation(agent), self.Router(False), {})
+
+        _rollback_invalid_moves(context, {1: (1.0, 1.0)}, {1: (2.0, 1.0)}, frozenset({1}))
 
         self.assertEqual(agent.position, (2.0, 1.0))
         self.assertEqual(agent.model.velocity, (3.0, 0.0))
