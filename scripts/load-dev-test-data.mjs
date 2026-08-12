@@ -15,10 +15,6 @@ const fixtures = [
     database: null,
     path: 'apps/simulation-service/src/main/resources/db/density-threshold-dml.sql',
   },
-  {
-    database: null,
-    path: 'apps/simulation-service/src/main/resources/db/simulation-result-test-dml.sql',
-  },
 ];
 
 const fixtureSql = (
