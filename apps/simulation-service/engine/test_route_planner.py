@@ -1,8 +1,12 @@
+import math
 import unittest
+from unittest.mock import patch
 
+import numpy as np
 from shapely.geometry import LineString, Point, Polygon, box
 
 from route_planner import (
+    AgentRouteUnreachableError,
     Exit,
     GridRouter,
     Hazard,
@@ -291,8 +295,233 @@ class GridRoutingTest(unittest.TestCase):
         walkable = outer.difference(right_block.union(upper_block))
         router = GridRouter(walkable, [], [Exit(1, (1, 0.1), (1, 0.9))])
 
-        with self.assertRaisesRegex(ValueError, "cannot connect|reachable"):
+        with self.assertRaises(AgentRouteUnreachableError):
             router.plan((0.25, 0.25))
+
+    def test_recommended_position_is_the_deterministic_safe_minimum(self):
+        exit_ = Exit(1, (4, 1), (4, 3))
+        router = GridRouter(box(0, 0, 4, 4), [], [exit_])
+        start = (1.13, 1.12)
+        other_agents = ((1.25, 1.25), (2.5, 2.5))
+        exit_segments = (((4, 1), (4, 3)), ((0, 0.5), (0, 3.5)))
+        eligible = []
+        reachable = router.valid & np.isfinite(router.distance)
+        for node in reachable.nonzero()[0]:
+            node = int(node)
+            position = router._point(node)
+            if any(math.dist(position, agent) < 0.6 for agent in other_agents):
+                continue
+            if any(
+                LineString(segment).distance(Point(position)) < 0.3
+                for segment in exit_segments
+            ):
+                continue
+            eligible.append(
+                (
+                    (
+                        math.dist(start, position) ** 2,
+                        float(router.distance[node]),
+                        int(router.exit_label[node]),
+                        node,
+                    ),
+                    position,
+                )
+            )
+        expected = min(eligible)[1]
+
+        with patch("route_planner._CONNECTOR_VISIBILITY_BATCH_SIZE", 3):
+            first = router.recommended_position(
+                start, other_agents, exit_segments, agent_spacing=0.6
+            )
+            second = router.recommended_position(
+                start, other_agents, exit_segments, agent_spacing=0.6
+            )
+
+        self.assertEqual(first, expected)
+        self.assertEqual(second, expected)
+        self.assertEqual(router.plan(first).exit_id, 1)
+        self.assertTrue(all(math.dist(first, agent) >= 0.6 for agent in other_agents))
+        self.assertTrue(
+            all(
+                LineString(segment).distance(Point(first)) >= 0.3
+                for segment in exit_segments
+            )
+        )
+
+    def test_recommended_position_is_none_when_every_reachable_node_is_occupied(self):
+        router = GridRouter(box(0, 0, 2, 2), [], [Exit(1, (2, 0.5), (2, 1.5))])
+        reachable = router.valid & np.isfinite(router.distance)
+        occupied = tuple(
+            router._point(int(node)) for node in reachable.nonzero()[0]
+        )
+
+        recommendation = router.recommended_position(
+            (0.5, 0.5), occupied, (((2, 0.5), (2, 1.5)),), agent_spacing=0.6
+        )
+
+        self.assertIsNone(recommendation)
+
+    def test_recommended_position_tie_uses_numeric_exit_id_not_internal_label(self):
+        router = GridRouter(
+            box(0, 0, 4, 4),
+            [],
+            [Exit(10, (0, 1), (0, 3)), Exit(2, (4, 1), (4, 3))],
+        )
+        by_point = {
+            router._point(int(node)): int(node)
+            for node in (router.valid & np.isfinite(router.distance)).nonzero()[0]
+        }
+        left = by_point[(1.0, 2.0)]
+        right = by_point[(3.0, 2.0)]
+        self.assertEqual(
+            (int(router.exit_label[left]), int(router.exit_label[right])), (0, 1)
+        )
+        self.assertAlmostEqual(router.distance[left], router.distance[right])
+        router.valid[:] = False
+        router.valid[[left, right]] = True
+
+        recommendation = router.recommended_position(
+            (2.0, 2.0),
+            (),
+            (((0, 1), (0, 3)), ((4, 1), (4, 3))),
+            agent_spacing=0.6,
+        )
+
+        self.assertEqual(recommendation, (3.0, 2.0))
+        self.assertEqual(router.plan(recommendation).exit_id, 2)
+
+    def test_recommended_position_mixed_exit_ids_fall_back_to_internal_label(self):
+        router = GridRouter(
+            box(0, 0, 4, 4),
+            [],
+            [Exit(10, (0, 1), (0, 3)), Exit("2", (4, 1), (4, 3))],
+        )
+        by_point = {
+            router._point(int(node)): int(node)
+            for node in (router.valid & np.isfinite(router.distance)).nonzero()[0]
+        }
+        left = by_point[(1.0, 2.0)]
+        right = by_point[(3.0, 2.0)]
+        router.valid[:] = False
+        router.valid[[left, right]] = True
+
+        recommendation = router.recommended_position(
+            (2.0, 2.0),
+            (),
+            (((0, 1), (0, 3)), ((4, 1), (4, 3))),
+            agent_spacing=0.6,
+        )
+
+        self.assertEqual(recommendation, (1.0, 2.0))
+        self.assertEqual(router.plan(recommendation).exit_id, 10)
+
+    def test_agent_in_sub_grid_corridor_searches_past_nearest_128_nodes(self):
+        drawing = {
+            "outsideBoundary": [
+                {"x": 0, "y": 0},
+                {"x": 30, "y": 0},
+                {"x": 30, "y": 10},
+                {"x": 0, "y": 10},
+            ],
+            "walls": [],
+            "pillars": [],
+            "fabrics": [
+                {
+                    "startX": 5,
+                    "startY": 4,
+                    "endX": 25,
+                    "endY": 4.7,
+                    "rotation": 0,
+                },
+                {
+                    "startX": 5,
+                    "startY": 5.5,
+                    "endX": 25,
+                    "endY": 6.2,
+                    "rotation": 0,
+                },
+            ],
+        }
+        physical = build_walkable_geometry(drawing)
+        routing = build_routing_geometry(drawing, 0.3)
+        router = GridRouter(
+            routing,
+            [],
+            [Exit(1, (30, 3), (30, 7))],
+            physical_walkable=physical,
+        )
+        start = (15.0212, 5.1965)
+
+        reachable = router.valid & np.isfinite(router.distance)
+        self.assertEqual(router._local_nodes(start, reachable), [])
+        candidates = reachable.nonzero()[0]
+        squared = (router._x[candidates] - start[0]) ** 2 + (
+            router._y[candidates] - start[1]
+        ) ** 2
+        nearest = candidates[squared.argpartition(63)[:64]]
+        self.assertFalse(
+            any(router.can_connect(start, router._point(int(node))) for node in nearest)
+        )
+        expanded = candidates[squared.argpartition(127)[:128]]
+        self.assertFalse(
+            any(router.can_connect(start, router._point(int(node))) for node in expanded)
+        )
+
+        route = router.plan(start)
+
+        self.assertEqual(route.exit_id, 1)
+        self.assertTrue(router.can_connect(route.waypoints[0], route.waypoints[1]))
+        self.assertEqual(router.plan(start), route)
+
+    def test_long_expanded_connector_samples_hazard_at_grid_step_intervals(self):
+        router = GridRouter(
+            box(0, 0, 10, 2),
+            [Hazard(2.5, 1.0, 0.2)],
+            [Exit(1, (10, 0.5), (10, 1.5))],
+        )
+        start = (0.5, 1.0)
+        end = (9.5, 1.0)
+
+        three_sample_cost = router._edge_cost(start, end)
+        expanded_cost = router._expanded_connector_cost(start, end)
+
+        self.assertAlmostEqual(three_sample_cost, math.dist(start, end))
+        self.assertGreater(expanded_cost, three_sample_cost)
+
+    def test_expanded_connector_uses_total_cost_past_nearby_hazard(self):
+        router = GridRouter(
+            box(0, 0, 10, 4),
+            [Hazard(2.5, 2.0, 1.0)],
+            [Exit(1, (10, 1), (10, 3))],
+        )
+        start = (0.5, 2.0)
+        reachable = router.valid & np.isfinite(router.distance)
+        candidates = reachable.nonzero()[0]
+        squared = (router._x[candidates] - start[0]) ** 2 + (
+            router._y[candidates] - start[1]
+        ) ** 2
+        by_lower_bound = sorted(
+            (int(node) for node in candidates),
+            key=lambda node: (
+                math.dist(start, router._point(node)) + float(router.distance[node]),
+                node,
+            ),
+        )
+        expected = min(
+            (
+                router._expanded_connector_cost(start, router._point(node))
+                + float(router.distance[node]),
+                int(router.exit_label[node]),
+                node,
+            )
+            for node in by_lower_bound
+        )
+
+        self.assertGreater(by_lower_bound.index(expected[2]), 64)
+        with patch("route_planner._CONNECTOR_VISIBILITY_BATCH_SIZE", 64):
+            actual = router._expanded_connector(start, candidates, squared)
+
+        self.assertEqual(actual, expected)
 
 
 if __name__ == "__main__":

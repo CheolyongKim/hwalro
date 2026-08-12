@@ -1,3 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { riskApi } from '../../features/risks/api/riskApi';
+import { RiskZonePreview } from '../../features/risks/components/RiskZonePreview';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../features/risks/constants/riskOptions';
 import { useRiskForm } from '../../features/risks/hooks/useRiskForm';
 import { useDeleteRisk, useUpdateRisk } from '../../features/risks/hooks/useRiskMutations';
@@ -11,6 +16,7 @@ const SELECT_CLASSES =
   'rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-bold text-text-strong outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15';
 
 function RiskDetailPanel({ risk }: { risk: Risk }) {
+  const navigate = useNavigate();
   const {
     title,
     setTitle,
@@ -31,6 +37,37 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   const updateMutation = useUpdateRisk();
   const deleteMutation = useDeleteRisk();
 
+  const zoneBounds = useMemo(() => {
+    if (
+      risk.simulationResultId === null ||
+      risk.startX === null ||
+      risk.startY === null ||
+      risk.endX === null ||
+      risk.endY === null
+    ) {
+      return null;
+    }
+    return {
+      simulationResultId: risk.simulationResultId,
+      startX: risk.startX,
+      startY: risk.startY,
+      endX: risk.endX,
+      endY: risk.endY,
+    };
+  }, [risk.endX, risk.endY, risk.simulationResultId, risk.startX, risk.startY]);
+
+  const simulationResultId = zoneBounds?.simulationResultId;
+  const drawingContextQuery = useQuery({
+    queryKey: ['risk-drawing', simulationResultId],
+    queryFn: () => {
+      if (simulationResultId === undefined) {
+        throw new Error('연결된 시뮬레이션 결과가 없습니다.');
+      }
+      return riskApi.getDrawingContext(simulationResultId);
+    },
+    enabled: simulationResultId !== undefined,
+  });
+
   const errorMessage = updateMutation.isError
     ? getRiskErrorMessage(updateMutation.error)
     : deleteMutation.isError
@@ -44,6 +81,12 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   const handleDelete = () => {
     if (window.confirm('삭제하시겠습니까?')) {
       deleteMutation.mutate(risk.id);
+    }
+  };
+
+  const handleOpenSimulation = () => {
+    if (drawingContextQuery.data) {
+      navigate(`/simulations/${drawingContextQuery.data.simulationId}/results`);
     }
   };
 
@@ -96,6 +139,39 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
         onChange={(event) => setDescription(event.target.value)}
         className={INPUT_CLASSES}
       />
+
+      {zoneBounds && (
+        <section className="mt-6" aria-label="시뮬레이션 구역">
+          <span className="text-xs font-bold text-text-muted">시뮬레이션 구역</span>
+          {drawingContextQuery.isPending ? (
+            <p className="mt-2 text-sm text-text-muted">도면 불러오는 중...</p>
+          ) : drawingContextQuery.isError ? (
+            <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {getRiskErrorMessage(drawingContextQuery.error)}
+            </p>
+          ) : (
+            drawingContextQuery.data && (
+              <div className="mt-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={handleOpenSimulation}
+                  title="시뮬레이션 결과 페이지로 이동"
+                  className="block w-full overflow-hidden rounded-xl border border-line bg-white transition-colors hover:border-primary"
+                >
+                  <RiskZonePreview drawing={drawingContextQuery.data.drawing} zone={zoneBounds} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenSimulation}
+                  className="h-10 w-full rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary transition-colors hover:bg-primary/15"
+                >
+                  시뮬레이션 결과 보러가기
+                </button>
+              </div>
+            )
+          )}
+        </section>
+      )}
 
       {errorMessage && (
         <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-600">

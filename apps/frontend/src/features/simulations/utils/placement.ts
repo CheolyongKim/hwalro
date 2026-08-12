@@ -7,6 +7,12 @@ export const MAX_AGENTS = 5000;
 const EPSILON = 1e-7;
 const GRID_SPACING = 0.601;
 
+export function parseHighlightedAgentId(value: string | null, agentCount: number): number | null {
+  if (value === null) return null;
+  const agentId = Number(value);
+  return Number.isInteger(agentId) && agentId >= 1 && agentId <= agentCount ? agentId : null;
+}
+
 function squaredDistance(a: SimulationPoint, b: SimulationPoint): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;

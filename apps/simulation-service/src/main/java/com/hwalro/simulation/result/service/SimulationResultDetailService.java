@@ -67,6 +67,39 @@ public class SimulationResultDetailService {
                 .map(this::toBottleneck)
                 .toList();
         double threshold = densityThresholdProvider.getCurrent().value().doubleValue();
+        Drawing drawing = assembleDrawing(summary);
+        List<ComparableSimulation> comparableSimulations =
+                mapper.findComparableSimulations(simulationId, summary.createdBy()).stream()
+                        .map(row -> new ComparableSimulation(
+                                row.simulationId(), row.simulationResultId(), row.name(), row.totalEvacuationTime()))
+                        .toList();
+
+        return new SimulationResultDetailResponse(
+                summary.simulationId(),
+                summary.simulationResultId(),
+                summary.layoutTitle(),
+                SUBTITLE,
+                duration,
+                summary.totalPeople(),
+                maxDensity,
+                threshold,
+                drawing,
+                bottlenecks,
+                comparableSimulations);
+    }
+
+    public SimulationResultDetailResponse.Drawing findDrawing(Long simulationId) {
+        if (simulationId == null || simulationId <= 0) {
+            throw new IllegalArgumentException("시뮬레이션 ID는 양수여야 합니다.");
+        }
+        SummaryRow summary = mapper.findSummary(simulationId);
+        if (summary == null) {
+            throw new SimulationNotFoundException("시뮬레이션을 찾을 수 없습니다: " + simulationId);
+        }
+        return assembleDrawing(summary);
+    }
+
+    private SimulationResultDetailResponse.Drawing assembleDrawing(SummaryRow summary) {
         List<Point> outsideBoundary = SimulationGeometry.assembleBoundary(
                         drawingMapper.findOutsideWallsByVersionId(summary.layoutVersionId()),
                         BigDecimal.valueOf(summary.drawingWidth()),
@@ -74,7 +107,7 @@ public class SimulationResultDetailService {
                 .stream()
                 .map(point -> new Point(point.x().doubleValue(), point.y().doubleValue()))
                 .toList();
-        Drawing drawing = new Drawing(
+        return new Drawing(
                 summary.drawingName(),
                 summary.drawingWidth(),
                 summary.drawingHeight(),
@@ -97,24 +130,6 @@ public class SimulationResultDetailService {
                                 text.getX().doubleValue(),
                                 text.getY().doubleValue()))
                         .toList());
-        List<ComparableSimulation> comparableSimulations =
-                mapper.findComparableSimulations(simulationId, summary.createdBy()).stream()
-                        .map(row -> new ComparableSimulation(
-                                row.simulationId(), row.simulationResultId(), row.name(), row.totalEvacuationTime()))
-                        .toList();
-
-        return new SimulationResultDetailResponse(
-                summary.simulationId(),
-                summary.simulationResultId(),
-                summary.layoutTitle(),
-                SUBTITLE,
-                duration,
-                summary.totalPeople(),
-                maxDensity,
-                threshold,
-                drawing,
-                bottlenecks,
-                comparableSimulations);
     }
 
     private void requireAccessible(SummaryRow summary, JwtUser user) {

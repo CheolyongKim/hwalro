@@ -7,9 +7,12 @@ import com.hwalro.auth.controller.dto.LoginRequest;
 import com.hwalro.auth.controller.dto.UserResponse;
 import com.hwalro.auth.controller.dto.UserSummaryResponse;
 import com.hwalro.auth.domain.User;
+import com.hwalro.auth.dto.LastActivityResponse;
+import com.hwalro.auth.dto.UpdateLastActivityRequest;
 import com.hwalro.auth.jwt.InvalidTokenException;
 import com.hwalro.auth.security.AuthenticatedUser;
 import com.hwalro.auth.security.CookieManager;
+import com.hwalro.auth.service.UserLastActivityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,6 +27,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,10 +40,13 @@ public class AuthController {
 
     private final AuthService authService;
     private final CookieManager cookieManager;
+    private final UserLastActivityService userLastActivityService;
 
-    public AuthController(AuthService authService, CookieManager cookieManager) {
+    public AuthController(
+            AuthService authService, CookieManager cookieManager, UserLastActivityService userLastActivityService) {
         this.authService = authService;
         this.cookieManager = cookieManager;
+        this.userLastActivityService = userLastActivityService;
     }
 
     @Operation(summary = "로그인", description = "아이디/비밀번호로 로그인한다. 응답 바디로 액세스 토큰을 반환하고, 리프레시 토큰은 HttpOnly 쿠키로 설정한다.")
@@ -91,6 +98,35 @@ public class AuthController {
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser principal) {
         User user = authService.findUserWithRoles(principal.loginId());
         return ResponseEntity.ok(toUserResponse(user));
+    }
+
+    @Operation(summary = "마지막 작업 조회", description = "현재 로그인한 사용자가 마지막으로 머문 작업 위치를 반환한다. 기록이 없으면 204를 반환한다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "성공"),
+        @ApiResponse(responseCode = "204", description = "기록된 마지막 작업 없음"),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 요청")
+    })
+    @GetMapping("/me/last-activity")
+    public ResponseEntity<LastActivityResponse> lastActivity(
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser principal) {
+        return userLastActivityService
+                .findLastActivity(principal.userId())
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    @Operation(summary = "마지막 작업 기록", description = "현재 로그인한 사용자의 마지막 작업 위치를 갱신한다. 사용자 식별은 액세스 토큰만 사용한다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "기록 성공"),
+        @ApiResponse(responseCode = "400", description = "지원하지 않는 작업 유형"),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 요청")
+    })
+    @PutMapping("/me/last-activity")
+    public ResponseEntity<Void> updateLastActivity(
+            @Valid @RequestBody UpdateLastActivityRequest request,
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser principal) {
+        userLastActivityService.recordLastActivity(principal.userId(), request.activityType(), request.resourceId());
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "사용자 표시 이름 일괄 조회", description = "관리자와 안전 검토자는 여러 사용자를, 운영 담당자는 본인만 조회할 수 있습니다.")

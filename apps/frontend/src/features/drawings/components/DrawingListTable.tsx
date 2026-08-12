@@ -5,9 +5,6 @@ import type { DrawingSummary } from '../types/drawing';
 interface DrawingListTableProps {
   items: DrawingSummary[];
   onDelete: (drawing: DrawingSummary) => void;
-  hasNext: boolean;
-  onLoadMore: () => void;
-  isFetchingMore: boolean;
 }
 
 function formatCreatedAt(value: string): string {
@@ -26,13 +23,7 @@ function creatorLabel(
   return `#${createdBy}`;
 }
 
-function DrawingListTable({
-  items,
-  onDelete,
-  hasNext,
-  onLoadMore,
-  isFetchingMore,
-}: DrawingListTableProps) {
+function DrawingListTable({ items, onDelete }: DrawingListTableProps) {
   const { user } = useAuth();
 
   return (
@@ -106,16 +97,6 @@ function DrawingListTable({
           </tbody>
         </table>
       </div>
-      {hasNext && (
-        <button
-          type="button"
-          onClick={onLoadMore}
-          disabled={isFetchingMore}
-          className="w-full border-t border-line bg-white px-4 py-3 text-sm font-bold text-text-strong transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isFetchingMore ? '불러오는 중...' : '더 보기'}
-        </button>
-      )}
     </div>
   );
 }

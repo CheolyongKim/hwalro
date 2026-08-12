@@ -230,22 +230,74 @@
 }
 .floating-title-row {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
   font-size: 12px;
 }
+.floating-title-row strong {
+  font-size: 12px;
+  font-weight: 700;
+}
 .floating-title-row span {
-  color: #168f80;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.chart-grid {
-  stroke: #dae6e2;
-  stroke-width: 1;
-  fill: none;
+.evacuation-chart-plot {
+  position: relative;
+  margin-top: 4px;
 }
-.chart-line {
-  stroke: #168f80;
-  stroke-width: 3;
-  fill: none;
-  stroke-linecap: round;
+.evacuation-chart-playhead {
+  position: absolute;
+  left: 0;
+  width: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-lime) 95%, transparent),
+    color-mix(in srgb, var(--color-lime) 45%, transparent)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-lime) 55%, transparent);
+  pointer-events: none;
+  will-change: transform;
+}
+.evacuation-chart-playhead-dot {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-lime);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-lime) 25%, transparent),
+    0 1px 4px color-mix(in srgb, var(--color-ink-deep) 35%, transparent);
+  transform: translateX(-50%);
+}
+.evacuation-chart-tooltip {
+  --ts-chart-tooltip-background: var(--color-chart-tooltip-bg);
+  --ts-chart-tooltip-color: var(--color-panel-text);
+  --ts-chart-tooltip-border: 1px solid var(--color-chart-tooltip-border);
+  --ts-chart-tooltip-border-radius: 12px;
+  --ts-chart-tooltip-padding: 8px 12px;
+  --ts-chart-tooltip-shadow: 0 12px 30px var(--color-chart-tooltip-shadow);
+  --ts-chart-tooltip-max-width: 13rem;
+  --ts-chart-tooltip-font: 400 0.6875rem/1.35 var(--font-sans);
+  backdrop-filter: blur(10px);
+}
+.evacuation-chart-tooltip span {
+  color: var(--color-panel-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.evacuation-chart-tooltip strong {
+  font-size: 14px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-lime);
 }
 .playback-controls button {
   border: 0;
@@ -666,7 +718,8 @@
   cursor: not-allowed;
 }
 .simulation-result-page button:focus-visible,
-.simulation-result-page input:focus-visible {
+.simulation-result-page input:focus-visible,
+.simulation-result-page select:focus-visible {
   outline: 3px solid rgba(194, 232, 75, 0.92);
   outline-offset: 3px;
 }
@@ -685,12 +738,14 @@
   left: auto;
   top: auto;
   width: min(340px, calc(100vw - 40px));
+  max-height: calc(100dvh - 80px);
   gap: 14px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.96);
   padding: 22px;
   color: #17332e;
   transform: none;
+  overflow-y: auto;
 }
 .zone-editor h2 {
   margin: 0;
@@ -698,7 +753,8 @@
   font-weight: 800;
   line-height: 1.3;
 }
-.zone-editor input {
+.zone-editor input,
+.zone-editor select {
   border: 1px solid #b8cbc7;
   border-radius: 10px;
   padding: 10px;
@@ -708,8 +764,36 @@
   font-size: 12px;
   line-height: 1.4;
 }
+.zone-editor select {
+  background: #fff;
+}
+.zone-editor label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2f514c;
+}
+.zone-editor p[role='alert'] {
+  border: 1px solid #f3c1c1;
+  border-radius: 10px;
+  background: #fdeeee;
+  padding: 10px;
+  margin: 0;
+  color: #b3261e;
+  font-size: 12px;
+  line-height: 1.4;
+}
 .zone-editor button {
   font-size: 11px;
+}
+.risk-zone-load-error {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1px solid #f3c1c1;
+  border-radius: 10px;
+  background: rgba(253, 238, 238, 0.92);
+  color: #b3261e;
+  font-size: 12px;
+  font-weight: 700;
 }
 .simulation-canvas--interactive.is-pannable {
   cursor: grab;

@@ -1,7 +1,10 @@
+from contextlib import redirect_stderr
+import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from shapely.geometry import LineString, box
 
@@ -13,7 +16,9 @@ from runner import (
     TimelineWriter,
     _rollback_invalid_moves,
     _waypoint_reached,
+    main,
 )
+from route_planner import AgentRouteUnreachableError
 
 
 class TimelineWriterTest(unittest.TestCase):
@@ -87,6 +92,132 @@ class HeatmapWriterTest(unittest.TestCase):
             self.assertEqual(chunk["grid"]["cellOrder"], "ROW_COLUMN_VALUE")
             self.assertEqual(chunk["frames"][0]["cells"], [[0, 0, 2.0], [0, 1, 1.0]])
             self.assertEqual(writer.max_density, 2.0)
+
+
+class AgentRouteErrorContractTest(unittest.TestCase):
+    @staticmethod
+    def _payload():
+        return {
+            "model": {
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
+                "walkingSpeed": 1.2,
+                "reactionTime": 0.5,
+            },
+            "maxSimulationTimeSeconds": 0.01,
+            "frameIntervalSeconds": 0.01,
+            "drawing": {
+                "outsideBoundary": [
+                    {"x": 0, "y": 0},
+                    {"x": 4, "y": 0},
+                    {"x": 4, "y": 4},
+                    {"x": 0, "y": 4},
+                ],
+                "walls": [],
+                "pillars": [],
+                "fabrics": [],
+                "exits": [
+                    {"id": 1, "startX": 4, "startY": 1, "endX": 4, "endY": 3},
+                    {"id": 2, "startX": 0, "startY": 1, "endX": 0, "endY": 3},
+                ],
+            },
+            "agents": [{"x": 1, "y": 1}, {"x": 2, "y": 2}],
+            "hazards": [],
+            "selectedExitIds": [1],
+        }
+
+    def test_first_route_failure_writes_safe_typed_error_and_returns_three(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "private-input.json"
+            output_dir = root / "output"
+            input_path.write_text(json.dumps(self._payload()), encoding="utf-8")
+            stderr = io.StringIO()
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter.plan",
+                    side_effect=[object(), AgentRouteUnreachableError("hidden position")],
+                ) as plan,
+                patch(
+                    "route_planner.GridRouter.recommended_position",
+                    return_value=(2.123456789, 1.987654321),
+                ) as recommend,
+                redirect_stderr(stderr),
+            ):
+                exit_code = main([str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(stderr.getvalue(), "runner error: AGENT_ROUTE_UNREACHABLE\n")
+            self.assertNotIn(str(input_path), stderr.getvalue())
+            self.assertNotIn("hidden position", stderr.getvalue())
+            self.assertEqual(plan.call_count, 2)
+            recommend.assert_called_once()
+            self.assertEqual(len(recommend.call_args.kwargs["exit_segments"]), 2)
+            self.assertEqual(len(recommend.call_args.kwargs["other_agents"]), 1)
+            self.assertEqual(
+                json.loads((output_dir / "error.json").read_text("utf-8")),
+                {
+                    "schemaVersion": 1,
+                    "code": "AGENT_ROUTE_UNREACHABLE",
+                    "agentId": 2,
+                    "recommendedPosition": {"x": 2.123457, "y": 1.987654},
+                },
+            )
+
+    def test_route_failure_writes_null_when_no_safe_recommendation_exists(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(json.dumps(self._payload()), encoding="utf-8")
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter.plan",
+                    side_effect=AgentRouteUnreachableError("hidden position"),
+                ),
+                patch("route_planner.GridRouter.recommended_position", return_value=None),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = main([str(input_path), str(output_dir)])
+
+            error = json.loads((output_dir / "error.json").read_text("utf-8"))
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(error["agentId"], 1)
+            self.assertIsNone(error["recommendedPosition"])
+
+    def test_reports_lowest_original_index_when_group_order_is_reversed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            payload = self._payload()
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            def reversed_group(area, agents):
+                return ((area, ((1, agents[1]), (0, agents[0]))),)
+
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch("route_planner.split_agent_components", side_effect=reversed_group),
+                patch(
+                    "route_planner.GridRouter.plan",
+                    side_effect=AgentRouteUnreachableError("hidden position"),
+                ) as plan,
+                patch(
+                    "route_planner.GridRouter.recommended_position", return_value=(1.5, 1.5)
+                ) as recommend,
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = main([str(input_path), str(output_dir)])
+
+            error = json.loads((output_dir / "error.json").read_text("utf-8"))
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(plan.call_count, 1)
+            self.assertEqual(error["agentId"], 1)
+            self.assertEqual(recommend.call_args.kwargs["start"], (1.0, 1.0))
+
 
 class WaypointProgressTest(unittest.TestCase):
     def setUp(self):

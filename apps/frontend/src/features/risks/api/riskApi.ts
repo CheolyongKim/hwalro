@@ -1,10 +1,22 @@
 import { apiClient } from '../../../api/client';
-import type { Risk, RiskCreateRequest, RiskListResponse, RiskUpdateRequest } from '../types/risks';
+import type {
+  Risk,
+  RiskCreateRequest,
+  RiskDrawingContext,
+  RiskListResponse,
+  RiskUpdateRequest,
+} from '../types/risks';
 
 export const riskApi = {
   list: (page: number, size: number) =>
     apiClient
       .get<RiskListResponse>('/api/risks', { params: { page, size } })
+      .then((res) => res.data),
+  listBySimulationResult: (simulationResultId: number) =>
+    apiClient.get<Risk[]>(`/api/risks/by-result/${simulationResultId}`).then((res) => res.data),
+  getDrawingContext: (simulationResultId: number) =>
+    apiClient
+      .get<RiskDrawingContext>(`/api/risks/by-result/${simulationResultId}/drawing`)
       .then((res) => res.data),
   get: (id: number) => apiClient.get<Risk>(`/api/risks/${id}`).then((res) => res.data),
   create: (body: RiskCreateRequest) =>

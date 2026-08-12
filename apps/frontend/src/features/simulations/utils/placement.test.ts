@@ -5,6 +5,7 @@ import {
   createUniformPlacement,
   eraseAgents,
   isValidAgentPosition,
+  parseHighlightedAgentId,
   sprayAttemptCount,
 } from './placement';
 
@@ -58,5 +59,28 @@ describe('에이전트 배치', () => {
         { x: 4, y: 4 },
       ]),
     ).toEqual([{ x: 4, y: 4 }]);
+  });
+
+  it('지우개 크기에 따라 제거 범위가 달라진다', () => {
+    const agents = [
+      { x: 2, y: 2 },
+      { x: 3, y: 2 },
+      { x: 4, y: 2 },
+    ];
+
+    expect(eraseAgents({ x: 2, y: 2 }, 0.5, agents)).toEqual([
+      { x: 3, y: 2 },
+      { x: 4, y: 2 },
+    ]);
+    expect(eraseAgents({ x: 2, y: 2 }, 1.5, agents)).toEqual([{ x: 4, y: 2 }]);
+  });
+
+  it('URL의 에이전트 번호가 실제 인원 범위 안에 있을 때만 강조한다', () => {
+    expect(parseHighlightedAgentId('1', 3)).toBe(1);
+    expect(parseHighlightedAgentId('3', 3)).toBe(3);
+    expect(parseHighlightedAgentId('0', 3)).toBeNull();
+    expect(parseHighlightedAgentId('4', 3)).toBeNull();
+    expect(parseHighlightedAgentId('1.5', 3)).toBeNull();
+    expect(parseHighlightedAgentId(null, 3)).toBeNull();
   });
 });

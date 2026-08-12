@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import type { SimulationTool } from '../components/SimulationCanvas';
+import {
+  AgentDeletionConfirmDialog,
+  AgentDeletionSuccessToast,
+} from '../components/AgentDeletionFeedback';
 import { simulationApi } from '../api/simulationApi';
 import type { EditableHazardZone, SimulationPoint, SimulationSetup } from '../types';
 import {
@@ -10,8 +14,10 @@ import {
   addSprayedAgents,
   createUniformPlacement,
   eraseAgents,
+  parseHighlightedAgentId,
 } from '../utils/placement';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
+import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 
 interface PlacementSnapshot {
   agents: SimulationPoint[];
@@ -20,6 +26,7 @@ interface PlacementSnapshot {
 
 type LoadState = 'loading' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type AgentDeletionToast = { state: 'confirm' | 'success'; count: number } | null;
 
 interface InfoTooltipProps {
   id: string;
@@ -64,6 +71,18 @@ function sameSnapshot(a: PlacementSnapshot, b: PlacementSnapshot): boolean {
 function SimulationSetupPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
+  const recordLastActivity = useRecordLastActivity();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedHighlightRef = useRef({
+    simulationId,
+    value: searchParams.get('highlightAgent'),
+  });
+  if (requestedHighlightRef.current.simulationId !== simulationId) {
+    requestedHighlightRef.current = {
+      simulationId,
+      value: searchParams.get('highlightAgent'),
+    };
+  }
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [executing, setExecuting] = useState(false);
@@ -72,13 +91,16 @@ function SimulationSetupPage() {
   const [hazards, setHazards] = useState<EditableHazardZone[]>([]);
   const [selectedExitIds, setSelectedExitIds] = useState<number[]>([]);
   const [highlightedExitId, setHighlightedExitId] = useState<number | null>(null);
+  const [highlightedAgentId, setHighlightedAgentId] = useState<number | null>(null);
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
   const [reactionTime, setReactionTime] = useState(0.5);
   const [tool, setTool] = useState<SimulationTool>('spray');
-  const [brushRadius, setBrushRadius] = useState(1);
+  const [sprayRadius, setSprayRadius] = useState(1);
+  const [eraserRadius, setEraserRadius] = useState(1);
   const [uniformCount, setUniformCount] = useState(100);
   const [selectedHazardId, setSelectedHazardId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [agentDeletionToast, setAgentDeletionToast] = useState<AgentDeletionToast>(null);
   const [, setHistoryRevision] = useState(0);
   const placementRef = useRef<PlacementSnapshot>({ agents: [], hazards: [] });
   const pastRef = useRef<PlacementSnapshot[]>([]);
@@ -87,9 +109,11 @@ function SimulationSetupPage() {
   const hazardSequenceRef = useRef(0);
 
   const replacePlacement = useCallback((next: PlacementSnapshot) => {
+    const agentsChanged = placementRef.current.agents !== next.agents;
     placementRef.current = next;
     setAgents(next.agents);
     setHazards(next.hazards);
+    if (agentsChanged) setHighlightedAgentId(null);
   }, []);
 
   const commitPlacement = useCallback(
@@ -105,7 +129,7 @@ function SimulationSetupPage() {
   );
 
   const loadSetup = useCallback(
-    (data: SimulationSetup) => {
+    (data: SimulationSetup, highlightAgent: string | null = null) => {
       const loadedHazards = data.hazardZones.map((hazard, index) => ({
         ...hazard,
         clientId: `hazard-${hazard.id ?? index}-${hazardSequenceRef.current++}`,
@@ -116,11 +140,13 @@ function SimulationSetupPage() {
       setWalkingSpeed(data.walkingSpeed);
       setReactionTime(data.reactionTime);
       setSelectedHazardId(null);
+      setAgentDeletionToast(null);
       pastRef.current = [];
       futureRef.current = [];
       gestureOriginRef.current = null;
       setHistoryRevision((revision) => revision + 1);
       replacePlacement({ agents: data.agentPositions, hazards: loadedHazards });
+      setHighlightedAgentId(parseHighlightedAgentId(highlightAgent, data.agentPositions.length));
     },
     [replacePlacement],
   );
@@ -138,7 +164,7 @@ function SimulationSetupPage() {
       .getSetup(id)
       .then((data) => {
         if (!cancelled) {
-          loadSetup(data);
+          loadSetup(data, requestedHighlightRef.current.value);
           setLoadState('ready');
         }
       })
@@ -152,6 +178,13 @@ function SimulationSetupPage() {
       cancelled = true;
     };
   }, [loadSetup, simulationId]);
+
+  useEffect(() => {
+    if (loadState !== 'ready' || !searchParams.has('highlightAgent')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('highlightAgent');
+    setSearchParams(next, { replace: true });
+  }, [loadState, searchParams, setSearchParams]);
 
   const undo = useCallback(() => {
     const previous = pastRef.current[pastRef.current.length - 1];
@@ -175,6 +208,7 @@ function SimulationSetupPage() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (agentDeletionToast?.state === 'confirm') return;
       const target = event.target as HTMLElement | null;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
       const modifier = event.ctrlKey || event.metaKey;
@@ -189,7 +223,13 @@ function SimulationSetupPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [redo, undo]);
+  }, [agentDeletionToast?.state, redo, undo]);
+
+  useEffect(() => {
+    if (agentDeletionToast?.state !== 'success') return;
+    const timer = window.setTimeout(() => setAgentDeletionToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [agentDeletionToast]);
 
   if (loadState === 'loading') {
     return (
@@ -244,7 +284,7 @@ function SimulationSetupPage() {
   const applySpray = (point: SimulationPoint) => {
     if (!editable) return;
     const current = placementRef.current;
-    const nextAgents = addSprayedAgents(point, brushRadius, setup.drawing, current.agents);
+    const nextAgents = addSprayedAgents(point, sprayRadius, setup.drawing, current.agents);
     if (nextAgents !== current.agents) replacePlacement({ ...current, agents: nextAgents });
     if (nextAgents.length >= MAX_AGENTS)
       setMessage(`최대 ${MAX_AGENTS.toLocaleString()}명까지 배치할 수 있습니다.`);
@@ -253,7 +293,7 @@ function SimulationSetupPage() {
   const applyErase = (point: SimulationPoint) => {
     if (!editable) return;
     const current = placementRef.current;
-    const nextAgents = eraseAgents(point, brushRadius, current.agents);
+    const nextAgents = eraseAgents(point, eraserRadius, current.agents);
     if (nextAgents.length !== current.agents.length) {
       replacePlacement({ ...current, agents: nextAgents });
     }
@@ -300,6 +340,21 @@ function SimulationSetupPage() {
     commitPlacement({ ...placementRef.current, agents: result.positions });
   };
 
+  const handleClearAgents = () => {
+    if (!editable || saveState === 'saving' || agents.length === 0) return;
+    setAgentDeletionToast({ state: 'confirm', count: agents.length });
+  };
+
+  const confirmClearAgents = () => {
+    if (!editable || saveState === 'saving' || agents.length === 0) {
+      setAgentDeletionToast(null);
+      return;
+    }
+    const count = agents.length;
+    commitPlacement({ ...placementRef.current, agents: [] });
+    setAgentDeletionToast({ state: 'success', count });
+  };
+
   const validateOptions = (): string | null => {
     if (reactionTime < 0.1 || reactionTime > 2) {
       return '속도 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
@@ -326,7 +381,8 @@ function SimulationSetupPage() {
         hazardZones: hazards.map(({ centerX, centerY, radius }) => ({ centerX, centerY, radius })),
         selectedExitIds,
       });
-      loadSetup(saved);
+      loadSetup(saved, highlightedAgentId?.toString() ?? null);
+      recordLastActivity('SIMULATION_SETUP', saved.simulationId);
       return saved;
     } catch (error) {
       setMessage(getSimulationErrorMessage(error));
@@ -449,10 +505,11 @@ function SimulationSetupPage() {
             agents={agents}
             hazards={hazards}
             tool={editable ? tool : 'select'}
-            brushRadius={brushRadius}
+            brushRadius={tool === 'erase' ? eraserRadius : sprayRadius}
             selectedHazardId={selectedHazardId}
             selectedExitIds={selectedExitIds}
             highlightedExitId={highlightedExitId}
+            highlightedAgentId={highlightedAgentId}
             onSpray={applySpray}
             onErase={applyErase}
             onCreateHazard={createHazard}
@@ -468,9 +525,11 @@ function SimulationSetupPage() {
                 type="button"
                 disabled={!editable}
                 onClick={() => setTool(item.value)}
-                className={`h-9 rounded-lg px-3 text-xs font-bold transition-colors disabled:opacity-40 ${
+                className={`h-9 rounded-lg px-3 text-xs font-bold transition-all duration-300 disabled:opacity-40 ${
                   tool === item.value
-                    ? 'bg-primary text-white'
+                    ? item.value === 'erase'
+                      ? 'scale-105 bg-danger text-white shadow-md shadow-red-200'
+                      : 'scale-105 bg-primary text-white shadow-md shadow-emerald-200'
                     : 'bg-surface text-text-strong hover:bg-primary-soft'
                 }`}
               >
@@ -478,6 +537,19 @@ function SimulationSetupPage() {
               </button>
             ))}
           </div>
+          {agentDeletionToast?.state === 'confirm' && (
+            <AgentDeletionConfirmDialog
+              count={agentDeletionToast.count}
+              onCancel={() => setAgentDeletionToast(null)}
+              onConfirm={confirmClearAgents}
+            />
+          )}
+          {agentDeletionToast?.state === 'success' && (
+            <AgentDeletionSuccessToast
+              count={agentDeletionToast.count}
+              onClose={() => setAgentDeletionToast(null)}
+            />
+          )}
           {message && (
             <div
               role="alert"
@@ -510,20 +582,57 @@ function SimulationSetupPage() {
           </section>
 
           <section className="mt-6 border-t border-line pt-5">
-            <h2 className="text-sm font-black">에이전트 배치</h2>
-            <label className="mt-4 block text-xs font-bold text-text-muted">
-              스프레이 크기 · {brushRadius.toFixed(1)}m
-              <input
-                type="range"
-                min={AGENT_RADIUS}
-                max={5}
-                step={0.1}
-                value={brushRadius}
-                onChange={(event) => setBrushRadius(Number(event.target.value))}
-                disabled={!editable}
-                className="mt-2 w-full accent-primary"
-              />
-            </label>
+            <div
+              aria-live="polite"
+              className={`flex items-center justify-between rounded-xl border px-3 py-2 transition-all duration-300 ${
+                tool === 'erase'
+                  ? 'scale-[1.02] border-red-200 bg-red-50 text-danger shadow-sm'
+                  : tool === 'spray'
+                    ? 'border-emerald-200 bg-emerald-50 text-primary shadow-sm'
+                    : 'border-line bg-surface text-text-strong'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`flex size-7 items-center justify-center rounded-full text-base font-black transition-all duration-300 ${
+                    tool === 'erase'
+                      ? 'scale-110 bg-red-100 text-danger'
+                      : tool === 'spray'
+                        ? 'bg-emerald-100 text-primary'
+                        : 'bg-white text-text-muted'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {tool === 'erase' ? '−' : tool === 'spray' ? '+' : '·'}
+                </span>
+                <h2 className="text-sm font-black">
+                  {tool === 'erase' ? '에이전트 지우기' : '에이전트 배치'}
+                </h2>
+              </div>
+              <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-black">
+                {tool === 'erase' ? '지우개 모드' : tool === 'spray' ? '배치 모드' : '도구 대기'}
+              </span>
+            </div>
+            {(tool === 'spray' || tool === 'erase') && (
+              <label className="mt-4 block text-xs font-bold text-text-muted">
+                {tool === 'erase' ? '지우개' : '스프레이'} 크기 ·{' '}
+                {(tool === 'erase' ? eraserRadius : sprayRadius).toFixed(1)}m
+                <input
+                  type="range"
+                  min={AGENT_RADIUS}
+                  max={5}
+                  step={0.1}
+                  value={tool === 'erase' ? eraserRadius : sprayRadius}
+                  onChange={(event) => {
+                    const radius = Number(event.target.value);
+                    if (tool === 'erase') setEraserRadius(radius);
+                    else setSprayRadius(radius);
+                  }}
+                  disabled={!editable}
+                  className="mt-2 w-full accent-primary"
+                />
+              </label>
+            )}
             <div className="mt-4 flex gap-2">
               <label className="min-w-0 flex-1 text-xs font-bold text-text-muted">
                 균등 배치 인원
@@ -546,6 +655,14 @@ function SimulationSetupPage() {
                 균등분포 배치
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handleClearAgents}
+              disabled={!editable || saveState === 'saving' || agents.length === 0}
+              className="mt-3 h-10 w-full rounded-lg border border-red-200 text-xs font-bold text-danger disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              에이전트 전체 삭제
+            </button>
           </section>
 
           <section className="mt-6 border-t border-line pt-5">

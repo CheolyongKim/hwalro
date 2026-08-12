@@ -13,6 +13,7 @@ public class Simulation {
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
     private String failureMessage;
+    private String failureDetail;
     private Integer totalPeople;
     private Long layoutId;
     private String layoutTitle;
@@ -93,6 +94,14 @@ public class Simulation {
 
     public void setFailureMessage(String failureMessage) {
         this.failureMessage = failureMessage;
+    }
+
+    public String getFailureDetail() {
+        return failureDetail;
+    }
+
+    public void setFailureDetail(String failureDetail) {
+        this.failureDetail = failureDetail;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
