@@ -2,6 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const SCRUB_CHUNK_LOOKUP_DELAY_MS = 100;
 
+export function resolveScrubEnd(wasPlaying: boolean, timeSeconds: number, durationSeconds: number) {
+  const completedPlayback = wasPlaying && timeSeconds >= durationSeconds;
+  return {
+    completedPlayback,
+    shouldResume: wasPlaying && !completedPlayback,
+  };
+}
+
 export function useSimulationPlayback(durationSeconds: number) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0);
@@ -101,10 +109,15 @@ export function useSimulationPlayback(durationSeconds: number) {
   const endScrub = useCallback(
     (value: number) => {
       const next = clampTime(value);
-      const shouldResume = resumeAfterScrubRef.current && next < durationSeconds;
+      const { completedPlayback, shouldResume } = resolveScrubEnd(
+        resumeAfterScrubRef.current,
+        next,
+        durationSeconds,
+      );
       resumeAfterScrubRef.current = false;
       seek(next);
       setScrubTimeSeconds(null);
+      if (completedPlayback) setHasCompletedPlayback(true);
       if (shouldResume) setIsPlaying(true);
     },
     [clampTime, durationSeconds, seek],

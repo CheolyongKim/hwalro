@@ -135,6 +135,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     (playback.displayTimeSeconds < firstLoadedFrame.timeSeconds ||
       playback.displayTimeSeconds > lastLoadedFrame.timeSeconds),
   );
+  const isPlaybackDataStale = scrubPreviewOutsideLoadedWindow || !chunks.readyForCurrentTime;
 
   useEffect(() => {
     setDisplayedBottleneckCount(BOTTLENECK_DISPLAY_BATCH_SIZE);
@@ -288,6 +289,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         bottlenecks={displayedBottlenecks}
         evacuatedCount={currentFrame.evacuatedCount}
         evacuationRate={evacuationRate}
+        isPlaybackDataStale={isPlaybackDataStale}
         bottlenecksVisible={bottlenecksVisible}
         selectedBottleneckId={selectedBottleneckId}
         displayedBottleneckCount={displayedBottlenecks.length}
@@ -313,6 +315,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
           currentTime={playback.displayTimeSeconds}
           duration={result.durationSeconds}
           totalPeople={result.totalPeople}
+          isPlaybackDataStale={isPlaybackDataStale}
           isCollapsing={evacuationChart.isCollapsing}
           isExpanding={evacuationChart.isExpanding}
           onCollapseEnd={evacuationChart.handleAnimationEnd}
@@ -326,9 +329,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         isPlaying={playback.isPlaying}
         playbackRate={playback.playbackRate}
         resultsVisible={bottlenecksVisible}
-        isBuffering={
-          scrubPreviewOutsideLoadedWindow || (chunks.loading && !chunks.readyForCurrentTime)
-        }
+        isBuffering={isPlaybackDataStale}
         onToggle={playback.toggle}
         onSeek={playback.seek}
         onScrubStart={playback.startScrub}
