@@ -25,7 +25,10 @@ function zoneCenter(bounds: Bounds) {
 
 function storeDistanceLimit(drawing: RiskZoneNameDrawing): number {
   const shorterSide = Math.max(0, Math.min(drawing.width, drawing.height));
-  return Math.min(MAX_STORE_DISTANCE, Math.max(MIN_STORE_DISTANCE, shorterSide * STORE_DISTANCE_RATIO));
+  return Math.min(
+    MAX_STORE_DISTANCE,
+    Math.max(MIN_STORE_DISTANCE, shorterSide * STORE_DISTANCE_RATIO),
+  );
 }
 
 function nearestText(center: { x: number; y: number }, texts: DrawingText[]) {
