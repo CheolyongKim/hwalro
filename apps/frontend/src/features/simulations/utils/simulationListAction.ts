@@ -42,9 +42,7 @@ export function getSimulationListNavigationState({
 export function readStatusDialogSimulationId(state: unknown): number | null {
   if (typeof state !== 'object' || state === null) return null;
   const simulationId = (state as Record<string, unknown>).openStatusFor;
-  return typeof simulationId === 'number' &&
-    Number.isSafeInteger(simulationId) &&
-    simulationId > 0
+  return typeof simulationId === 'number' && Number.isSafeInteger(simulationId) && simulationId > 0
     ? simulationId
     : null;
 }

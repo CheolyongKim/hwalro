@@ -138,13 +138,7 @@ function SimulationListPage() {
     return () => {
       active = false;
     };
-  }, [
-    location.pathname,
-    location.search,
-    navigate,
-    openStatusDialog,
-    statusDialogSimulationId,
-  ]);
+  }, [location.pathname, location.search, navigate, openStatusDialog, statusDialogSimulationId]);
 
   const retrySelectedSimulation = async () => {
     if (!selectedSimulation) return;
