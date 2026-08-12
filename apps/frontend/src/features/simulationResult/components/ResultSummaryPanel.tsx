@@ -36,10 +36,7 @@ export function ResultSummaryPanel({
   const panel = useCollapsiblePanel();
   const selectedBottleneck = bottlenecks.find((item) => item.id === selectedBottleneckId);
   const remainingBottleneckCount = totalBottleneckCount - displayedBottleneckCount;
-  const nextBottleneckCount = Math.min(
-    BOTTLENECK_DISPLAY_BATCH_SIZE,
-    remainingBottleneckCount,
-  );
+  const nextBottleneckCount = Math.min(BOTTLENECK_DISPLAY_BATCH_SIZE, remainingBottleneckCount);
 
   if (panel.isMinimized) {
     return (

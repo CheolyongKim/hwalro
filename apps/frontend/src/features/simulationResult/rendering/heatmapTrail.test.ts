@@ -8,11 +8,7 @@ function frame(timeSeconds: number, values: number[]): HeatmapFrame {
 
 describe('composeHeatmapTrail', () => {
   it('keeps the current qualifying density and excludes weak or future cells', () => {
-    const result = composeHeatmapTrail(
-      [frame(10, [4, 1]), frame(11, [9, 9])],
-      10,
-      2,
-    );
+    const result = composeHeatmapTrail([frame(10, [4, 1]), frame(11, [9, 9])], 10, 2);
 
     expect(Array.from(result)).toEqual([4, 0]);
   });

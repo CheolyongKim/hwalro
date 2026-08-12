@@ -73,8 +73,9 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     () => rankBottlenecks(summary.bottlenecks),
     [summary.bottlenecks],
   );
-  const [displayedBottleneckCount, setDisplayedBottleneckCount] =
-    useState(BOTTLENECK_DISPLAY_BATCH_SIZE);
+  const [displayedBottleneckCount, setDisplayedBottleneckCount] = useState(
+    BOTTLENECK_DISPLAY_BATCH_SIZE,
+  );
   const displayedBottlenecks = useMemo(
     () => rankedBottlenecks.slice(0, displayedBottleneckCount),
     [displayedBottleneckCount, rankedBottlenecks],
