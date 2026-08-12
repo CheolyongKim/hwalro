@@ -24,6 +24,12 @@ import type {
   SimulationResultSummaryViewModel,
   SimulationResultViewModel,
 } from '../types';
+import {
+  BOTTLENECK_DISPLAY_BATCH_SIZE,
+  getNextDisplayedBottleneckCount,
+  rankBottlenecks,
+} from '../utils/bottleneckDisplay';
+import { calculateEvacuationRate } from '../utils/evacuationRate';
 import { selectFramePair } from '../utils/playback';
 import '../simulationResult.css';
 import '../simulationResultMotion.css';
@@ -63,6 +69,17 @@ interface ResultViewProps {
 function ResultView({ summary, executionResult }: ResultViewProps) {
   const navigate = useNavigate();
   const playback = useSimulationPlayback(summary.durationSeconds);
+  const rankedBottlenecks = useMemo(
+    () => rankBottlenecks(summary.bottlenecks),
+    [summary.bottlenecks],
+  );
+  const [displayedBottleneckCount, setDisplayedBottleneckCount] = useState(
+    BOTTLENECK_DISPLAY_BATCH_SIZE,
+  );
+  const displayedBottlenecks = useMemo(
+    () => rankedBottlenecks.slice(0, displayedBottleneckCount),
+    [displayedBottleneckCount, rankedBottlenecks],
+  );
   const chunks = useSimulationResultChunks({
     simulationId: Number(summary.simulationId),
     totalPeople: summary.totalPeople,
@@ -97,7 +114,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     matchesMediaQuery(COMPACT_SUPPORT_PANEL_QUERY),
   );
   const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(
-    summary.bottlenecks[0]?.id ?? null,
+    rankedBottlenecks[0]?.id ?? null,
   );
   const [riskDrawingMode, setRiskDrawingMode] = useState(false);
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
@@ -113,8 +130,13 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     ? selectFramePair(result.agentFrames, playback.currentTimeSeconds).previous
     : null;
   const evacuationRate = currentFrame
-    ? Math.round((currentFrame.evacuatedCount / summary.totalPeople) * 100)
+    ? calculateEvacuationRate(currentFrame.evacuatedCount, summary.totalPeople)
     : 0;
+
+  useEffect(() => {
+    setDisplayedBottleneckCount(BOTTLENECK_DISPLAY_BATCH_SIZE);
+    setSelectedBottleneckId(rankedBottlenecks[0]?.id ?? null);
+  }, [rankedBottlenecks, summary.simulationId]);
 
   useEffect(() => {
     const compactViewport = window.matchMedia(COMPACT_SUPPORT_PANEL_QUERY);
@@ -168,6 +190,12 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     setResultsRevealed(true);
   };
 
+  const handleShowMoreBottlenecks = () => {
+    setDisplayedBottleneckCount((currentCount) =>
+      getNextDisplayedBottleneckCount(currentCount, rankedBottlenecks.length),
+    );
+  };
+
   const handleOpenReport = () => {
     setReportError(null);
     setReportOpen(true);
@@ -218,6 +246,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     <main className="simulation-result-page">
       <SimulationPlaybackStage
         result={result}
+        bottlenecks={displayedBottlenecks}
         currentTimeSeconds={playback.currentTimeSeconds}
         selectedBottleneckId={selectedBottleneckId}
         showBottlenecks={bottlenecksVisible}
@@ -253,12 +282,17 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
 
       <ResultSummaryPanel
         result={result}
+        bottlenecks={displayedBottlenecks}
         evacuatedCount={currentFrame.evacuatedCount}
         evacuationRate={evacuationRate}
         bottlenecksVisible={bottlenecksVisible}
         selectedBottleneckId={selectedBottleneckId}
+        displayedBottleneckCount={displayedBottlenecks.length}
+        totalBottleneckCount={rankedBottlenecks.length}
+        reserveImprovementPanelSpace={!improvementPanel.isMinimized}
         riskZones={riskZones}
         onSelectBottleneck={setSelectedBottleneckId}
+        onShowMoreBottlenecks={handleShowMoreBottlenecks}
         onOpenReport={handleOpenReport}
       />
 

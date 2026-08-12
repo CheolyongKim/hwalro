@@ -8,12 +8,18 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.simulation.analysis.domain.DetectedBottleneck;
+import com.hwalro.simulation.analysis.domain.DetectedBottleneck.RectangleGeometry;
+import com.hwalro.simulation.analysis.service.BottleneckDetector;
+import com.hwalro.simulation.analysis.service.DensityThresholdProvider;
+import com.hwalro.simulation.analysis.service.DensityThresholdProvider.DensityThreshold;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.simulation.domain.Simulation;
 import com.hwalro.simulation.simulation.domain.SimulationOption;
@@ -47,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -71,6 +78,12 @@ class SimulationExecutionServiceTest {
     @Mock
     private ThreadPoolTaskExecutor executor;
 
+    @Mock
+    private DensityThresholdProvider densityThresholdProvider;
+
+    @Mock
+    private BottleneckDetector bottleneckDetector;
+
     private SimulationExecutionService service;
     private AtomicReference<Runnable> queued;
     private JwtUser user;
@@ -84,7 +97,9 @@ class SimulationExecutionServiceTest {
                 engineRunner,
                 executor,
                 new TransactionTemplate(new NoOpTransactionManager()),
-                new ObjectMapper());
+                new ObjectMapper(),
+                densityThresholdProvider,
+                bottleneckDetector);
         user = new JwtUser(7L, Set.of("OPERATOR"));
     }
 
@@ -95,16 +110,17 @@ class SimulationExecutionServiceTest {
         when(simulationMapper.requestExecution(21L)).thenReturn(1);
         when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
         when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
-        when(engineRunner.run(eq(21L), any()))
-                .thenReturn(new EngineRun(
-                        new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0),
-                        List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
-                        List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}"))));
+        when(engineRunner.run(eq(21L), any())).thenReturn(successfulRun());
         when(simulationMapper.insertSimulationResult(any())).thenAnswer(invocation -> {
             SimulationResult result = invocation.getArgument(0);
             result.setId(31L);
             return 1;
         });
+        DensityThreshold threshold = new DensityThreshold(BigDecimal.valueOf(3.5), "PERSON_PER_M2");
+        DetectedBottleneck bottleneck = new DetectedBottleneck(
+                1, 3.0, 9.0, 4.2, 3.5, new RectangleGeometry("RECTANGLE", "병목 1", 1.0, 2.0, 3.0, 4.0), "GRID_COUNT_V1");
+        when(densityThresholdProvider.getCurrent()).thenReturn(threshold);
+        when(bottleneckDetector.detect(any(), eq(threshold))).thenReturn(List.of(bottleneck));
         when(simulationMapper.markExecutionCompleted(21L)).thenReturn(1);
 
         var response = service.execute(21L, user);
@@ -114,6 +130,34 @@ class SimulationExecutionServiceTest {
         verify(simulationMapper).insertSimulationMetrics(any());
         verify(simulationMapper).insertTimeline(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
         verify(simulationMapper).insertHeatmap(31L, 0, "{\"chunkSequence\":0,\"frames\":[]}");
+        verify(bottleneckDetector).detect(any(), eq(threshold));
+        InOrder persistenceOrder = inOrder(simulationMapper);
+        persistenceOrder.verify(simulationMapper).insertDetectedBottlenecks(31L, List.of(bottleneck));
+        persistenceOrder.verify(simulationMapper).markExecutionCompleted(21L);
+    }
+
+    @Test
+    void completesWithoutBottleneckInsertWhenDetectorFindsNone() throws Exception {
+        stubDraftAndRequestedStatus();
+        captureWorker();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
+        when(engineRunner.run(eq(21L), any())).thenReturn(successfulRun());
+        when(simulationMapper.insertSimulationResult(any())).thenAnswer(invocation -> {
+            SimulationResult result = invocation.getArgument(0);
+            result.setId(31L);
+            return 1;
+        });
+        DensityThreshold threshold = new DensityThreshold(BigDecimal.valueOf(3.5), "PERSON_PER_M2");
+        when(densityThresholdProvider.getCurrent()).thenReturn(threshold);
+        when(bottleneckDetector.detect(any(), eq(threshold))).thenReturn(List.of());
+        when(simulationMapper.markExecutionCompleted(21L)).thenReturn(1);
+
+        service.execute(21L, user);
+        queued.get().run();
+
+        verify(simulationMapper, never()).insertDetectedBottlenecks(anyLong(), any());
         verify(simulationMapper).markExecutionCompleted(21L);
     }
 
@@ -396,6 +440,13 @@ class SimulationExecutionServiceTest {
 
     private static SimulationSetupResponse validSetup() {
         return setup(List.of(new PointDto(BigDecimal.ONE, BigDecimal.ONE)), List.of(501L));
+    }
+
+    private static EngineRun successfulRun() {
+        return new EngineRun(
+                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0),
+                List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")));
     }
 
     private void captureWorker() {

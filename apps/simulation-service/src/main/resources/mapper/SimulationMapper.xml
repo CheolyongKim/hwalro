@@ -432,4 +432,24 @@
         VALUES (#{simulationResultId}, #{chunkSequence}, CAST(#{densityData} AS JSON))
     </insert>
 
+    <insert id="insertDetectedBottlenecks">
+        INSERT INTO detected_bottlenecks
+            (simulation_result_id, bottleneck_order, start_time_seconds, end_time_seconds,
+             peak_density, threshold_value, geometry, analysis_version)
+        VALUES
+        <foreach collection="bottlenecks" item="bottleneck" separator=",">
+            (#{simulationResultId}, #{bottleneck.order}, #{bottleneck.startTimeSeconds},
+             #{bottleneck.endTimeSeconds}, #{bottleneck.peakDensity}, #{bottleneck.thresholdValue},
+             JSON_OBJECT(
+                 'type', #{bottleneck.geometry.type},
+                 'name', #{bottleneck.geometry.name},
+                 'x', #{bottleneck.geometry.x},
+                 'y', #{bottleneck.geometry.y},
+                 'width', #{bottleneck.geometry.width},
+                 'height', #{bottleneck.geometry.height}
+             ),
+             #{bottleneck.analysisVersion})
+        </foreach>
+    </insert>
+
 </mapper>

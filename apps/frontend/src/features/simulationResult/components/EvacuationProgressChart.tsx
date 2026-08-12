@@ -7,6 +7,7 @@ import { curveMonotoneX } from 'd3-shape';
 import type { ChartBounds, ChartRenderContext } from '@tanstack/charts';
 import type { ChartTooltipBodyRenderContext } from '@tanstack/charts/react/tooltip';
 import type { EvacuationPoint } from '../types';
+import { calculateEvacuationRate } from '../utils/evacuationRate';
 import { formatDuration } from '../utils/playback';
 
 const GRADIENT_ID = 'evacuation-gradient';
@@ -44,7 +45,7 @@ export function EvacuationProgressChart({
   const visible = useMemo(() => points.slice(0, visibleCount), [points, visibleCount]);
 
   const current = visible.length > 0 ? visible[visible.length - 1].evacuatedCount : 0;
-  const ratePercent = Math.round((current / safeTotalPeople) * 100);
+  const ratePercent = calculateEvacuationRate(current, totalPeople);
 
   const definition = useMemo(() => {
     const curve = d3Curve(curveMonotoneX);
