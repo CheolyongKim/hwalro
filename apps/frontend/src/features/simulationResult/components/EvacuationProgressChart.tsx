@@ -125,21 +125,28 @@ export function EvacuationProgressChart({
 
   const [plotBounds, setPlotBounds] = useState<ChartBounds | null>(null);
 
-  const handleRender = useCallback((context: ChartRenderContext<EvacuationPoint, number, number>) => {
-    const next = context.scene.chart;
-    setPlotBounds((previous) =>
-      previous &&
-      previous.x === next.x &&
-      previous.y === next.y &&
-      previous.width === next.width &&
-      previous.height === next.height
-        ? previous
-        : next,
-    );
-  }, []);
+  const handleRender = useCallback(
+    (context: ChartRenderContext<EvacuationPoint, number, number>) => {
+      const next = context.scene.chart;
+      setPlotBounds((previous) =>
+        previous &&
+        previous.x === next.x &&
+        previous.y === next.y &&
+        previous.width === next.width &&
+        previous.height === next.height
+          ? previous
+          : next,
+      );
+    },
+    [],
+  );
 
   const renderTooltipBody = useCallback(
-    ({ points }: { points: ChartTooltipBodyRenderContext<EvacuationPoint, number, number>['points'] }) => {
+    ({
+      points,
+    }: {
+      points: ChartTooltipBodyRenderContext<EvacuationPoint, number, number>['points'];
+    }) => {
       const point = points[0];
       if (!point) return null;
       return (

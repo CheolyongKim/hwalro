@@ -233,11 +233,7 @@
   left: 0;
   width: 1.5px;
   border-radius: 999px;
-  background: linear-gradient(
-    to bottom,
-    rgba(194, 232, 75, 0.95),
-    rgba(194, 232, 75, 0.45)
-  );
+  background: linear-gradient(to bottom, rgba(194, 232, 75, 0.95), rgba(194, 232, 75, 0.45));
   box-shadow: 0 0 8px rgba(194, 232, 75, 0.55);
   pointer-events: none;
   will-change: transform;
@@ -250,7 +246,9 @@
   height: 7px;
   border-radius: 50%;
   background: #c2e84b;
-  box-shadow: 0 0 0 3px rgba(194, 232, 75, 0.25), 0 1px 4px rgba(22, 55, 49, 0.35);
+  box-shadow:
+    0 0 0 3px rgba(194, 232, 75, 0.25),
+    0 1px 4px rgba(22, 55, 49, 0.35);
   transform: translateX(-50%);
 }
 .evacuation-chart-tooltip {
@@ -262,8 +260,7 @@
   --ts-chart-tooltip-shadow: 0 12px 30px rgba(7, 32, 28, 0.28);
   --ts-chart-tooltip-max-width: 13rem;
   --ts-chart-tooltip-font:
-    500 0.6875rem/1.35 'Happiness Sans Print', 'Apple SD Gothic Neo', 'Noto Sans KR',
-    sans-serif;
+    500 0.6875rem/1.35 'Happiness Sans Print', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   backdrop-filter: blur(10px);
 }
 .evacuation-chart-tooltip span {
