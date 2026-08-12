@@ -1,5 +1,8 @@
 # JuPedSim runner
 
+시뮬레이션 구조, SCRUM-60 성능 개선 내용, dev 대비 실측 결과는
+[PERFORMANCE.md](./PERFORMANCE.md)에 쉽게 풀어서 기록했다.
+
 CPython 3.12 독립 프로세스로 실행하며 데이터베이스에는 접근하지 않는다. 로컬 실행 환경은 저장소
 루트에서 다음 명령 하나로 구성한다.
 
@@ -64,7 +67,7 @@ venv가 없을 때만 `python` 명령으로 대체한다.
 }
 ```
 
-`output_dir/result.json`과 `output_dir/timeline/000000.json`부터 시작하는 청크를 생성한다. 타임라인 청크는 최대 10프레임이다.
+`output_dir/result.json`과 `output_dir/timeline/000000.json`부터 시작하는 청크를 생성한다. 타임라인 청크는 최대 20프레임이다.
 
 구현은 JuPedSim 1.4의 [Simulation API](https://www.jupedsim.org/v1.4.0/api/jupedsim/index.html)와 [Direct Steering 예제](https://www.jupedsim.org/v1.4.0/notebooks/direct_steering.html)를 따른다.
 

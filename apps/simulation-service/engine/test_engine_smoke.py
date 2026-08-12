@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from shapely.geometry import LineString
 
@@ -46,9 +47,14 @@ class JuPedSimSmokeTest(unittest.TestCase):
             root = Path(directory)
             input_path = root / "input.json"
             output_path = root / "output"
+            phase_profile_path = root / "phase-profile.json"
             input_path.write_text(json.dumps(payload), encoding="utf-8")
 
-            result = run(input_path, output_path)
+            with patch.dict(
+                os.environ,
+                {"HWALRO_PHASE_PROFILE_PATH": str(phase_profile_path)},
+            ):
+                result = run(input_path, output_path)
 
             self.assertEqual(result["engineVersion"], "1.4.2+hwalro.2")
             self.assertEqual(result["terminationReason"], "ALL_EVACUATED")
@@ -68,6 +74,21 @@ class JuPedSimSmokeTest(unittest.TestCase):
             )
             self.assertEqual(timeline["frames"][-1]["timeSeconds"], result["simulationDurationSeconds"])
             self.assertEqual(timeline["frames"][-1]["agents"], [])
+            phase_profile = json.loads(phase_profile_path.read_text("utf-8"))
+            self.assertEqual(phase_profile["schemaVersion"], 1)
+            self.assertEqual(
+                set(phase_profile["phasesNanoseconds"]),
+                {
+                    "inputAndContextSetup",
+                    "routePlanning",
+                    "iterate",
+                    "agentStateCapture",
+                    "moveValidation",
+                    "targetAndExitUpdate",
+                    "snapshotAndSerialization",
+                },
+            )
+            self.assertGreater(phase_profile["counters"]["agentSteps"], 0)
 
             payload["maxSimulationTimeSeconds"] = 0.05
             input_path.write_text(json.dumps(payload), encoding="utf-8")

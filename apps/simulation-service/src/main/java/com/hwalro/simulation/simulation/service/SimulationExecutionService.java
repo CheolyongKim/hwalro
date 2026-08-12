@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +58,6 @@ public class SimulationExecutionService {
     private static final String MODEL_PROFILE = "SFM_DEFAULT_V2";
     private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 1000;
-    private static final double MAX_SIMULATION_DURATION_SECONDS = 600.0;
     private static final int LEGACY_TIMELINE_FRAMES_PER_CHUNK = 10;
     private static final int TIMELINE_FRAMES_PER_CHUNK = 20;
 
@@ -72,6 +72,8 @@ public class SimulationExecutionService {
     private final Semaphore executionCapacity =
             new Semaphore(MAX_CONCURRENT_EXECUTIONS + EXECUTION_QUEUE_CAPACITY, true);
     private final Map<Long, SimulationTask> activeTasks = new ConcurrentHashMap<>();
+    private final Object engineReadinessMonitor = new Object();
+    private volatile boolean engineReady;
 
     public SimulationExecutionService(
             SimulationMapper simulationMapper,
@@ -93,19 +95,35 @@ public class SimulationExecutionService {
     }
 
     public SimulationExecutionResponse execute(Long simulationId, JwtUser user) {
+        long setupNanos = 0;
+        long setupStarted = System.nanoTime();
         Simulation current = simulationService.getAccessibleSimulation(simulationId, user);
+        setupNanos += System.nanoTime() - setupStarted;
         if (!"DRAFT".equals(current.getStatus())
                 && !"FAILED".equals(current.getStatus())
                 && !"CANCELLED".equals(current.getStatus())) {
             throw new SimulationConflictException("DRAFT, FAILED 또는 CANCELLED 상태에서만 실행할 수 있습니다.");
         }
-        engineRunner.assertAvailable();
+        long readinessStarted = System.nanoTime();
+        boolean readinessCheckPerformed;
+        try {
+            readinessCheckPerformed = ensureEngineReady();
+        } catch (RuntimeException exception) {
+            log.info(
+                    "simulation_execution_phase simulationId={} outcome=READINESS_FAILED readinessChecked=true readinessMs={} setupMs={} queueMs=0 engineMs=0 persistMs=0 workerMs=0",
+                    simulationId,
+                    elapsedMillis(readinessStarted),
+                    TimeUnit.NANOSECONDS.toMillis(setupNanos));
+            throw exception;
+        }
+        long readinessMs = elapsedMillis(readinessStarted);
         if (!executionCapacity.tryAcquire()) {
             throw new SimulationEngineUnavailableException("시뮬레이션 대기열이 가득 찼습니다. 잠시 후 다시 시도해 주세요.");
         }
 
         boolean taskOwnsCapacity = false;
         try {
+            setupStarted = System.nanoTime();
             SimulationSetupResponse setup = transactionTemplate.execute(status -> {
                 if (simulationMapper.updateExecutionProfiles(simulationId, MODEL_PROFILE, ROUTING_PROFILE) != 1) {
                     throw new IllegalStateException("시뮬레이션 실행 프로필을 갱신하지 못했습니다.");
@@ -117,7 +135,11 @@ public class SimulationExecutionService {
                 validateExecutionSetup(requestedSetup);
                 return requestedSetup;
             });
-            SimulationTask task = new SimulationTask(simulationId, setup);
+            setupNanos += System.nanoTime() - setupStarted;
+            long setupMs = TimeUnit.NANOSECONDS.toMillis(setupNanos);
+            long queuedAtNanos = System.nanoTime();
+            SimulationTask task = new SimulationTask(
+                    simulationId, setup, queuedAtNanos, readinessCheckPerformed, readinessMs, setupMs);
             activeTasks.put(simulationId, task);
             taskOwnsCapacity = true;
             try {
@@ -127,6 +149,12 @@ public class SimulationExecutionService {
                 }
             } catch (RuntimeException exception) {
                 task.cancel(false);
+                log.info(
+                        "simulation_execution_phase simulationId={} outcome=SUBMISSION_FAILED readinessChecked={} readinessMs={} setupMs={} queueMs=0 engineMs=0 persistMs=0 workerMs=0",
+                        simulationId,
+                        readinessCheckPerformed,
+                        readinessMs,
+                        setupMs);
                 markFailed(simulationId, "SERVICE_UNAVAILABLE: 실행 작업을 대기열에 등록하지 못했습니다.");
                 throw new SimulationEngineUnavailableException("시뮬레이션 실행 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.", exception);
             }
@@ -136,6 +164,20 @@ public class SimulationExecutionService {
             }
         }
         return getExecution(simulationId, user);
+    }
+
+    private boolean ensureEngineReady() {
+        if (engineReady) {
+            return false;
+        }
+        synchronized (engineReadinessMonitor) {
+            if (engineReady) {
+                return false;
+            }
+            engineRunner.assertAvailable();
+            engineReady = true;
+            return true;
+        }
     }
 
     public SimulationExecutionResponse cancel(Long simulationId, JwtUser user) {
@@ -257,16 +299,40 @@ public class SimulationExecutionService {
         }
     }
 
-    private void runJob(Long simulationId, SimulationSetupResponse setup) {
+    private void runJob(
+            Long simulationId,
+            SimulationSetupResponse setup,
+            long queuedAtNanos,
+            boolean readinessCheckPerformed,
+            long readinessMs,
+            long setupMs) {
+        long workerStarted = System.nanoTime();
+        long queueMs = elapsedMillis(queuedAtNanos);
+        long engineMs = 0;
+        long persistMs = 0;
+        String outcome = "NOT_STARTED";
         try {
             Integer started =
                     transactionTemplate.execute(status -> simulationMapper.markExecutionRunning(simulationId));
             if (started == null || started != 1) {
                 return;
             }
-            EngineRun run = engineRunner.run(simulationId, setup);
-            transactionTemplate.executeWithoutResult(status -> persistResult(simulationId, setup, run));
+            long engineStarted = System.nanoTime();
+            EngineRun run;
+            try {
+                run = engineRunner.run(simulationId, setup);
+            } finally {
+                engineMs = elapsedMillis(engineStarted);
+            }
+            long persistStarted = System.nanoTime();
+            try {
+                transactionTemplate.executeWithoutResult(status -> persistResult(simulationId, setup, run));
+            } finally {
+                persistMs = elapsedMillis(persistStarted);
+            }
+            outcome = "COMPLETED";
         } catch (EngineRunException exception) {
+            outcome = exception.isTimeout() ? "ENGINE_TIMEOUT" : "ENGINE_ERROR";
             SimulationFailureDetailResponse failureDetail = exception.isTimeout() ? null : exception.failureDetail();
             if (failureDetail == null) {
                 log.warn("Simulation {} engine execution failed (timeout={})", simulationId, exception.isTimeout());
@@ -280,14 +346,31 @@ public class SimulationExecutionService {
                                     : "Agent #%d의 시작 위치를 대피 경로에 연결할 수 없습니다.".formatted(failureDetail.agentId()),
                     failureDetail);
         } catch (RuntimeException exception) {
+            outcome = "SERVICE_ERROR";
             log.error("Simulation {} execution failed", simulationId, exception);
             markFailed(simulationId, "ENGINE_ERROR: 시뮬레이션 실행 또는 결과 저장에 실패했습니다.");
+        } finally {
+            log.info(
+                    "simulation_execution_phase simulationId={} outcome={} readinessChecked={} readinessMs={} setupMs={} queueMs={} engineMs={} persistMs={} workerMs={}",
+                    simulationId,
+                    outcome,
+                    readinessCheckPerformed,
+                    readinessMs,
+                    setupMs,
+                    queueMs,
+                    engineMs,
+                    persistMs,
+                    elapsedMillis(workerStarted));
         }
+    }
+
+    private static long elapsedMillis(long startedNanos) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
     }
 
     private void persistResult(Long simulationId, SimulationSetupResponse setup, EngineRun run) {
         EngineResult output = run.result();
-        validateEngineResult(output, setup);
+        validateEngineResult(output, setup, run.maxSimulationTimeSeconds());
         if (output.timelineChunkCount() != run.timelineChunks().size()) {
             throw new IllegalStateException("타임라인 청크 수가 결과 요약과 일치하지 않습니다.");
         }
@@ -363,9 +446,16 @@ public class SimulationExecutionService {
         private final AtomicBoolean started = new AtomicBoolean();
         private final AtomicBoolean capacityReleased = new AtomicBoolean();
 
-        private SimulationTask(Long simulationId, SimulationSetupResponse setup) {
+        private SimulationTask(
+                Long simulationId,
+                SimulationSetupResponse setup,
+                long queuedAtNanos,
+                boolean readinessCheckPerformed,
+                long readinessMs,
+                long setupMs) {
             super(() -> {
-                SimulationExecutionService.this.runJob(simulationId, setup);
+                SimulationExecutionService.this.runJob(
+                        simulationId, setup, queuedAtNanos, readinessCheckPerformed, readinessMs, setupMs);
                 return null;
             });
             this.simulationId = simulationId;
@@ -405,12 +495,13 @@ public class SimulationExecutionService {
         return metric;
     }
 
-    private static void validateEngineResult(EngineResult output, SimulationSetupResponse setup) {
+    static void validateEngineResult(
+            EngineResult output, SimulationSetupResponse setup, double maxSimulationTimeSeconds) {
         if (output.engineVersion() == null || output.engineVersion().isBlank()) {
             throw new IllegalStateException("엔진 버전이 누락되었습니다.");
         }
-        requireFiniteRange(output.simulationDurationSeconds(), 0, MAX_SIMULATION_DURATION_SECONDS, "모의시간");
-        requireFiniteRange(output.frameIntervalSeconds(), 0.001, MAX_SIMULATION_DURATION_SECONDS, "프레임 간격");
+        requireFiniteRange(output.simulationDurationSeconds(), 0, maxSimulationTimeSeconds, "모의시간");
+        requireFiniteRange(output.frameIntervalSeconds(), 0.001, maxSimulationTimeSeconds, "프레임 간격");
         if (output.evacuatedPeople() == null
                 || output.remainingPeople() == null
                 || output.evacuatedPeople() < 0
@@ -440,7 +531,7 @@ public class SimulationExecutionService {
         } else if ("MAX_DURATION".equals(output.terminationReason())) {
             if (output.remainingPeople() < 1
                     || output.totalEvacuationTimeSeconds() != null
-                    || output.simulationDurationSeconds() < MAX_SIMULATION_DURATION_SECONDS - 0.02) {
+                    || output.simulationDurationSeconds() < maxSimulationTimeSeconds - 0.02) {
                 throw new IllegalStateException("최대 모의시간 종료 결과가 잔류 인원 또는 시간과 일치하지 않습니다.");
             }
         } else if ("STALLED".equals(output.terminationReason())) {

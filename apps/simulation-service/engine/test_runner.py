@@ -6,15 +6,20 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 from shapely.geometry import LineString, box
 
 from runner import (
     WAYPOINT_REACHED_DISTANCE_METERS,
     AgentRouteState,
     HeatmapWriter,
+    RunnerError,
     SimulationContext,
     TimelineWriter,
+    _advance_context,
+    _initialize_targets,
     _rollback_invalid_moves,
+    _snapshot,
     _waypoint_reached,
     main,
 )
@@ -268,6 +273,340 @@ class WaypointProgressTest(unittest.TestCase):
         self.assertTrue(_waypoint_reached((1.2, -0.2), other, lambda _a, _b: True))
 
 
+class BulkAgentAccessTest(unittest.TestCase):
+    class Model:
+        def __init__(self):
+            self.velocity = (0.0, 0.0)
+
+    class BackingAgent:
+        def __init__(self, agent_id, position):
+            self.id = agent_id
+            self.position = position
+            self.model = BulkAgentAccessTest.Model()
+            self.position_reads = 0
+            self.target = None
+            self.target_writes = 0
+
+    class AgentHandle:
+        def __init__(self, simulation, backing):
+            self._simulation = simulation
+            self._backing = backing
+            self._generation = simulation.generation
+
+        def _check_generation(self):
+            if self._generation != self._simulation.generation:
+                raise AssertionError("agent handle was reused across an iteration")
+
+        @property
+        def id(self):
+            self._check_generation()
+            return self._backing.id
+
+        @property
+        def position(self):
+            self._check_generation()
+            self._backing.position_reads += 1
+            return self._backing.position
+
+        @position.setter
+        def position(self, value):
+            self._check_generation()
+            self._backing.position = value
+
+        @property
+        def model(self):
+            self._check_generation()
+            return self._backing.model
+
+        @property
+        def target(self):
+            self._check_generation()
+            return self._backing.target
+
+        @target.setter
+        def target(self, value):
+            self._check_generation()
+            self._backing.target = value
+            self._backing.target_writes += 1
+
+    class Simulation:
+        def __init__(self, agents):
+            self._agents = {agent.id: agent for agent in agents}
+            self.generation = 0
+            self.pending_removals = set()
+            self.next_positions = {}
+            self.traversals = 0
+
+        def agent(self, _agent_id):
+            raise AssertionError("single-agent lookup must not be used")
+
+        def agents(self):
+            self.traversals += 1
+            return [
+                BulkAgentAccessTest.AgentHandle(self, agent)
+                for agent in self._agents.values()
+            ]
+
+        def iterate(self):
+            self.generation += 1
+            for agent_id in self.pending_removals:
+                self._agents.pop(agent_id, None)
+            self.pending_removals.clear()
+            for agent_id, position in self.next_positions.items():
+                self._agents[agent_id].position = position
+            self.next_positions.clear()
+
+        def mark_agent_for_removal(self, agent_id):
+            self.pending_removals.add(agent_id)
+            return True
+
+    class Router:
+        def valid_moves(self, starts, _ends):
+            return [True] * len(starts)
+
+        def can_connect(self, _start, _end):
+            return True
+
+        def can_connect_many(self, starts, ends):
+            return [
+                self.can_connect(start, end)
+                for start, end in zip(starts, ends, strict=True)
+            ]
+
+        def can_reach_exit(self, _start, _end):
+            return True
+
+        def can_reach_exits(self, starts, ends):
+            return [
+                self.can_reach_exit(start, end) for start, end in zip(starts, ends, strict=True)
+            ]
+
+        def crossed_exit(self, _start, _end, _exit_start, _exit_end):
+            return False
+
+        def crossed_exits(self, starts, ends, exit_starts, exit_ends):
+            return [
+                self.crossed_exit(start, end, exit_start, exit_end)
+                for start, end, exit_start, exit_end in zip(
+                    starts, ends, exit_starts, exit_ends, strict=True
+                )
+            ]
+
+        def reached_exit(self, _position, _exit_start, _exit_end):
+            return False
+
+        def reached_exits(self, positions, exit_starts, exit_ends):
+            return [
+                self.reached_exit(position, exit_start, exit_end)
+                for position, exit_start, exit_end in zip(
+                    positions, exit_starts, exit_ends, strict=True
+                )
+            ]
+
+        def clamp_to_walkable(self, point):
+            return point
+
+    @staticmethod
+    def _state(stable_id, waypoint):
+        return AgentRouteState(
+            stable_id=stable_id,
+            exit_id=501,
+            waypoints=(waypoint,),
+            terminal_point=waypoint,
+            exit_start=(20.0, 0.0),
+            exit_end=(20.0, 1.0),
+        )
+
+    def test_uses_fresh_bulk_traversals_and_avoids_redundant_reads_and_targets(self):
+        first = self.BackingAgent(1, (-1.0, 0.0))
+        second = self.BackingAgent(2, (5.0, 0.0))
+        simulation = self.Simulation([first, second])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(1, (0.0, 0.0)), 2: self._state(2, (10.0, 0.0))},
+            numpy=np,
+        )
+        position_buffers = {id(context.positions), id(context.next_positions)}
+        np.testing.assert_array_equal(context.agent_ids, [1, 2])
+        np.testing.assert_array_equal(context.stable_ids, [1, 2])
+        np.testing.assert_array_equal(context.waypoint_counts, [1, 1])
+        np.testing.assert_array_equal(context.waypoint_offsets, [0, 1, 2])
+        self.assertEqual(context.slot_by_id, {1: 0, 2: 1})
+
+        self.assertEqual(_initialize_targets(context), [])
+        self.assertEqual((first.target_writes, second.target_writes), (1, 1))
+
+        simulation.next_positions[1] = (0.0, 0.0)
+        self.assertEqual(_advance_context(context, 1), [1])
+        self.assertEqual(context.active.tolist(), [False, True])
+        self.assertEqual({id(context.positions), id(context.next_positions)}, position_buffers)
+        context.states.pop(1)
+        self.assertEqual((first.target_writes, second.target_writes), (1, 1))
+
+        frame = _snapshot([context], {}, 0.01)
+        self.assertEqual(frame["agents"], [{"agentId": 2, "x": 5.0, "y": 0.0}])
+
+        self.assertEqual(_advance_context(context, 2), [])
+        self.assertEqual({id(context.positions), id(context.next_positions)}, position_buffers)
+        self.assertEqual((first.position_reads, second.position_reads), (2, 3))
+        self.assertEqual((first.target_writes, second.target_writes), (1, 1))
+        self.assertEqual(simulation.traversals, 3)
+
+    def test_sets_a_new_target_once_when_the_waypoint_changes(self):
+        agent = self.BackingAgent(1, (-1.0, 0.0))
+        simulation = self.Simulation([agent])
+        state = AgentRouteState(
+            stable_id=1,
+            exit_id=501,
+            waypoints=((0.0, 0.0), (10.0, 0.0)),
+            terminal_point=(10.0, 0.0),
+            exit_start=(20.0, 0.0),
+            exit_end=(20.0, 1.0),
+        )
+        context = SimulationContext(simulation, self.Router(), {1: state}, numpy=np)
+
+        self.assertEqual(_initialize_targets(context), [])
+        simulation.next_positions[1] = (0.0, 0.0)
+        self.assertEqual(_advance_context(context, 1), [])
+
+        self.assertEqual(state.cursor, 1)
+        self.assertEqual(agent.target, (10.0, 0.0))
+        self.assertEqual(agent.target_writes, 2)
+
+    def test_snapshot_skips_bulk_traversal_for_an_empty_context(self):
+        simulation = self.Simulation([self.BackingAgent(1, (1.0, 1.0))])
+        context = SimulationContext(simulation, self.Router(), {}, numpy=np)
+
+        frame = _snapshot([context], {}, 0.01)
+
+        self.assertEqual(frame["agents"], [])
+        self.assertEqual(simulation.traversals, 0)
+
+    def test_initializes_empty_context_with_empty_numpy_masks(self):
+        simulation = self.Simulation([])
+        context = SimulationContext(simulation, self.Router(), {}, numpy=np)
+
+        self.assertEqual(_initialize_targets(context), [])
+
+        self.assertEqual(context.positions.shape, (0, 2))
+        self.assertEqual(context.active_count, 0)
+        self.assertEqual(simulation.traversals, 1)
+
+    def test_snapshot_uses_cached_positions_and_stable_agent_order(self):
+        first = self.BackingAgent(1, (9.0, 9.0))
+        second = self.BackingAgent(2, (8.0, 8.0))
+        simulation = self.Simulation([first, second])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(2, (0.0, 0.0)), 2: self._state(1, (0.0, 0.0))},
+            {1: (2.0, 2.0), 2: (1.0, 1.0)},
+            numpy=np,
+        )
+
+        frame = _snapshot([context], {}, 0.01)
+
+        self.assertEqual(
+            frame["agents"],
+            [
+                {"agentId": 1, "x": 1.0, "y": 1.0},
+                {"agentId": 2, "x": 2.0, "y": 2.0},
+            ],
+        )
+        self.assertEqual(simulation.traversals, 0)
+        self.assertEqual((first.position_reads, second.position_reads), (0, 0))
+
+    def test_missing_active_agent_is_still_rejected(self):
+        simulation = self.Simulation([self.BackingAgent(1, (1.0, 1.0))])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(1, (10.0, 0.0)), 2: self._state(2, (10.0, 0.0))},
+            numpy=np,
+        )
+
+        with self.assertRaisesRegex(RunnerError, r"active JuPedSim agents are missing: \[2\]"):
+            _initialize_targets(context)
+
+    def test_batches_multi_waypoint_progress_and_cleans_evacuated_position(self):
+        agent = self.BackingAgent(1, (-1.0, 0.0))
+        simulation = self.Simulation([agent])
+        state = AgentRouteState(
+            stable_id=1,
+            exit_id=501,
+            waypoints=((0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0)),
+            terminal_point=(3.0, 0.0),
+            exit_start=(3.0, -1.0),
+            exit_end=(3.0, 1.0),
+            cursor=1,
+        )
+        context = SimulationContext(simulation, self.Router(), {1: state}, numpy=np)
+        self.assertEqual(_initialize_targets(context), [])
+
+        simulation.next_positions[1] = (2.1, 0.0)
+        self.assertEqual(_advance_context(context, 1), [])
+        self.assertEqual(state.cursor, 3)
+        self.assertEqual(context.cursors.tolist(), [3])
+        self.assertEqual(agent.target, (3.0, 0.0))
+
+        simulation.next_positions[1] = (3.0, 0.0)
+        self.assertEqual(_advance_context(context, 2), [1])
+        self.assertEqual(context.active.tolist(), [False])
+        self.assertEqual(context.active_count, 0)
+        self.assertEqual(simulation.pending_removals, {1})
+
+    def test_removal_refusal_preserves_position_without_rewriting_target(self):
+        class RefusingSimulation(self.Simulation):
+            def mark_agent_for_removal(self, _agent_id):
+                return False
+
+        agent = self.BackingAgent(1, (0.0, 0.0))
+        simulation = RefusingSimulation([agent])
+        context = SimulationContext(
+            simulation,
+            self.Router(),
+            {1: self._state(1, (0.0, 0.0))},
+            numpy=np,
+        )
+
+        self.assertEqual(_initialize_targets(context), [])
+
+        np.testing.assert_array_equal(context.positions, [[0.0, 0.0]])
+        self.assertEqual(context.active.tolist(), [True])
+        self.assertEqual(agent.target_writes, 0)
+
+    def test_exit_crossing_is_detected_before_invalid_move_rollback(self):
+        class RejectingRouter(self.Router):
+            def valid_moves(self, starts, _ends):
+                return [False] * len(starts)
+
+            def can_connect(self, _start, _end):
+                return False
+
+            def can_reach_exit(self, _start, _end):
+                return False
+
+            def crossed_exit(self, start, end, _exit_start, _exit_end):
+                return start[0] < 0.0 <= end[0]
+
+        agent = self.BackingAgent(1, (-1.0, 0.0))
+        simulation = self.Simulation([agent])
+        simulation.next_positions[1] = (1.0, 0.0)
+        context = SimulationContext(
+            simulation,
+            RejectingRouter(),
+            {1: self._state(1, (10.0, 0.0))},
+            {1: (-1.0, 0.0)},
+            numpy=np,
+        )
+
+        self.assertEqual(_advance_context(context, 1), [1])
+
+        self.assertEqual(agent.position, (1.0, 0.0))
+        self.assertEqual(simulation.pending_removals, {1})
+
+
 class MovementGuardTest(unittest.TestCase):
     class Model:
         velocity = (3.0, 0.0)
@@ -285,6 +624,17 @@ class MovementGuardTest(unittest.TestCase):
 
         def agent(self, _agent_id):
             return self._agent
+
+    @staticmethod
+    def _state():
+        return AgentRouteState(
+            stable_id=1,
+            exit_id=501,
+            waypoints=((10.0, 1.0),),
+            terminal_point=(10.0, 1.0),
+            exit_start=(20.0, 0.0),
+            exit_end=(20.0, 1.0),
+        )
 
     class Router:
         def __init__(self, valid):
@@ -304,30 +654,70 @@ class MovementGuardTest(unittest.TestCase):
 
     def test_invalid_move_rolls_back_position_and_zeroes_velocity(self):
         agent = self.Agent()
-        context = SimulationContext(self.Simulation(agent), self.Router(False), {})
+        context = SimulationContext(
+            self.Simulation(agent),
+            self.Router(False),
+            {1: self._state()},
+            {1: (1.0, 1.0)},
+            numpy=np,
+        )
+        current = np.asarray([[2.0, 1.0]])
 
-        _rollback_invalid_moves(context, {1: (1.0, 1.0)}, {1: (2.0, 1.0)}, frozenset())
+        _rollback_invalid_moves(
+            context,
+            context.positions,
+            {1: agent},
+            current,
+        )
 
         self.assertEqual(agent.position, (1.0, 1.0))
         self.assertEqual(agent.model.velocity, (0.0, 0.0))
+        np.testing.assert_array_equal(current, [[1.0, 1.0]])
 
     def test_valid_move_is_not_changed(self):
         agent = self.Agent()
-        context = SimulationContext(self.Simulation(agent), self.Router(True), {})
+        context = SimulationContext(
+            self.Simulation(agent),
+            self.Router(True),
+            {1: self._state()},
+            {1: (1.0, 1.0)},
+            numpy=np,
+        )
+        current = np.asarray([[2.0, 1.0]])
 
-        _rollback_invalid_moves(context, {1: (1.0, 1.0)}, {1: (2.0, 1.0)}, frozenset())
+        _rollback_invalid_moves(
+            context,
+            context.positions,
+            {1: agent},
+            current,
+        )
 
         self.assertEqual(agent.position, (2.0, 1.0))
         self.assertEqual(agent.model.velocity, (3.0, 0.0))
+        np.testing.assert_array_equal(current, [[2.0, 1.0]])
 
     def test_crossed_agents_are_excluded_from_rollback(self):
         agent = self.Agent()
-        context = SimulationContext(self.Simulation(agent), self.Router(False), {})
+        context = SimulationContext(
+            self.Simulation(agent),
+            self.Router(False),
+            {1: self._state()},
+            {1: (1.0, 1.0)},
+            numpy=np,
+        )
+        current = np.asarray([[2.0, 1.0]])
 
-        _rollback_invalid_moves(context, {1: (1.0, 1.0)}, {1: (2.0, 1.0)}, frozenset({1}))
+        _rollback_invalid_moves(
+            context,
+            context.positions,
+            {1: agent},
+            current,
+            np.asarray([True]),
+        )
 
         self.assertEqual(agent.position, (2.0, 1.0))
         self.assertEqual(agent.model.velocity, (3.0, 0.0))
+        np.testing.assert_array_equal(current, [[2.0, 1.0]])
 
 
 if __name__ == "__main__":

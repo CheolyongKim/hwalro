@@ -232,6 +232,101 @@ class GridRoutingTest(unittest.TestCase):
         self.assertTrue(router.crossed_exit((1.9, 2), (2.1, 2), start, end))
         self.assertFalse(router.crossed_exit((1.9, 0.6), (2.1, 0.6), start, end))
 
+    def test_exit_crossing_rejects_disjoint_bounds_before_geometry_checks(self):
+        class UnexpectedGeometryCheck:
+            def covers(self, _movement):
+                raise AssertionError("disjoint segment must not reach GEOS")
+
+        router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])
+        router._prepared_physical_walkable = UnexpectedGeometryCheck()
+
+        self.assertFalse(router.crossed_exit((0, 2), (1, 2), (3, 1), (3, 3)))
+
+    def test_batch_geometry_predicates_match_scalar_results(self):
+        walkable = box(0, 0, 4, 4).difference(box(1.5, 1.5, 2.5, 2.5))
+        router = GridRouter(walkable, [], [Exit(1, (4, 1), (4, 3))])
+        starts = np.asarray(((0.5, 0.5), (0.5, 2.0), (1.5, 1.0)))
+        ends = np.asarray(((3.5, 0.5), (3.5, 2.0), (2.5, 1.0)))
+
+        np.testing.assert_array_equal(
+            router.can_connect_many(starts, ends),
+            [router.can_connect(tuple(start), tuple(end)) for start, end in zip(starts, ends)],
+        )
+        np.testing.assert_array_equal(
+            router.can_reach_exits(starts, ends),
+            [router.can_reach_exit(tuple(start), tuple(end)) for start, end in zip(starts, ends)],
+        )
+
+        movement_starts = np.asarray(((2, 1), (3, 0.5), (0, 0.5), (0.5, 2)))
+        movement_ends = np.asarray(((3, 1), (3, 1.5), (1, 0.5), (3.5, 2)))
+        exit_starts = np.asarray(((3, 1), (3, 1), (3, 1), (3, 1)))
+        exit_ends = np.asarray(((3, 3), (3, 3), (3, 3), (3, 3)))
+
+        np.testing.assert_array_equal(
+            router.crossed_exits(
+                movement_starts, movement_ends, exit_starts, exit_ends
+            ),
+            [
+                router.crossed_exit(tuple(start), tuple(end), tuple(exit_start), tuple(exit_end))
+                for start, end, exit_start, exit_end in zip(
+                    movement_starts, movement_ends, exit_starts, exit_ends
+                )
+            ],
+        )
+        np.testing.assert_array_equal(
+            router.reached_exits(movement_ends, exit_starts, exit_ends),
+            [
+                router.reached_exit(tuple(position), tuple(exit_start), tuple(exit_end))
+                for position, exit_start, exit_end in zip(
+                    movement_ends, exit_starts, exit_ends
+                )
+            ],
+        )
+
+    def test_batch_geometry_predicates_validate_counts_and_accept_empty_inputs(self):
+        router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])
+
+        for result in (
+            router.can_connect_many([], []),
+            router.can_reach_exits([], []),
+            router.crossed_exits([], [], [], []),
+            router.reached_exits([], [], []),
+        ):
+            self.assertEqual(result.shape, (0,))
+            self.assertEqual(result.dtype, np.dtype(bool))
+
+        with self.assertRaisesRegex(ValueError, "counts must match"):
+            router.can_connect_many([(0, 0)], [])
+        with self.assertRaisesRegex(ValueError, "counts must match"):
+            router.can_reach_exits([(0, 0)], [])
+        with self.assertRaisesRegex(ValueError, "counts must match"):
+            router.crossed_exits([(0, 0)], [(1, 0)], [], [])
+        with self.assertRaisesRegex(ValueError, "counts must match"):
+            router.reached_exits([(0, 0)], [], [])
+
+        malformed = np.asarray((0.0, 0.0))
+        with self.assertRaisesRegex(ValueError, r"shape \(2, 2\)"):
+            router.can_connect_many(malformed, malformed)
+        with self.assertRaisesRegex(ValueError, r"shape \(2, 2\)"):
+            router.can_reach_exits(malformed, malformed)
+        with self.assertRaisesRegex(ValueError, r"shape \(2, 2\)"):
+            router.crossed_exits(malformed, malformed, malformed, malformed)
+        with self.assertRaisesRegex(ValueError, r"shape \(2, 2\)"):
+            router.reached_exits(malformed, malformed, malformed)
+
+    def test_batch_exit_crossing_rejects_disjoint_bounds_before_geometry_checks(self):
+        router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])
+
+        with patch("route_planner.linestrings", side_effect=AssertionError("unexpected GEOS call")):
+            result = router.crossed_exits(
+                [(0, 2), (0, 3)],
+                [(1, 2), (1, 3)],
+                [(3, 1), (3, 1)],
+                [(3, 3), (3, 3)],
+            )
+
+        np.testing.assert_array_equal(result, [False, False])
+
     def test_route_avoids_hazard_when_lower_total_cost_exists(self):
         walkable = Polygon(((0, 0), (6, 0), (6, 4), (0, 4)))
         hazard = Hazard(3.0, 2.0, 1.0)
@@ -273,12 +368,14 @@ class GridRoutingTest(unittest.TestCase):
         walkable = Polygon(((0, 0), (8, 0), (8, 4), (0, 4)))
         exits = [Exit("left", (0, 1.5), (0, 2.5)), Exit("right", (8, 1.5), (8, 2.5))]
         router = GridRouter(walkable, [Hazard(1.5, 2.0, 2.0)], exits)
+        reachable = router._reachable
 
         first = router.plan((3.5, 2.0))
         second = router.plan((3.5, 2.0))
 
         self.assertEqual(first.exit_id, "right")
         self.assertEqual(first, second)
+        self.assertIs(router._reachable, reachable)
 
     def test_wide_exit_is_seeded_along_its_full_length(self):
         walkable = Polygon(((0, 0), (6, 0), (6, 4), (0, 4)))

@@ -9,6 +9,7 @@ import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableExc
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -98,6 +99,18 @@ public class SimulationEngineRunner {
     }
 
     public EngineRun run(Long simulationId, SimulationSetupResponse setup) throws EngineRunException {
+        long totalStarted = System.nanoTime();
+        long inputWriteMs = 0;
+        long pythonProcessMs = 0;
+        long resultReadMs = 0;
+        long timelineReadMs = 0;
+        long heatmapReadMs = 0;
+        long cleanupMs;
+        int timelineChunkCount = 0;
+        int heatmapChunkCount = 0;
+        long timelineChars = 0;
+        long heatmapChars = 0;
+        String outcome = "ERROR";
         Path jobDirectory = null;
         Process process = null;
         ProcessOutputCapture output = null;
@@ -108,45 +121,83 @@ public class SimulationEngineRunner {
                     .normalize();
             Path inputPath = jobDirectory.resolve("input.json");
             Path outputDirectory = jobDirectory.resolve("output");
-            objectMapper.writeValue(inputPath.toFile(), createInput(setup));
-
-            process = new ProcessBuilder(
-                            pythonCommand, scriptPath.toString(), inputPath.toString(), outputDirectory.toString())
-                    .redirectErrorStream(true)
-                    .start();
-            output = new ProcessOutputCapture(process.getInputStream());
-            if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                stop(process);
-                throw new EngineRunException("ENGINE_TIMEOUT: 실제 실행시간 제한을 초과했습니다.", true);
+            long inputWriteStarted = System.nanoTime();
+            try {
+                objectMapper.writeValue(inputPath.toFile(), createInput(setup));
+            } finally {
+                inputWriteMs = elapsedMillis(inputWriteStarted);
             }
-            String diagnostic = output.await();
-            if (process.exitValue() != 0) {
-                SimulationFailureDetailResponse failureDetail = null;
-                if (process.exitValue() == ROUTING_ERROR_EXIT_CODE) {
-                    failureDetail = readFailureDetail(outputDirectory, setup);
-                    if (failureDetail == null) {
-                        log.warn("Simulation {} engine returned an invalid routing failure detail", simulationId);
-                    } else {
-                        log.warn(
-                                "Simulation {} engine routing failure code={} agentId={} recommendationPresent={}",
-                                simulationId,
-                                failureDetail.code(),
-                                failureDetail.agentId(),
-                                failureDetail.recommendedPosition() != null);
-                    }
-                } else {
-                    log.warn("Simulation {} engine process failed: {}", simulationId, diagnostic);
+
+            long pythonProcessStarted = System.nanoTime();
+            try {
+                process = new ProcessBuilder(
+                                pythonCommand, scriptPath.toString(), inputPath.toString(), outputDirectory.toString())
+                        .redirectErrorStream(true)
+                        .start();
+                output = new ProcessOutputCapture(process.getInputStream());
+                if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                    stop(process);
+                    throw new EngineRunException("ENGINE_TIMEOUT: 실제 실행시간 제한을 초과했습니다.", true);
                 }
-                throw new EngineRunException("ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.", false, failureDetail);
+                String diagnostic = output.await();
+                if (process.exitValue() != 0) {
+                    SimulationFailureDetailResponse failureDetail = null;
+                    if (process.exitValue() == ROUTING_ERROR_EXIT_CODE) {
+                        failureDetail = readFailureDetail(outputDirectory, setup);
+                        if (failureDetail == null) {
+                            log.warn("Simulation {} engine returned an invalid routing failure detail", simulationId);
+                        } else {
+                            log.warn(
+                                    "Simulation {} engine routing failure code={} agentId={} recommendationPresent={}",
+                                    simulationId,
+                                    failureDetail.code(),
+                                    failureDetail.agentId(),
+                                    failureDetail.recommendedPosition() != null);
+                        }
+                    } else {
+                        log.warn("Simulation {} engine process failed: {}", simulationId, diagnostic);
+                    }
+                    throw new EngineRunException("ENGINE_ERROR: 시뮬레이션 엔진 실행에 실패했습니다.", false, failureDetail);
+                }
+            } finally {
+                pythonProcessMs = elapsedMillis(pythonProcessStarted);
             }
 
-            EngineResult result = objectMapper.readValue(
-                    outputDirectory.resolve("result.json").toFile(), EngineResult.class);
-            validateChunkCounts(result);
-            List<TimelineChunk> timeline = readTimeline(outputDirectory, result.timelineChunkCount());
-            List<HeatmapChunk> heatmaps = readHeatmaps(outputDirectory, result.heatmapChunkCount());
-            return new EngineRun(result, timeline, heatmaps);
+            EngineResult result;
+            long resultReadStarted = System.nanoTime();
+            try {
+                result = objectMapper.readValue(
+                        outputDirectory.resolve("result.json").toFile(), EngineResult.class);
+                validateChunkCounts(result);
+            } finally {
+                resultReadMs = elapsedMillis(resultReadStarted);
+            }
+            List<TimelineChunk> timeline;
+            long timelineReadStarted = System.nanoTime();
+            try {
+                timeline = readTimeline(outputDirectory, result.timelineChunkCount());
+            } finally {
+                timelineReadMs = elapsedMillis(timelineReadStarted);
+            }
+            timelineChunkCount = timeline.size();
+            timelineChars = timeline.stream()
+                    .mapToLong(chunk -> chunk.frameData().length())
+                    .sum();
+            List<HeatmapChunk> heatmaps;
+            long heatmapReadStarted = System.nanoTime();
+            try {
+                heatmaps = readHeatmaps(outputDirectory, result.heatmapChunkCount());
+            } finally {
+                heatmapReadMs = elapsedMillis(heatmapReadStarted);
+            }
+            heatmapChunkCount = heatmaps.size();
+            heatmapChars = heatmaps.stream()
+                    .mapToLong(chunk -> chunk.densityData().length())
+                    .sum();
+            outcome = "COMPLETED";
+            return new EngineRun(result, timeline, heatmaps, maxSimulationTimeSeconds);
         } catch (EngineRunException exception) {
+            outcome = exception.isTimeout() ? "TIMEOUT" : "ERROR";
             throw exception;
         } catch (IOException exception) {
             log.warn("Simulation {} engine I/O failed", simulationId, exception);
@@ -158,8 +209,32 @@ public class SimulationEngineRunner {
             Thread.currentThread().interrupt();
             throw new EngineRunException("엔진 실행이 중단되었습니다.", false, exception);
         } finally {
-            deleteJobDirectory(jobDirectory);
+            long cleanupStarted = System.nanoTime();
+            try {
+                deleteJobDirectory(jobDirectory);
+            } finally {
+                cleanupMs = elapsedMillis(cleanupStarted);
+            }
+            log.info(
+                    "simulation_engine_phase simulationId={} outcome={} inputWriteMs={} pythonProcessMs={} resultReadMs={} timelineReadMs={} heatmapReadMs={} cleanupMs={} totalMs={} timelineChunks={} timelineChars={} heatmapChunks={} heatmapChars={}",
+                    simulationId,
+                    outcome,
+                    inputWriteMs,
+                    pythonProcessMs,
+                    resultReadMs,
+                    timelineReadMs,
+                    heatmapReadMs,
+                    cleanupMs,
+                    elapsedMillis(totalStarted),
+                    timelineChunkCount,
+                    timelineChars,
+                    heatmapChunkCount,
+                    heatmapChars);
         }
+    }
+
+    private static long elapsedMillis(long startedNanos) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
     }
 
     private Map<String, Object> createInput(SimulationSetupResponse setup) {
@@ -391,13 +466,16 @@ public class SimulationEngineRunner {
                     // Temporary engine files are removed on a best-effort basis.
                 }
             });
-        } catch (IOException ignored) {
+        } catch (IOException | UncheckedIOException | SecurityException ignored) {
             // Temporary engine files are removed on a best-effort basis.
         }
     }
 
     public record EngineRun(
-            EngineResult result, List<TimelineChunk> timelineChunks, List<HeatmapChunk> heatmapChunks) {}
+            EngineResult result,
+            List<TimelineChunk> timelineChunks,
+            List<HeatmapChunk> heatmapChunks,
+            double maxSimulationTimeSeconds) {}
 
     public record TimelineChunk(int sequence, String frameData) {}
 
