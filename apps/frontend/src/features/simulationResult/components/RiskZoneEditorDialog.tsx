@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../risks/constants/riskOptions';
 import { useCreateRisk } from '../../risks/hooks/useRiskMutations';
 import type { Risk, RiskCreateRequest } from '../../risks/types/risks';
 import { getRiskErrorMessage } from '../../risks/utils/getRiskErrorMessage';
-import type { Bounds } from '../types';
+import type { Bounds, SimulationDrawing } from '../types';
+import { generateRiskZoneName } from '../utils/riskZoneName';
 
 interface Props {
   bounds: Bounds;
-  drawingWidth: number;
+  drawing: Pick<SimulationDrawing, 'width' | 'height' | 'layoutTexts'>;
   simulationResultId: number;
   onCancel: () => void;
   onConfirm: (risk: Risk) => void;
@@ -15,25 +16,18 @@ interface Props {
 
 export function RiskZoneEditorDialog({
   bounds,
-  drawingWidth,
+  drawing,
   simulationResultId,
   onCancel,
   onConfirm,
 }: Props) {
-  const [zoneName, setZoneName] = useState('AI 구역 이름 생성 중...');
+  const [zoneName, setZoneName] = useState(() => generateRiskZoneName(bounds, drawing));
   const [severity, setSeverity] = useState('보통');
   const [status, setStatus] = useState('임시저장');
 
   const createMutation = useCreateRisk();
 
   const errorMessage = createMutation.isError ? getRiskErrorMessage(createMutation.error) : null;
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setZoneName(bounds.x > drawingWidth / 2 ? '동측 혼잡 예상 구역' : '서측 이동 주의 구역');
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [bounds.x, drawingWidth]);
 
   const handleConfirm = () => {
     const body: RiskCreateRequest = {

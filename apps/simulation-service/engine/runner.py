@@ -36,6 +36,8 @@ PHASE_NAMES = (
     "targetAndExitUpdate",
     "snapshotAndSerialization",
 )
+STALL_ITERATION_LIMIT = 500
+STALL_MOVEMENT_EPSILON_METERS = 0.001
 
 
 class RunnerError(RuntimeError):
@@ -512,17 +514,33 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             timeline.add_exit_event(0.0, state.stable_id, state.exit_id)
 
     iteration = 0
-    while (trapped or any(context.states for context in contexts)) and iteration < maximum_iterations:
+    stalled_iterations = 0
+    while any(context.states for context in contexts) and iteration < maximum_iterations:
         iteration += 1
         elapsed = iteration * DT_SECONDS
+        moved = 0.0
+        evacuated_this_iteration = False
         for context in contexts:
             if not context.states:
                 continue
             for agent_id in _advance_context(context, iteration):
                 state = context.states.pop(agent_id, None)
                 if state is not None:
+                    evacuated_this_iteration = True
                     evacuation_times.append(elapsed)
                     timeline.add_exit_event(elapsed, state.stable_id, state.exit_id)
+            active_slots = context.numpy.flatnonzero(context.active)
+            if active_slots.size:
+                delta = context.positions[active_slots] - context.next_positions[active_slots]
+                moved += float(context.numpy.hypot(delta[:, 0], delta[:, 1]).sum())
+        if evacuated_this_iteration:
+            stalled_iterations = 0
+        elif moved < STALL_MOVEMENT_EPSILON_METERS:
+            stalled_iterations += 1
+            if stalled_iterations >= STALL_ITERATION_LIMIT:
+                break
+        else:
+            stalled_iterations = 0
         if iteration % frame_steps == 0:
             snapshot_started = time.perf_counter_ns() if phase_profile is not None else 0
             heatmap.add(timeline.add(_snapshot(contexts, trapped, elapsed)))
@@ -532,7 +550,12 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
 
     remaining = len(trapped) + sum(len(context.states) for context in contexts)
     evacuated = len(agents) - remaining
-    termination_reason = "ALL_EVACUATED" if remaining == 0 else "MAX_DURATION"
+    if remaining == 0:
+        termination_reason = "ALL_EVACUATED"
+    elif iteration >= maximum_iterations:
+        termination_reason = "MAX_DURATION"
+    else:
+        termination_reason = "STALLED"
     simulation_duration = min(iteration * DT_SECONDS, max_time)
     serialization_started = time.perf_counter_ns() if phase_profile is not None else 0
     if (
@@ -670,33 +693,72 @@ def _advance_context(context: SimulationContext, iteration: int) -> list[int]:
     if profile is not None:
         profile.add("agentStateCapture", capture_started)
         movement_started = time.perf_counter_ns()
-    _rollback_invalid_moves(context, previous, agents, current)
+    crossed = _detect_exit_crossings(context, previous, current)
+    _rollback_invalid_moves(context, previous, agents, current, crossed)
     if profile is not None:
         profile.add("moveValidation", movement_started)
         target_started = time.perf_counter_ns()
-    evacuated = _update_targets(context, agents, current, previous)
+    evacuated = _update_targets(context, agents, current, crossed)
     context.positions, context.next_positions = current, previous
     if profile is not None:
         profile.add("targetAndExitUpdate", target_started)
     return evacuated
 
 
-def _rollback_invalid_moves(context: SimulationContext, previous, agents, current) -> None:
+def _detect_exit_crossings(context: SimulationContext, previous, current):
+    np = context.numpy
+    crossed = np.zeros(len(context.agent_ids), dtype=bool)
+    final_slots = np.flatnonzero(
+        context.active & (context.cursors + 1 == context.waypoint_counts)
+    )
+    if final_slots.size:
+        crossed[final_slots] = context.router.crossed_exits(
+            previous[final_slots],
+            current[final_slots],
+            context.exit_starts[final_slots],
+            context.exit_ends[final_slots],
+        )
+    return crossed
+
+
+def _rollback_invalid_moves(
+    context: SimulationContext, previous, agents, current, crossed=None
+) -> None:
     np = context.numpy
     active_slots = np.flatnonzero(context.active)
+    if crossed is not None:
+        active_slots = active_slots[~crossed[active_slots]]
     valid = np.asarray(
         context.router.valid_moves(previous[active_slots], current[active_slots]), dtype=bool
     )
     invalid_slots = active_slots[~valid]
-    current[invalid_slots] = previous[invalid_slots]
     for slot in invalid_slots:
         agent_id = int(context.agent_ids[slot])
         agent = agents[agent_id]
-        agent.position = tuple(previous[slot])
-        agent.model.velocity = (0.0, 0.0)
+        end = tuple(current[slot])
+        corrected = context.router.clamp_to_walkable(end)
+        if not context.router.can_connect(tuple(previous[slot]), corrected):
+            corrected = tuple(previous[slot])
+        current[slot] = corrected
+        agent.position = corrected
+        agent.model.velocity = _slide_velocity(end, corrected, agent.model.velocity)
 
 
-def _update_targets(context: SimulationContext, agents, positions, previous=None) -> list[int]:
+def _slide_velocity(end, corrected, velocity) -> tuple[float, float]:
+    dx = end[0] - corrected[0]
+    dy = end[1] - corrected[1]
+    length = math.hypot(dx, dy)
+    if length <= 1e-12:
+        return (0.0, 0.0)
+    nx, ny = dx / length, dy / length
+    dot = velocity[0] * nx + velocity[1] * ny
+    return (
+        float(velocity[0] - dot * nx),
+        float(velocity[1] - dot * ny),
+    )
+
+
+def _update_targets(context: SimulationContext, agents, positions, crossed=None) -> list[int]:
     np = context.numpy
     context.cursor_changed.fill(False)
 
@@ -731,24 +793,26 @@ def _update_targets(context: SimulationContext, agents, positions, previous=None
         context.active & (context.cursors + 1 == context.waypoint_counts)
     )
     final_near, _final_passed = _waypoint_masks(context, final_slots, positions)
-    ready = np.zeros(len(final_slots), dtype=bool)
-    near_indices = np.flatnonzero(final_near)
+    ready = (
+        np.zeros(len(final_slots), dtype=bool)
+        if crossed is None
+        else crossed[final_slots].copy()
+    )
+    near_indices = np.flatnonzero(~ready & final_near)
     near_slots = final_slots[near_indices]
     if near_slots.size:
         ready[near_indices] = context.router.can_reach_exits(
             positions[near_slots], context.terminal_points[near_slots]
         )
 
-    if previous is not None:
-        crossing_indices = np.flatnonzero(~ready)
-        crossing_slots = final_slots[crossing_indices]
-        if crossing_slots.size:
-            ready[crossing_indices] = context.router.crossed_exits(
-                previous[crossing_slots],
-                positions[crossing_slots],
-                context.exit_starts[crossing_slots],
-                context.exit_ends[crossing_slots],
-            )
+    reach_indices = np.flatnonzero(~ready)
+    reach_slots = final_slots[reach_indices]
+    if reach_slots.size:
+        ready[reach_indices] = context.router.reached_exits(
+            positions[reach_slots],
+            context.exit_starts[reach_slots],
+            context.exit_ends[reach_slots],
+        )
 
     evacuated = []
     ready_slots = final_slots[ready]
@@ -761,7 +825,7 @@ def _update_targets(context: SimulationContext, agents, positions, previous=None
 
     target_mask = (
         context.active.copy()
-        if previous is None
+        if crossed is None
         else context.active & context.cursor_changed
     )
     target_mask[ready_slots] = False

@@ -18,7 +18,7 @@ from shapely import (
 )
 from shapely.affinity import rotate
 from shapely.geometry import LineString, Point as ShapelyPoint, Polygon, box
-from shapely.ops import unary_union
+from shapely.ops import nearest_points, unary_union
 from shapely.prepared import prep
 from shapely.strtree import STRtree
 
@@ -691,7 +691,7 @@ class GridRouter:
         ):
             return False
         movement = LineString((start, end))
-        return self._prepared_physical_walkable.covers(movement) and movement.intersects(
+        return self._prepared_physical_walkable.covers(ShapelyPoint(start)) and movement.intersects(
             LineString((exit_start, exit_end))
         )
 
@@ -741,10 +741,49 @@ class GridRouter:
             np.stack((exit_start_values[candidates], exit_end_values[candidates]), axis=1)
         )
         result[candidates] = np.asarray(
-            covers(self.physical_walkable, movement) & intersects(movement, exit_segments),
+            covers(
+                self.physical_walkable,
+                points(start_values[candidates, 0], start_values[candidates, 1]),
+            )
+            & intersects(movement, exit_segments),
             dtype=bool,
         )
         return result
+
+    def reached_exit(self, position: Point, exit_start: Point, exit_end: Point) -> bool:
+        return geometry_distance(
+            ShapelyPoint(position), LineString((exit_start, exit_end))
+        ) <= self.exit_clearance + _EPSILON
+
+    def reached_exits(
+        self,
+        positions: Sequence[Point],
+        exit_starts: Sequence[Point],
+        exit_ends: Sequence[Point],
+    ) -> np.ndarray:
+        count = len(positions)
+        if len(exit_starts) != count or len(exit_ends) != count:
+            raise ValueError("position and exit segment counts must match")
+        if count == 0:
+            return np.empty(0, dtype=bool)
+        position_values = _point_array(positions, count, "exit positions")
+        exit_start_values = _point_array(exit_starts, count, "exit starts")
+        exit_end_values = _point_array(exit_ends, count, "exit ends")
+        return np.asarray(
+            geometry_distance(
+                points(position_values[:, 0], position_values[:, 1]),
+                linestrings(np.stack((exit_start_values, exit_end_values), axis=1)),
+            )
+            <= self.exit_clearance + _EPSILON,
+            dtype=bool,
+        )
+
+    def clamp_to_walkable(self, point: Point) -> Point:
+        target = ShapelyPoint(point)
+        if self._prepared_walkable.covers(target):
+            return point
+        nearest = nearest_points(target, self.walkable)[1]
+        return (float(nearest.x), float(nearest.y))
 
     def _physical_edge_is_walkable(self, start: Point, end: Point) -> bool:
         return self._prepared_physical_walkable.covers(LineString((start, end)))

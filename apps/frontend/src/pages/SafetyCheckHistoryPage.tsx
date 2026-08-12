@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ChevronRight, ClipboardList, Trash2 } from 'lucide-react';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type {
   ChecklistTemplate,
   InspectionArea,
   InspectionHistory,
+  InspectionStatus,
 } from '../features/safetyChecks/types';
 import {
   formatInspectionDate,
@@ -12,7 +14,15 @@ import {
   getSafetyCheckError,
 } from '../features/safetyChecks/utils';
 import { useAuth } from '../features/auth/context/AuthContext';
+import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from '../components/ui';
+import type { BadgeTone } from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
+
+function getSummaryTone(needsAttention: boolean, status: InspectionStatus): BadgeTone {
+  if (needsAttention) return 'danger';
+  if (status === 'COMPLETED') return 'success';
+  return 'neutral';
+}
 
 function SafetyCheckHistoryPage() {
   const { areaId: areaIdParam } = useParams();
@@ -101,68 +111,73 @@ function SafetyCheckHistoryPage() {
         action={
           <div className="flex flex-wrap gap-3">
             {canManageTemplate && (
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="lg"
                 onClick={() => navigate(`/safety-checklists/areas/${areaId}/template`)}
                 disabled={!area?.active}
-                className="h-11 rounded-lg border border-line-strong bg-white px-5 text-sm font-bold text-text-strong hover:bg-surface disabled:opacity-50"
               >
                 점검 항목 관리
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              size="lg"
               onClick={() => void createInspection()}
               disabled={isCreating || !canStartInspection}
-              className="h-11 shrink-0 rounded-lg bg-primary px-5 text-sm font-bold text-white transition hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
+              isLoading={isCreating}
             >
-              {isCreating ? '생성 중...' : '새 점검 시작'}
-            </button>
+              새 점검 시작
+            </Button>
           </div>
         }
       />
 
-      {actionError && (
-        <div
-          role="alert"
-          className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
-        >
-          {actionError}
-        </div>
-      )}
+      {actionError && <ErrorState message={actionError} className="mt-5" />}
 
       {!isLoading && area && !area.active && (
-        <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+        <div className="mt-5 rounded-lg border border-line bg-warning-soft px-4 py-3 text-sm font-medium text-warning-strong">
           삭제된 점검 구역입니다. 기존 점검 이력만 조회할 수 있습니다.
         </div>
       )}
 
       {!isLoading && area?.active && template?.id == null && (
-        <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+        <div className="mt-5 rounded-lg border border-line bg-warning-soft px-4 py-3 text-sm font-medium text-warning-strong">
           활성 체크리스트가 없어 새 점검을 시작할 수 없습니다. 점검 항목 관리에서 항목을 저장하세요.
         </div>
       )}
 
-      <section className="mt-5 overflow-hidden rounded-xl border border-line bg-white shadow-sm shadow-ink/5">
+      <Card padded={false} className="mt-5 overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-7">
           <h2 className="text-xl font-black text-ink">점검 이력</h2>
-          <p className="mt-1 text-sm text-text-muted">총 {inspections.length}회</p>
+          <p className="mt-1 text-sm text-text-muted">
+            총 <span className="tabular-nums">{inspections.length}</span>회
+          </p>
         </div>
         {isLoading ? (
-          <div className="flex min-h-64 items-center justify-center text-sm text-text-muted">
-            점검 이력을 불러오는 중입니다.
+          <div className="space-y-5 p-5 sm:p-7">
+            {[0, 1, 2].map((index) => (
+              <div key={index} className="flex items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-44" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-5 w-24" />
+              </div>
+            ))}
           </div>
         ) : error ? (
-          <div
-            role="alert"
-            className="flex min-h-64 items-center justify-center px-6 text-sm text-red-600"
-          >
-            {error}
+          <div className="flex min-h-64 items-center justify-center px-6">
+            <ErrorState message={error} className="w-full" />
           </div>
         ) : inspections.length === 0 ? (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center">
-            <p className="font-bold text-ink">아직 수행한 점검이 없습니다.</p>
-            <p className="text-sm text-text-muted">새 점검을 시작하면 이곳에 이력이 쌓입니다.</p>
+          <div className="p-5 sm:p-7">
+            <EmptyState
+              icon={ClipboardList}
+              title="아직 수행한 점검이 없습니다."
+              description="새 점검을 시작하면 이곳에 이력이 쌓입니다."
+            />
           </div>
         ) : (
           <div className="divide-y divide-line">
@@ -175,6 +190,8 @@ function SafetyCheckHistoryPage() {
               const canDelete =
                 inspection.status === 'DRAFT' &&
                 (inspection.inspectorId === user?.id || user?.roles.includes('ADMIN'));
+              const statusTone = inspection.status === 'COMPLETED' ? 'success' : 'warning';
+              const summaryTone = getSummaryTone(needsAttention, inspection.status);
               return (
                 <div key={inspection.id} className="group relative">
                   <button
@@ -183,14 +200,18 @@ function SafetyCheckHistoryPage() {
                     className="grid w-full gap-4 px-5 py-4 text-left transition hover:bg-primary-soft/30 sm:px-7 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
                   >
                     <div>
-                      <p className="font-black text-ink">
+                      <p className="font-black tabular-nums text-ink">
                         {formatInspectionDate(inspection.createdAt)}
                       </p>
-                      <p className="mt-1 text-xs text-text-muted">점검 #{inspection.id}</p>
+                      <p className="mt-1 text-xs tabular-nums text-text-muted">
+                        점검 #{inspection.id}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-text-muted">점검 담당자</p>
-                      <p className="mt-1 text-sm font-bold text-text-strong">{inspectorName}</p>
+                      <p className="mt-1 text-sm font-bold tabular-nums text-text-strong">
+                        {inspectorName}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-text-muted">진행률</p>
@@ -203,7 +224,7 @@ function SafetyCheckHistoryPage() {
                             }}
                           />
                         </div>
-                        <span className="text-xs font-bold text-text-strong">
+                        <span className="text-xs font-bold tabular-nums text-text-strong">
                           {inspection.completedItemCount}/{inspection.totalItemCount}
                         </span>
                       </div>
@@ -211,19 +232,13 @@ function SafetyCheckHistoryPage() {
                     <div
                       className={`flex flex-wrap items-center gap-2 md:justify-end ${canDelete ? 'pr-10' : ''}`}
                     >
-                      <span
-                        className={`rounded-full px-3 py-1.5 text-xs font-bold ${inspection.status === 'COMPLETED' ? 'bg-primary-soft text-primary' : 'bg-orange-50 text-orange-600'}`}
-                      >
+                      <Badge tone={statusTone}>
                         {inspection.status === 'COMPLETED' ? '점검 완료' : '작성 중'}
-                      </span>
-                      <span
-                        className={`rounded-full px-3 py-1.5 text-xs font-bold ${needsAttention ? 'bg-danger-soft text-danger' : inspection.status === 'COMPLETED' ? 'bg-primary-soft text-primary' : 'bg-orange-50 text-orange-600'}`}
-                      >
+                      </Badge>
+                      <Badge tone={summaryTone} className="tabular-nums">
                         {getInspectionSummary(inspection)}
-                      </span>
-                      <span aria-hidden="true" className="text-text-muted">
-                        →
-                      </span>
+                      </Badge>
+                      <ChevronRight aria-hidden="true" className="h-4 w-4 text-text-muted" />
                     </div>
                   </button>
                   {canDelete && (
@@ -235,16 +250,7 @@ function SafetyCheckHistoryPage() {
                       title="작성 중 점검 삭제"
                       className="absolute right-4 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted transition hover:bg-danger-soft hover:text-danger disabled:opacity-40"
                     >
-                      <svg
-                        aria-hidden="true"
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      >
-                        <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
-                      </svg>
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </button>
                   )}
                 </div>
@@ -252,7 +258,7 @@ function SafetyCheckHistoryPage() {
             })}
           </div>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

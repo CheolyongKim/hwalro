@@ -7,6 +7,7 @@ import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.dto.ReportUpdateRequest;
+import com.hwalro.regulation.report.dto.ReportVisualContextResponse;
 import com.hwalro.regulation.report.service.AiReportDraftService;
 import com.hwalro.regulation.report.service.ReportService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,6 +66,15 @@ public class ReportController {
             @PathVariable Long id,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return reportService.getReport(user, id);
+    }
+
+    @GetMapping("/{id}/visual-contexts")
+    @Operation(summary = "보고서 첨부 시뮬레이션 미니맵 조회")
+    public List<ReportVisualContextResponse> getVisualContexts(
+            @PathVariable Long id,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @Parameter(hidden = true) @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return reportService.getVisualContexts(user, id, authorization);
     }
 
     @PutMapping("/{id}")

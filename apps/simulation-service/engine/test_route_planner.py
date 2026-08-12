@@ -273,6 +273,15 @@ class GridRoutingTest(unittest.TestCase):
                 )
             ],
         )
+        np.testing.assert_array_equal(
+            router.reached_exits(movement_ends, exit_starts, exit_ends),
+            [
+                router.reached_exit(tuple(position), tuple(exit_start), tuple(exit_end))
+                for position, exit_start, exit_end in zip(
+                    movement_ends, exit_starts, exit_ends
+                )
+            ],
+        )
 
     def test_batch_geometry_predicates_validate_counts_and_accept_empty_inputs(self):
         router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])
@@ -281,6 +290,7 @@ class GridRoutingTest(unittest.TestCase):
             router.can_connect_many([], []),
             router.can_reach_exits([], []),
             router.crossed_exits([], [], [], []),
+            router.reached_exits([], [], []),
         ):
             self.assertEqual(result.shape, (0,))
             self.assertEqual(result.dtype, np.dtype(bool))
@@ -291,6 +301,8 @@ class GridRoutingTest(unittest.TestCase):
             router.can_reach_exits([(0, 0)], [])
         with self.assertRaisesRegex(ValueError, "counts must match"):
             router.crossed_exits([(0, 0)], [(1, 0)], [], [])
+        with self.assertRaisesRegex(ValueError, "counts must match"):
+            router.reached_exits([(0, 0)], [], [])
 
         malformed = np.asarray((0.0, 0.0))
         with self.assertRaisesRegex(ValueError, r"shape \(2, 2\)"):
@@ -299,6 +311,8 @@ class GridRoutingTest(unittest.TestCase):
             router.can_reach_exits(malformed, malformed)
         with self.assertRaisesRegex(ValueError, r"shape \(2, 2\)"):
             router.crossed_exits(malformed, malformed, malformed, malformed)
+        with self.assertRaisesRegex(ValueError, r"shape \(2, 2\)"):
+            router.reached_exits(malformed, malformed, malformed)
 
     def test_batch_exit_crossing_rejects_disjoint_bounds_before_geometry_checks(self):
         router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])

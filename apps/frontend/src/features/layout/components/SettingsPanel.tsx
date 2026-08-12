@@ -82,8 +82,8 @@ function NumberField({ label, value, unit = 'm', onChange }: NumberFieldProps) {
 
   return (
     <label className="block min-w-0">
-      <span className="block text-[11px] text-panel-muted">{label}</span>
-      <span className="mt-1 flex h-8 items-center rounded-md border border-panel-border bg-panel-soft">
+      <span className="block text-xs text-panel-muted">{label}</span>
+      <span className="mt-1 flex h-8 items-center rounded-md border border-panel-border bg-panel-soft focus-within:ring-2 focus-within:ring-focus-ring">
         <input
           type="number"
           step={0.1}
@@ -95,9 +95,9 @@ function NumberField({ label, value, unit = 'm', onChange }: NumberFieldProps) {
               commitDraft();
             }
           }}
-          className="h-full w-full min-w-0 bg-transparent px-2 font-mono text-[13px] text-panel-text outline-none"
+          className="h-full w-full min-w-0 bg-transparent px-2 font-mono text-sm text-panel-text outline-none"
         />
-        <span className="shrink-0 pr-2 font-mono text-[11px] text-panel-faint">{unit}</span>
+        <span className="shrink-0 pr-2 font-mono text-xs text-panel-faint">{unit}</span>
       </span>
     </label>
   );
@@ -113,8 +113,8 @@ function WallFields({ wall, dispatch }: WallFieldsProps) {
     dispatch({ type: 'updateWall', wallId: wall.id, patch });
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
-      <p className="mt-0.5 text-[13px] text-panel-text">{wall.name}</p>
+      <h3 className="text-sm font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-sm text-panel-text">{wall.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField label="시작점 X" value={wall.startX} onChange={(x) => update({ startX: x })} />
         <NumberField label="시작점 Y" value={wall.startY} onChange={(y) => update({ startY: y })} />
@@ -135,8 +135,8 @@ function OutsideWallFields({ wall, dispatch }: OutsideWallFieldsProps) {
     dispatch({ type: 'updateOutsideWall', wallId: wall.id, patch });
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
-      <p className="mt-0.5 text-[13px] text-panel-text">{wall.name}</p>
+      <h3 className="text-sm font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-sm text-panel-text">{wall.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField label="시작점 X" value={wall.startX} onChange={(x) => update({ startX: x })} />
         <NumberField label="시작점 Y" value={wall.startY} onChange={(y) => update({ startY: y })} />
@@ -157,8 +157,8 @@ function ExitFields({ exit, dispatch }: ExitFieldsProps) {
     dispatch({ type: 'updateExit', exitId: exit.id, patch });
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
-      <p className="mt-0.5 text-[13px] text-panel-text">{exit.name}</p>
+      <h3 className="text-sm font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-sm text-panel-text">{exit.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField label="시작점 X" value={exit.startX} onChange={(x) => update({ startX: x })} />
         <NumberField label="시작점 Y" value={exit.startY} onChange={(y) => update({ startY: y })} />
@@ -186,8 +186,8 @@ function RectFields({ element, dispatch, kind }: RectFieldsProps) {
     );
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
-      <p className="mt-0.5 text-[13px] text-panel-text">{element.name}</p>
+      <h3 className="text-sm font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 text-sm text-panel-text">{element.name}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField
           label="시작점 X"
@@ -222,8 +222,8 @@ function TextFields({ text, dispatch }: TextFieldsProps) {
     dispatch({ type: 'updateText', textId: text.id, patch });
   return (
     <section>
-      <h3 className="text-[13px] font-bold text-panel-text">선택 요소</h3>
-      <p className="mt-0.5 truncate text-[13px] text-panel-text">{text.text}</p>
+      <h3 className="text-sm font-bold text-panel-text">선택 요소</h3>
+      <p className="mt-0.5 truncate text-sm text-panel-text">{text.text}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <NumberField label="X 위치" value={text.x} onChange={(x) => update({ x })} />
         <NumberField label="Y 위치" value={text.y} onChange={(y) => update({ y })} />
@@ -240,8 +240,8 @@ interface InfoRowProps {
 function InfoRow({ label, value }: InfoRowProps) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
-      <span className="shrink-0 text-[11px] text-panel-muted">{label}</span>
-      <span className="truncate font-mono text-[13px] text-panel-text">{value}</span>
+      <span className="shrink-0 text-xs text-panel-muted">{label}</span>
+      <span className="truncate font-mono text-sm text-panel-text">{value}</span>
     </div>
   );
 }
@@ -291,8 +291,8 @@ function BackgroundSection({ state, dispatch }: SettingsPanelProps) {
 
   return (
     <section className="mt-4 border-t border-panel-divider pt-4">
-      <h3 className="text-[13px] font-bold text-panel-text">배경</h3>
-      <p className="mt-0.5 text-[11px] text-panel-muted">
+      <h3 className="text-sm font-bold text-panel-text">배경</h3>
+      <p className="mt-0.5 text-xs text-panel-muted">
         저장되지 않고 화면에만 표시됩니다. 배경 도구로 이동·크기 조절.
       </p>
       <input
@@ -308,14 +308,14 @@ function BackgroundSection({ state, dispatch }: SettingsPanelProps) {
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="mt-2 flex h-8 w-full items-center justify-center rounded-md border border-panel-border bg-panel-soft text-[13px] font-bold text-panel-text transition-colors hover:bg-panel"
+        className="mt-2 flex h-8 w-full items-center justify-center rounded-md border border-panel-border bg-panel-soft text-sm font-bold text-panel-text transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         {bg ? '배경 교체' : '배경 이미지 추가'}
       </button>
       {bg && (
         <div className="mt-3 space-y-3">
           <label className="block">
-            <span className="text-[11px] text-panel-muted">투명도</span>
+            <span className="text-xs text-panel-muted">투명도</span>
             <input
               type="range"
               min={0.1}
@@ -331,7 +331,7 @@ function BackgroundSection({ state, dispatch }: SettingsPanelProps) {
           <button
             type="button"
             onClick={() => dispatch({ type: 'backgroundRemove' })}
-            className="flex h-8 w-full items-center justify-center rounded-md border border-danger/40 bg-panel-soft text-[13px] font-bold text-danger transition-colors hover:bg-panel"
+            className="flex h-8 w-full items-center justify-center rounded-md border border-danger/40 bg-panel-soft text-sm font-bold text-danger transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             배경 제거
           </button>
@@ -359,7 +359,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
       fabric === null &&
       text === null ? (
         <section>
-          <h3 className="text-[13px] font-bold text-panel-text">도면 정보</h3>
+          <h3 className="text-sm font-bold text-panel-text">도면 정보</h3>
           <div className="mt-1">
             <InfoRow label="도면명" value={doc.name} />
             <InfoRow
@@ -388,7 +388,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
         <TextFields text={text as LayoutText} dispatch={dispatch} />
       )}
       <section className="mt-4 border-t border-panel-divider pt-4">
-        <h3 className="text-[13px] font-bold text-panel-text">레이어</h3>
+        <h3 className="text-sm font-bold text-panel-text">레이어</h3>
         <div className="mt-1">
           <InfoRow label="벽" value={`${doc.walls.length}개`} />
           <InfoRow label="외각벽" value={`${doc.outsideWalls.length}개`} />

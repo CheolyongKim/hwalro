@@ -392,6 +392,20 @@ class BulkAgentAccessTest(unittest.TestCase):
                 )
             ]
 
+        def reached_exit(self, _position, _exit_start, _exit_end):
+            return False
+
+        def reached_exits(self, positions, exit_starts, exit_ends):
+            return [
+                self.reached_exit(position, exit_start, exit_end)
+                for position, exit_start, exit_end in zip(
+                    positions, exit_starts, exit_ends, strict=True
+                )
+            ]
+
+        def clamp_to_walkable(self, point):
+            return point
+
     @staticmethod
     def _state(stable_id, waypoint):
         return AgentRouteState(
@@ -562,7 +576,7 @@ class BulkAgentAccessTest(unittest.TestCase):
         self.assertEqual(context.active.tolist(), [True])
         self.assertEqual(agent.target_writes, 0)
 
-    def test_rollback_happens_before_exit_crossing_is_checked(self):
+    def test_exit_crossing_is_detected_before_invalid_move_rollback(self):
         class RejectingRouter(self.Router):
             def valid_moves(self, starts, _ends):
                 return [False] * len(starts)
@@ -587,10 +601,10 @@ class BulkAgentAccessTest(unittest.TestCase):
             numpy=np,
         )
 
-        self.assertEqual(_advance_context(context, 1), [])
+        self.assertEqual(_advance_context(context, 1), [1])
 
-        self.assertEqual(agent.position, (-1.0, 0.0))
-        self.assertEqual(simulation.pending_removals, set())
+        self.assertEqual(agent.position, (1.0, 0.0))
+        self.assertEqual(simulation.pending_removals, {1})
 
 
 class MovementGuardTest(unittest.TestCase):
@@ -611,6 +625,17 @@ class MovementGuardTest(unittest.TestCase):
         def agent(self, _agent_id):
             return self._agent
 
+    @staticmethod
+    def _state():
+        return AgentRouteState(
+            stable_id=1,
+            exit_id=501,
+            waypoints=((10.0, 1.0),),
+            terminal_point=(10.0, 1.0),
+            exit_start=(20.0, 0.0),
+            exit_end=(20.0, 1.0),
+        )
+
     class Router:
         def __init__(self, valid):
             self.valid = valid
@@ -624,16 +649,8 @@ class MovementGuardTest(unittest.TestCase):
         def valid_moves(self, starts, _ends):
             return [self.valid] * len(starts)
 
-    @staticmethod
-    def _state():
-        return AgentRouteState(
-            stable_id=1,
-            exit_id=501,
-            waypoints=((10.0, 1.0),),
-            terminal_point=(10.0, 1.0),
-            exit_start=(20.0, 0.0),
-            exit_end=(20.0, 1.0),
-        )
+        def clamp_to_walkable(self, point):
+            return point
 
     def test_invalid_move_rolls_back_position_and_zeroes_velocity(self):
         agent = self.Agent()
@@ -673,6 +690,29 @@ class MovementGuardTest(unittest.TestCase):
             context.positions,
             {1: agent},
             current,
+        )
+
+        self.assertEqual(agent.position, (2.0, 1.0))
+        self.assertEqual(agent.model.velocity, (3.0, 0.0))
+        np.testing.assert_array_equal(current, [[2.0, 1.0]])
+
+    def test_crossed_agents_are_excluded_from_rollback(self):
+        agent = self.Agent()
+        context = SimulationContext(
+            self.Simulation(agent),
+            self.Router(False),
+            {1: self._state()},
+            {1: (1.0, 1.0)},
+            numpy=np,
+        )
+        current = np.asarray([[2.0, 1.0]])
+
+        _rollback_invalid_moves(
+            context,
+            context.positions,
+            {1: agent},
+            current,
+            np.asarray([True]),
         )
 
         self.assertEqual(agent.position, (2.0, 1.0))

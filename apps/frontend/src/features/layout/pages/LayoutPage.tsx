@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
+import { ArrowLeft } from 'lucide-react';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutToolbar } from '../components/LayoutToolbar';
 import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { InlineTextInput } from '../components/InlineTextInput';
+import { Button } from '../../../components/ui';
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
@@ -315,26 +317,16 @@ function LayoutPage() {
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-background">
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         onClick={() => navigate('/drawings')}
-        aria-label="도면 목록으로 돌아가기"
-        className="fixed left-4 top-4 z-30 flex h-8 w-8 items-center justify-center rounded-md border border-panel-divider bg-panel text-panel-muted shadow-[0_2px_8px_rgba(0,0,0,0.25)] transition-colors hover:bg-panel-soft hover:text-panel-text"
+        className="fixed left-4 top-4 z-30 shadow-raised"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M10 3 L5 8 L10 13" />
-        </svg>
-      </button>
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+        뒤로
+      </Button>
       <LayoutCanvas
         state={state}
         dispatch={dispatch}
@@ -342,7 +334,7 @@ function LayoutPage() {
         onSizeChange={onSizeChange}
         readOnly={readOnly}
       />
-      <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+      <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-overlay">
         <LayoutToolbar
           state={state}
           saveStatus={saveStatus}
@@ -387,14 +379,14 @@ function LayoutPage() {
       {state.error && (
         <div
           role="alert"
-          className="absolute bottom-4 right-4 z-20 flex max-w-[320px] items-center gap-2 rounded-md border border-danger bg-white px-3 py-2 text-[13px] text-danger shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+          className="absolute bottom-4 right-4 z-20 flex max-w-[320px] items-center gap-2 rounded-md border border-danger bg-white px-3 py-2 text-sm text-danger shadow-raised"
         >
           <span className="min-w-0">{state.error}</span>
           <button
             type="button"
             onClick={() => dispatch({ type: 'setError', message: null })}
             aria-label="닫기"
-            className="shrink-0 text-danger transition-colors hover:opacity-70"
+            className="shrink-0 text-danger transition-colors hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             ×
           </button>

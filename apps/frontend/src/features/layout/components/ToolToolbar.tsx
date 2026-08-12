@@ -24,7 +24,7 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
 export function ToolToolbar({ state, dispatch, className, disabled = false }: ToolToolbarProps) {
   return (
     <div
-      className={`flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border border-panel-divider bg-panel p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${className ?? ''}`}
+      className={`flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border border-panel-divider bg-panel p-1.5 shadow-overlay ${className ?? ''}`}
     >
       {TOOLS.map((tool) => {
         const active = state.tool === tool.id;
@@ -35,7 +35,7 @@ export function ToolToolbar({ state, dispatch, className, disabled = false }: To
             aria-pressed={active}
             disabled={disabled}
             onClick={() => dispatch({ type: 'setTool', tool: tool.id })}
-            className={`h-9 min-w-14 rounded-lg px-2 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`h-9 min-w-14 rounded-lg px-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
               active
                 ? 'bg-panel-accent font-bold text-ink'
                 : 'bg-panel-soft font-semibold text-panel-text hover:bg-panel-border'

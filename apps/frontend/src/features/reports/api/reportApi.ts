@@ -4,6 +4,7 @@ import type {
   ReportListResponse,
   ReportStatus,
   ReportUpdateRequest,
+  ReportVisualContext,
 } from '../types/report';
 
 interface ReportListParams {
@@ -23,6 +24,10 @@ export const reportApi = {
     apiClient.get<ReportListResponse>('/api/reports', { params }).then((response) => response.data),
   get: (id: string) =>
     apiClient.get<ReportDetailResponse>(`/api/reports/${id}`).then((response) => response.data),
+  getVisualContexts: (id: string) =>
+    apiClient
+      .get<ReportVisualContext[]>(`/api/reports/${id}/visual-contexts`)
+      .then((response) => response.data),
   update: (id: string, request: ReportUpdateRequest) =>
     apiClient
       .put<ReportDetailResponse>(`/api/reports/${id}`, request)

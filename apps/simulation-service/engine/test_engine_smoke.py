@@ -225,7 +225,7 @@ class JuPedSimSmokeTest(unittest.TestCase):
                 )
             )
 
-            self.assertEqual(result["terminationReason"], "MAX_DURATION")
+            self.assertEqual(result["terminationReason"], "STALLED")
             self.assertEqual(result["evacuatedPeople"], 1)
             self.assertEqual(result["remainingPeople"], 1)
             self.assertEqual(

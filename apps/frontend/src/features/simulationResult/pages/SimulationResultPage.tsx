@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '../../../components/ui';
 import { reportApi } from '../../reports/api/reportApi';
 import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
@@ -24,6 +26,12 @@ import type {
   SimulationResultSummaryViewModel,
   SimulationResultViewModel,
 } from '../types';
+import {
+  BOTTLENECK_DISPLAY_BATCH_SIZE,
+  getNextDisplayedBottleneckCount,
+  rankBottlenecks,
+} from '../utils/bottleneckDisplay';
+import { calculateEvacuationRate } from '../utils/evacuationRate';
 import { selectFramePair } from '../utils/playback';
 import '../simulationResult.css';
 import '../simulationResultMotion.css';
@@ -63,18 +71,29 @@ interface ResultViewProps {
 function ResultView({ summary, executionResult }: ResultViewProps) {
   const navigate = useNavigate();
   const playback = useSimulationPlayback(summary.durationSeconds);
+  const rankedBottlenecks = useMemo(
+    () => rankBottlenecks(summary.bottlenecks),
+    [summary.bottlenecks],
+  );
+  const [displayedBottleneckCount, setDisplayedBottleneckCount] = useState(
+    BOTTLENECK_DISPLAY_BATCH_SIZE,
+  );
+  const displayedBottlenecks = useMemo(
+    () => rankedBottlenecks.slice(0, displayedBottleneckCount),
+    [displayedBottleneckCount, rankedBottlenecks],
+  );
   const chunks = useSimulationResultChunks({
     simulationId: Number(summary.simulationId),
     totalPeople: summary.totalPeople,
     maxDensity: summary.maxDensity,
-    currentTimeSeconds: playback.currentTimeSeconds,
+    currentTimeSeconds: playback.chunkLookupTimeSeconds,
     chunkDurationSeconds: executionResult.timelineChunkDurationSeconds,
     timelineChunkCount: executionResult.timelineChunkCount,
     heatmapChunkCount: executionResult.heatmapChunkCount,
   });
   const result = useMemo<SimulationResultViewModel | null>(
     () =>
-      chunks.readyForCurrentTime && chunks.heatmap && chunks.agentFrames.length > 0
+      chunks.heatmap && chunks.agentFrames.length > 0
         ? {
             ...summary,
             agentFrames: chunks.agentFrames,
@@ -82,13 +101,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
             evacuationProgress: chunks.evacuationProgress,
           }
         : null,
-    [
-      chunks.agentFrames,
-      chunks.evacuationProgress,
-      chunks.heatmap,
-      chunks.readyForCurrentTime,
-      summary,
-    ],
+    [chunks.agentFrames, chunks.evacuationProgress, chunks.heatmap, summary],
   );
   const evacuationChart = useCollapsiblePanel(() =>
     matchesMediaQuery(NARROW_RESULT_VIEWPORT_QUERY),
@@ -97,7 +110,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     matchesMediaQuery(COMPACT_SUPPORT_PANEL_QUERY),
   );
   const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(
-    summary.bottlenecks[0]?.id ?? null,
+    rankedBottlenecks[0]?.id ?? null,
   );
   const [riskDrawingMode, setRiskDrawingMode] = useState(false);
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
@@ -110,11 +123,26 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
 
   const bottlenecksVisible = playback.hasCompletedPlayback || resultsRevealed;
   const currentFrame = result
-    ? selectFramePair(result.agentFrames, playback.currentTimeSeconds).previous
+    ? selectFramePair(result.agentFrames, playback.displayTimeSeconds).previous
     : null;
   const evacuationRate = currentFrame
-    ? Math.round((currentFrame.evacuatedCount / summary.totalPeople) * 100)
+    ? calculateEvacuationRate(currentFrame.evacuatedCount, summary.totalPeople)
     : 0;
+  const firstLoadedFrame = result?.agentFrames[0];
+  const lastLoadedFrame = result?.agentFrames[result.agentFrames.length - 1];
+  const scrubPreviewOutsideLoadedWindow = Boolean(
+    playback.isScrubbing &&
+    firstLoadedFrame &&
+    lastLoadedFrame &&
+    (playback.displayTimeSeconds < firstLoadedFrame.timeSeconds ||
+      playback.displayTimeSeconds > lastLoadedFrame.timeSeconds),
+  );
+  const isPlaybackDataStale = scrubPreviewOutsideLoadedWindow || !chunks.readyForCurrentTime;
+
+  useEffect(() => {
+    setDisplayedBottleneckCount(BOTTLENECK_DISPLAY_BATCH_SIZE);
+    setSelectedBottleneckId(rankedBottlenecks[0]?.id ?? null);
+  }, [rankedBottlenecks, summary.simulationId]);
 
   useEffect(() => {
     const compactViewport = window.matchMedia(COMPACT_SUPPORT_PANEL_QUERY);
@@ -168,6 +196,12 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     setResultsRevealed(true);
   };
 
+  const handleShowMoreBottlenecks = () => {
+    setDisplayedBottleneckCount((currentCount) =>
+      getNextDisplayedBottleneckCount(currentCount, rankedBottlenecks.length),
+    );
+  };
+
   const handleOpenReport = () => {
     setReportError(null);
     setReportOpen(true);
@@ -201,9 +235,10 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
               : '시뮬레이션 재생 데이터가 없습니다.')}
         </p>
         <div>
-          <button type="button" onClick={() => navigate(-1)}>
-            이전 화면
-          </button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+            뒤로
+          </Button>
           {chunks.error && (
             <button type="button" onClick={chunks.retry}>
               다시 시도
@@ -218,7 +253,8 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     <main className="simulation-result-page">
       <SimulationPlaybackStage
         result={result}
-        currentTimeSeconds={playback.currentTimeSeconds}
+        bottlenecks={displayedBottlenecks}
+        currentTimeSeconds={playback.displayTimeSeconds}
         selectedBottleneckId={selectedBottleneckId}
         showBottlenecks={bottlenecksVisible}
         riskDrawingMode={riskDrawingMode}
@@ -227,9 +263,16 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         onViewportPan={handleViewportPan}
       />
 
-      <button className="back-button" type="button" onClick={() => navigate(-1)}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={() => navigate(-1)}
+        className="absolute left-[22px] top-[22px] z-10 shadow-raised"
+      >
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
         뒤로
-      </button>
+      </Button>
       <header className="simulation-meta">
         <span className="status-dot" />
         <div>
@@ -253,12 +296,18 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
 
       <ResultSummaryPanel
         result={result}
+        bottlenecks={displayedBottlenecks}
         evacuatedCount={currentFrame.evacuatedCount}
         evacuationRate={evacuationRate}
+        isPlaybackDataStale={isPlaybackDataStale}
         bottlenecksVisible={bottlenecksVisible}
         selectedBottleneckId={selectedBottleneckId}
+        displayedBottleneckCount={displayedBottlenecks.length}
+        totalBottleneckCount={rankedBottlenecks.length}
+        reserveImprovementPanelSpace={!improvementPanel.isMinimized}
         riskZones={riskZones}
         onSelectBottleneck={setSelectedBottleneckId}
+        onShowMoreBottlenecks={handleShowMoreBottlenecks}
         onOpenReport={handleOpenReport}
       />
 
@@ -273,9 +322,10 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
       ) : (
         <EvacuationProgressChart
           points={result.evacuationProgress}
-          currentTime={playback.currentTimeSeconds}
+          currentTime={playback.displayTimeSeconds}
           duration={result.durationSeconds}
           totalPeople={result.totalPeople}
+          isPlaybackDataStale={isPlaybackDataStale}
           isCollapsing={evacuationChart.isCollapsing}
           isExpanding={evacuationChart.isExpanding}
           onCollapseEnd={evacuationChart.handleAnimationEnd}
@@ -284,13 +334,17 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
       )}
 
       <PlaybackControls
-        currentTimeSeconds={playback.currentTimeSeconds}
+        currentTimeSeconds={playback.displayTimeSeconds}
         durationSeconds={result.durationSeconds}
         isPlaying={playback.isPlaying}
         playbackRate={playback.playbackRate}
         resultsVisible={bottlenecksVisible}
+        isBuffering={isPlaybackDataStale}
         onToggle={playback.toggle}
         onSeek={playback.seek}
+        onScrubStart={playback.startScrub}
+        onScrubChange={playback.scrubTo}
+        onScrubEnd={playback.endScrub}
         onPlaybackRateChange={playback.setPlaybackRate}
         onRevealResults={handleRevealResults}
       />
@@ -303,7 +357,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
       {pendingBounds && (
         <RiskZoneEditorDialog
           bounds={pendingBounds}
-          drawingWidth={result.drawing.width}
+          drawing={result.drawing}
           simulationResultId={summary.simulationResultId}
           onCancel={() => setPendingBounds(null)}
           onConfirm={(risk) => {
@@ -395,9 +449,10 @@ export default function SimulationResultPage() {
       <div className="result-state">
         <p>{status === 'missing' ? '완료된 결과가 없습니다.' : '결과를 불러오지 못했습니다.'}</p>
         <div>
-          <button type="button" onClick={() => navigate(-1)}>
-            이전 화면
-          </button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+            뒤로
+          </Button>
           {status === 'error' && (
             <button type="button" onClick={() => setRetry((value) => value + 1)}>
               다시 시도

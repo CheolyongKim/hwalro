@@ -54,7 +54,7 @@ export function ActiveReviewCard({
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
           <p
             role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700"
+            className="rounded-xl border border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong"
           >
             {errorMessage}
           </p>

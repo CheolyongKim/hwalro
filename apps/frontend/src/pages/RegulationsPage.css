@@ -1,18 +1,9 @@
 .regulations-page {
   width: 100%;
   min-height: 0;
-  --regulation-border: color-mix(in srgb, var(--color-ink) 14%, var(--color-white));
-  --regulation-muted: color-mix(in srgb, var(--color-ink) 58%, var(--color-white));
-  --regulation-accent-surface: var(--color-primary-soft);
   background: var(--color-background);
   color: var(--color-ink);
-  font-family:
-    'Happiness Sans Print',
-    -apple-system,
-    'Apple SD Gothic Neo',
-    'Noto Sans KR',
-    'Malgun Gothic',
-    sans-serif;
+  font-family: var(--font-sans);
 }
 
 .regulations-page__content {
@@ -30,6 +21,14 @@
   border-bottom: 1px solid var(--color-line);
 }
 
+.regulations-page .regulations-page__eyebrow {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
 .regulations-page__heading h1,
 .regulations-detail__intro h2 {
   margin: 0;
@@ -37,6 +36,7 @@
 }
 
 .regulations-page__heading h1 {
+  margin-top: 6px;
   font-size: 30px;
   font-weight: 900;
   letter-spacing: -0.025em;
@@ -46,7 +46,7 @@
 .regulations-page__heading > p:last-child,
 .regulations-detail__intro > p {
   margin: 12px 0 0;
-  color: var(--regulation-muted);
+  color: var(--color-text-muted);
   font-size: 14px;
   line-height: 24px;
 }
@@ -59,7 +59,7 @@
   border: 1px solid var(--color-line);
   border-radius: 12px;
   background: var(--color-white);
-  box-shadow: 0 1px 3px rgb(13 25 23 / 5%);
+  box-shadow: var(--shadow-card);
 }
 
 .regulations-search input {
@@ -73,11 +73,18 @@
   color: var(--color-ink);
   font-size: 14px;
   outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.regulations-search input::placeholder {
+  color: var(--color-text-faint);
 }
 
 .regulations-search input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgb(22 143 128 / 15%);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .regulations-search button {
@@ -89,10 +96,22 @@
   color: var(--color-white);
   cursor: pointer;
   font-weight: 700;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .regulations-search button:hover {
-  background: color-mix(in srgb, var(--color-primary) 85%, var(--color-ink));
+  background: var(--color-primary-hover);
+}
+
+.regulations-search button:active {
+  background: var(--color-primary-active);
+}
+
+.regulations-search button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .regulations-workspace {
@@ -108,7 +127,7 @@
   border: 1px solid var(--color-line);
   border-radius: 12px;
   background: var(--color-white);
-  box-shadow: 0 1px 3px rgb(13 25 23 / 5%);
+  box-shadow: var(--shadow-card);
 }
 
 .regulations-panel__heading,
@@ -135,8 +154,9 @@
 
 .regulations-panel__heading span,
 .regulations-section-heading span {
-  color: var(--regulation-muted);
+  color: var(--color-text-muted);
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 .regulations-result-list,
@@ -157,11 +177,29 @@
   margin-bottom: 10px;
   padding: 16px;
   border: 1px solid var(--color-line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--color-white);
   color: var(--color-ink);
   cursor: pointer;
   text-align: left;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.regulations-result-item:hover:not(.is-selected) {
+  border-color: var(--color-line-strong);
+  background: var(--color-surface);
+}
+
+.regulations-result-item:active:not(.is-selected) {
+  background: var(--color-primary-soft);
+}
+
+.regulations-result-item:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .regulations-result-item.is-selected {
@@ -171,8 +209,12 @@
 
 .regulations-result-item span,
 .regulations-subtle-message {
-  color: var(--regulation-muted);
+  color: var(--color-text-muted);
   font-size: 13px;
+}
+
+.regulations-result-item span {
+  font-variant-numeric: tabular-nums;
 }
 
 .regulations-detail__scroll {
@@ -182,11 +224,15 @@
 
 .regulations-detail__intro {
   padding-bottom: 22px;
-  border-bottom: 1px solid var(--regulation-border);
+  border-bottom: 1px solid var(--color-line-subtle);
 }
 
 .regulations-detail__intro h2 {
   font-size: 24px;
+}
+
+.regulations-detail__intro .regulations-page__eyebrow {
+  margin-bottom: 8px;
 }
 
 .regulations-featured-article {
@@ -200,6 +246,15 @@
 .regulations-featured-article p {
   margin: 0;
   color: var(--color-ink);
+}
+
+.regulations-featured-article .regulations-page__eyebrow {
+  margin-bottom: 10px;
+}
+
+.regulations-featured-article h3 {
+  font-size: 17px;
+  font-weight: 900;
 }
 
 .regulations-featured-article p:last-child {
@@ -227,12 +282,34 @@
 .regulations-key-articles button {
   flex: 1 0 220px;
   padding: 15px 18px;
-  border: 1px solid var(--regulation-border);
-  border-radius: 10px;
-  background: var(--regulation-accent-surface);
+  border: 1px solid var(--color-line-subtle);
+  border-radius: 8px;
+  background: var(--color-primary-soft);
   color: var(--color-ink);
   cursor: pointer;
   text-align: left;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.regulations-related-list button:hover,
+.regulations-key-articles button:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-faint);
+}
+
+.regulations-related-list button:active,
+.regulations-key-articles button:active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.regulations-related-list button:focus-visible,
+.regulations-key-articles button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .regulations-related-list strong,
@@ -242,7 +319,7 @@
 
 .regulations-related-list span {
   margin-top: 7px;
-  color: var(--regulation-muted);
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 
@@ -272,19 +349,19 @@
 
 .regulations-article-content p {
   margin: 10px 0 0;
-  color: var(--regulation-muted);
+  color: var(--color-text-muted);
   line-height: 1.85;
   white-space: pre-line;
 }
 
 .regulations-status {
   margin: 20px 8px;
-  color: var(--regulation-muted);
+  color: var(--color-text-muted);
   text-align: center;
 }
 
 .regulations-status--error {
-  color: #c14b4b;
+  color: var(--color-danger);
 }
 
 .regulations-page__sr-only {
