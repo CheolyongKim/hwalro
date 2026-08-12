@@ -264,7 +264,7 @@
   --ts-chart-tooltip-shadow: 0 12px 30px var(--color-chart-tooltip-shadow);
   --ts-chart-tooltip-max-width: 13rem;
   --ts-chart-tooltip-font:
-    500 0.6875rem/1.35 'Happiness Sans Print', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    400 0.6875rem/1.35 var(--font-sans);
   backdrop-filter: blur(10px);
 }
 .evacuation-chart-tooltip span {
