@@ -9,11 +9,12 @@ import {
   updatePixiSimulationScene,
   type PixiSimulationScene,
 } from '../rendering/pixiSimulationRenderer';
-import type { Bounds, RiskZone, SimulationResultViewModel } from '../types';
+import type { Bounds, DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import './SimulationPlaybackStage.css';
 
 interface Props {
   result: SimulationResultViewModel;
+  bottlenecks: DetectedBottleneck[];
   currentTimeSeconds: number;
   selectedBottleneckId: number | null;
   showBottlenecks: boolean;
@@ -107,6 +108,7 @@ export function SimulationPlaybackStage(props: Props) {
     updatePixiSimulationScene(
       sceneRef.current,
       props.result,
+      props.bottlenecks,
       props.currentTimeSeconds,
       props.selectedBottleneckId,
       props.showBottlenecks,
@@ -115,6 +117,7 @@ export function SimulationPlaybackStage(props: Props) {
     );
   }, [
     draftZone,
+    props.bottlenecks,
     props.currentTimeSeconds,
     props.result,
     props.riskZones,

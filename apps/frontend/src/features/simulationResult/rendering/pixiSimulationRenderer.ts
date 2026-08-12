@@ -17,6 +17,7 @@ import type {
   SimulationResultViewModel,
 } from '../types';
 import { interpolatePositions, selectFramePair } from '../utils/playback';
+import { composeHeatmapTrail } from './heatmapTrail';
 
 export interface PixiCameraTransform {
   scale: number;
@@ -203,8 +204,8 @@ export async function createPixiSimulationScene(
     floorPlan.baseLayer,
     heatmapLayer,
     floorPlan.structureLayer,
-    bottleneckLayer,
     agentLayer,
+    bottleneckLayer,
     riskLayer,
   );
   app.stage.addChild(world);
@@ -226,29 +227,55 @@ export async function createPixiSimulationScene(
 
 function heatColor(density: number, maxDensity: number) {
   const ratio = Math.min(1, density / maxDensity);
-  const red = Math.round(255 * Math.min(1, ratio * 1.7));
-  const green = Math.round(205 * (1 - ratio * 0.72));
-  const blue = Math.round(52 * (1 - ratio));
+  const low = { red: 255, green: 212, blue: 71 };
+  const medium = { red: 255, green: 138, blue: 61 };
+  const high = { red: 239, green: 63, blue: 50 };
+  const start = ratio < 0.5 ? low : medium;
+  const end = ratio < 0.5 ? medium : high;
+  const progress = ratio < 0.5 ? ratio * 2 : (ratio - 0.5) * 2;
+  const red = Math.round(start.red + (end.red - start.red) * progress);
+  const green = Math.round(start.green + (end.green - start.green) * progress);
+  const blue = Math.round(start.blue + (end.blue - start.blue) * progress);
   return (red << 16) | (green << 8) | blue;
 }
 
 function updateHeatmap(layer: Graphics, heatmap: HeatmapData, timeSeconds: number) {
   const frame = selectFramePair(heatmap.frames, timeSeconds).previous;
+  const trailValues = composeHeatmapTrail(
+    heatmap.frames,
+    frame.timeSeconds,
+    heatmap.rows * heatmap.columns,
+  );
+  const visibleCells: Array<{
+    centerX: number;
+    centerY: number;
+    color: number;
+    ratio: number;
+  }> = [];
+  const maxDensity = Math.max(1, heatmap.maxDensity);
   layer.clear();
   for (let row = 0; row < heatmap.rows; row += 1) {
     for (let column = 0; column < heatmap.columns; column += 1) {
-      const density = frame.values[row * heatmap.columns + column];
-      if (density < 0.16) continue;
-      const ratio = Math.min(1, density / heatmap.maxDensity);
-      layer
-        .rect(
-          heatmap.originX + column * heatmap.cellWidth,
-          heatmap.originY + row * heatmap.cellHeight,
-          heatmap.cellWidth + 0.05,
-          heatmap.cellHeight + 0.05,
-        )
-        .fill({ color: heatColor(density, heatmap.maxDensity), alpha: 0.08 + ratio * 0.42 });
+      const density = trailValues[row * heatmap.columns + column];
+      if (density <= 0) continue;
+      visibleCells.push({
+        centerX: heatmap.originX + (column + 0.5) * heatmap.cellWidth,
+        centerY: heatmap.originY + (row + 0.5) * heatmap.cellHeight,
+        color: heatColor(density, maxDensity),
+        ratio: Math.min(1, density / maxDensity),
+      });
     }
+  }
+  const cellRadius = Math.max(heatmap.cellWidth, heatmap.cellHeight);
+  for (const cell of visibleCells) {
+    layer
+      .circle(cell.centerX, cell.centerY, cellRadius * 1.2)
+      .fill({ color: cell.color, alpha: 0.035 + cell.ratio * 0.145 });
+  }
+  for (const cell of visibleCells) {
+    layer
+      .circle(cell.centerX, cell.centerY, cellRadius * 0.82)
+      .fill({ color: cell.color, alpha: 0.07 + cell.ratio * 0.31 });
   }
   return frame.timeSeconds;
 }
@@ -263,7 +290,7 @@ function drawBounds(
   layer
     .rect(bounds.x, bounds.y, bounds.width, bounds.height)
     .fill({ color: fillColor, alpha: fillAlpha })
-    .stroke({ color: strokeColor, alpha: 0.95, width: 0.5 });
+    .stroke({ color: strokeColor, alpha: 1, width: 0.7 });
 }
 
 function drawDashedLine(
@@ -304,7 +331,7 @@ function drawDashedBounds(
   drawDashedLine(layer, right, bounds.y, right, bottom);
   drawDashedLine(layer, right, bottom, bounds.x, bottom);
   drawDashedLine(layer, bounds.x, bottom, bounds.x, bounds.y);
-  layer.stroke({ color: strokeColor, alpha: 0.82, width: 0.45 });
+  layer.stroke({ color: strokeColor, alpha: 0.95, width: 0.65 });
 }
 
 function updateBottlenecks(
@@ -317,7 +344,7 @@ function updateBottlenecks(
   for (const bottleneck of bottlenecks) {
     const active =
       timeSeconds >= bottleneck.startTimeSeconds && timeSeconds <= bottleneck.endTimeSeconds;
-    const fillAlpha = active ? 0.11 : 0.035;
+    const fillAlpha = active ? 0.2 : 0.07;
     if (bottleneck.id === selectedId) {
       drawBounds(layer, bottleneck.geometry, 0xe44135, 0xef5734, fillAlpha);
     } else {
@@ -337,6 +364,7 @@ function updateRiskZones(layer: Graphics, riskZones: RiskZone[], draftZone: Boun
 export function updatePixiSimulationScene(
   scene: PixiSimulationScene,
   result: SimulationResultViewModel,
+  bottlenecks: DetectedBottleneck[],
   currentTimeSeconds: number,
   selectedBottleneckId: number | null,
   showBottlenecks: boolean,
@@ -360,12 +388,7 @@ export function updatePixiSimulationScene(
     scene.particles[index].y = scene.interpolationBuffer[offset + 1];
   }
   if (showBottlenecks) {
-    updateBottlenecks(
-      scene.bottleneckLayer,
-      result.bottlenecks,
-      selectedBottleneckId,
-      currentTimeSeconds,
-    );
+    updateBottlenecks(scene.bottleneckLayer, bottlenecks, selectedBottleneckId, currentTimeSeconds);
   } else {
     scene.bottleneckLayer.clear();
   }

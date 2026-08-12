@@ -6,6 +6,9 @@ import static com.hwalro.simulation.simulation.config.SimulationExecutionConfig.
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.simulation.analysis.domain.DetectedBottleneck;
+import com.hwalro.simulation.analysis.service.BottleneckDetector;
+import com.hwalro.simulation.analysis.service.DensityThresholdProvider;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.simulation.domain.Simulation;
 import com.hwalro.simulation.simulation.domain.SimulationMetric;
@@ -64,6 +67,8 @@ public class SimulationExecutionService {
     private final ThreadPoolTaskExecutor executor;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
+    private final DensityThresholdProvider densityThresholdProvider;
+    private final BottleneckDetector bottleneckDetector;
     private final Semaphore executionCapacity =
             new Semaphore(MAX_CONCURRENT_EXECUTIONS + EXECUTION_QUEUE_CAPACITY, true);
     private final Map<Long, SimulationTask> activeTasks = new ConcurrentHashMap<>();
@@ -74,13 +79,17 @@ public class SimulationExecutionService {
             SimulationEngineRunner engineRunner,
             @Qualifier("simulationExecutionExecutor") ThreadPoolTaskExecutor executor,
             TransactionTemplate transactionTemplate,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            DensityThresholdProvider densityThresholdProvider,
+            BottleneckDetector bottleneckDetector) {
         this.simulationMapper = simulationMapper;
         this.simulationService = simulationService;
         this.engineRunner = engineRunner;
         this.executor = executor;
         this.transactionTemplate = transactionTemplate;
         this.objectMapper = objectMapper;
+        this.densityThresholdProvider = densityThresholdProvider;
+        this.bottleneckDetector = bottleneckDetector;
     }
 
     public SimulationExecutionResponse execute(Long simulationId, JwtUser user) {
@@ -317,6 +326,11 @@ public class SimulationExecutionService {
         }
         for (var chunk : run.heatmapChunks()) {
             simulationMapper.insertHeatmap(result.getId(), chunk.sequence(), chunk.densityData());
+        }
+        List<DetectedBottleneck> bottlenecks =
+                bottleneckDetector.detect(run.heatmapChunks(), densityThresholdProvider.getCurrent());
+        if (!bottlenecks.isEmpty()) {
+            simulationMapper.insertDetectedBottlenecks(result.getId(), bottlenecks);
         }
         if (simulationMapper.markExecutionCompleted(simulationId) != 1) {
             throw new IllegalStateException("시뮬레이션 완료 상태를 저장하지 못했습니다.");
