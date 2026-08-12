@@ -6,7 +6,16 @@ import { useAuth } from '../features/auth/context/AuthContext';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type { InspectionArea } from '../features/safetyChecks/types';
 import { formatInspectionDate, getSafetyCheckError } from '../features/safetyChecks/utils';
-import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, Skeleton } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  Skeleton,
+} from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
 interface AreaEditor {

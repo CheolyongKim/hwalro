@@ -5,7 +5,17 @@ import { useAuth } from '../features/auth/context/AuthContext';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type { InspectionArea } from '../features/safetyChecks/types';
 import { getSafetyCheckError } from '../features/safetyChecks/utils';
-import { Button, Card, EmptyState, ErrorState, Field, Input, Select, Skeleton, Textarea } from '../components/ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+} from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
 interface EditableItem {
@@ -305,9 +315,7 @@ function SafetyCheckTemplatePage() {
                   <Field label="분류">
                     <Select
                       value={item.category}
-                      onChange={(event) =>
-                        updateItem(item.key, { category: event.target.value })
-                      }
+                      onChange={(event) => updateItem(item.key, { category: event.target.value })}
                       disabled={!canManage}
                     >
                       {!knownCategory && <option value={item.category}>{item.category}</option>}

@@ -50,7 +50,10 @@ export function AgentDeletionConfirmDialog({
             <TriangleAlert className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 id="agent-deletion-confirm-title" className="text-sm font-black tabular-nums text-ink">
+            <h2
+              id="agent-deletion-confirm-title"
+              className="text-sm font-black tabular-nums text-ink"
+            >
               에이전트 {count.toLocaleString()}명을 삭제할까요?
             </h2>
             <p

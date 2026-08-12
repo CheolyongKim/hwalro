@@ -506,7 +506,12 @@ function SimulationResultPage() {
               <p className="mt-2 text-sm leading-5 text-danger-strong">
                 {execution.failureMessage ?? '엔진 오류를 확인해주세요.'}
               </p>
-              <Button type="button" onClick={() => void retry()} disabled={retrying} className="mt-4">
+              <Button
+                type="button"
+                onClick={() => void retry()}
+                disabled={retrying}
+                className="mt-4"
+              >
                 {retrying ? '재시도 중…' : '동일 설정으로 재시도'}
               </Button>
             </div>
@@ -517,7 +522,12 @@ function SimulationResultPage() {
               <p className="mt-2 text-sm leading-5 text-text-muted">
                 필요하면 같은 설정으로 다시 실행할 수 있습니다.
               </p>
-              <Button type="button" onClick={() => void retry()} disabled={retrying} className="mt-4">
+              <Button
+                type="button"
+                onClick={() => void retry()}
+                disabled={retrying}
+                className="mt-4"
+              >
                 {retrying ? '재실행 중…' : '동일 설정으로 재실행'}
               </Button>
             </div>
@@ -574,7 +584,9 @@ function SimulationResultPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-text-muted">엔진</span>
-                  <strong className="text-right text-xs tabular-nums">{result.engineVersion}</strong>
+                  <strong className="text-right text-xs tabular-nums">
+                    {result.engineVersion}
+                  </strong>
                 </div>
               </div>
             </>

@@ -1,12 +1,4 @@
-import {
-  Button,
-  ErrorState,
-  Field,
-  Input,
-  Modal,
-  Select,
-  Textarea,
-} from '../../components/ui';
+import { Button, ErrorState, Field, Input, Modal, Select, Textarea } from '../../components/ui';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../features/risks/constants/riskOptions';
 import { useRiskForm } from '../../features/risks/hooks/useRiskForm';
 import { useCreateRisk } from '../../features/risks/hooks/useRiskMutations';

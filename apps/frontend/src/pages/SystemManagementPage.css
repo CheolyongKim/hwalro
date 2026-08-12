@@ -436,7 +436,9 @@
   font: inherit;
   font-size: 12px;
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .system-management-page .invite-modal input:focus {
@@ -476,7 +478,9 @@
   color: var(--color-text-strong);
   font-size: 12px;
   cursor: pointer;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .system-management-page .role-options label:hover {

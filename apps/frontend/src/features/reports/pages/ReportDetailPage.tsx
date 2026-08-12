@@ -141,10 +141,7 @@ function ReportDetailPage() {
           description="AI 초안을 검토하고 시뮬레이션 결과와 증빙 자료를 편집합니다."
           actions={
             <>
-              <Link
-                to="/reports"
-                className={buttonClassName({ variant: 'secondary', size: 'lg' })}
-              >
+              <Link to="/reports" className={buttonClassName({ variant: 'secondary', size: 'lg' })}>
                 <ChevronLeft aria-hidden="true" className="h-4 w-4" />
                 목록
               </Link>
@@ -239,9 +236,7 @@ function ReportDetailPage() {
                 <Select
                   id="report-status"
                   value={status}
-                  onChange={(event) =>
-                    setStatus(event.target.value as EditableReportStatus)
-                  }
+                  onChange={(event) => setStatus(event.target.value as EditableReportStatus)}
                 >
                   <option value="작성 중">작성 중</option>
                   <option value="완료">완료</option>
@@ -260,9 +255,7 @@ function ReportDetailPage() {
                         : 'border-line bg-surface'
                     }`}
                   >
-                    <p className="font-black tabular-nums text-ink">
-                      결과 #{simulation.id}
-                    </p>
+                    <p className="font-black tabular-nums text-ink">결과 #{simulation.id}</p>
                     <p className="mt-2 text-xs text-text-muted">{simulation.label}</p>
                   </div>
                 ))}
@@ -320,13 +313,8 @@ function ReportDetailPage() {
               <h3 className="text-lg font-black text-ink">3. 첨부 시뮬레이션</h3>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {simulationCards.map((simulation) => (
-                  <div
-                    key={simulation.id}
-                    className="rounded-xl border border-line bg-surface p-4"
-                  >
-                    <p className="font-black tabular-nums text-ink">
-                      결과 #{simulation.id}
-                    </p>
+                  <div key={simulation.id} className="rounded-xl border border-line bg-surface p-4">
+                    <p className="font-black tabular-nums text-ink">결과 #{simulation.id}</p>
                     <p className="mt-2 text-sm text-text-muted">{simulation.label}</p>
                   </div>
                 ))}

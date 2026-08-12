@@ -6,13 +6,7 @@ import { simulationApi } from '../api/simulationApi';
 import { STATUS_LABELS, STATUS_STYLES } from '../constants/simulationStatus';
 import type { SimulationOverview } from '../types';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
-import {
-  buttonClassName,
-  Card,
-  EmptyState,
-  ErrorState,
-  PageHeader,
-} from '../../../components/ui';
+import { buttonClassName, Card, EmptyState, ErrorState, PageHeader } from '../../../components/ui';
 
 const PAGE_SIZE = 20;
 
@@ -89,11 +83,7 @@ function SimulationListPage() {
           />
         </div>
 
-        <Card
-          className="mt-5 overflow-hidden"
-          padded={false}
-          aria-label="시뮬레이션 목록"
-        >
+        <Card className="mt-5 overflow-hidden" padded={false} aria-label="시뮬레이션 목록">
           {query.isPending ? (
             <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
               시뮬레이션을 불러오는 중입니다.
@@ -112,7 +102,10 @@ function SimulationListPage() {
               title="생성된 시뮬레이션이 없습니다."
               description="도면 목록에서 배치를 작성한 뒤 시뮬레이션을 시작할 수 있습니다."
               action={
-                <Link to="/drawings" className={buttonClassName({ variant: 'primary', size: 'md' })}>
+                <Link
+                  to="/drawings"
+                  className={buttonClassName({ variant: 'primary', size: 'md' })}
+                >
                   도면 목록으로 이동
                 </Link>
               }
@@ -135,10 +128,7 @@ function SimulationListPage() {
                   </thead>
                   <tbody className="divide-y divide-line">
                     {items.map((simulation) => (
-                      <tr
-                        key={simulation.id}
-                        className="transition-colors hover:bg-primary-faint"
-                      >
+                      <tr key={simulation.id} className="transition-colors hover:bg-primary-faint">
                         <td className="px-6 py-4">
                           <Link
                             to={destination(simulation)}

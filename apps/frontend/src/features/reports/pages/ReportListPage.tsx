@@ -129,11 +129,7 @@ function ReportListPage() {
           </div>
         </Card>
 
-        <Card
-          className="mt-4 overflow-hidden"
-          padded={false}
-          aria-labelledby="report-table-title"
-        >
+        <Card className="mt-4 overflow-hidden" padded={false} aria-labelledby="report-table-title">
           <div className="border-b border-line px-5 py-4 sm:px-7">
             <h2 id="report-table-title" className="text-xl font-black text-ink">
               보고서 목록
@@ -207,9 +203,7 @@ function ReportListPage() {
                           {formatUpdatedAt(report.updatedAt)}
                         </td>
                         <td className="px-5 py-4">
-                          <Badge tone={STATUS_BADGE_TONES[report.status]}>
-                            {report.status}
-                          </Badge>
+                          <Badge tone={STATUS_BADGE_TONES[report.status]}>{report.status}</Badge>
                         </td>
                       </tr>
                     ))}
@@ -221,40 +215,40 @@ function ReportListPage() {
                   className="flex items-center justify-center gap-2 border-t border-line px-5 py-3"
                   aria-label="보고서 목록 페이지"
                 >
-                <button
-                  type="button"
-                  onClick={() => setPage(Math.max(1, pageGroupStart - PAGE_BUTTON_COUNT))}
-                  disabled={pageGroupStart === 1}
-                  className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  이전
-                </button>
-                {Array.from(
-                  { length: pageGroupEnd - pageGroupStart + 1 },
-                  (_, index) => pageGroupStart + index,
-                ).map((pageNumber) => (
                   <button
-                    key={pageNumber}
                     type="button"
-                    onClick={() => setPage(pageNumber)}
-                    aria-current={page === pageNumber ? 'page' : undefined}
-                    className={`flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
-                      page === pageNumber
-                        ? 'bg-primary text-white'
-                        : 'border border-line text-text-strong hover:bg-surface'
-                    }`}
+                    onClick={() => setPage(Math.max(1, pageGroupStart - PAGE_BUTTON_COUNT))}
+                    disabled={pageGroupStart === 1}
+                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {pageNumber}
+                    이전
                   </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setPage(Math.min(pageCount, pageGroupEnd + 1))}
-                  disabled={pageGroupEnd === pageCount}
-                  className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  다음
-                </button>
+                  {Array.from(
+                    { length: pageGroupEnd - pageGroupStart + 1 },
+                    (_, index) => pageGroupStart + index,
+                  ).map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      onClick={() => setPage(pageNumber)}
+                      aria-current={page === pageNumber ? 'page' : undefined}
+                      className={`flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
+                        page === pageNumber
+                          ? 'bg-primary text-white'
+                          : 'border border-line text-text-strong hover:bg-surface'
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPage(Math.min(pageCount, pageGroupEnd + 1))}
+                    disabled={pageGroupEnd === pageCount}
+                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    다음
+                  </button>
                 </nav>
               )}
             </>

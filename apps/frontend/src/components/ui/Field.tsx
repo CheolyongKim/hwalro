@@ -1,5 +1,10 @@
 import { ChevronDown } from 'lucide-react';
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from 'react';
 
 export const inputBaseClassName =
   'h-10 w-full rounded-lg border border-line bg-white px-3.5 text-sm text-ink placeholder:text-text-faint outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted';
@@ -44,7 +49,9 @@ function Input({ className = '', ...rest }: InputProps) {
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {}
 
 function Textarea({ className = '', ...rest }: TextareaProps) {
-  return <textarea className={`${inputBaseClassName} h-auto min-h-24 py-2.5 ${className}`} {...rest} />;
+  return (
+    <textarea className={`${inputBaseClassName} h-auto min-h-24 py-2.5 ${className}`} {...rest} />
+  );
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {}

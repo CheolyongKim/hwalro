@@ -1,15 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Button,
-  ErrorState,
-  Field,
-  Input,
-  Select,
-  Skeleton,
-  Textarea,
-} from '../../components/ui';
+import { Button, ErrorState, Field, Input, Select, Skeleton, Textarea } from '../../components/ui';
 import { riskApi } from '../../features/risks/api/riskApi';
 import { RiskZonePreview } from '../../features/risks/components/RiskZonePreview';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../features/risks/constants/riskOptions';
@@ -126,11 +118,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
 
       <div className="mt-6 space-y-6">
         <Field label="위험 항목명" htmlFor="risk-title">
-          <Input
-            id="risk-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
+          <Input id="risk-title" value={title} onChange={(event) => setTitle(event.target.value)} />
         </Field>
         <Field label="설명" htmlFor="risk-description">
           <Textarea

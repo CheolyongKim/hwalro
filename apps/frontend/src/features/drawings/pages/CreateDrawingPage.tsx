@@ -79,7 +79,10 @@ function CreateDrawingPage() {
               >
                 {createDrawing.isPending ? '등록 중...' : '도면 등록'}
               </Button>
-              <Link to="/drawings" className={buttonClassName({ variant: 'secondary', size: 'lg' })}>
+              <Link
+                to="/drawings"
+                className={buttonClassName({ variant: 'secondary', size: 'lg' })}
+              >
                 취소
               </Link>
             </div>

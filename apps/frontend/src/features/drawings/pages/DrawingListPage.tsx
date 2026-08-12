@@ -58,7 +58,10 @@ function DrawingListPage() {
           title="도면 목록"
           description="등록된 도면을 확인하고 관리합니다. 도면명을 선택하면 수정 화면으로 이동합니다."
           actions={
-            <Link to="/drawings/new" className={buttonClassName({ variant: 'primary', size: 'lg' })}>
+            <Link
+              to="/drawings/new"
+              className={buttonClassName({ variant: 'primary', size: 'lg' })}
+            >
               도면 등록
             </Link>
           }

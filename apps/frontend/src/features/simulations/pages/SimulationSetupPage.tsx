@@ -9,7 +9,12 @@ import {
 } from '../components/AgentDeletionFeedback';
 import { simulationApi } from '../api/simulationApi';
 import { STATUS_STYLES } from '../constants/simulationStatus';
-import type { EditableHazardZone, SimulationExecutionStatus, SimulationPoint, SimulationSetup } from '../types';
+import type {
+  EditableHazardZone,
+  SimulationExecutionStatus,
+  SimulationPoint,
+  SimulationSetup,
+} from '../types';
 import {
   AGENT_RADIUS,
   MAX_AGENTS,

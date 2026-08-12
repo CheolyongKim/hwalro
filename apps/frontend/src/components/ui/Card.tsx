@@ -5,7 +5,13 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padded?: boolean;
 }
 
-function Card({ interactive = false, padded = true, className = '', children, ...rest }: CardProps) {
+function Card({
+  interactive = false,
+  padded = true,
+  className = '',
+  children,
+  ...rest
+}: CardProps) {
   return (
     <div
       className={`rounded-xl border border-line bg-white shadow-card ${
