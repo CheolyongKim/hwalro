@@ -17,6 +17,7 @@ import type {
   SimulationResultViewModel,
 } from '../types';
 import { interpolatePositions, selectFramePair } from '../utils/playback';
+import { FLOOR_LABEL_SOURCE_FONT_SIZE, getFloorLabelPresentation } from './floorLabelPresentation';
 import { composeHeatmapTrail } from './heatmapTrail';
 
 export interface PixiCameraTransform {
@@ -123,10 +124,10 @@ function drawFloorPlan(result: PixiSceneConfig) {
       text: text.text,
       style: {
         fontFamily: 'Arial, sans-serif',
-        fontSize: 11,
+        fontSize: FLOOR_LABEL_SOURCE_FONT_SIZE,
         fill: 0x637773,
       },
-      resolution: window.devicePixelRatio || 1,
+      resolution: Math.max(2, (window.devicePixelRatio || 1) * 2),
     });
     label.position.set(text.x, text.y);
     labels.push(label);
@@ -399,7 +400,11 @@ export function updatePixiSimulationScene(
 export function applyPixiCamera(scene: PixiSimulationScene, transform: PixiCameraTransform) {
   scene.world.scale.set(transform.scale);
   scene.world.position.set(transform.offsetX, transform.offsetY);
-  for (const label of scene.floorLabels) label.scale.set(1 / transform.scale);
+  const labelPresentation = getFloorLabelPresentation(transform.scale);
+  for (const label of scene.floorLabels) {
+    label.scale.set(labelPresentation.labelScale);
+    label.visible = labelPresentation.visible;
+  }
   scene.app.render();
 }
 
