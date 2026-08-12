@@ -120,7 +120,7 @@ flowchart TD
 
 ### 6.2 같은 값 다시 읽고 쓰는 일 제거
 
-한 Agent의 `position`은 한 처리 안에서 한 번 읽어 좌표 표에 보관한다. rollback이 발생하면 실제 Agent 위치와 좌표 표를 모두 이전 위치로 고친다. `target`은 처음 정할 때와 waypoint 번호가 바뀔 때만 다시 쓴다.
+한 Agent의 `position`은 한 처리 안에서 한 번 읽어 좌표 표에 보관한다. 출구를 교차한 이동은 rollback 대상에서 제외한다. 그 외 잘못된 이동은 보행영역 경계로 보정하고, 보정 경로가 유효하지 않을 때만 이전 위치로 되돌린다. `target`은 처음 정할 때와 waypoint 번호가 바뀔 때만 다시 쓴다.
 
 ### 6.3 경로 계산의 안전한 반복 제거
 
@@ -164,8 +164,8 @@ Java 표준 `System.nanoTime()`과 기존 SLF4J만 사용했다. 새 라이브�
 - 뜨거운 전체-Agent 처리에서 `simulation.agent(id)` 호출 0회
 - `iterate()` 전후 handle을 새로 받음
 - 위치 getter와 target setter 횟수
-- rollback 뒤 실제 위치, 속도, 좌표 표
-- rollback이 출구 판정보다 먼저 실행됨
+- 출구 교차 판정 뒤 rollback 대상 제외
+- rollback 뒤 실제 위치, 벽면 방향 속도, 좌표 표
 - waypoint가 바뀔 때 target을 정확히 한 번 갱신
 - Agent가 없는 공간 그룹은 snapshot 순회 생략
 - AABB가 떨어진 경우 정밀 도형 검사 생략
@@ -302,14 +302,15 @@ iterate 전 agents() 순회
 1. iterate 전 위치 저장
 2. JuPedSim iterate
 3. iterate 후 위치 저장
-4. 모든 이동 선분을 한 번에 유효성 검사
-5. 잘못된 Agent의 position을 이전 값으로 복원
-6. velocity를 (0, 0)으로 복원
-7. 현재 위치 표도 이전 값으로 수정
-8. 수정된 위치 표로 waypoint와 출구 교차 판단
+4. 출구 교차를 한 번에 판정
+5. 출구를 교차한 Agent를 rollback 대상에서 제외
+6. 나머지 이동 선분을 한 번에 유효성 검사
+7. 잘못된 위치를 보행영역 경계로 보정하고 연결할 수 없으면 이전 위치로 복원
+8. 보정 방향의 velocity 성분만 제거해 벽면 방향 이동은 유지
+9. 보정된 위치 표로 waypoint와 출구 도달 여부 판단
 ```
 
-7번이 빠지면 실제 Agent는 돌아왔는데 출구 검사는 잘못 이동한 좌표를 볼 수 있다. 테스트는 벽을 넘은 것처럼 보이는 이동을 rollback한 뒤 대피 처리하지 않는지 확인한다.
+출구 교차를 먼저 판단하지 않으면 출구 밖으로 이동한 Agent가 일반 보행영역 이탈로 rollback되어 출구에 정체될 수 있다. 테스트는 출구 교차 Agent가 rollback에서 제외되는지와 일반적인 잘못된 이동의 위치·velocity 보정을 각각 확인한다.
 
 ### 13.4 AABB가 안전한 이유
 
