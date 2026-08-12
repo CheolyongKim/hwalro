@@ -1,9 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { ArrowDown, ArrowUp, ListChecks, Trash2 } from 'lucide-react';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type { InspectionArea } from '../features/safetyChecks/types';
 import { getSafetyCheckError } from '../features/safetyChecks/utils';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+} from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
 interface EditableItem {
@@ -150,8 +162,21 @@ function SafetyCheckTemplatePage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex min-h-96 w-full max-w-[1360px] items-center justify-center rounded-xl border border-line bg-white text-sm text-text-muted">
-        점검 항목을 불러오는 중입니다.
+      <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
+        <div className="rounded-xl border border-line bg-white p-5 shadow-card sm:p-7">
+          <div className="flex items-end justify-between gap-4 border-b border-line pb-5">
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <Skeleton className="h-10 w-24" />
+          </div>
+          <div className="mt-6 space-y-4">
+            {[0, 1].map((index) => (
+              <Skeleton key={index} className="h-56 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -166,66 +191,70 @@ function SafetyCheckTemplatePage() {
         backLabel="점검 이력으로 돌아가기"
         action={
           canManage ? (
-            <button
+            <Button
               type="button"
+              size="lg"
               onClick={() => void saveTemplate()}
               disabled={isSaving || items.length === 0}
-              className="h-11 rounded-lg bg-primary px-5 text-sm font-bold text-white hover:bg-primary/85 disabled:opacity-50"
+              isLoading={isSaving}
             >
-              {isSaving ? '저장 중...' : '새 버전으로 저장'}
-            </button>
+              새 버전으로 저장
+            </Button>
           ) : undefined
         }
       />
 
-      {(error || notice) && (
+      {error && <ErrorState message={error} className="mt-5" />}
+
+      {notice && (
         <div
-          role={error ? 'alert' : 'status'}
-          className={`mt-5 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-600' : 'border-primary/20 bg-primary-soft text-primary'}`}
+          role="status"
+          className="mt-5 rounded-lg border border-line bg-success-soft px-4 py-3 text-sm font-medium text-success-strong"
         >
-          {error ?? notice}
+          {notice}
         </div>
       )}
 
       {!hasManagePermission && (
-        <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+        <div className="mt-5 rounded-lg border border-line bg-warning-soft px-4 py-3 text-sm font-medium text-warning-strong">
           점검 항목을 수정할 권한이 없습니다.
         </div>
       )}
 
       {hasManagePermission && area && !area.active && (
-        <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+        <div className="mt-5 rounded-lg border border-line bg-warning-soft px-4 py-3 text-sm font-medium text-warning-strong">
           삭제된 점검 구역의 항목은 수정할 수 없습니다.
         </div>
       )}
 
-      <section className="mt-5 rounded-xl border border-line bg-white p-5 shadow-sm shadow-ink/5 sm:p-7">
-        <div className="flex items-end justify-between gap-4 border-b border-line pb-5">
+      <Card padded={false} className="mt-5 overflow-hidden">
+        <div className="flex items-end justify-between gap-4 border-b border-line px-5 py-4 sm:px-7">
           <div>
             <h2 className="text-xl font-black text-ink">항목 구성</h2>
             <p className="mt-2 text-sm text-text-muted">
-              현재 버전 v{version} · 총 {items.length}개 항목
+              현재 버전 <span className="tabular-nums">v{version}</span> · 총{' '}
+              <span className="tabular-nums">{items.length}</span>개 항목
             </p>
           </div>
           {canManage && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => setItems((current) => [...current, createEmptyItem()])}
-              className="rounded-lg border border-primary/30 bg-primary-soft px-4 py-2 text-sm font-bold text-primary hover:bg-primary/15"
             >
               항목 추가
-            </button>
+            </Button>
           )}
         </div>
 
-        <div className="mt-6 space-y-4">
+        <div className="space-y-4 p-5 sm:p-7">
           {items.length === 0 && (
-            <div className="rounded-xl border border-dashed border-line px-6 py-12 text-center">
-              <p className="font-bold text-ink">등록된 점검 항목이 없습니다.</p>
-              <p className="mt-2 text-sm text-text-muted">
-                상단의 ‘항목 추가’ 버튼으로 새 점검 항목을 추가하세요.
-              </p>
-            </div>
+            <EmptyState
+              icon={ListChecks}
+              title="등록된 점검 항목이 없습니다."
+              description="상단의 ‘항목 추가’ 버튼으로 새 점검 항목을 추가하세요."
+            />
           )}
           {items.map((item, index) => {
             const knownCategory = CATEGORY_OPTIONS.some((option) => option.value === item.category);
@@ -233,7 +262,7 @@ function SafetyCheckTemplatePage() {
               <article key={item.key} className="rounded-xl border border-line bg-surface/70 p-5">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-sm font-black text-primary">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-sm font-black tabular-nums text-primary">
                       {index + 1}
                     </span>
                     <p className="text-sm font-black text-ink">점검 항목</p>
@@ -245,25 +274,26 @@ function SafetyCheckTemplatePage() {
                         onClick={() => moveItem(index, -1)}
                         disabled={index === 0}
                         aria-label={`${index + 1}번 항목 위로 이동`}
-                        className="h-8 rounded-md px-2 text-sm text-text-muted hover:bg-white disabled:opacity-30"
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition hover:bg-white disabled:opacity-30"
                       >
-                        ↑
+                        <ArrowUp aria-hidden="true" className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => moveItem(index, 1)}
                         disabled={index === items.length - 1}
                         aria-label={`${index + 1}번 항목 아래로 이동`}
-                        className="h-8 rounded-md px-2 text-sm text-text-muted hover:bg-white disabled:opacity-30"
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition hover:bg-white disabled:opacity-30"
                       >
-                        ↓
+                        <ArrowDown aria-hidden="true" className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => removeItem(item.key)}
                         aria-label={`${index + 1}번 항목 삭제`}
-                        className="h-8 rounded-md px-2 text-xs font-bold text-danger hover:bg-danger-soft"
+                        className="flex h-8 items-center gap-1 rounded-md px-2 text-xs font-bold text-danger transition hover:bg-danger-soft"
                       >
+                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                         삭제
                       </button>
                     </div>
@@ -271,25 +301,22 @@ function SafetyCheckTemplatePage() {
                 </div>
 
                 <div className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
-                  <label className="text-xs font-bold text-text-muted">
-                    항목명
-                    <input
+                  <Field label="항목명" htmlFor={`${item.key}-title`}>
+                    <Input
+                      id={`${item.key}-title`}
                       type="text"
                       value={item.title}
                       onChange={(event) => updateItem(item.key, { title: event.target.value })}
                       readOnly={!canManage}
                       maxLength={200}
                       placeholder="점검 항목명을 입력하세요."
-                      className="mt-2 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 read-only:bg-surface"
                     />
-                  </label>
-                  <label className="text-xs font-bold text-text-muted">
-                    분류
-                    <select
+                  </Field>
+                  <Field label="분류">
+                    <Select
                       value={item.category}
                       onChange={(event) => updateItem(item.key, { category: event.target.value })}
                       disabled={!canManage}
-                      className="mt-2 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-primary"
                     >
                       {!knownCategory && <option value={item.category}>{item.category}</option>}
                       {CATEGORY_OPTIONS.map((option) => (
@@ -297,24 +324,24 @@ function SafetyCheckTemplatePage() {
                           {option.label}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </Select>
+                  </Field>
                 </div>
-                <label className="mt-4 block text-xs font-bold text-text-muted">
+                <label className="mt-4 block text-sm font-bold text-text-strong">
                   판정 기준
-                  <textarea
+                  <Textarea
                     value={item.criterion}
                     onChange={(event) => updateItem(item.key, { criterion: event.target.value })}
                     readOnly={!canManage}
                     placeholder="현장에서 확인할 구체적인 기준을 입력하세요."
-                    className="mt-2 min-h-20 w-full resize-y rounded-lg border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 read-only:bg-surface"
+                    className="mt-1.5 text-sm leading-6"
                   />
                 </label>
               </article>
             );
           })}
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

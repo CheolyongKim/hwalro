@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Info, Minus, MousePointer2, Plus, Redo2, Undo2, X } from 'lucide-react';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import type { SimulationTool } from '../components/SimulationCanvas';
 import {
@@ -7,7 +8,13 @@ import {
   AgentDeletionSuccessToast,
 } from '../components/AgentDeletionFeedback';
 import { simulationApi } from '../api/simulationApi';
-import type { EditableHazardZone, SimulationPoint, SimulationSetup } from '../types';
+import { STATUS_STYLES } from '../constants/simulationStatus';
+import type {
+  EditableHazardZone,
+  SimulationExecutionStatus,
+  SimulationPoint,
+  SimulationSetup,
+} from '../types';
 import {
   AGENT_RADIUS,
   MAX_AGENTS,
@@ -18,6 +25,7 @@ import {
 } from '../utils/placement';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
+import { Button, Input } from '../../../components/ui';
 
 interface PlacementSnapshot {
   agents: SimulationPoint[];
@@ -49,14 +57,14 @@ function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) 
         type="button"
         aria-label={label}
         aria-describedby={id}
-        className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px] leading-none outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-text-faint outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
-        i
+        <Info aria-hidden="true" className="h-3 w-3" />
       </button>
       <span
         id={id}
         role="tooltip"
-        className={`pointer-events-none invisible absolute top-full z-30 mt-2 w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${align === 'right' ? 'right-0' : 'left-0'}`}
+        className={`pointer-events-none invisible absolute top-full z-30 mt-2 w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-raised transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${align === 'right' ? 'right-0' : 'left-0'}`}
       >
         {children}
       </span>
@@ -244,17 +252,13 @@ function SimulationSetupPage() {
       <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <p
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700"
+          className="rounded-xl border border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong"
         >
           {message ?? '시뮬레이션 설정을 불러오지 못했습니다.'}
         </p>
-        <button
-          type="button"
-          onClick={() => navigate('/drawings')}
-          className="h-10 rounded-lg bg-primary px-5 text-sm font-bold text-white"
-        >
+        <Button type="button" onClick={() => navigate('/drawings')}>
           도면 목록으로 이동
-        </button>
+        </Button>
       </div>
     );
   }
@@ -437,10 +441,10 @@ function SimulationSetupPage() {
         <button
           type="button"
           onClick={() => navigate(`/layout/${setup.drawing.layoutId}`)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-text-strong hover:bg-surface"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
           aria-label="도면 편집 화면으로 돌아가기"
         >
-          ←
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         </button>
         <div className="min-w-0">
           <h1 className="truncate text-base font-black">시뮬레이션 배치 · {setup.drawing.title}</h1>
@@ -448,39 +452,46 @@ function SimulationSetupPage() {
             도면 버전 ID #{setup.layoutVersionId} · {setup.modelProfile}
           </p>
         </div>
-        <span className="ml-2 rounded-full bg-primary-soft px-3 py-1 text-xs font-bold text-primary">
+        <span
+          className={`ml-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[setup.status as SimulationExecutionStatus]}`}
+        >
           {setup.status}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={undo}
             disabled={!editable || pastRef.current.length === 0}
-            className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong disabled:opacity-40"
           >
+            <Undo2 aria-hidden="true" className="h-3.5 w-3.5" />
             실행 취소
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={redo}
             disabled={!editable || futureRef.current.length === 0}
-            className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong disabled:opacity-40"
           >
+            <Redo2 aria-hidden="true" className="h-3.5 w-3.5" />
             다시 실행
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => void handleSave()}
             disabled={!editable || saveState === 'saving' || executing}
-            className="h-9 rounded-lg border border-primary px-4 text-sm font-bold text-primary disabled:opacity-50"
           >
             {saveState === 'saving'
               ? '저장 중...'
               : saveState === 'saved'
                 ? '저장 완료'
                 : '설정 저장'}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => void handleExecute()}
             disabled={!editable || executing || saveState === 'saving'}
@@ -491,10 +502,9 @@ function SimulationSetupPage() {
                   ? '출입구를 1개 이상 선택해 주세요.'
                   : undefined
             }
-            className="h-9 rounded-lg bg-primary px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"
           >
             {executing ? '실행 요청 중...' : '시뮬레이션 실행'}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -518,18 +528,18 @@ function SimulationSetupPage() {
             onGestureStart={beginGesture}
             onGestureEnd={endGesture}
           />
-          <div className="absolute left-4 top-4 z-10 flex gap-2 rounded-xl border border-line bg-white p-2 shadow-lg">
+          <div className="absolute left-4 top-4 z-10 flex gap-2 rounded-xl border border-line bg-white p-2 shadow-card">
             {TOOL_LABELS.map((item) => (
               <button
                 key={item.value}
                 type="button"
                 disabled={!editable}
                 onClick={() => setTool(item.value)}
-                className={`h-9 rounded-lg px-3 text-xs font-bold transition-all duration-300 disabled:opacity-40 ${
+                className={`h-9 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 ${
                   tool === item.value
                     ? item.value === 'erase'
-                      ? 'scale-105 bg-danger text-white shadow-md shadow-red-200'
-                      : 'scale-105 bg-primary text-white shadow-md shadow-emerald-200'
+                      ? 'scale-105 bg-danger text-white shadow-card'
+                      : 'scale-105 bg-primary text-white shadow-card'
                     : 'bg-surface text-text-strong hover:bg-primary-soft'
                 }`}
               >
@@ -553,16 +563,16 @@ function SimulationSetupPage() {
           {message && (
             <div
               role="alert"
-              className="absolute bottom-4 left-1/2 z-10 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg"
+              className="absolute bottom-4 left-1/2 z-10 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-danger/25 bg-danger-soft px-4 py-3 text-sm text-danger-strong shadow-raised"
             >
               <span>{message}</span>
               <button
                 type="button"
                 onClick={() => setMessage(null)}
-                className="font-black"
+                className="shrink-0 rounded p-0.5 outline-none transition hover:opacity-70 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 aria-label="알림 닫기"
               >
-                ×
+                <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -573,11 +583,13 @@ function SimulationSetupPage() {
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-xs font-bold text-text-muted">전체 배치 인원</p>
-                <p className="mt-1 text-2xl font-black text-primary">
+                <p className="mt-1 text-2xl font-black tabular-nums text-primary">
                   {agents.length.toLocaleString()}명
                 </p>
               </div>
-              <p className="text-xs text-text-muted">최대 {MAX_AGENTS.toLocaleString()}명</p>
+              <p className="text-xs tabular-nums text-text-muted">
+                최대 {MAX_AGENTS.toLocaleString()}명
+              </p>
             </div>
           </section>
 
@@ -586,30 +598,36 @@ function SimulationSetupPage() {
               aria-live="polite"
               className={`flex items-center justify-between rounded-xl border px-3 py-2 transition-all duration-300 ${
                 tool === 'erase'
-                  ? 'scale-[1.02] border-red-200 bg-red-50 text-danger shadow-sm'
+                  ? 'scale-[1.02] border-danger/25 bg-danger-soft text-danger'
                   : tool === 'spray'
-                    ? 'border-emerald-200 bg-emerald-50 text-primary shadow-sm'
+                    ? 'border-primary/25 bg-primary-soft text-primary'
                     : 'border-line bg-surface text-text-strong'
               }`}
             >
               <div className="flex items-center gap-2">
                 <span
-                  className={`flex size-7 items-center justify-center rounded-full text-base font-black transition-all duration-300 ${
+                  className={`flex size-7 items-center justify-center rounded-full transition-all duration-300 ${
                     tool === 'erase'
-                      ? 'scale-110 bg-red-100 text-danger'
+                      ? 'scale-110 bg-white text-danger'
                       : tool === 'spray'
-                        ? 'bg-emerald-100 text-primary'
+                        ? 'bg-white text-primary'
                         : 'bg-white text-text-muted'
                   }`}
                   aria-hidden="true"
                 >
-                  {tool === 'erase' ? '−' : tool === 'spray' ? '+' : '·'}
+                  {tool === 'erase' ? (
+                    <Minus aria-hidden="true" className="h-4 w-4" />
+                  ) : tool === 'spray' ? (
+                    <Plus aria-hidden="true" className="h-4 w-4" />
+                  ) : (
+                    <MousePointer2 aria-hidden="true" className="h-4 w-4" />
+                  )}
                 </span>
                 <h2 className="text-sm font-black">
                   {tool === 'erase' ? '에이전트 지우기' : '에이전트 배치'}
                 </h2>
               </div>
-              <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-black">
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black">
                 {tool === 'erase' ? '지우개 모드' : tool === 'spray' ? '배치 모드' : '도구 대기'}
               </span>
             </div>
@@ -636,21 +654,21 @@ function SimulationSetupPage() {
             <div className="mt-4 flex gap-2">
               <label className="min-w-0 flex-1 text-xs font-bold text-text-muted">
                 균등 배치 인원
-                <input
+                <Input
                   type="number"
                   min={0}
                   max={MAX_AGENTS}
                   value={uniformCount}
                   onChange={(event) => setUniformCount(Number(event.target.value))}
                   disabled={!editable}
-                  className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
+                  className="mt-2 tabular-nums"
                 />
               </label>
               <button
                 type="button"
                 onClick={handleUniformPlacement}
                 disabled={!editable}
-                className="mt-6 h-10 rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary disabled:opacity-40"
+                className="mt-6 h-10 rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary outline-none transition hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
               >
                 균등분포 배치
               </button>
@@ -659,7 +677,7 @@ function SimulationSetupPage() {
               type="button"
               onClick={handleClearAgents}
               disabled={!editable || saveState === 'saving' || agents.length === 0}
-              className="mt-3 h-10 w-full rounded-lg border border-red-200 text-xs font-bold text-danger disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-3 h-10 w-full rounded-lg border border-danger/25 bg-white text-xs font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
             >
               에이전트 전체 삭제
             </button>
@@ -680,7 +698,7 @@ function SimulationSetupPage() {
                     </span>
                   </InfoTooltip>
                 </div>
-                <input
+                <Input
                   id="walking-speed"
                   type="number"
                   min={0.1}
@@ -689,7 +707,7 @@ function SimulationSetupPage() {
                   value={walkingSpeed}
                   onChange={(event) => setWalkingSpeed(Number(event.target.value))}
                   disabled={!editable}
-                  className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
+                  className="mt-2 tabular-nums"
                 />
               </div>
               <div className="text-xs font-bold text-text-muted">
@@ -707,7 +725,7 @@ function SimulationSetupPage() {
                     </span>
                   </InfoTooltip>
                 </div>
-                <input
+                <Input
                   id="reaction-time"
                   type="number"
                   min={0.1}
@@ -716,7 +734,7 @@ function SimulationSetupPage() {
                   value={reactionTime}
                   onChange={(event) => setReactionTime(Number(event.target.value))}
                   disabled={!editable}
-                  className="mt-2 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-primary"
+                  className="mt-2 tabular-nums"
                 />
               </div>
             </div>
@@ -733,7 +751,7 @@ function SimulationSetupPage() {
                     allExitsSelected ? [] : setup.drawing.exits.map((exit) => exit.id),
                   )
                 }
-                className="rounded-lg border border-primary px-2.5 py-1 text-xs font-bold text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-primary bg-white px-2.5 py-1 text-xs font-bold text-primary outline-none transition hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {allExitsSelected ? '전체 해제' : '전체 선택'}
               </button>
@@ -762,12 +780,12 @@ function SimulationSetupPage() {
                         setHighlightedExitId(null);
                       }
                     }}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-focus-ring ${
                       highlightedExitId === exit.id
-                        ? 'border-amber-400 bg-amber-50'
+                        ? 'border-warning-strong bg-warning-soft'
                         : selectedExitIds.includes(exit.id)
-                          ? 'border-blue-500 bg-blue-50 text-blue-800'
-                          : 'border-line'
+                          ? 'border-info bg-info-soft text-info-strong'
+                          : 'border-line hover:bg-surface'
                     }`}
                   >
                     <input
@@ -781,7 +799,7 @@ function SimulationSetupPage() {
                             : ids.filter((id) => id !== exit.id),
                         )
                       }
-                      className="accent-blue-600"
+                      className="accent-info"
                     />
                     <span>{exit.name}</span>
                   </label>
@@ -811,11 +829,11 @@ function SimulationSetupPage() {
                   </span>
                 </InfoTooltip>
               </div>
-              <span className="text-xs text-text-muted">{hazards.length}개</span>
+              <span className="text-xs tabular-nums text-text-muted">{hazards.length}개</span>
             </div>
             {selectedHazard ? (
-              <div className="mt-3 rounded-xl border border-red-100 bg-red-50/60 p-3">
-                <label className="text-xs font-bold text-red-700">
+              <div className="mt-3 rounded-xl border border-danger/25 bg-danger-soft p-3">
+                <label className="text-xs font-bold text-danger-strong">
                   반지름 · {selectedHazard.radius.toFixed(1)}m
                   <input
                     type="range"
@@ -857,7 +875,7 @@ function SimulationSetupPage() {
                     });
                     setSelectedHazardId(null);
                   }}
-                  className="mt-3 h-9 w-full rounded-lg border border-red-200 text-xs font-bold text-danger disabled:opacity-40"
+                  className="mt-3 h-9 w-full rounded-lg border border-danger/40 bg-white text-xs font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
                 >
                   선택 위험구역 삭제
                 </button>

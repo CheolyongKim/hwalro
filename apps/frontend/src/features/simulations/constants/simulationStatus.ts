@@ -11,9 +11,9 @@ export const STATUS_LABELS: Record<SimulationExecutionStatus, string> = {
 
 export const STATUS_STYLES: Record<SimulationExecutionStatus, string> = {
   DRAFT: 'bg-soft-gray text-text-strong',
-  REQUESTED: 'bg-amber-50 text-amber-700',
-  RUNNING: 'bg-primary-soft text-primary',
-  COMPLETED: 'bg-emerald-50 text-emerald-700',
-  FAILED: 'bg-red-50 text-red-700',
+  REQUESTED: 'bg-warning-soft text-warning-strong',
+  RUNNING: 'bg-primary-soft text-primary-active',
+  COMPLETED: 'bg-success-soft text-success-strong',
+  FAILED: 'bg-danger-soft text-danger-strong',
   CANCELLED: 'bg-soft-gray text-text-muted',
 };

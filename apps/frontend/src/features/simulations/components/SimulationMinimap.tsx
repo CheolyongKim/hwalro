@@ -96,9 +96,9 @@ function drawHighlight(
   const height = highlight.height * scale;
   if (width <= 0 || height <= 0) return;
 
-  context.fillStyle = 'rgba(225, 29, 72, 0.18)';
+  context.fillStyle = 'rgba(201, 79, 71, 0.18)';
   context.fillRect(x, y, width, height);
-  context.strokeStyle = '#e11d48';
+  context.strokeStyle = '#c94f47';
   context.lineWidth = 2;
   context.strokeRect(x, y, width, height);
 
@@ -107,7 +107,7 @@ function drawHighlight(
   const badgeY = Math.max(10, y);
   context.beginPath();
   context.arc(badgeX, badgeY, 9, 0, Math.PI * 2);
-  context.fillStyle = '#e11d48';
+  context.fillStyle = '#c94f47';
   context.fill();
   context.fillStyle = '#ffffff';
   context.font = 'bold 10px sans-serif';
@@ -159,7 +159,7 @@ export function SimulationMinimap({
         context.lineTo(offsetX + point.x * scale, offsetY + point.y * scale);
       }
       context.closePath();
-      context.fillStyle = 'rgba(226, 232, 230, 0.6)';
+      context.fillStyle = 'rgba(237, 242, 241, 0.6)';
       context.fill();
       context.strokeStyle = '#94a3b8';
       context.lineWidth = 1;
@@ -170,7 +170,7 @@ export function SimulationMinimap({
     context.lineWidth = 1.5;
     for (const wall of drawing.walls) strokeSegment(context, wall, scale, offsetX, offsetY);
 
-    context.strokeStyle = '#16a34a';
+    context.strokeStyle = '#188e63';
     context.lineWidth = 2;
     for (const exit of drawing.exits) strokeSegment(context, exit, scale, offsetX, offsetY);
 
@@ -191,9 +191,7 @@ export function SimulationMinimap({
       aria-label={ariaLabel}
       className={className}
       style={
-        responsive
-          ? { aspectRatio: `${width} / ${height}`, width: '100%' }
-          : { width, height }
+        responsive ? { aspectRatio: `${width} / ${height}`, width: '100%' } : { width, height }
       }
     />
   );

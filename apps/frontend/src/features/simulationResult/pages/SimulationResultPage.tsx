@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '../../../components/ui';
 import { reportApi } from '../../reports/api/reportApi';
 import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
@@ -233,9 +235,10 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
               : '시뮬레이션 재생 데이터가 없습니다.')}
         </p>
         <div>
-          <button type="button" onClick={() => navigate(-1)}>
-            이전 화면
-          </button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+            뒤로
+          </Button>
           {chunks.error && (
             <button type="button" onClick={chunks.retry}>
               다시 시도
@@ -260,9 +263,16 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         onViewportPan={handleViewportPan}
       />
 
-      <button className="back-button" type="button" onClick={() => navigate(-1)}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={() => navigate(-1)}
+        className="absolute left-[22px] top-[22px] z-10 shadow-raised"
+      >
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
         뒤로
-      </button>
+      </Button>
       <header className="simulation-meta">
         <span className="status-dot" />
         <div>
@@ -439,9 +449,10 @@ export default function SimulationResultPage() {
       <div className="result-state">
         <p>{status === 'missing' ? '완료된 결과가 없습니다.' : '결과를 불러오지 못했습니다.'}</p>
         <div>
-          <button type="button" onClick={() => navigate(-1)}>
-            이전 화면
-          </button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+            뒤로
+          </Button>
           {status === 'error' && (
             <button type="button" onClick={() => setRetry((value) => value + 1)}>
               다시 시도

@@ -1,4 +1,7 @@
+import { ArrowLeft } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { PageHeader, buttonClassName } from '../../components/ui';
 
 interface SafetyCheckHeaderProps {
   eyebrow: string;
@@ -6,7 +9,7 @@ interface SafetyCheckHeaderProps {
   description: string;
   backTo?: string;
   backLabel?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
 }
 
 export default function SafetyCheckHeader({
@@ -18,22 +21,14 @@ export default function SafetyCheckHeader({
   action,
 }: SafetyCheckHeaderProps) {
   return (
-    <header className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        {backTo && (
-          <Link
-            to={backTo}
-            className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:text-primary/80"
-          >
-            <span aria-hidden="true">←</span>
-            {backLabel}
-          </Link>
-        )}
-        {!backTo && <p className="text-sm font-bold text-primary">{eyebrow}</p>}
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-ink sm:text-4xl">{title}</h1>
-        <p className="mt-3 text-sm leading-6 text-text-muted">{description}</p>
-      </div>
-      {action}
-    </header>
+    <div className="flex flex-col gap-4">
+      {backTo && (
+        <Link to={backTo} className={buttonClassName({ variant: 'secondary', size: 'sm' })}>
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          {backLabel}
+        </Link>
+      )}
+      <PageHeader eyebrow={eyebrow} title={title} description={description} actions={action} />
+    </div>
   );
 }

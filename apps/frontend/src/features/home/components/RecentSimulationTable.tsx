@@ -55,7 +55,7 @@ export function RecentSimulationTable({
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <p
             role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700"
+            className="rounded-xl border border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong"
           >
             {errorMessage}
           </p>
@@ -94,7 +94,7 @@ export function RecentSimulationTable({
                       {row.layoutTitle}
                     </Link>
                   </td>
-                  <td className="px-4 py-4 text-sm text-text-muted">
+                  <td className="px-4 py-4 text-sm tabular-nums text-text-muted">
                     {formatDateTime(row.executedAt)}
                   </td>
                   <td className="px-4 py-4 text-sm text-text-strong">

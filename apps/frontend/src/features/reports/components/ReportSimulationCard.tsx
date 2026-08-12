@@ -32,11 +32,13 @@ export function ReportSimulationCard({
   const size = VARIANT_SIZE[variant];
   const cardPadding = variant === 'settings' ? 'p-3' : 'p-4';
   const toneClass =
-    tone === 'primary' ? 'border-primary/20 bg-primary-soft' : 'border-orange-200 bg-orange-50';
+    tone === 'primary' ? 'border-primary/20 bg-primary-soft' : 'border-line bg-surface';
   const topBottlenecks = context ? selectTopBottlenecks(context.bottlenecks) : [];
 
   return (
-    <div className={`break-inside-avoid overflow-hidden rounded-xl border ${cardPadding} ${toneClass}`}>
+    <div
+      className={`break-inside-avoid overflow-hidden rounded-xl border ${cardPadding} ${toneClass}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-black text-ink">결과 #{resultId}</p>

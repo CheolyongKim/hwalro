@@ -1,9 +1,18 @@
+import { ShieldAlert } from 'lucide-react';
+import { Badge, Button, EmptyState } from '../../components/ui';
+import type { BadgeTone } from '../../components/ui';
 import type { Risk } from '../../features/risks/types/risks';
 import { formatDate } from '../../features/risks/utils/formatDate';
 
 const TABLE_HEADERS = ['위험 예상 항목', '심각도', '담당자', '등록일'] as const;
 
 const TABLE_COLUMNS = 'grid-cols-[minmax(0,2.5fr)_1fr_1fr_2fr]';
+
+const SEVERITY_TONES: Record<string, BadgeTone> = {
+  높음: 'danger',
+  보통: 'neutral',
+  낮음: 'primary',
+};
 
 function RiskItemTable({
   items,
@@ -20,6 +29,14 @@ function RiskItemTable({
   onLoadMore: () => void;
   isFetchingMore: boolean;
 }) {
+  if (items.length === 0) {
+    return (
+      <div className="p-5 sm:p-7">
+        <EmptyState icon={ShieldAlert} title="등록된 위험 항목이 없습니다." />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className={`grid ${TABLE_COLUMNS} items-center gap-x-6 bg-surface px-5 py-4 sm:px-7`}>
@@ -30,42 +47,44 @@ function RiskItemTable({
         ))}
       </div>
 
-      {items.length === 0 ? (
-        <p className="py-10 text-center text-sm text-text-muted">등록된 위험 항목이 없습니다.</p>
-      ) : (
-        <ul className="divide-y divide-line">
-          {items.map((item) => {
-            const isSelected = item.id === selectedId;
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(item.id)}
-                  aria-pressed={isSelected}
-                  className={`grid w-full ${TABLE_COLUMNS} items-center gap-x-6 px-5 py-4 text-left transition-colors sm:px-7 ${
-                    isSelected ? 'bg-primary-soft' : 'bg-white hover:bg-primary-soft/35'
-                  }`}
-                >
-                  <span className="text-sm font-bold text-ink">{item.title}</span>
-                  <span className="text-sm text-text-strong">{item.severity}</span>
-                  <span className="text-sm text-text-strong">{item.assigneeId ?? '-'}</span>
-                  <span className="text-sm text-text-strong">{formatDate(item.createdAt)}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="divide-y divide-line">
+        {items.map((item) => {
+          const isSelected = item.id === selectedId;
+          return (
+            <li key={item.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(item.id)}
+                aria-pressed={isSelected}
+                className={`grid w-full ${TABLE_COLUMNS} items-center gap-x-6 px-5 py-4 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-7 ${
+                  isSelected ? 'bg-primary-soft' : 'bg-white hover:bg-primary-soft/35'
+                }`}
+              >
+                <span className="text-sm font-bold text-ink">{item.title}</span>
+                <Badge tone={SEVERITY_TONES[item.severity] ?? 'neutral'}>{item.severity}</Badge>
+                <span className="text-sm tabular-nums text-text-strong">
+                  {item.assigneeId ?? '-'}
+                </span>
+                <span className="text-sm tabular-nums text-text-strong">
+                  {formatDate(item.createdAt)}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
 
       {hasNext && (
-        <button
-          type="button"
-          onClick={onLoadMore}
-          disabled={isFetchingMore}
-          className="w-full border-t border-line bg-white px-4 py-3 text-sm font-bold text-text-strong transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isFetchingMore ? '불러오는 중...' : '더 보기'}
-        </button>
+        <div className="border-t border-line p-3">
+          <Button
+            variant="secondary"
+            onClick={onLoadMore}
+            disabled={isFetchingMore}
+            className="w-full"
+          >
+            {isFetchingMore ? '불러오는 중...' : '더 보기'}
+          </Button>
+        </div>
       )}
     </div>
   );

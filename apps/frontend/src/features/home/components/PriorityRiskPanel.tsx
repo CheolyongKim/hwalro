@@ -37,7 +37,7 @@ export function PriorityRiskPanel({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-black tracking-tight text-ink">우선 확인할 항목</h2>
         {!isPending && !isError && items.length > 0 && (
-          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-danger-soft px-2 text-xs font-bold text-danger">
+          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-danger-soft px-2 text-xs font-bold tabular-nums text-danger">
             {items.length}
           </span>
         )}
@@ -51,7 +51,7 @@ export function PriorityRiskPanel({
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
           <p
             role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"
+            className="rounded-xl border border-danger/25 bg-danger-soft px-4 py-2.5 text-sm text-danger-strong"
           >
             {errorMessage}
           </p>

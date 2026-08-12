@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 import type { DrawingSummary } from '../types/drawing';
 
@@ -49,16 +50,18 @@ function DrawingListTable({ items, onDelete }: DrawingListTableProps) {
           </thead>
           <tbody className="divide-y divide-line">
             {items.map((drawing) => (
-              <tr key={drawing.id} className="group transition-colors hover:bg-primary-soft/35">
+              <tr key={drawing.id} className="group transition-colors hover:bg-primary-soft/30">
                 <td className="px-7 py-4">
                   <Link
                     to={`/layout/${drawing.id}`}
-                    className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <span className="block truncate text-sm font-bold text-ink group-hover:text-primary">
                       {drawing.title}
                     </span>
-                    <span className="mt-1 block text-xs text-text-muted">도면 #{drawing.id}</span>
+                    <span className="mt-1 block text-xs tabular-nums text-text-muted">
+                      도면 #{drawing.id}
+                    </span>
                   </Link>
                 </td>
                 <td className="px-5 py-4">
@@ -69,7 +72,7 @@ function DrawingListTable({ items, onDelete }: DrawingListTableProps) {
                 <td className="px-5 py-4 text-sm font-medium text-text-strong">
                   {creatorLabel(drawing.createdBy, user?.id ?? null, user?.name ?? '')}
                 </td>
-                <td className="px-5 py-4 text-sm text-text-strong">
+                <td className="px-5 py-4 text-sm tabular-nums text-text-strong">
                   {formatCreatedAt(drawing.createdAt)}
                 </td>
                 <td className="px-5 py-4 text-right">
@@ -78,18 +81,9 @@ function DrawingListTable({ items, onDelete }: DrawingListTableProps) {
                     onClick={() => onDelete(drawing)}
                     aria-label={`도면 #${drawing.id} 삭제`}
                     title="도면 삭제"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-muted transition hover:bg-danger-soft hover:text-danger"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-muted outline-none transition hover:bg-danger-soft hover:text-danger focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
-                    <svg
-                      aria-hidden="true"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    >
-                      <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
-                    </svg>
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
                   </button>
                 </td>
               </tr>

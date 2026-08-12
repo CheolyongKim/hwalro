@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CheckCircle2, X } from 'lucide-react';
 import { simulationApi } from '../api/simulationApi';
 import type { SimulationExecutionStatus, SimulationOverview } from '../types';
 
@@ -36,30 +37,21 @@ function CompletionToast({ simulation, onDismiss }: CompletionToastProps) {
   return (
     <article
       role="status"
-      className="pointer-events-auto overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-xl shadow-ink/15"
+      className="pointer-events-auto overflow-hidden rounded-2xl border border-success/25 bg-white shadow-floating"
     >
       <div className="flex gap-3 p-4">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-          <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-            <path
-              d="m5 12.5 4.2 4.2L19 7"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2.5"
-            />
-          </svg>
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success-soft text-success-strong">
+          <CheckCircle2 aria-hidden="true" className="size-5" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-ink">시뮬레이션 실행이 완료되었습니다</p>
-          <p className="mt-1 truncate text-sm text-text-muted">
+          <p className="mt-1 truncate text-sm tabular-nums text-text-muted">
             {simulation.layoutTitle} · 시뮬레이션 #{simulation.id}
           </p>
           <Link
             to={`/simulations/${simulation.id}/result`}
             onClick={() => onDismiss(simulation.id)}
-            className="mt-3 inline-flex text-sm font-bold text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="mt-3 inline-flex text-sm font-bold text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             결과 보기
           </Link>
@@ -68,12 +60,12 @@ function CompletionToast({ simulation, onDismiss }: CompletionToastProps) {
           type="button"
           onClick={() => onDismiss(simulation.id)}
           aria-label="완료 알림 닫기"
-          className="flex size-8 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full text-text-muted outline-none transition hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
-          <span aria-hidden="true">×</span>
+          <X aria-hidden="true" className="h-4 w-4" />
         </button>
       </div>
-      <div className="h-1 bg-emerald-500" />
+      <div className="h-1 bg-success-strong" />
     </article>
   );
 }
