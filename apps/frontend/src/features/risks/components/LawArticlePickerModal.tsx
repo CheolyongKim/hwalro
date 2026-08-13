@@ -27,6 +27,7 @@ function LawArticlePickerModal({
   const [items, setItems] = useState<RegulationSummary[]>([]);
   const [selectedLaw, setSelectedLaw] = useState<RegulationSummary | null>(null);
   const [checked, setChecked] = useState<AttachedLawRef[]>(selected);
+  const [hasMore, setHasMore] = useState(false);
   const lastAppliedPageRef = useRef(0);
 
   const searchQuery = useLawSearch(activeQuery, page);
@@ -40,6 +41,7 @@ function LawArticlePickerModal({
       setItems((prev) =>
         dataPage === 1 ? searchQuery.data.items : [...prev, ...searchQuery.data.items],
       );
+      setHasMore(searchQuery.data.hasNext);
     }
   }, [searchQuery.data, searchQuery.isSuccess]);
 
@@ -73,13 +75,14 @@ function LawArticlePickerModal({
       setActiveQuery(nextQuery);
       setItems([]);
       setSelectedLaw(null);
+      setHasMore(false);
       lastAppliedPageRef.current = 0;
     }
     setPage(1);
   };
 
   const handleLoadMore = () => {
-    setPage((prev) => prev + 1);
+    setPage(lastAppliedPageRef.current + 1);
   };
 
   const handleConfirm = () => {
@@ -157,6 +160,11 @@ function LawArticlePickerModal({
                 <ErrorState message="법령 목록을 불러오지 못했습니다." />
               </div>
             )}
+            {searchQuery.isError && items.length > 0 && (
+              <div className="p-3">
+                <ErrorState message="추가 법령 목록을 불러오지 못했습니다. 다시 시도해 주세요." />
+              </div>
+            )}
             {!searchQuery.isPending && !searchQuery.isError && items.length === 0 && (
               <EmptyState
                 icon={Landmark}
@@ -170,7 +178,7 @@ function LawArticlePickerModal({
               <p className="px-3.5 py-3 text-center text-xs text-text-muted">불러오는 중...</p>
             )}
           </div>
-          {searchQuery.data?.hasNext && (
+          {hasMore && (
             <div className="mt-2">
               <Button
                 type="button"
@@ -180,7 +188,7 @@ function LawArticlePickerModal({
                 onClick={handleLoadMore}
                 disabled={searchQuery.isFetching}
               >
-                더 보기
+                {searchQuery.isFetching ? '불러오는 중...' : '더 보기'}
               </Button>
             </div>
           )}
