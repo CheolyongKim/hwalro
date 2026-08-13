@@ -17,11 +17,6 @@
 | `--color-line-strong` | `#b8cbc7` | 아웃라인 버튼 테두리 |
 | `--color-text-strong` | `#2f514c` | 표 본문 텍스트 |
 | `--color-text-muted` | `#718884` | 부제목·라벨 텍스트 |
-| `--color-panel-text` | `#e7efed` | 어두운 표면(차트 툴팁) 본문 텍스트 |
-| `--color-panel-muted` | `#b9cac6` | 어두운 표면(차트 툴팁) 보조 텍스트 |
-| `--color-chart-tooltip-bg` | `rgba(13,25,23,0.92)` | 차트 툴팁 배경 |
-| `--color-chart-tooltip-border` | `rgba(255,255,255,0.08)` | 차트 툴팁 테두리 |
-| `--color-chart-tooltip-shadow` | `rgba(7,32,28,0.28)` | 차트 툴팁 그림자 |
 | `--font-sans` | Happiness Sans Print 외 | 본문·표시 폰트 |
 
 간격 기준 단위는 4px 배수다. `simulationResult` 피처의 시뮬레이션 페이지 배경은 `#eef4f1`, 캔버스 위 플로팅 표면은 흰색 90% + `backdrop-filter: blur(14px)` + 틴트된 그림자(`rgba(22,55,49,…)`)를 쓴다.
@@ -55,7 +50,7 @@
 시각 구성:
 
 - **영역+라인**: `@tanstack/charts` `areaY`+`lineY` 마크. 영역은 `primary`(#168f80) 세로 그라데이션(하단 투명→상단 0.6), 라인은 2.25px `primary` + monotone 곡선.
-- **축**: x는 경과 시간(초)을 `mm:ss`(분·초 2자리, `utils/playback.ts`의 `formatDuration` 재사용)로 포맷, y는 대피 인원을 콤마로 포맷. y 그리드라인은 `line` 색 1px.
+- **축**: x는 경과 시간(초)을 `mm:ss`로 포맷, y는 대피 인원을 콤마(또는 compact)로 포맷. y 그리드라인은 `line` 색 1px.
 - **툴팁**: 호버 시 시점·누적 대피 인원을 표시.
 - **플레이헤드**: 재생 중 현재 시점 수직 가이드 + 라임 점. `transform`으로 매 프레임 이동(차트 정의는 새 데이터 포인트가 생길 때만 재생성).
 - **헤더**: 제목 + 현재 대피 인원·진행률(콤마 + tabular-nums).
