@@ -412,3 +412,100 @@ CREATE TABLE IF NOT EXISTS proposal_simulations (
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS layout_searches (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    baseline_simulation_id BIGINT UNSIGNED NOT NULL,
+    baseline_layout_version_id BIGINT UNSIGNED NOT NULL,
+    planner_version VARCHAR(100) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    baseline_metrics JSON NOT NULL,
+    diagnosis JSON NULL,
+    budget JSON NOT NULL,
+    constraints JSON NULL,
+    requested_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    started_at DATETIME(6) NULL,
+    finished_at DATETIME(6) NULL,
+    failure_code VARCHAR(50) NULL,
+    failure_message VARCHAR(1000) NULL,
+    CONSTRAINT pk_layout_searches PRIMARY KEY (id),
+    CONSTRAINT ck_layout_searches_status CHECK (status IN
+        ('PENDING','DIAGNOSING','GENERATING','VERIFYING','COMPLETED','NO_IMPROVEMENT','FAILED','CANCELLED')),
+    CONSTRAINT fk_layout_searches_baseline_simulation
+        FOREIGN KEY (baseline_simulation_id) REFERENCES simulations (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_layout_searches_baseline_layout_version
+        FOREIGN KEY (baseline_layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+    INDEX idx_layout_searches_baseline (baseline_simulation_id, created_at)
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS layout_search_candidates (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    study_id BIGINT UNSIGNED NOT NULL,
+    parent_candidate_id BIGINT UNSIGNED NULL,
+    round_index INT UNSIGNED NOT NULL,
+    candidate_order INT UNSIGNED NOT NULL,
+    origin_finding_type VARCHAR(40) NOT NULL,
+    operator_type VARCHAR(40) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    change_set JSON NOT NULL,
+    rationale JSON NOT NULL,
+    proxy_score DOUBLE NULL,
+    metric_delta JSON NULL,
+    reject_reason VARCHAR(60) NULL,
+    constraints_snapshot JSON NULL,
+    adopted_layout_version_id BIGINT UNSIGNED NULL,
+    prepared_simulation_id BIGINT UNSIGNED NULL,
+    adopted_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_layout_search_candidates PRIMARY KEY (id),
+    CONSTRAINT uk_layout_search_candidates_order UNIQUE (study_id, round_index, candidate_order),
+    CONSTRAINT uk_layout_search_candidates_prepared_simulation UNIQUE (prepared_simulation_id),
+    CONSTRAINT ck_layout_search_candidates_status CHECK (status IN
+        ('GENERATED','REJECTED_CONSTRAINT','QUEUED','RUNNING','EVALUATED','NOT_IMPROVED','FAILED')),
+    CONSTRAINT fk_layout_search_candidates_search
+        FOREIGN KEY (study_id) REFERENCES layout_searches (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_layout_search_candidates_parent
+        FOREIGN KEY (parent_candidate_id) REFERENCES layout_search_candidates (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_layout_search_candidates_adopted_version
+        FOREIGN KEY (adopted_layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL,
+    CONSTRAINT fk_layout_search_candidates_prepared_simulation
+        FOREIGN KEY (prepared_simulation_id) REFERENCES simulations (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS layout_search_trials (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    candidate_id BIGINT UNSIGNED NOT NULL,
+    engine_version VARCHAR(100) NULL,
+    termination_reason VARCHAR(30) NULL,
+    metrics JSON NULL,
+    total_move_distance DOUBLE NULL,
+    started_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    finished_at DATETIME(6) NULL,
+    failure_message VARCHAR(1000) NULL,
+    attempt_count INT UNSIGNED NOT NULL DEFAULT 1,
+    CONSTRAINT pk_layout_search_trials PRIMARY KEY (id),
+    CONSTRAINT uk_layout_search_trials_candidate UNIQUE (candidate_id),
+    CONSTRAINT fk_layout_search_trials_candidate
+        FOREIGN KEY (candidate_id) REFERENCES layout_search_candidates (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
