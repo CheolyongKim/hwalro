@@ -236,7 +236,13 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
               : '시뮬레이션 재생 데이터가 없습니다.')}
         </p>
         <div>
-          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(-1)}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="cursor-pointer"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
             뒤로
           </Button>
@@ -269,7 +275,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         variant="secondary"
         size="sm"
         onClick={() => navigate(-1)}
-        className="absolute left-[22px] top-[22px] z-10 shadow-raised"
+        className="absolute left-[22px] top-[22px] z-10 cursor-pointer shadow-raised"
       >
         <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
         뒤로
@@ -456,7 +462,13 @@ export default function SimulationResultPage() {
       <div className="result-state">
         <p>{status === 'missing' ? '완료된 결과가 없습니다.' : '결과를 불러오지 못했습니다.'}</p>
         <div>
-          <Button type="button" variant="secondary" size="sm" onClick={() => navigate(-1)}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="cursor-pointer"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
             뒤로
           </Button>

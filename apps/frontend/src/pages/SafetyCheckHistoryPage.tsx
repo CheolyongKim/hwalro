@@ -130,6 +130,7 @@ function SafetyCheckHistoryPage() {
                 size="lg"
                 onClick={() => navigate(`/safety-checklists/areas/${areaId}/template`)}
                 disabled={!area?.active}
+                className="cursor-pointer"
               >
                 점검 항목 관리
               </Button>
@@ -210,7 +211,7 @@ function SafetyCheckHistoryPage() {
                   <button
                     type="button"
                     onClick={() => navigate(`/safety-checklists/inspections/${inspection.id}`)}
-                    className="grid w-full gap-4 px-5 py-4 text-left transition hover:bg-primary-soft/30 sm:px-7 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
+                    className="grid w-full cursor-pointer gap-4 px-5 py-4 text-left transition hover:bg-primary-soft/30 sm:px-7 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
                   >
                     <div>
                       <p className="font-black tabular-nums text-ink">

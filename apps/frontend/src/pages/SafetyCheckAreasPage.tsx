@@ -228,7 +228,7 @@ function SafetyCheckAreasPage() {
                 <button
                   type="button"
                   onClick={() => navigate(`/safety-checklists/areas/${area.id}`)}
-                  className="w-full p-5 text-left"
+                  className="w-full cursor-pointer p-5 text-left"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft text-primary">

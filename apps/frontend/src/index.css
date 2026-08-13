@@ -91,6 +91,25 @@
     font-family: var(--font-sans);
   }
 
+  a[href],
+  area[href] {
+    cursor: pointer;
+  }
+
+  button,
+  input[type='button'],
+  input[type='reset'],
+  input[type='submit'],
+  input[type='checkbox'],
+  input[type='radio'],
+  input[type='range'],
+  label:has(input[type='checkbox']),
+  label:has(input[type='radio']),
+  select,
+  summary {
+    cursor: default;
+  }
+
   ::selection {
     background-color: rgb(194 232 75 / 0.35);
     color: var(--color-ink);

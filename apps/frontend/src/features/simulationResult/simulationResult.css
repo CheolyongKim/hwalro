@@ -186,7 +186,7 @@
   font-size: 9px;
   font-weight: 700;
   text-align: center;
-  cursor: pointer;
+  cursor: default;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
@@ -753,6 +753,9 @@
 .simulation-result-page input[type='checkbox']:not(:disabled),
 .simulation-result-page input[type='range']:not(:disabled),
 .simulation-result-page label:has(input:not(:disabled)) {
+  cursor: default;
+}
+.simulation-result-page button.cursor-pointer:not(:disabled) {
   cursor: pointer;
 }
 .simulation-result-page button:disabled,

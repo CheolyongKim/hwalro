@@ -146,14 +146,14 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
                   type="button"
                   onClick={handleOpenSimulation}
                   title="시뮬레이션 결과 페이지로 이동"
-                  className="block w-full overflow-hidden rounded-xl border border-line bg-white text-left outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+                  className="block w-full cursor-pointer overflow-hidden rounded-xl border border-line bg-white text-left outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
                 >
                   <RiskZonePreview drawing={drawingContextQuery.data.drawing} zone={zoneBounds} />
                 </button>
                 <button
                   type="button"
                   onClick={handleOpenSimulation}
-                  className="h-10 w-full rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="h-10 w-full cursor-pointer rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   시뮬레이션 결과 보러가기
                 </button>

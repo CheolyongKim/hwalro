@@ -283,7 +283,7 @@ function LayoutPage() {
         <button
           type="button"
           onClick={() => navigate('/drawings')}
-          className="h-9 rounded-md bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85"
+          className="h-9 cursor-pointer rounded-md bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85"
         >
           목록으로 이동
         </button>
@@ -306,7 +306,7 @@ function LayoutPage() {
           <button
             type="button"
             onClick={() => navigate('/drawings')}
-            className="h-9 rounded-md border border-line-strong bg-white px-4 text-sm font-bold text-text-strong transition-colors hover:bg-surface"
+            className="h-9 cursor-pointer rounded-md border border-line-strong bg-white px-4 text-sm font-bold text-text-strong transition-colors hover:bg-surface"
           >
             목록으로 이동
           </button>
@@ -322,7 +322,7 @@ function LayoutPage() {
         variant="secondary"
         size="sm"
         onClick={() => navigate('/drawings')}
-        className="fixed left-4 top-4 z-30 shadow-raised"
+        className="fixed left-4 top-4 z-30 cursor-pointer shadow-raised"
       >
         <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
         뒤로
