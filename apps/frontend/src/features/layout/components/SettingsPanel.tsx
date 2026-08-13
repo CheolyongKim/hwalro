@@ -349,32 +349,17 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
   const fabric = pillar === null ? selectedFabric(state) : null;
   const text = fabric === null ? selectedText(state) : null;
   const { doc } = state;
+  const hasSelection =
+    wall !== null ||
+    outsideWall !== null ||
+    exit !== null ||
+    pillar !== null ||
+    fabric !== null ||
+    text !== null;
 
   return (
     <aside aria-label="도면 설정" className="px-3 pb-3">
-      {wall === null &&
-      outsideWall === null &&
-      exit === null &&
-      pillar === null &&
-      fabric === null &&
-      text === null ? (
-        <section>
-          <h3 className="text-sm font-bold text-panel-text">도면 정보</h3>
-          <div className="mt-1">
-            <InfoRow label="도면명" value={doc.name} />
-            <InfoRow
-              label="크기"
-              value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
-            />
-            <InfoRow label="벽" value={`${doc.walls.length}개`} />
-            <InfoRow label="외각벽" value={`${doc.outsideWalls.length}개`} />
-            <InfoRow label="비상구" value={`${doc.exits.length}개`} />
-            <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
-            <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
-            <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
-          </div>
-        </section>
-      ) : wall !== null ? (
+      {wall !== null ? (
         <WallFields wall={wall} dispatch={dispatch} />
       ) : outsideWall !== null ? (
         <OutsideWallFields wall={outsideWall} dispatch={dispatch} />
@@ -384,12 +369,16 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
         <RectFields element={pillar} dispatch={dispatch} kind="pillar" />
       ) : fabric !== null ? (
         <RectFields element={fabric} dispatch={dispatch} kind="fabric" />
-      ) : (
-        <TextFields text={text as LayoutText} dispatch={dispatch} />
-      )}
-      <section className="mt-4 border-t border-panel-divider pt-4">
+      ) : text !== null ? (
+        <TextFields text={text} dispatch={dispatch} />
+      ) : null}
+      <section className={hasSelection ? 'mt-4 border-t border-panel-divider pt-4' : ''}>
         <h3 className="text-sm font-bold text-panel-text">레이어</h3>
         <div className="mt-1">
+          <InfoRow
+            label="크기"
+            value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
+          />
           <InfoRow label="벽" value={`${doc.walls.length}개`} />
           <InfoRow label="외각벽" value={`${doc.outsideWalls.length}개`} />
           <InfoRow label="비상구" value={`${doc.exits.length}개`} />
