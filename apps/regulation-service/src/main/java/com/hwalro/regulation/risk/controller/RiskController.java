@@ -39,8 +39,9 @@ public class RiskController {
     public RiskListResponse list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return riskService.list(page, size, user);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return riskService.list(page, size, user, authorization);
     }
 
     @GetMapping("/by-result/{simulationResultId}")
