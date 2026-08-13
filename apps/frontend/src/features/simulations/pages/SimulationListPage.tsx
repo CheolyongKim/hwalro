@@ -14,6 +14,7 @@ import {
 import {
   buttonClassName,
   Card,
+  ConfirmDialog,
   EmptyState,
   ErrorState,
   PageHeader,
@@ -45,6 +46,8 @@ function SimulationListPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [pendingCancellation, setPendingCancellation] = useState<SimulationOverview | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSimulation, setSelectedSimulation] = useState<SimulationOverview | null>(null);
   const [selectedExecution, setSelectedExecution] = useState<SimulationExecution | null>(null);
@@ -69,15 +72,17 @@ function SimulationListPage() {
     return () => window.clearInterval(timer);
   }, [hasRunning, query.refetch]);
 
-  const cancelSimulation = async (simulationId: number) => {
-    if (!window.confirm('진행 중인 시뮬레이션을 취소하시겠습니까?')) return;
+  const cancelSimulation = async () => {
+    if (!pendingCancellation) return;
+    const simulationId = pendingCancellation.id;
     setCancellingId(simulationId);
-    setActionError(null);
+    setCancelError(null);
     try {
       await simulationApi.cancel(simulationId);
+      setPendingCancellation(null);
       await query.refetch();
     } catch (error) {
-      setActionError(getSimulationErrorMessage(error));
+      setCancelError(getSimulationErrorMessage(error));
     } finally {
       setCancellingId(null);
     }
@@ -280,7 +285,10 @@ function SimulationListPage() {
                             simulation.status === 'RUNNING') && (
                             <button
                               type="button"
-                              onClick={() => void cancelSimulation(simulation.id)}
+                              onClick={() => {
+                                setPendingCancellation(simulation);
+                                setCancelError(null);
+                              }}
                               disabled={cancellingId !== null}
                               className="h-8 rounded-lg border border-danger/25 px-3 text-xs font-bold text-danger-strong transition hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -342,6 +350,40 @@ function SimulationListPage() {
         onClose={closeStatusDialog}
         onRetry={() => void retrySelectedSimulation()}
       />
+      <ConfirmDialog
+        open={pendingCancellation !== null}
+        title="시뮬레이션 실행 취소"
+        description={
+          pendingCancellation
+            ? `${pendingCancellation.layoutTitle} · 시뮬레이션 #${pendingCancellation.id}`
+            : undefined
+        }
+        confirmLabel="실행 취소"
+        cancelLabel="돌아가기"
+        isLoading={cancellingId !== null}
+        onCancel={() => {
+          setPendingCancellation(null);
+          setCancelError(null);
+        }}
+        onConfirm={() => void cancelSimulation()}
+      >
+        <div className="space-y-2 text-sm leading-6">
+          <p className="font-bold text-text-strong">
+            진행 중인 시뮬레이션을 취소하시겠습니까?
+          </p>
+          <p className="text-text-muted">
+            취소된 시뮬레이션은 동일한 설정으로 다시 실행할 수 있습니다.
+          </p>
+        </div>
+        {cancelError && (
+          <p
+            role="alert"
+            className="mt-4 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-strong"
+          >
+            {cancelError}
+          </p>
+        )}
+      </ConfirmDialog>
     </main>
   );
 }
