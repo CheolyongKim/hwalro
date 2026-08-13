@@ -9,6 +9,7 @@ import {
   screenToWorld,
   zoomAtPoint,
 } from '../../layout/utils/geometry';
+import { MIN_TEXT_SCREEN_PX, TEXT_FONT_PX } from '../../layout/utils/hitTest';
 import { GridLayer } from '../../layout/components/layers';
 import type { EditableHazardZone, SimulationDrawing, SimulationPoint } from '../types';
 import { AGENT_RADIUS, pointInPolygon } from '../utils/placement';
@@ -371,17 +372,18 @@ export function SimulationCanvas({
                 />
               );
             })}
-            {drawing.layoutTexts.map((text, index) => (
-              <KonvaText
-                key={`${text.text}-${index}`}
-                x={text.x}
-                y={text.y}
-                text={text.text}
-                fontSize={s(11)}
-                fill="#637773"
-                listening={false}
-              />
-            ))}
+            {TEXT_FONT_PX * camera.zoom >= MIN_TEXT_SCREEN_PX &&
+              drawing.layoutTexts.map((text, index) => (
+                <KonvaText
+                  key={`${text.text}-${index}`}
+                  x={text.x}
+                  y={text.y}
+                  text={text.text}
+                  fontSize={TEXT_FONT_PX / PX_PER_METER}
+                  fill="#637773"
+                  listening={false}
+                />
+              ))}
             {drawing.exits.map((exit) => {
               const highlighted = exit.id === highlightedExitId;
               const selected = selectedExitIds.includes(exit.id);
