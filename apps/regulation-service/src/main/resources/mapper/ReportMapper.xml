@@ -36,6 +36,17 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <select id="findAiDraftMonitorItems" resultType="com.hwalro.regulation.report.dto.AiReportDraftMonitorItem">
+        SELECT id,
+               title,
+               status
+        FROM reports
+        WHERE author_id = #{authorId}
+          AND generation_request IS NOT NULL
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 100
+    </select>
+
     <select id="findDetailById" resultType="com.hwalro.regulation.report.dto.ReportDetailRow">
         SELECT id,
                author_id AS authorId,

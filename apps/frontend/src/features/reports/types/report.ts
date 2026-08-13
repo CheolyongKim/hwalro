@@ -45,6 +45,12 @@ export interface AiReportDraftJobResponse {
   status: Extract<ReportStatus, 'AI 작성 중'>;
 }
 
+export interface AiReportDraftMonitorItem {
+  id: number;
+  title: string;
+  status: ReportStatus;
+}
+
 export interface ReportVisualContext {
   simulationResultId: number;
   simulationId: number;

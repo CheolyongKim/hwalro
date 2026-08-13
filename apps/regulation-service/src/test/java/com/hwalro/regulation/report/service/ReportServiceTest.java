@@ -15,6 +15,7 @@ import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.client.SimulationReportVisualContextClient;
 import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
+import com.hwalro.regulation.report.dto.AiReportDraftMonitorItem;
 import com.hwalro.regulation.report.dto.ReportContent;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
 import com.hwalro.regulation.report.dto.ReportDraftInsert;
@@ -72,6 +73,18 @@ class ReportServiceTest {
         assertThatThrownBy(() -> reportService.getReports(operator, "Bearer token", null, "보류", 1, 5))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("status must be one of: AI 작성 중, 생성 실패, 초안, 작성 중, 완료.");
+    }
+
+    @Test
+    void returnsOnlyCurrentUsersAiReportDraftsForCompletionMonitoring() {
+        ReportService reportService = reportService();
+        JwtUser reviewer = new JwtUser(7L, Set.of("SAFETY_REVIEWER"));
+        List<AiReportDraftMonitorItem> reports = List.of(new AiReportDraftMonitorItem(30L, "AI 안전 검토 보고서", "AI 작성 중"));
+        when(reportMapper.findAiDraftMonitorItems(7L)).thenReturn(reports);
+
+        assertThat(reportService.getAiDraftMonitor(reviewer)).isEqualTo(reports);
+
+        verify(reportMapper).findAiDraftMonitorItems(7L);
     }
 
     @Test

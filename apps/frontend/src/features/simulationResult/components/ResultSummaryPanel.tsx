@@ -57,7 +57,9 @@ export function ResultSummaryPanel({
   return (
     <aside
       className={`result-summary ${panel.isCollapsing ? 'is-collapsing' : ''} ${reserveImprovementPanelSpace ? 'has-improvement-panel' : ''}`}
-      onAnimationEnd={panel.handleAnimationEnd}
+      onAnimationEnd={(event) => {
+        if (event.currentTarget === event.target) panel.handleAnimationEnd();
+      }}
     >
       <div className="summary-header">
         <div>

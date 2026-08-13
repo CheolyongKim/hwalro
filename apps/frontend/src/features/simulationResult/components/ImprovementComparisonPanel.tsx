@@ -17,7 +17,9 @@ export function ImprovementComparisonPanel({ panel, onCompare }: Props) {
   return (
     <section
       className={`improvement-action floating-surface ${panel.isCollapsing ? 'is-collapsing' : ''} ${panel.isExpanding ? 'is-expanding' : ''}`}
-      onAnimationEnd={panel.handleAnimationEnd}
+      onAnimationEnd={(event) => {
+        if (event.currentTarget === event.target) panel.handleAnimationEnd();
+      }}
     >
       <div className="improvement-action-header">
         <div>

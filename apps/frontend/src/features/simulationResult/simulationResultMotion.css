@@ -1,11 +1,12 @@
 .result-summary {
   transform-origin: calc(100% - 17px) 17px;
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
   animation: summary-panel-arrive 280ms cubic-bezier(0.2, 0.78, 0.22, 1) both;
 }
 
 .result-summary.is-collapsing {
-  animation: summary-panel-suck 440ms cubic-bezier(0.72, 0, 0.88, 0.42) forwards;
+  animation: summary-panel-suck 300ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 .summary-restore {
@@ -35,17 +36,18 @@
 
 .evacuation-chart.is-collapsing,
 .improvement-action.is-collapsing {
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 .evacuation-chart.is-collapsing {
   transform-origin: left bottom;
-  animation: evacuation-chart-suck 420ms cubic-bezier(0.72, 0, 0.88, 0.42) forwards;
+  animation: evacuation-chart-suck 280ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 .improvement-action.is-collapsing {
   transform-origin: right bottom;
-  animation: improvement-panel-suck 420ms cubic-bezier(0.72, 0, 0.88, 0.42) forwards;
+  animation: improvement-panel-suck 280ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 .evacuation-chart.is-expanding,
@@ -75,42 +77,26 @@
 }
 
 @keyframes evacuation-chart-suck {
-  0% {
+  from {
     opacity: 1;
-    filter: blur(0);
-    transform: translate(0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
   }
 
-  48% {
-    opacity: 0.7;
-    filter: blur(1px);
-    transform: translate(4px, 3px) scale(0.68, 0.58);
-  }
-
-  100% {
+  to {
     opacity: 0;
-    filter: blur(7px);
-    transform: translate(8px, 5px) scale(0.05);
+    transform: translate3d(6px, 5px, 0) scale3d(0.78, 0.78, 1);
   }
 }
 
 @keyframes improvement-panel-suck {
-  0% {
+  from {
     opacity: 1;
-    filter: blur(0);
-    transform: translate(0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
   }
 
-  48% {
-    opacity: 0.7;
-    filter: blur(1px);
-    transform: translate(-4px, 3px) scale(0.68, 0.58);
-  }
-
-  100% {
+  to {
     opacity: 0;
-    filter: blur(7px);
-    transform: translate(-8px, 5px) scale(0.05);
+    transform: translate3d(-6px, 5px, 0) scale3d(0.78, 0.78, 1);
   }
 }
 
@@ -135,22 +121,14 @@
 }
 
 @keyframes summary-panel-suck {
-  0% {
+  from {
     opacity: 1;
-    filter: blur(0);
-    transform: translate(0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
   }
 
-  45% {
-    opacity: 0.72;
-    filter: blur(1px);
-    transform: translate(8px, -6px) scale(0.72, 0.64);
-  }
-
-  100% {
+  to {
     opacity: 0;
-    filter: blur(8px);
-    transform: translate(18px, -16px) scale(0.04);
+    transform: translate3d(10px, -8px, 0) scale3d(0.78, 0.78, 1);
   }
 }
 
