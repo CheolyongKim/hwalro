@@ -134,7 +134,9 @@ function ReportListPage() {
       await reportApi.retryAiDraft(reportId);
       await loadReports(false);
     } catch (requestError) {
-      setActionError(getReportErrorMessage(requestError, 'AI 보고서 생성을 재시도하지 못했습니다.'));
+      setActionError(
+        getReportErrorMessage(requestError, 'AI 보고서 생성을 재시도하지 못했습니다.'),
+      );
     } finally {
       setRetryingId(null);
     }
@@ -283,7 +285,9 @@ function ReportListPage() {
                             </Link>
                           ) : (
                             <div aria-disabled="true">
-                              <span className="block text-sm font-bold text-ink">{report.title}</span>
+                              <span className="block text-sm font-bold text-ink">
+                                {report.title}
+                              </span>
                               <span className="mt-1 block text-xs tabular-nums text-text-muted">
                                 {isAiReportGenerating(report.status)
                                   ? 'AI가 보고서 초안을 작성하고 있습니다.'
@@ -401,7 +405,12 @@ function ReportListPage() {
         size="sm"
         footer={
           <>
-            <Button type="button" variant="secondary" onClick={closeDeleteModal} disabled={deletingId !== null}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={closeDeleteModal}
+              disabled={deletingId !== null}
+            >
               취소
             </Button>
             <Button
@@ -416,10 +425,14 @@ function ReportListPage() {
         }
       >
         <p className="text-sm leading-6 text-text-strong">
-          <span className="font-bold text-ink">{deleteTarget?.title}</span> 보고서를 삭제하시겠습니까?
+          <span className="font-bold text-ink">{deleteTarget?.title}</span> 보고서를
+          삭제하시겠습니까?
         </p>
         {deleteError && (
-          <p role="alert" className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-strong">
+          <p
+            role="alert"
+            className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-strong"
+          >
             {deleteError}
           </p>
         )}
