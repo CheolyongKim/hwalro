@@ -109,4 +109,29 @@
         WHERE id = #{id}
     </delete>
 
+    <insert id="insertAttachedLaws">
+        INSERT INTO risk_attached_laws (risk_id, law_serial_number, law_article_number)
+        VALUES
+        <foreach collection="attachedLaws" item="law" separator=",">
+            (#{riskId}, #{law.lawSerialNumber}, #{law.lawArticleNumber})
+        </foreach>
+    </insert>
+
+    <delete id="deleteAttachedLawsByRiskId">
+        DELETE FROM risk_attached_laws
+        WHERE risk_id = #{riskId}
+    </delete>
+
+    <select id="findAttachedLawsByRiskIds" resultType="com.hwalro.regulation.risk.dto.RiskAttachedLaw">
+        SELECT risk_id,
+               law_serial_number,
+               law_article_number
+        FROM risk_attached_laws
+        WHERE risk_id IN
+        <foreach collection="riskIds" item="riskId" open="(" separator="," close=")">
+            #{riskId}
+        </foreach>
+        ORDER BY id
+    </select>
+
 </mapper>

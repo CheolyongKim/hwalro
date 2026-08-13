@@ -957,3 +957,48 @@
     left: 14px;
   }
 }
+
+.zone-editor .law-attach-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.zone-editor .law-attach-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+}
+.zone-editor div.law-attach-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+  width: 100%;
+}
+.zone-editor button.law-attach-button {
+  background: var(--color-white);
+  color: var(--color-text-strong);
+  border: 1px solid var(--color-line-strong);
+}
+.zone-editor button.law-attach-button:not(:disabled):hover {
+  background: var(--color-surface);
+  transform: none;
+}
+.zone-editor button.law-attach-button:not(:disabled):active {
+  background: var(--color-surface);
+  transform: none;
+}
+.zone-editor button[aria-label='첨부 조문 제거'] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.zone-editor button[aria-label='첨부 조문 제거']:not(:disabled):hover {
+  background: var(--color-surface);
+  transform: none;
+}

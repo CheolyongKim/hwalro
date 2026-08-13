@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, ErrorState, Field, Input, Select, Skeleton, Textarea } from '../../components/ui';
+import { AttachedLawChipList } from '../../features/risks/components/AttachedLawChipList';
+import LawArticlePickerModal from '../../features/risks/components/LawArticlePickerModal';
 import { riskApi } from '../../features/risks/api/riskApi';
 import { RiskZonePreview } from '../../features/risks/components/RiskZonePreview';
 import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../features/risks/constants/riskOptions';
@@ -21,13 +23,19 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
     setStatus,
     description,
     setDescription,
+    attachedLaws,
+    setAttachedLaws,
+    removeAttachedLaw,
     toUpdateRequest,
   } = useRiskForm({
     title: risk.title,
     severity: risk.severity,
     status: risk.status,
     description: risk.description ?? '',
+    attachedLaws: risk.attachedLaws,
   });
+
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const updateMutation = useUpdateRisk();
   const deleteMutation = useDeleteRisk();
@@ -128,6 +136,18 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
             onChange={(event) => setDescription(event.target.value)}
           />
         </Field>
+        <section className="space-y-2" aria-label="법령 첨부">
+          <span className="block text-sm font-bold text-text-strong">법령 첨부</span>
+          {attachedLaws.length > 0 && (
+            <AttachedLawChipList
+              refs={attachedLaws}
+              onRemove={(ref) => removeAttachedLaw(ref.lawSerialNumber, ref.lawArticleNumber)}
+            />
+          )}
+          <Button type="button" variant="secondary" size="sm" onClick={() => setPickerOpen(true)}>
+            + 법령 첨부
+          </Button>
+        </section>
       </div>
 
       {zoneBounds && (
@@ -189,6 +209,17 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
           {deleteMutation.isPending ? '삭제 중...' : '삭제'}
         </Button>
       </div>
+      {pickerOpen && (
+        <LawArticlePickerModal
+          open
+          onClose={() => setPickerOpen(false)}
+          selected={attachedLaws}
+          onConfirm={(refs) => {
+            setAttachedLaws(refs);
+            setPickerOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

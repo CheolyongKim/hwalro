@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { RegulationDetailPanel } from './regulations/RegulationDetailPanel';
 import { RegulationSearchResults } from './regulations/RegulationSearchResults';
 import {
@@ -18,6 +19,9 @@ async function request<T>(path: string): Promise<T> {
 }
 
 function RegulationsPage() {
+  const [searchParams] = useSearchParams();
+  const urlSerialNumber = searchParams.get('serialNumber');
+  const urlQuery = searchParams.get('query') ?? '';
   const [query, setQuery] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
   const [items, setItems] = useState<RegulationSummary[]>([]);
@@ -68,7 +72,12 @@ function RegulationsPage() {
   function selectLawById(lawId: string) {
     void selectDetail(`/api/regulations/by-law-id/${lawId}`);
   }
-  async function loadRegulations(nextPage: number, replace: boolean, searchQuery: string) {
+  async function loadRegulations(
+    nextPage: number,
+    replace: boolean,
+    searchQuery: string,
+    initialSerialNumber = '',
+  ) {
     const requestId = ++latestListRequestId.current;
     setListLoading(true);
     setListError('');
@@ -81,7 +90,13 @@ function RegulationsPage() {
       setPage(result.page);
       setTotalCount(result.totalCount);
       setHasNext(result.hasNext);
-      if (replace && result.items[0]) selectLaw(result.items[0].serialNumber);
+      if (replace && result.items[0]) {
+        if (initialSerialNumber) {
+          selectLaw(initialSerialNumber);
+        } else {
+          selectLaw(result.items[0].serialNumber);
+        }
+      }
     } catch (error) {
       if (requestId !== latestListRequestId.current) return;
       setListError(error instanceof Error ? error.message : '법령 목록을 불러오지 못했습니다.');
@@ -94,11 +109,17 @@ function RegulationsPage() {
     }
   }
   useEffect(() => {
+    if (urlSerialNumber) {
+      setQuery(urlQuery);
+      setActiveQuery(urlQuery);
+      void loadRegulations(1, true, urlQuery, urlSerialNumber);
+      return;
+    }
     if (!hasLoadedInitialList.current) {
       hasLoadedInitialList.current = true;
       void loadRegulations(1, true, '');
     }
-  }, []);
+  }, [urlQuery, urlSerialNumber]);
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextQuery = query.trim();

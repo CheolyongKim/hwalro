@@ -1,6 +1,7 @@
 package com.hwalro.regulation.risk.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record RiskResponse(
         Long id,
@@ -14,4 +15,5 @@ public record RiskResponse(
         Double endY,
         String severity,
         String status,
-        LocalDateTime createdAt) {}
+        LocalDateTime createdAt,
+        List<AttachedLawRef> attachedLaws) {}

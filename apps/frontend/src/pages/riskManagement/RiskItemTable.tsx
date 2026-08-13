@@ -60,7 +60,14 @@ function RiskItemTable({
                   isSelected ? 'bg-primary-soft' : 'bg-white hover:bg-primary-soft/35'
                 }`}
               >
-                <span className="text-sm font-bold text-ink">{item.title}</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-bold text-ink">{item.title}</span>
+                  {item.attachedLaws.length > 0 && (
+                    <Badge tone="primary" className="shrink-0">
+                      법령 {item.attachedLaws.length}건
+                    </Badge>
+                  )}
+                </div>
                 <Badge tone={SEVERITY_TONES[item.severity] ?? 'neutral'}>{item.severity}</Badge>
                 <span className="text-sm tabular-nums text-text-strong">
                   {item.assigneeId ?? '-'}

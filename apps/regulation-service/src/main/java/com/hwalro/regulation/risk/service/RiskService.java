@@ -5,6 +5,8 @@ import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.exception.SimulationServiceException;
 import com.hwalro.regulation.risk.client.RiskDrawingContextClient;
 import com.hwalro.regulation.risk.domain.Risk;
+import com.hwalro.regulation.risk.dto.AttachedLawRef;
+import com.hwalro.regulation.risk.dto.RiskAttachedLaw;
 import com.hwalro.regulation.risk.dto.RiskCreateRequest;
 import com.hwalro.regulation.risk.dto.RiskDrawingContextResponse;
 import com.hwalro.regulation.risk.dto.RiskListResponse;
@@ -12,7 +14,10 @@ import com.hwalro.regulation.risk.dto.RiskResponse;
 import com.hwalro.regulation.risk.dto.RiskUpdateRequest;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import com.hwalro.regulation.risk.mapper.RiskMapper;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,6 +28,7 @@ public class RiskService {
     private static final int MAX_PAGE = 100_000;
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_DESCRIPTION_LENGTH = 10_000;
+    private static final int MAX_ATTACHED_LAWS = 10;
     private static final Set<String> ALLOWED_SEVERITIES = Set.of("높음", "보통", "낮음");
     private static final Set<String> ALLOWED_STATUSES = Set.of("임시저장", "조치 중", "완료");
     private static final String ROLE_ADMIN = "ADMIN";
@@ -42,7 +48,11 @@ public class RiskService {
         Long assigneeFilter = resolveAssigneeFilter(user);
         long totalCount = riskMapper.count(assigneeFilter);
         List<Risk> risks = riskMapper.findPage((page - 1) * size, size, assigneeFilter);
-        List<RiskResponse> items = risks.stream().map(this::toResponse).toList();
+        Map<Long, List<AttachedLawRef>> attachedLawsByRiskId =
+                fetchAttachedLawsByRiskIds(risks.stream().map(Risk::getId).toList());
+        List<RiskResponse> items = risks.stream()
+                .map(risk -> toResponse(risk, attachedLawsByRiskId.getOrDefault(risk.getId(), List.of())))
+                .toList();
         return new RiskListResponse((int) totalCount, page, size, page * size < totalCount, items);
     }
 
@@ -51,8 +61,11 @@ public class RiskService {
             throw new IllegalArgumentException("시뮬레이션 결과 ID는 양수여야 합니다.");
         }
         Long assigneeFilter = resolveAssigneeFilter(user);
-        return riskMapper.findBySimulationResultId(simulationResultId, assigneeFilter).stream()
-                .map(this::toResponse)
+        List<Risk> risks = riskMapper.findBySimulationResultId(simulationResultId, assigneeFilter);
+        Map<Long, List<AttachedLawRef>> attachedLawsByRiskId =
+                fetchAttachedLawsByRiskIds(risks.stream().map(Risk::getId).toList());
+        return risks.stream()
+                .map(risk -> toResponse(risk, attachedLawsByRiskId.getOrDefault(risk.getId(), List.of())))
                 .toList();
     }
 
@@ -73,13 +86,15 @@ public class RiskService {
     public RiskResponse get(Long id, JwtUser user) {
         Risk risk = findByIdOrThrow(id);
         requireAccessible(risk, user);
-        return toResponse(risk);
+        return toResponse(
+                risk, fetchAttachedLawsByRiskIds(List.of(risk.getId())).getOrDefault(risk.getId(), List.of()));
     }
 
     public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
         validateSimulationResultId(request.simulationResultId());
         validateGeometry(request);
+        List<AttachedLawRef> attachedLaws = validateAttachedLaws(request.attachedLaws());
         Risk risk = new Risk();
         risk.setAssigneeId(assigneeId);
         risk.setSimulationResultId(request.simulationResultId());
@@ -92,11 +107,15 @@ public class RiskService {
         risk.setSeverity(request.severity().trim());
         risk.setStatus(request.status().trim());
         riskMapper.insert(risk);
-        return toResponse(findByIdOrThrow(risk.getId()));
+        if (!attachedLaws.isEmpty()) {
+            riskMapper.insertAttachedLaws(risk.getId(), attachedLaws);
+        }
+        return toResponse(findByIdOrThrow(risk.getId()), attachedLaws);
     }
 
     public RiskResponse update(Long id, RiskUpdateRequest request, JwtUser user) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
+        List<AttachedLawRef> attachedLaws = validateAttachedLaws(request.attachedLaws());
         Risk risk = findByIdOrThrow(id);
         requireAccessible(risk, user);
         risk.setTitle(request.title().trim());
@@ -104,7 +123,11 @@ public class RiskService {
         risk.setSeverity(request.severity().trim());
         risk.setStatus(request.status().trim());
         riskMapper.update(risk);
-        return toResponse(risk);
+        riskMapper.deleteAttachedLawsByRiskId(id);
+        if (!attachedLaws.isEmpty()) {
+            riskMapper.insertAttachedLaws(id, attachedLaws);
+        }
+        return toResponse(risk, attachedLaws);
     }
 
     public void delete(Long id, JwtUser user) {
@@ -145,7 +168,7 @@ public class RiskService {
         return risk;
     }
 
-    private RiskResponse toResponse(Risk risk) {
+    private RiskResponse toResponse(Risk risk, List<AttachedLawRef> attachedLaws) {
         return new RiskResponse(
                 risk.getId(),
                 risk.getSimulationResultId(),
@@ -158,7 +181,43 @@ public class RiskService {
                 risk.getEndY(),
                 risk.getSeverity(),
                 risk.getStatus(),
-                risk.getCreatedAt());
+                risk.getCreatedAt(),
+                attachedLaws);
+    }
+
+    private Map<Long, List<AttachedLawRef>> fetchAttachedLawsByRiskIds(List<Long> riskIds) {
+        if (riskIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<AttachedLawRef>> result = new LinkedHashMap<>();
+        for (RiskAttachedLaw attachedLaw : riskMapper.findAttachedLawsByRiskIds(riskIds)) {
+            result.computeIfAbsent(attachedLaw.riskId(), key -> new ArrayList<>())
+                    .add(new AttachedLawRef(attachedLaw.lawSerialNumber(), attachedLaw.lawArticleNumber()));
+        }
+        return result;
+    }
+
+    private List<AttachedLawRef> validateAttachedLaws(List<AttachedLawRef> attachedLaws) {
+        if (attachedLaws == null) {
+            return List.of();
+        }
+        Map<String, AttachedLawRef> unique = new LinkedHashMap<>();
+        for (AttachedLawRef ref : attachedLaws) {
+            String lawSerialNumber =
+                    ref.lawSerialNumber() == null ? null : ref.lawSerialNumber().trim();
+            String lawArticleNumber = ref.lawArticleNumber() == null
+                    ? null
+                    : ref.lawArticleNumber().trim();
+            if (!StringUtils.hasText(lawSerialNumber) || !StringUtils.hasText(lawArticleNumber)) {
+                throw new IllegalArgumentException("법령 일련번호와 조문 번호를 입력해 주세요.");
+            }
+            unique.putIfAbsent(
+                    lawSerialNumber + "|" + lawArticleNumber, new AttachedLawRef(lawSerialNumber, lawArticleNumber));
+        }
+        if (unique.size() > MAX_ATTACHED_LAWS) {
+            throw new IllegalArgumentException("첨부할 법령 조문은 최대 10개까지 가능합니다.");
+        }
+        return List.copyOf(unique.values());
     }
 
     private void validateSimulationResultId(Long simulationResultId) {
