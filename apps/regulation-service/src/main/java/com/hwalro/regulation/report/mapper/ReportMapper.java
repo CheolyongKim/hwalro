@@ -3,6 +3,7 @@ package com.hwalro.regulation.report.mapper;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
 import com.hwalro.regulation.report.dto.ReportDraftInsert;
 import com.hwalro.regulation.report.dto.ReportListItem;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -22,6 +23,8 @@ public interface ReportMapper {
 
     List<Long> findSimulationResultIds(@Param("reportId") Long reportId);
 
+    String findAiGenerationRequest(@Param("reportId") Long reportId);
+
     int updateReport(
             @Param("id") Long id,
             @Param("title") String title,
@@ -29,6 +32,16 @@ public interface ReportMapper {
             @Param("status") String status);
 
     int startEditing(@Param("id") Long id);
+
+    int completeAiGeneration(@Param("id") Long id, @Param("title") String title, @Param("content") String content);
+
+    int failAiGeneration(@Param("id") Long id);
+
+    int restartAiGeneration(@Param("id") Long id);
+
+    int failStaleAiGenerations(@Param("cutoff") LocalDateTime cutoff);
+
+    int deleteById(@Param("id") Long id);
 
     int insertDraft(ReportDraftInsert draft);
 

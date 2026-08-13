@@ -1,5 +1,6 @@
 import { apiClient } from '../../../api/client';
 import type {
+  AiReportDraftJobResponse,
   ReportDetailResponse,
   ReportListResponse,
   ReportStatus,
@@ -32,8 +33,13 @@ export const reportApi = {
     apiClient
       .put<ReportDetailResponse>(`/api/reports/${id}`, request)
       .then((response) => response.data),
+  delete: (id: number) => apiClient.delete<void>(`/api/reports/${id}`),
   createAiDraft: (request: AiReportDraftCreateRequest) =>
     apiClient
-      .post<ReportDetailResponse>('/api/reports/ai-drafts', request)
+      .post<AiReportDraftJobResponse>('/api/reports/ai-drafts', request)
+      .then((response) => response.data),
+  retryAiDraft: (id: number) =>
+    apiClient
+      .post<AiReportDraftJobResponse>(`/api/reports/${id}/ai-draft/retry`)
       .then((response) => response.data),
 };

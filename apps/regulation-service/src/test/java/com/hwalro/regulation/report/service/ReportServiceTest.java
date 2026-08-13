@@ -14,11 +14,13 @@ import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.client.SimulationReportVisualContextClient;
+import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
 import com.hwalro.regulation.report.dto.ReportContent;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
 import com.hwalro.regulation.report.dto.ReportDraftInsert;
 import com.hwalro.regulation.report.dto.ReportListItem;
 import com.hwalro.regulation.report.dto.ReportListResponse;
+import com.hwalro.regulation.report.dto.ReportUpdateRequest;
 import com.hwalro.regulation.report.mapper.ReportMapper;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -69,7 +71,7 @@ class ReportServiceTest {
 
         assertThatThrownBy(() -> reportService.getReports(operator, "Bearer token", null, "보류", 1, 5))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("status must be one of: 초안, 작성 중, 완료.");
+                .hasMessage("status must be one of: AI 작성 중, 생성 실패, 초안, 작성 중, 완료.");
     }
 
     @Test
@@ -128,6 +130,64 @@ class ReportServiceTest {
     }
 
     @Test
+    void createsAiGenerationJobWithStoredSelection() {
+        ReportService reportService = reportService();
+        AiReportDraftCreateRequest request = new AiReportDraftCreateRequest(20L, List.of(10L));
+        doAnswer(invocation -> {
+                    invocation.<ReportDraftInsert>getArgument(0).setId(30L);
+                    return 1;
+                })
+                .when(reportMapper)
+                .insertDraft(org.mockito.ArgumentMatchers.any());
+        var response = reportService.createAiGeneration(7L, request);
+
+        assertThat(response.id()).isEqualTo(30L);
+        assertThat(response.status()).isEqualTo("AI 작성 중");
+        ArgumentCaptor<ReportDraftInsert> insertCaptor = ArgumentCaptor.forClass(ReportDraftInsert.class);
+        verify(reportMapper).insertDraft(insertCaptor.capture());
+        assertThat(insertCaptor.getValue().getStatus()).isEqualTo("AI 작성 중");
+        assertThat(insertCaptor.getValue().getGenerationRequest()).contains("sourceSimulationResultId");
+        verify(reportMapper).insertSimulationLinks(30L, List.of(20L, 10L));
+    }
+
+    @Test
+    void restartsFailedAiGenerationWithStoredSelection() {
+        ReportService reportService = reportService();
+        LocalDateTime now = LocalDateTime.now();
+        when(reportMapper.findDetailById(30L))
+                .thenReturn(new ReportDetailRow(30L, 7L, "AI 안전 검토 보고서", "{}", "생성 실패", now, now));
+        when(reportMapper.findAiGenerationRequest(30L))
+                .thenReturn("{\"sourceSimulationResultId\":20,\"comparisonSimulationResultIds\":[10]}");
+        when(reportMapper.restartAiGeneration(30L)).thenReturn(1);
+
+        var request = reportService.restartAiGeneration(new JwtUser(7L, Set.of("OPERATOR")), 30L);
+
+        assertThat(request.sourceSimulationResultId()).isEqualTo(20L);
+        assertThat(request.comparisonSimulationResultIds()).containsExactly(10L);
+        verify(reportMapper).restartAiGeneration(30L);
+    }
+
+    @Test
+    void rejectsUpdatesUntilAiGenerationCompletes() {
+        ReportService reportService = reportService();
+        LocalDateTime now = LocalDateTime.now();
+        when(reportMapper.findDetailById(30L))
+                .thenReturn(new ReportDetailRow(30L, 7L, "AI 안전 검토 보고서", "{}", "AI 작성 중", now, now));
+        ReportUpdateRequest request = new ReportUpdateRequest("변경 제목", new ReportContent("개요", "분석", "개선"), "작성 중");
+
+        assertThatThrownBy(() -> reportService.updateReport(new JwtUser(7L, Set.of("OPERATOR")), 30L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("AI 보고서 초안 생성이 완료되지 않았습니다.");
+
+        verify(reportMapper, never())
+                .updateReport(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
     void rejectsInvalidDraftTitleAndSimulationResultIdsBeforeInsert() {
         ReportService reportService = reportService();
         ReportContent content = new ReportContent("개요", "분석", "개선");
@@ -169,6 +229,32 @@ class ReportServiceTest {
                 .isInstanceOf(ForbiddenException.class);
 
         verifyNoInteractions(visualContextClient);
+    }
+
+    @Test
+    void deletesOwnedReport() {
+        ReportService reportService = reportService();
+        LocalDateTime now = LocalDateTime.now();
+        when(reportMapper.findDetailById(30L))
+                .thenReturn(new ReportDetailRow(30L, 7L, "내 보고서", "{}", "작성 중", now, now));
+        when(reportMapper.deleteById(30L)).thenReturn(1);
+
+        reportService.deleteReport(new JwtUser(7L, Set.of("OPERATOR")), 30L);
+
+        verify(reportMapper).deleteById(30L);
+    }
+
+    @Test
+    void rejectsDeletingAnotherOperatorsReport() {
+        ReportService reportService = reportService();
+        LocalDateTime now = LocalDateTime.now();
+        when(reportMapper.findDetailById(30L))
+                .thenReturn(new ReportDetailRow(30L, 8L, "다른 사용자 보고서", "{}", "완료", now, now));
+
+        assertThatThrownBy(() -> reportService.deleteReport(new JwtUser(7L, Set.of("OPERATOR")), 30L))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(reportMapper, never()).deleteById(30L);
     }
 
     private ReportService reportService() {

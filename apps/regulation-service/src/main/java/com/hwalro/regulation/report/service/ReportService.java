@@ -7,6 +7,8 @@ import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.ReportStatus;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.client.SimulationReportVisualContextClient;
+import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
+import com.hwalro.regulation.report.dto.AiReportDraftJobResponse;
 import com.hwalro.regulation.report.dto.ReportContent;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
@@ -17,6 +19,7 @@ import com.hwalro.regulation.report.dto.ReportUpdateRequest;
 import com.hwalro.regulation.report.dto.ReportVisualContextResponse;
 import com.hwalro.regulation.report.exception.ReportNotFoundException;
 import com.hwalro.regulation.report.mapper.ReportMapper;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +83,10 @@ public class ReportService {
     public ReportDetailResponse getReport(JwtUser user, Long reportId) {
         ReportDetailRow report = findReport(reportId);
         requireAccessible(user, report);
+        if (ReportStatus.AI_IN_PROGRESS.value().equals(report.status())
+                || ReportStatus.GENERATION_FAILED.value().equals(report.status())) {
+            throw new IllegalArgumentException("AI 보고서 초안 생성이 완료되지 않았습니다.");
+        }
         if (ReportStatus.DRAFT.value().equals(report.status())) {
             reportMapper.startEditing(reportId);
             report = findReport(reportId);
@@ -90,10 +97,24 @@ public class ReportService {
     public ReportDetailResponse updateReport(JwtUser user, Long reportId, ReportUpdateRequest request) {
         ReportDetailRow report = findReport(reportId);
         requireAccessible(user, report);
+        requireGeneratedReport(report);
         validateUpdateRequest(request);
         String updatedStatus = requireEditableStatus(request.status());
-        reportMapper.updateReport(reportId, request.title().trim(), serializeContent(request.content()), updatedStatus);
+        if (reportMapper.updateReport(
+                        reportId, request.title().trim(), serializeContent(request.content()), updatedStatus)
+                != 1) {
+            throw new IllegalStateException("보고서 상태가 변경되어 저장할 수 없습니다.");
+        }
         return getReport(user, reportId);
+    }
+
+    @Transactional
+    public void deleteReport(JwtUser user, Long reportId) {
+        ReportDetailRow report = findReport(reportId);
+        requireAccessible(user, report);
+        if (reportMapper.deleteById(reportId) != 1) {
+            throw new ReportNotFoundException(reportId);
+        }
     }
 
     public List<ReportVisualContextResponse> getVisualContexts(JwtUser user, Long reportId, String authorization) {
@@ -138,6 +159,66 @@ public class ReportService {
         return toDetailResponse(findReport(draft.getId()));
     }
 
+    @Transactional
+    public AiReportDraftJobResponse createAiGeneration(Long authorId, AiReportDraftCreateRequest request) {
+        if (authorId == null || authorId <= 0 || request == null) {
+            throw new IllegalArgumentException("AI 보고서 생성 정보가 올바르지 않습니다.");
+        }
+        List<Long> simulationResultIds = generationResultIds(request);
+        ReportContent emptyContent = new ReportContent("", "", "");
+        ReportDraftInsert draft = new ReportDraftInsert(
+                authorId,
+                "AI 안전 검토 보고서",
+                serializeContent(emptyContent),
+                ReportStatus.AI_IN_PROGRESS.value(),
+                serializeGenerationRequest(request));
+        reportMapper.insertDraft(draft);
+        if (draft.getId() == null) {
+            throw new IllegalStateException("AI 보고서 작업 ID를 생성하지 못했습니다.");
+        }
+        reportMapper.insertSimulationLinks(draft.getId(), simulationResultIds);
+        return new AiReportDraftJobResponse(draft.getId(), ReportStatus.AI_IN_PROGRESS.value());
+    }
+
+    @Transactional
+    public AiReportDraftCreateRequest restartAiGeneration(JwtUser user, Long reportId) {
+        ReportDetailRow report = findReport(reportId);
+        requireAccessible(user, report);
+        if (!ReportStatus.GENERATION_FAILED.value().equals(report.status())) {
+            throw new IllegalArgumentException("생성 실패한 AI 보고서만 재시도할 수 있습니다.");
+        }
+        AiReportDraftCreateRequest request =
+                deserializeGenerationRequest(reportMapper.findAiGenerationRequest(reportId));
+        if (reportMapper.restartAiGeneration(reportId) != 1) {
+            throw new IllegalStateException("AI 보고서 생성 상태를 변경하지 못했습니다.");
+        }
+        return request;
+    }
+
+    @Transactional
+    public void completeAiGeneration(Long reportId, String title, ReportContent content) {
+        if (reportId == null
+                || reportId <= 0
+                || !StringUtils.hasText(title)
+                || title.trim().length() > 200
+                || content == null) {
+            throw new IllegalArgumentException("AI 보고서 초안 저장 정보가 올바르지 않습니다.");
+        }
+        if (reportMapper.completeAiGeneration(reportId, title.trim(), serializeContent(content)) != 1) {
+            throw new IllegalStateException("AI 보고서 초안 상태를 변경하지 못했습니다.");
+        }
+    }
+
+    @Transactional
+    public void failAiGeneration(Long reportId) {
+        reportMapper.failAiGeneration(reportId);
+    }
+
+    @Transactional
+    public int failStaleAiGenerations(LocalDateTime cutoff) {
+        return reportMapper.failStaleAiGenerations(cutoff);
+    }
+
     private Long resolveAuthorId(JwtUser user) {
         if (user.roles().contains("SAFETY_REVIEWER") || user.roles().contains("ADMIN")) {
             return null;
@@ -164,6 +245,13 @@ public class ReportService {
             return;
         }
         throw new ForbiddenException("이 보고서에 접근할 권한이 없습니다.");
+    }
+
+    private void requireGeneratedReport(ReportDetailRow report) {
+        if (ReportStatus.AI_IN_PROGRESS.value().equals(report.status())
+                || ReportStatus.GENERATION_FAILED.value().equals(report.status())) {
+            throw new IllegalArgumentException("AI 보고서 초안 생성이 완료되지 않았습니다.");
+        }
     }
 
     private void validateUpdateRequest(ReportUpdateRequest request) {
@@ -206,6 +294,35 @@ public class ReportService {
             return objectMapper.readValue(content, ReportContent.class);
         } catch (JsonProcessingException exception) {
             return new ReportContent(content, "", "");
+        }
+    }
+
+    private List<Long> generationResultIds(AiReportDraftCreateRequest request) {
+        List<Long> comparisons = request.comparisonSimulationResultIds() == null
+                ? List.of()
+                : List.copyOf(request.comparisonSimulationResultIds());
+        java.util.ArrayList<Long> resultIds = new java.util.ArrayList<>();
+        resultIds.add(request.sourceSimulationResultId());
+        resultIds.addAll(comparisons);
+        return List.copyOf(resultIds);
+    }
+
+    private String serializeGenerationRequest(AiReportDraftCreateRequest request) {
+        try {
+            return objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("AI 보고서 생성 설정을 저장할 수 없습니다.", exception);
+        }
+    }
+
+    private AiReportDraftCreateRequest deserializeGenerationRequest(String request) {
+        if (!StringUtils.hasText(request)) {
+            throw new IllegalStateException("저장된 AI 보고서 생성 설정이 없습니다.");
+        }
+        try {
+            return objectMapper.readValue(request, AiReportDraftCreateRequest.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("저장된 AI 보고서 생성 설정을 읽을 수 없습니다.", exception);
         }
     }
 

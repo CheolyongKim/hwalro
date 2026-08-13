@@ -4,6 +4,7 @@ import com.hwalro.regulation.common.jwt.JwtAuthInterceptor;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.common.jwt.RequireRole;
 import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
+import com.hwalro.regulation.report.dto.AiReportDraftJobResponse;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.dto.ReportUpdateRequest;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,7 +56,7 @@ public class ReportController {
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
             @Parameter(hidden = true) @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @Parameter(description = "보고서 제목 검색어") @RequestParam(required = false) String query,
-            @Parameter(description = "상태: 초안, 작성 중, 완료") @RequestParam(required = false) String status,
+            @Parameter(description = "상태: AI 작성 중, 생성 실패, 초안, 작성 중, 완료") @RequestParam(required = false) String status,
             @Parameter(description = "1부터 시작하는 페이지 번호") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "페이지당 조회 건수") @RequestParam(defaultValue = "5") int size) {
         return reportService.getReports(user, authorization, query, status, page, size);
@@ -86,13 +88,32 @@ public class ReportController {
         return reportService.updateReport(user, id, request);
     }
 
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "보고서 삭제", description = "접근 권한이 있는 보고서와 연결 정보를 삭제합니다.")
+    public void deleteReport(
+            @PathVariable Long id,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        reportService.deleteReport(user, id);
+    }
+
     @PostMapping("/ai-drafts")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "AI 보고서 초안 생성", description = "현재 시뮬레이션과 비교 결과를 해석한 초안을 생성하고 저장합니다.")
-    public ReportDetailResponse createAiDraft(
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(summary = "AI 보고서 초안 생성", description = "AI 초안 생성 작업을 등록하고 즉시 반환합니다.")
+    public AiReportDraftJobResponse createAiDraft(
             @RequestBody AiReportDraftCreateRequest request,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
             @Parameter(hidden = true) @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
         return aiReportDraftService.create(user, authorization, request);
+    }
+
+    @PostMapping("/{id}/ai-draft/retry")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(summary = "AI 보고서 초안 생성 재시도", description = "생성 실패한 보고서를 동일한 시뮬레이션 설정으로 다시 생성합니다.")
+    public AiReportDraftJobResponse retryAiDraft(
+            @PathVariable Long id,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @Parameter(hidden = true) @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return aiReportDraftService.retry(user, authorization, id);
     }
 }

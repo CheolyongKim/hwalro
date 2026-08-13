@@ -213,12 +213,12 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     setReportGenerating(true);
     setReportError(null);
     try {
-      const report = await reportApi.createAiDraft({
+      await reportApi.createAiDraft({
         sourceSimulationResultId: result.simulationResultId,
         comparisonSimulationResultIds: comparisonResultIds,
       });
       setReportOpen(false);
-      navigate(`/reports/${report.id}`);
+      navigate('/reports');
     } catch (error) {
       setReportError(getReportDraftErrorMessage(error));
     } finally {

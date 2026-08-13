@@ -55,12 +55,19 @@
         ORDER BY simulation_result_id
     </select>
 
+    <select id="findAiGenerationRequest" resultType="string">
+        SELECT generation_request
+        FROM reports
+        WHERE id = #{reportId}
+    </select>
+
     <update id="updateReport">
         UPDATE reports
         SET title = #{title},
             content = #{content},
             status = #{status}
         WHERE id = #{id}
+          AND status IN ('초안', '작성 중', '완료')
     </update>
 
     <update id="startEditing">
@@ -70,9 +77,44 @@
           AND status = '초안'
     </update>
 
+    <update id="completeAiGeneration">
+        UPDATE reports
+        SET title = #{title},
+            content = #{content},
+            status = '초안'
+        WHERE id = #{id}
+          AND status = 'AI 작성 중'
+    </update>
+
+    <update id="failAiGeneration">
+        UPDATE reports
+        SET status = '생성 실패'
+        WHERE id = #{id}
+          AND status = 'AI 작성 중'
+    </update>
+
+    <update id="restartAiGeneration">
+        UPDATE reports
+        SET status = 'AI 작성 중'
+        WHERE id = #{id}
+          AND status = '생성 실패'
+    </update>
+
+    <update id="failStaleAiGenerations">
+        UPDATE reports
+        SET status = '생성 실패'
+        WHERE status = 'AI 작성 중'
+          AND updated_at &lt; #{cutoff}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM reports
+        WHERE id = #{id}
+    </delete>
+
     <insert id="insertDraft" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO reports (author_id, title, content, status)
-        VALUES (#{authorId}, #{title}, #{content}, #{status})
+        INSERT INTO reports (author_id, title, content, status, generation_request)
+        VALUES (#{authorId}, #{title}, #{content}, #{status}, #{generationRequest})
     </insert>
 
     <insert id="insertSimulationLinks">
