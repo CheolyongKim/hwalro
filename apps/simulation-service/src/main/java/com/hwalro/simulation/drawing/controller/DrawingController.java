@@ -67,7 +67,10 @@ public class DrawingController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "도면 생성", description = "기본 도면 데이터를 포함한 새 도면을 생성합니다. 제목을 생략하면 기본 도면 이름이 사용됩니다.")
+    @Operation(
+            summary = "도면 생성",
+            description =
+                    "새 도면을 생성합니다. withDefaultData가 true이면 기본 도면 데이터를 포함하고, false이면 빈 도면으로 생성합니다. 제목을 생략하면 기본 도면 이름이 사용됩니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "도면 생성 성공"),
         @ApiResponse(responseCode = "400", description = "잘못된 요청")
@@ -76,6 +79,20 @@ public class DrawingController {
             @Parameter(description = "도면 생성 요청") @RequestBody DrawingCreateRequest request,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return drawingService.create(request, user.userId());
+    }
+
+    @PostMapping("/{id}/duplicate")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "도면 복제", description = "도면과 현재 버전의 배치 데이터를 복사해 새 도면을 만듭니다. 복제본 제목은 '원본 제목 복사본'으로 지정됩니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "도면 복제 성공"),
+        @ApiResponse(responseCode = "403", description = "접근 권한 없음"),
+        @ApiResponse(responseCode = "404", description = "도면을 찾을 수 없음")
+    })
+    public DrawingResponse duplicate(
+            @Parameter(description = "도면 ID") @PathVariable Long id,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return drawingService.duplicate(id, user);
     }
 
     @PutMapping("/{id}")
