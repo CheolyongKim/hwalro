@@ -12,6 +12,7 @@ export interface SimulationLine {
 }
 
 export interface SimulationRect extends SimulationLine {
+  id: number;
   rotation: number;
 }
 
