@@ -102,7 +102,11 @@ function RegulationsPage() {
     } finally {
       if (requestId === latestListRequestId.current) setListLoading(false);
     }
-    if (replace && requestId === latestListRequestId.current && (initialSerialNumber || firstSerialNumber)) {
+    if (
+      replace &&
+      requestId === latestListRequestId.current &&
+      (initialSerialNumber || firstSerialNumber)
+    ) {
       selectLaw(initialSerialNumber || firstSerialNumber);
     }
   }
