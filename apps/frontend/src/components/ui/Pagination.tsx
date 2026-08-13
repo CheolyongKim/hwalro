@@ -9,7 +9,7 @@ export interface PaginationProps {
 }
 
 const navButtonClassName =
-  'h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40';
+  'h-9 cursor-pointer rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40';
 
 function Pagination({
   page,
@@ -44,7 +44,7 @@ function Pagination({
           disabled={disabled}
           aria-current={pageNumber === safePage ? 'page' : undefined}
           aria-label={`${pageNumber}페이지`}
-          className={`h-9 min-w-9 rounded-lg px-2 text-sm font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
+          className={`h-9 min-w-9 cursor-pointer rounded-lg px-2 text-sm font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
             pageNumber === safePage
               ? 'bg-primary text-white'
               : 'border border-line text-text-strong hover:bg-surface'

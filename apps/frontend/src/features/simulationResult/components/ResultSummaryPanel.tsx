@@ -1,3 +1,4 @@
+import { CircleCheck } from 'lucide-react';
 import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { BOTTLENECK_DISPLAY_BATCH_SIZE } from '../utils/bottleneckDisplay';
@@ -90,7 +91,21 @@ export function ResultSummaryPanel({
           <strong>{evacuationProgress.rateLabel}</strong>
         </div>
         <h2>병목 분석</h2>
-        {bottlenecksVisible ? (
+        {!bottlenecksVisible ? (
+          <div className="bottleneck-analysis-locked" role="status">
+            <strong>병목 상세 분석 대기</strong>
+            <span>시뮬레이션을 끝까지 재생하거나 하단의 결과 보기를 눌러 확인하세요.</span>
+          </div>
+        ) : totalBottleneckCount === 0 ? (
+          <div className="bottleneck-analysis-empty" role="status">
+            <CircleCheck aria-hidden="true" />
+            <div>
+              <strong>감지된 병목 구간이 없습니다</strong>
+              <span>이번 결과에서는 기준 밀집도를 초과한 병목 구간이</span>
+              <span> 확인되지 않았습니다.</span>
+            </div>
+          </div>
+        ) : (
           <>
             <div id="bottleneck-list" className="bottleneck-list">
               {bottlenecks.map((item) => (
@@ -128,11 +143,6 @@ export function ResultSummaryPanel({
               </p>
             )}
           </>
-        ) : (
-          <div className="bottleneck-analysis-locked" role="status">
-            <strong>병목 상세 분석 대기</strong>
-            <span>시뮬레이션을 끝까지 재생하거나 하단의 결과 보기를 눌러 확인하세요.</span>
-          </div>
         )}
         {riskZones.length > 0 && (
           <section className="risk-zone-summary" aria-labelledby="risk-zone-summary-title">

@@ -204,7 +204,7 @@ function SimulationListPage() {
   };
 
   return (
-    <main className="bg-background [&_a[href]]:cursor-pointer [&_button:not(:disabled)]:cursor-pointer">
+    <main className="bg-background">
       <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
         <div className="border-b border-line pb-6">
           <PageHeader

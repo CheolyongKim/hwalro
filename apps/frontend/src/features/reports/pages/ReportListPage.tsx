@@ -320,7 +320,7 @@ function ReportListPage() {
                             onClick={() => openDeleteModal(report)}
                             disabled={deletingId !== null}
                             aria-label={`${report.title} 삭제`}
-                            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-text-muted outline-none transition hover:bg-danger-soft hover:text-danger-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-muted outline-none transition hover:bg-danger-soft hover:text-danger-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Trash2 aria-hidden="true" className="h-4 w-4" />
                           </button>

@@ -21,10 +21,13 @@ import {
   ConfirmDialog,
   EmptyState,
   ErrorState,
+  Pagination,
   Skeleton,
 } from '../components/ui';
 import type { BadgeTone } from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
+
+const PAGE_SIZE = 5;
 
 function getSummaryTone(needsAttention: boolean, status: InspectionStatus): BadgeTone {
   if (needsAttention) return 'danger';
@@ -40,6 +43,7 @@ function SafetyCheckHistoryPage() {
   const [area, setArea] = useState<InspectionArea | null>(null);
   const [template, setTemplate] = useState<ChecklistTemplate | null>(null);
   const [inspections, setInspections] = useState<InspectionHistory[]>([]);
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -49,6 +53,8 @@ function SafetyCheckHistoryPage() {
   const canManageTemplate =
     user?.roles.includes('ADMIN') || user?.roles.includes('SAFETY_REVIEWER');
   const canStartInspection = area?.active === true && template?.id != null;
+  const pageCount = Math.max(1, Math.ceil(inspections.length / PAGE_SIZE));
+  const visibleInspections = inspections.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     let active = true;
@@ -78,6 +84,12 @@ function SafetyCheckHistoryPage() {
       active = false;
     };
   }, [areaId]);
+
+  useEffect(() => {
+    if (!isLoading && !error && page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [error, isLoading, page, pageCount]);
 
   async function createInspection() {
     setIsCreating(true);
@@ -130,6 +142,7 @@ function SafetyCheckHistoryPage() {
                 size="lg"
                 onClick={() => navigate(`/safety-checklists/areas/${areaId}/template`)}
                 disabled={!area?.active}
+                className="cursor-pointer"
               >
                 점검 항목 관리
               </Button>
@@ -164,13 +177,10 @@ function SafetyCheckHistoryPage() {
       <Card padded={false} className="mt-5 overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-7">
           <h2 className="text-xl font-black text-ink">점검 이력</h2>
-          <p className="mt-1 text-sm text-text-muted">
-            총 <span className="tabular-nums">{inspections.length}</span>회
-          </p>
         </div>
         {isLoading ? (
           <div className="space-y-5 p-5 sm:p-7">
-            {[0, 1, 2].map((index) => (
+            {Array.from({ length: PAGE_SIZE }, (_, index) => (
               <div key={index} className="flex items-center justify-between gap-4">
                 <div className="space-y-2">
                   <Skeleton className="h-4 w-44" />
@@ -193,83 +203,97 @@ function SafetyCheckHistoryPage() {
             />
           </div>
         ) : (
-          <div className="divide-y divide-line">
-            {inspections.map((inspection) => {
-              const needsAttention = inspection.failCount > 0 || inspection.reviewRequiredCount > 0;
-              const inspectorName =
-                inspection.inspectorId === user?.id
-                  ? user.name
-                  : `점검자 #${inspection.inspectorId}`;
-              const canDelete =
-                inspection.status === 'DRAFT' &&
-                (inspection.inspectorId === user?.id || user?.roles.includes('ADMIN'));
-              const statusTone = inspection.status === 'COMPLETED' ? 'success' : 'warning';
-              const summaryTone = getSummaryTone(needsAttention, inspection.status);
-              return (
-                <div key={inspection.id} className="group relative">
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/safety-checklists/inspections/${inspection.id}`)}
-                    className="grid w-full gap-4 px-5 py-4 text-left transition hover:bg-primary-soft/30 sm:px-7 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
-                  >
-                    <div>
-                      <p className="font-black tabular-nums text-ink">
-                        {formatInspectionDate(inspection.createdAt)}
-                      </p>
-                      <p className="mt-1 text-xs tabular-nums text-text-muted">
-                        점검 #{inspection.id}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-text-muted">점검 담당자</p>
-                      <p className="mt-1 text-sm font-bold tabular-nums text-text-strong">
-                        {inspectorName}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-text-muted">진행률</p>
-                      <div className="mt-2 flex items-center gap-3">
-                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface">
-                          <div
-                            className="h-full rounded-full bg-primary"
-                            style={{
-                              width: `${inspection.totalItemCount === 0 ? 0 : (inspection.completedItemCount / inspection.totalItemCount) * 100}%`,
-                            }}
-                          />
-                        </div>
-                        <span className="text-xs font-bold tabular-nums text-text-strong">
-                          {inspection.completedItemCount}/{inspection.totalItemCount}
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      className={`flex flex-wrap items-center gap-2 md:justify-end ${canDelete ? 'pr-10' : ''}`}
-                    >
-                      <Badge tone={statusTone}>
-                        {inspection.status === 'COMPLETED' ? '점검 완료' : '작성 중'}
-                      </Badge>
-                      <Badge tone={summaryTone} className="tabular-nums">
-                        {getInspectionSummary(inspection)}
-                      </Badge>
-                      <ChevronRight aria-hidden="true" className="h-4 w-4 text-text-muted" />
-                    </div>
-                  </button>
-                  {canDelete && (
+          <>
+            <div className="divide-y divide-line">
+              {visibleInspections.map((inspection) => {
+                const needsAttention =
+                  inspection.failCount > 0 || inspection.reviewRequiredCount > 0;
+                const inspectorName =
+                  inspection.inspectorId === user?.id
+                    ? user.name
+                    : `점검자 #${inspection.inspectorId}`;
+                const canDelete =
+                  inspection.status === 'DRAFT' &&
+                  (inspection.inspectorId === user?.id || user?.roles.includes('ADMIN'));
+                const statusTone = inspection.status === 'COMPLETED' ? 'success' : 'warning';
+                const summaryTone = getSummaryTone(needsAttention, inspection.status);
+                return (
+                  <div key={inspection.id} className="group relative">
                     <button
                       type="button"
-                      onClick={() => openDeleteConfirm(inspection)}
-                      disabled={deletingId === inspection.id}
-                      aria-label={`점검 #${inspection.id} 삭제`}
-                      title="작성 중 점검 삭제"
-                      className="absolute right-4 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted transition hover:bg-danger-soft hover:text-danger disabled:opacity-40"
+                      onClick={() => navigate(`/safety-checklists/inspections/${inspection.id}`)}
+                      className="grid w-full cursor-pointer gap-4 px-5 py-4 text-left transition hover:bg-primary-soft/30 sm:px-7 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
                     >
-                      <Trash2 aria-hidden="true" className="h-4 w-4" />
+                      <div>
+                        <p className="font-black tabular-nums text-ink">
+                          {formatInspectionDate(inspection.createdAt)}
+                        </p>
+                        <p className="mt-1 text-xs tabular-nums text-text-muted">
+                          점검 #{inspection.id}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-text-muted">점검 담당자</p>
+                        <p className="mt-1 text-sm font-bold tabular-nums text-text-strong">
+                          {inspectorName}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-text-muted">진행률</p>
+                        <div className="mt-2 flex items-center gap-3">
+                          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface">
+                            <div
+                              className="h-full rounded-full bg-primary"
+                              style={{
+                                width: `${inspection.totalItemCount === 0 ? 0 : (inspection.completedItemCount / inspection.totalItemCount) * 100}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold tabular-nums text-text-strong">
+                            {inspection.completedItemCount}/{inspection.totalItemCount}
+                          </span>
+                        </div>
+                      </div>
+                      <div
+                        className={`flex flex-wrap items-center gap-2 md:justify-end ${canDelete ? 'pr-10' : ''}`}
+                      >
+                        <Badge tone={statusTone}>
+                          {inspection.status === 'COMPLETED' ? '점검 완료' : '작성 중'}
+                        </Badge>
+                        <Badge tone={summaryTone} className="tabular-nums">
+                          {getInspectionSummary(inspection)}
+                        </Badge>
+                        <ChevronRight aria-hidden="true" className="h-4 w-4 text-text-muted" />
+                      </div>
                     </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirm(inspection)}
+                        disabled={deletingId === inspection.id}
+                        aria-label={`점검 #${inspection.id} 삭제`}
+                        title="작성 중 점검 삭제"
+                        className="absolute right-4 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted transition hover:bg-danger-soft hover:text-danger disabled:opacity-40"
+                      >
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
+              <p className="text-sm tabular-nums text-text-muted">
+                총 {inspections.length.toLocaleString()}건
+              </p>
+              <Pagination
+                page={page}
+                pageCount={pageCount}
+                onPageChange={setPage}
+                ariaLabel="점검 이력 목록 페이지"
+              />
+            </div>
+          </>
         )}
       </Card>
 

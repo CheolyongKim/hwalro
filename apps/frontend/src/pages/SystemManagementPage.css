@@ -70,7 +70,7 @@
   background: var(--color-primary);
   font-size: 14px;
   font-weight: 700;
-  cursor: pointer;
+  cursor: default;
   transition: background-color 150ms ease;
 }
 
@@ -184,7 +184,7 @@
   background: var(--color-success-soft);
   font-size: 12px;
   font-weight: 700;
-  cursor: pointer;
+  cursor: default;
   transition: box-shadow 150ms ease;
 }
 
@@ -246,7 +246,7 @@
   border-radius: 8px;
   color: var(--color-white);
   background: var(--color-primary);
-  cursor: pointer;
+  cursor: default;
   transition: background-color 150ms ease;
 }
 
@@ -394,7 +394,7 @@
   background: transparent;
   font-size: 24px;
   line-height: 1;
-  cursor: pointer;
+  cursor: default;
 }
 
 .system-management-page .close-button:hover {
@@ -477,7 +477,7 @@
   border-radius: 8px;
   color: var(--color-text-strong);
   font-size: 12px;
-  cursor: pointer;
+  cursor: default;
   transition:
     border-color 150ms ease,
     box-shadow 150ms ease;
@@ -533,7 +533,7 @@
   border-radius: 8px;
   font-size: 14px;
   font-weight: 700;
-  cursor: pointer;
+  cursor: default;
   transition: background-color 150ms ease;
 }
 
