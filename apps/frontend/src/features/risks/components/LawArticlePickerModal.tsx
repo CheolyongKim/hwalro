@@ -82,11 +82,18 @@ function LawArticlePickerModal({
       setSelectedLaw(null);
       setHasMore(false);
       lastAppliedPageRef.current = 0;
+    } else if (searchQuery.isError) {
+      void searchQuery.refetch();
+      return;
     }
     setPage(1);
   };
 
   const handleLoadMore = () => {
+    if (searchQuery.isError) {
+      void searchQuery.refetch();
+      return;
+    }
     setPage(lastAppliedPageRef.current + 1);
   };
 
