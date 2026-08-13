@@ -12,8 +12,7 @@ export function findNewlyCompletedAiReports(
   reports: AiReportDraftMonitorItem[],
 ): AiReportDraftMonitorItem[] {
   return reports.filter(
-    (report) =>
-      report.status === '초안' && previousStatuses.get(report.id) !== '초안',
+    (report) => report.status === '초안' && previousStatuses.get(report.id) !== '초안',
   );
 }
 
