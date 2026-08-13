@@ -6,12 +6,18 @@ public class ReportDraftInsert {
     private final String title;
     private final String content;
     private final String status;
+    private final String generationRequest;
 
     public ReportDraftInsert(Long authorId, String title, String content, String status) {
+        this(authorId, title, content, status, null);
+    }
+
+    public ReportDraftInsert(Long authorId, String title, String content, String status, String generationRequest) {
         this.authorId = authorId;
         this.title = title;
         this.content = content;
         this.status = status;
+        this.generationRequest = generationRequest;
     }
 
     public Long getId() {
@@ -36,5 +42,9 @@ public class ReportDraftInsert {
 
     public String getStatus() {
         return status;
+    }
+
+    public String getGenerationRequest() {
+        return generationRequest;
     }
 }

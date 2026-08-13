@@ -1,16 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText } from 'lucide-react';
+import { FileText, Trash2 } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { reportApi } from '../api/reportApi';
-import type { ReportListResponse, ReportListStatusFilter, ReportStatus } from '../types/report';
+import type {
+  ReportListItem,
+  ReportListResponse,
+  ReportListStatusFilter,
+  ReportStatus,
+} from '../types/report';
 import { getReportErrorMessage } from '../utils/getReportErrorMessage';
+import { canOpenReport, canRetryAiReport, isAiReportGenerating } from '../utils/reportStatus';
 import {
   Badge,
+  Button,
   Card,
   EmptyState,
   ErrorState,
   Input,
+  Modal,
   PageHeader,
   Select,
   Skeleton,
@@ -22,6 +30,8 @@ type StatusFilter = ReportListStatusFilter;
 const PAGE_SIZE = 5;
 const PAGE_BUTTON_COUNT = 5;
 const STATUS_BADGE_TONES: Record<ReportStatus, BadgeTone> = {
+  'AI 작성 중': 'warning',
+  '생성 실패': 'danger',
   초안: 'neutral',
   '작성 중': 'primary',
   완료: 'success',
@@ -44,39 +54,68 @@ function ReportListPage() {
   const [data, setData] = useState<ReportListResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ReportListItem | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const requestSequenceRef = useRef(0);
+  const isPollingRef = useRef(false);
   const canViewAllReports =
     user?.roles.includes('SAFETY_REVIEWER') || user?.roles.includes('ADMIN') || false;
 
+  const loadReports = useCallback(
+    async (showLoading: boolean) => {
+      const requestSequence = requestSequenceRef.current + 1;
+      requestSequenceRef.current = requestSequence;
+      if (showLoading) {
+        setIsLoading(true);
+        setError(null);
+      }
+      try {
+        const response = await reportApi.list({
+          query: query.trim() || undefined,
+          status: status === '전체' ? undefined : status,
+          page,
+          size: PAGE_SIZE,
+        });
+        if (requestSequenceRef.current === requestSequence) setData(response);
+      } catch (requestError) {
+        if (showLoading && requestSequenceRef.current === requestSequence) {
+          setError(getErrorMessage(requestError));
+        }
+      } finally {
+        if (showLoading && requestSequenceRef.current === requestSequence) setIsLoading(false);
+      }
+    },
+    [page, query, status],
+  );
+
   useEffect(() => {
-    let active = true;
-    setIsLoading(true);
-    setError(null);
-    void reportApi
-      .list({
-        query: query.trim() || undefined,
-        status: status === '전체' ? undefined : status,
-        page,
-        size: PAGE_SIZE,
-      })
-      .then((response) => {
-        if (active) setData(response);
-      })
-      .catch((requestError: unknown) => {
-        if (active) setError(getErrorMessage(requestError));
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
+    void loadReports(true);
     return () => {
-      active = false;
+      requestSequenceRef.current += 1;
     };
-  }, [page, query, status]);
+  }, [loadReports]);
 
   const totalCount = data?.totalCount ?? 0;
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const reports = data?.items ?? [];
+  const hasGeneratingReport = reports.some((report) => isAiReportGenerating(report.status));
   const pageGroupStart = Math.floor((page - 1) / PAGE_BUTTON_COUNT) * PAGE_BUTTON_COUNT + 1;
   const pageGroupEnd = Math.min(pageGroupStart + PAGE_BUTTON_COUNT - 1, pageCount);
+
+  useEffect(() => {
+    if (!hasGeneratingReport) return;
+    const timer = window.setInterval(() => {
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
+      void loadReports(false).finally(() => {
+        isPollingRef.current = false;
+      });
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [hasGeneratingReport, loadReports]);
 
   function updateQuery(nextQuery: string) {
     setQuery(nextQuery);
@@ -86,6 +125,50 @@ function ReportListPage() {
   function updateStatus(nextStatus: StatusFilter) {
     setStatus(nextStatus);
     setPage(1);
+  }
+
+  async function retryAiReport(reportId: number) {
+    setRetryingId(reportId);
+    setActionError(null);
+    try {
+      await reportApi.retryAiDraft(reportId);
+      await loadReports(false);
+    } catch (requestError) {
+      setActionError(getReportErrorMessage(requestError, 'AI 보고서 생성을 재시도하지 못했습니다.'));
+    } finally {
+      setRetryingId(null);
+    }
+  }
+
+  function openDeleteModal(report: ReportListItem) {
+    setDeleteError(null);
+    setDeleteTarget(report);
+  }
+
+  function closeDeleteModal() {
+    if (deletingId !== null) return;
+    setDeleteTarget(null);
+    setDeleteError(null);
+  }
+
+  async function deleteReport() {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    setDeleteError(null);
+    setActionError(null);
+    try {
+      await reportApi.delete(deleteTarget.id);
+      setDeleteTarget(null);
+      if (reports.length === 1 && page > 1) {
+        setPage((currentPage) => currentPage - 1);
+      } else {
+        await loadReports(false);
+      }
+    } catch (requestError) {
+      setDeleteError(getReportErrorMessage(requestError, '보고서를 삭제하지 못했습니다.'));
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -122,6 +205,8 @@ function ReportListPage() {
               className="lg:w-44"
             >
               <option value="전체">전체</option>
+              <option value="AI 작성 중">AI 작성 중</option>
+              <option value="생성 실패">생성 실패</option>
               <option value="초안">초안</option>
               <option value="작성 중">작성 중</option>
               <option value="완료">완료</option>
@@ -162,10 +247,11 @@ function ReportListPage() {
                 <table className="w-full min-w-[540px] table-fixed border-collapse text-left">
                   <caption className="sr-only">보고서 목록</caption>
                   <colgroup>
-                    <col className={canViewAllReports ? 'w-[52%]' : 'w-[64%]'} />
+                    <col className={canViewAllReports ? 'w-[44%]' : 'w-[54%]'} />
                     {canViewAllReports && <col className="w-[14%]" />}
-                    <col className="w-[21%]" />
+                    <col className="w-[19%]" />
                     <col className="w-[13%]" />
+                    <col className="w-[10%]" />
                   </colgroup>
                   <thead className="bg-surface text-xs font-bold tracking-wide text-text-muted">
                     <tr>
@@ -173,6 +259,7 @@ function ReportListPage() {
                       {canViewAllReports && <th className="px-5 py-4">작성자</th>}
                       <th className="px-7 py-4">최근 수정</th>
                       <th className="px-5 py-4">상태</th>
+                      <th className="px-5 py-4 text-center">관리</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -182,17 +269,28 @@ function ReportListPage() {
                         className="group transition-colors hover:bg-primary-faint"
                       >
                         <td className="px-7 py-4">
-                          <Link
-                            to={`/reports/${report.id}`}
-                            className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                          >
-                            <span className="block text-sm font-bold text-ink group-hover:text-primary">
-                              {report.title}
-                            </span>
-                            <span className="mt-1 block text-xs tabular-nums text-text-muted">
-                              보고서 #{report.id}
-                            </span>
-                          </Link>
+                          {canOpenReport(report.status) ? (
+                            <Link
+                              to={`/reports/${report.id}`}
+                              className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            >
+                              <span className="block text-sm font-bold text-ink group-hover:text-primary">
+                                {report.title}
+                              </span>
+                              <span className="mt-1 block text-xs tabular-nums text-text-muted">
+                                보고서 #{report.id}
+                              </span>
+                            </Link>
+                          ) : (
+                            <div aria-disabled="true">
+                              <span className="block text-sm font-bold text-ink">{report.title}</span>
+                              <span className="mt-1 block text-xs tabular-nums text-text-muted">
+                                {isAiReportGenerating(report.status)
+                                  ? 'AI가 보고서 초안을 작성하고 있습니다.'
+                                  : `보고서 #${report.id}`}
+                              </span>
+                            </div>
+                          )}
                         </td>
                         {canViewAllReports && (
                           <td className="px-5 py-4 text-sm font-medium text-text-strong">
@@ -203,7 +301,30 @@ function ReportListPage() {
                           {formatUpdatedAt(report.updatedAt)}
                         </td>
                         <td className="px-5 py-4">
-                          <Badge tone={STATUS_BADGE_TONES[report.status]}>{report.status}</Badge>
+                          <div className="flex flex-col items-start gap-2">
+                            <Badge tone={STATUS_BADGE_TONES[report.status]}>{report.status}</Badge>
+                            {canRetryAiReport(report.status) && (
+                              <button
+                                type="button"
+                                onClick={() => void retryAiReport(report.id)}
+                                disabled={retryingId !== null}
+                                className="rounded-md border border-danger/30 px-2 py-1 text-xs font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {retryingId === report.id ? '재시도 중…' : '재시도'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openDeleteModal(report)}
+                            disabled={deletingId !== null}
+                            aria-label={`${report.title} 삭제`}
+                            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-text-muted outline-none transition hover:bg-danger-soft hover:text-danger-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -251,6 +372,14 @@ function ReportListPage() {
                   </button>
                 </nav>
               )}
+              {actionError && (
+                <div
+                  role="alert"
+                  className="border-t border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong"
+                >
+                  {actionError}
+                </div>
+              )}
             </>
           ) : (
             <div className="flex min-h-64 items-center justify-center px-6">
@@ -263,6 +392,38 @@ function ReportListPage() {
           )}
         </Card>
       </div>
+
+      <Modal
+        open={deleteTarget !== null}
+        onClose={closeDeleteModal}
+        title="보고서 삭제"
+        description="삭제한 보고서는 복구할 수 없습니다."
+        size="sm"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={closeDeleteModal} disabled={deletingId !== null}>
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => void deleteReport()}
+              isLoading={deletingId !== null}
+            >
+              삭제
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm leading-6 text-text-strong">
+          <span className="font-bold text-ink">{deleteTarget?.title}</span> 보고서를 삭제하시겠습니까?
+        </p>
+        {deleteError && (
+          <p role="alert" className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-strong">
+            {deleteError}
+          </p>
+        )}
+      </Modal>
     </main>
   );
 }

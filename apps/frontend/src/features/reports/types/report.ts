@@ -1,4 +1,4 @@
-export type ReportStatus = '초안' | '작성 중' | '완료';
+export type ReportStatus = 'AI 작성 중' | '생성 실패' | '초안' | '작성 중' | '완료';
 
 export type ReportListStatusFilter = '전체' | ReportStatus;
 
@@ -29,7 +29,7 @@ export interface ReportDetailResponse {
   id: number;
   title: string;
   content: ReportContent;
-  status: Exclude<ReportStatus, '초안'>;
+  status: Exclude<ReportStatus, 'AI 작성 중' | '생성 실패' | '초안'>;
   createdAt: string;
   simulationResultIds: number[];
 }
@@ -37,7 +37,12 @@ export interface ReportDetailResponse {
 export interface ReportUpdateRequest {
   title: string;
   content: ReportContent;
-  status: Exclude<ReportStatus, '초안'>;
+  status: Exclude<ReportStatus, 'AI 작성 중' | '생성 실패' | '초안'>;
+}
+
+export interface AiReportDraftJobResponse {
+  id: number;
+  status: Extract<ReportStatus, 'AI 작성 중'>;
 }
 
 export interface ReportVisualContext {
