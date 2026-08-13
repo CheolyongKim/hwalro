@@ -17,3 +17,5 @@ export type { EmptyStateProps } from './EmptyState';
 export { default as ErrorState } from './ErrorState';
 export type { ErrorStateProps } from './ErrorState';
 export { default as Skeleton } from './Skeleton';
+export { default as Pagination } from './Pagination';
+export type { PaginationProps } from './Pagination';

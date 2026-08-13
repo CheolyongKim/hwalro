@@ -11,12 +11,12 @@ import {
   ErrorState,
   Modal,
   PageHeader,
+  Pagination,
 } from '../../../components/ui';
 import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
 import type { DrawingSummary } from '../types/drawing';
 
 const PAGE_SIZE = 5;
-const PAGE_BUTTON_COUNT = 5;
 
 function DrawingListPage() {
   const [page, setPage] = useState(1);
@@ -25,8 +25,6 @@ function DrawingListPage() {
   const deleteDrawing = useDeleteDrawing();
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const pageGroupStart = Math.floor((page - 1) / PAGE_BUTTON_COUNT) * PAGE_BUTTON_COUNT + 1;
-  const pageGroupEnd = Math.min(pageGroupStart + PAGE_BUTTON_COUNT - 1, pageCount);
 
   useEffect(() => {
     if (!isPending && !isError && page > pageCount) {
@@ -77,7 +75,20 @@ function DrawingListPage() {
               <ErrorState message={getDrawingErrorMessage(error)} className="w-full" />
             </div>
           ) : items.length > 0 ? (
-            <DrawingListTable items={items} onDelete={handleDelete} />
+            <>
+              <DrawingListTable items={items} onDelete={handleDelete} />
+              <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
+                <p className="text-sm tabular-nums text-text-muted">
+                  총 {totalCount.toLocaleString()}건
+                </p>
+                <Pagination
+                  page={page}
+                  pageCount={pageCount}
+                  onPageChange={setPage}
+                  ariaLabel="도면 목록 페이지"
+                />
+              </div>
+            </>
           ) : totalCount > 0 ? (
             <EmptyState
               icon={FileText}
@@ -98,43 +109,6 @@ function DrawingListPage() {
                 </Link>
               }
             />
-          )}
-          {pageCount > 1 && (
-            <nav
-              className="flex items-center justify-center gap-2 border-t border-line px-5 py-3"
-              aria-label="도면 목록 페이지"
-            >
-              <button
-                type="button"
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-                className="rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted outline-none transition hover:bg-surface hover:text-text-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
-              >
-                이전
-              </button>
-              {Array.from(
-                { length: pageGroupEnd - pageGroupStart + 1 },
-                (_, index) => pageGroupStart + index,
-              ).map((pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() => setPage(pageNumber)}
-                  aria-current={page === pageNumber ? 'page' : undefined}
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring ${page === pageNumber ? 'bg-primary text-white' : 'text-text-muted hover:bg-surface hover:text-text-strong'}`}
-                >
-                  {pageNumber}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setPage(page + 1)}
-                disabled={page === pageCount}
-                className="rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted outline-none transition hover:bg-surface hover:text-text-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
-              >
-                다음
-              </button>
-            </nav>
           )}
         </Card>
 
