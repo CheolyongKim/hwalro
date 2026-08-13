@@ -231,7 +231,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       <ConfirmDialog
         open={deleteConfirmOpen}
         title="위험 항목 삭제"
-        description={`'${risk.title}' 위험 항목을 삭제하시겠습니까?`}
+        description={`'${title}' 위험 항목을 삭제하시겠습니까?`}
         isLoading={deleteMutation.isPending}
         onCancel={() => {
           setDeleteConfirmOpen(false);
