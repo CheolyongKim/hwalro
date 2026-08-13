@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { ArrowLeft } from 'lucide-react';
@@ -62,7 +62,7 @@ function LayoutPage() {
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     stateRef.current = state;
   }, [state]);
 
