@@ -10,6 +10,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   EmptyState,
   ErrorState,
   Field,
@@ -32,6 +33,7 @@ function SafetyCheckAreasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [areaToDelete, setAreaToDelete] = useState<InspectionArea | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const canManage = user?.roles.includes('ADMIN') || user?.roles.includes('SAFETY_REVIEWER');
@@ -94,21 +96,24 @@ function SafetyCheckAreasPage() {
     }
   }
 
-  async function deleteArea(area: InspectionArea) {
-    if (
-      !window.confirm(`‘${area.name}’ 점검 구역을 삭제하시겠습니까? 기존 점검 이력은 보존됩니다.`)
-    ) {
-      return;
-    }
+  function openDeleteConfirm(area: InspectionArea) {
+    setAreaToDelete(area);
+    setActionError(null);
+  }
 
-    setDeletingId(area.id);
+  async function confirmDeleteArea() {
+    if (!areaToDelete) return;
+
+    setDeletingId(areaToDelete.id);
     setActionError(null);
     try {
-      await safetyCheckApi.deleteArea(area.id);
-      setAreas((current) => current.filter((item) => item.id !== area.id));
-      if (editor?.id === area.id) setEditor(null);
+      await safetyCheckApi.deleteArea(areaToDelete.id);
+      setAreas((current) => current.filter((item) => item.id !== areaToDelete.id));
+      if (editor?.id === areaToDelete.id) setEditor(null);
+      setAreaToDelete(null);
     } catch (requestError) {
       setActionError(getSafetyCheckError(requestError));
+      setAreaToDelete(null);
     } finally {
       setDeletingId(null);
     }
@@ -257,7 +262,7 @@ function SafetyCheckAreasPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void deleteArea(area)}
+                      onClick={() => openDeleteConfirm(area)}
                       disabled={deletingId === area.id}
                       className="rounded-lg px-3 py-2 text-sm font-bold text-danger outline-none transition-colors hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50"
                     >
@@ -270,6 +275,19 @@ function SafetyCheckAreasPage() {
           </div>
         )}
       </section>
+
+      {areaToDelete && (
+        <ConfirmDialog
+          open
+          title="점검 구역 삭제"
+          description={`‘${areaToDelete.name}’ 점검 구역을 삭제하시겠습니까? 기존 점검 이력은 보존됩니다.`}
+          isLoading={deletingId !== null}
+          onCancel={() => setAreaToDelete(null)}
+          onConfirm={() => void confirmDeleteArea()}
+        >
+          <p className="text-sm text-text-muted">삭제한 점검 구역은 복구할 수 없습니다.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }
