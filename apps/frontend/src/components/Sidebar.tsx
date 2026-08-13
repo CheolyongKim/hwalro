@@ -257,13 +257,8 @@ function Sidebar() {
         )}
       </nav>
 
-      <div className="mt-auto rounded-2xl bg-white/5 p-2 lg:p-3">
-        <button
-          type="button"
-          onClick={() => void handleLogout()}
-          aria-label="로그아웃"
-          className="flex w-full items-center justify-center gap-3 rounded-xl transition-colors hover:bg-white/10 lg:justify-start"
-        >
+      <div className="mt-auto space-y-1.5 rounded-2xl bg-white/5 p-2 lg:p-3">
+        <div className="flex w-full items-center justify-center gap-3 lg:justify-start">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-lime text-xs font-black text-ink">
             {user?.name.charAt(0) ?? '활'}
           </div>
@@ -273,6 +268,30 @@ function Sidebar() {
               {user?.roles.map((role) => ROLE_LABELS[role] ?? role).join(', ')}
             </p>
           </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          aria-label="로그아웃"
+          className="group flex w-full items-center justify-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/10 lg:justify-start"
+        >
+          <svg
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 text-white/45 transition-colors group-hover:text-white/80"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path d="m16 17 5-5-5-5" />
+            <path d="M21 12H9" />
+          </svg>
+          <span className="hidden text-xs font-medium text-white/45 transition-colors group-hover:text-white/80 lg:block">
+            로그아웃
+          </span>
         </button>
       </div>
     </aside>

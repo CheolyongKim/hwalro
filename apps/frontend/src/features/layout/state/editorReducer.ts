@@ -107,6 +107,7 @@ export type EditorAction =
   | { type: 'commit'; prev: DrawingDocument; next: DrawingDocument }
   | { type: 'replaceDoc'; doc: DrawingDocument }
   | { type: 'loadDocument'; doc: DrawingDocument }
+  | { type: 'renameDoc'; name: string }
   | { type: 'setError'; message: string | null }
   | { type: 'clearSelection' }
   | { type: 'escape' }
@@ -616,6 +617,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'replaceDoc':
       return { ...state, doc: action.doc, error: null, validationProblems: [] };
+
+    case 'renameDoc': {
+      const next = { ...state.doc, name: action.name };
+      return commit(state, state.doc, next);
+    }
 
     case 'loadDocument':
       return {
