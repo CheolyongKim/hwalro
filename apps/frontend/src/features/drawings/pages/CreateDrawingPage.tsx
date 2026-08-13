@@ -66,7 +66,8 @@ function CreateDrawingPage() {
                   <span>
                     <span className="block text-sm font-bold text-ink">기본 도면으로 시작</span>
                     <span className="mt-1 block text-xs text-text-muted">
-                      벽·출구·기둥 등 예시 배치가 포함된 도면으로 시작합니다. 참고해 수정하기 좋습니다.
+                      벽·출구·기둥 등 예시 배치가 포함된 도면으로 시작합니다. 참고해 수정하기
+                      좋습니다.
                     </span>
                   </span>
                 </label>
