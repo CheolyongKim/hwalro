@@ -22,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RiskService {
@@ -174,7 +173,7 @@ public class RiskService {
             return authorDirectoryClient.findByIds(assigneeIds, authorization).stream()
                     .collect(Collectors.toMap(
                             AuthorDirectoryClient.AuthorSummary::id, AuthorDirectoryClient.AuthorSummary::name));
-        } catch (ResponseStatusException exception) {
+        } catch (RuntimeException exception) {
             log.warn("Failed to resolve assignee names. assigneeIds={}", assigneeIds, exception);
             return Map.of();
         }
