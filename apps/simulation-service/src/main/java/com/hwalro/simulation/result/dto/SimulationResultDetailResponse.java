@@ -12,6 +12,7 @@ public record SimulationResultDetailResponse(
         double maxDensity,
         double densityThreshold,
         Drawing drawing,
+        List<HazardZone> hazardZones,
         List<Bottleneck> bottlenecks,
         List<ComparableSimulation> comparableSimulations) {
 
@@ -33,6 +34,8 @@ public record SimulationResultDetailResponse(
     public record Rectangle(String name, double startX, double startY, double endX, double endY, double rotation) {}
 
     public record LayoutText(String text, double x, double y) {}
+
+    public record HazardZone(Long id, double centerX, double centerY, double radius) {}
 
     public record Bottleneck(
             Long id,

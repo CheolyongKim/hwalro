@@ -61,6 +61,8 @@ class SimulationResultDetailServiceTest {
                 .thenReturn(List.of(new SimulationResultDetailMapper.SegmentRow("출구", 10, 0, 10, 2, 0)));
         when(mapper.findPillars(9100L)).thenReturn(List.of());
         when(mapper.findFabrics(9100L)).thenReturn(List.of());
+        when(mapper.findHazardZones(simulationId))
+                .thenReturn(List.of(new SimulationResultDetailMapper.HazardZoneRow(31L, 7.5, 4.25, 1.5)));
         when(drawingMapper.findOutsideWallsByVersionId(9100L)).thenReturn(rectangularBoundary());
         when(drawingMapper.findLayoutTextsByVersionId(9100L)).thenReturn(List.of(layoutText("중앙 통로", 4, 5)));
         when(mapper.findBottlenecks(9301L))
@@ -85,6 +87,12 @@ class SimulationResultDetailServiceTest {
                 .extracting(point -> point.x() + "," + point.y())
                 .containsExactly("0.0,0.0", "0.0,10.0", "20.0,10.0", "20.0,0.0");
         assertThat(result.drawing().walls()).hasSize(1);
+        assertThat(result.hazardZones()).singleElement().satisfies(hazard -> {
+            assertThat(hazard.id()).isEqualTo(31L);
+            assertThat(hazard.centerX()).isEqualTo(7.5);
+            assertThat(hazard.centerY()).isEqualTo(4.25);
+            assertThat(hazard.radius()).isEqualTo(1.5);
+        });
         assertThat(result.drawing().layoutTexts()).singleElement().satisfies(text -> {
             assertThat(text.text()).isEqualTo("중앙 통로");
             assertThat(text.x()).isEqualTo(4);
@@ -129,6 +137,7 @@ class SimulationResultDetailServiceTest {
         when(mapper.findExits(9100L)).thenReturn(List.of());
         when(mapper.findPillars(9100L)).thenReturn(List.of());
         when(mapper.findFabrics(9100L)).thenReturn(List.of());
+        when(mapper.findHazardZones(simulationId)).thenReturn(List.of());
         when(drawingMapper.findOutsideWallsByVersionId(9100L)).thenReturn(rectangularBoundary());
         when(drawingMapper.findLayoutTextsByVersionId(9100L)).thenReturn(List.of());
         when(mapper.findBottlenecks(9301L)).thenReturn(List.of());

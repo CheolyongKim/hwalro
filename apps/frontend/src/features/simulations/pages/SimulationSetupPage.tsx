@@ -256,7 +256,7 @@ function SimulationSetupPage() {
         >
           {message ?? '시뮬레이션 설정을 불러오지 못했습니다.'}
         </p>
-        <Button type="button" onClick={() => navigate('/drawings')}>
+        <Button type="button" className="cursor-pointer" onClick={() => navigate('/drawings')}>
           도면 목록으로 이동
         </Button>
       </div>
@@ -441,7 +441,7 @@ function SimulationSetupPage() {
         <button
           type="button"
           onClick={() => navigate(`/layout/${setup.drawing.layoutId}`)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-line bg-white text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
           aria-label="도면 편집 화면으로 돌아가기"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />

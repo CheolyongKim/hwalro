@@ -21,12 +21,21 @@ export default function SafetyCheckHeader({
   action,
 }: SafetyCheckHeaderProps) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {backTo && (
-        <Link to={backTo} className={buttonClassName({ variant: 'secondary', size: 'sm' })}>
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          {backLabel}
-        </Link>
+        <nav aria-label="상위 화면" className="-ml-2 self-start">
+          <Link
+            to={backTo}
+            className={buttonClassName({
+              variant: 'ghost',
+              size: 'md',
+              className: 'w-fit text-text-muted hover:text-text-strong',
+            })}
+          >
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+            {backLabel}
+          </Link>
+        </nav>
       )}
       <PageHeader eyebrow={eyebrow} title={title} description={description} actions={action} />
     </div>

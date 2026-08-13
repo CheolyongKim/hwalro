@@ -58,6 +58,16 @@
         ORDER BY id
     </select>
 
+    <select id="findHazardZones" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$HazardZoneRow">
+        SELECT id,
+               center_x AS centerX,
+               center_y AS centerY,
+               radius
+        FROM hazard_zones
+        WHERE simulation_id = #{simulationId}
+        ORDER BY id
+    </select>
+
     <select id="findBottlenecks" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$BottleneckRow">
         SELECT id,
                bottleneck_order AS bottleneckOrder,

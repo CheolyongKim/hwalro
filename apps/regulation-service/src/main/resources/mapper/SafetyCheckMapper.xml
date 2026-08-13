@@ -21,8 +21,9 @@
         GROUP BY area.id,
                  area.name,
                  area.description,
-                 area.active
-        ORDER BY area.name, area.id
+                 area.active,
+                 area.created_at
+        ORDER BY area.created_at DESC, area.id DESC
     </select>
 
     <select id="findArea"

@@ -12,6 +12,7 @@ import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Bottlenec
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Bounds;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.ComparableSimulation;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Drawing;
+import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.HazardZone;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.LayoutText;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Point;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Rectangle;
@@ -82,6 +83,9 @@ public class SimulationResultDetailService {
                 maxDensity,
                 threshold,
                 drawing,
+                mapper.findHazardZones(simulationId).stream()
+                        .map(row -> new HazardZone(row.id(), row.centerX(), row.centerY(), row.radius()))
+                        .toList(),
                 bottlenecks,
                 comparableSimulations);
     }

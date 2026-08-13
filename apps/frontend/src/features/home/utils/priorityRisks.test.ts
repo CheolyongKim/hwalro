@@ -6,6 +6,7 @@ function risk(overrides: Partial<Risk> & Pick<Risk, 'id'>): Risk {
   return {
     simulationResultId: null,
     assigneeId: null,
+    assigneeName: null,
     title: `위험 ${overrides.id}`,
     description: null,
     startX: null,

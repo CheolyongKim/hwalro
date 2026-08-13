@@ -91,6 +91,13 @@ export interface RiskZone extends Bounds {
   name: string;
 }
 
+export interface HazardZone {
+  id: number;
+  centerX: number;
+  centerY: number;
+  radius: number;
+}
+
 export interface SimulationResultSummaryViewModel {
   simulationId: string;
   simulationResultId: number;
@@ -101,6 +108,7 @@ export interface SimulationResultSummaryViewModel {
   maxDensity: number;
   densityThreshold: number;
   drawing: SimulationDrawing;
+  hazardZones: HazardZone[];
   bottlenecks: DetectedBottleneck[];
   comparableSimulations: ComparableSimulation[];
 }

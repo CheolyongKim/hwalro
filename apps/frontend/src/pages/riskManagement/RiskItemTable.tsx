@@ -1,5 +1,5 @@
 import { ShieldAlert } from 'lucide-react';
-import { Badge, Button, EmptyState } from '../../components/ui';
+import { Badge, EmptyState } from '../../components/ui';
 import type { BadgeTone } from '../../components/ui';
 import type { Risk } from '../../features/risks/types/risks';
 import { formatDate } from '../../features/risks/utils/formatDate';
@@ -18,16 +18,10 @@ function RiskItemTable({
   items,
   selectedId,
   onSelect,
-  hasNext,
-  onLoadMore,
-  isFetchingMore,
 }: {
   items: Risk[];
   selectedId: number | null;
   onSelect: (id: number) => void;
-  hasNext: boolean;
-  onLoadMore: () => void;
-  isFetchingMore: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -70,7 +64,7 @@ function RiskItemTable({
                 </div>
                 <Badge tone={SEVERITY_TONES[item.severity] ?? 'neutral'}>{item.severity}</Badge>
                 <span className="text-sm tabular-nums text-text-strong">
-                  {item.assigneeId ?? '-'}
+                  {item.assigneeName ?? '-'}
                 </span>
                 <span className="text-sm tabular-nums text-text-strong">
                   {formatDate(item.createdAt)}
@@ -80,19 +74,6 @@ function RiskItemTable({
           );
         })}
       </ul>
-
-      {hasNext && (
-        <div className="border-t border-line p-3">
-          <Button
-            variant="secondary"
-            onClick={onLoadMore}
-            disabled={isFetchingMore}
-            className="w-full"
-          >
-            {isFetchingMore ? '불러오는 중...' : '더 보기'}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

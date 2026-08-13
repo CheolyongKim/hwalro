@@ -20,6 +20,7 @@ import {
   Input,
   Modal,
   PageHeader,
+  Pagination,
   Select,
   Skeleton,
   type BadgeTone,
@@ -28,7 +29,6 @@ import {
 type StatusFilter = ReportListStatusFilter;
 
 const PAGE_SIZE = 5;
-const PAGE_BUTTON_COUNT = 5;
 const STATUS_BADGE_TONES: Record<ReportStatus, BadgeTone> = {
   'AI 작성 중': 'warning',
   '생성 실패': 'danger',
@@ -102,8 +102,6 @@ function ReportListPage() {
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const reports = data?.items ?? [];
   const hasGeneratingReport = reports.some((report) => isAiReportGenerating(report.status));
-  const pageGroupStart = Math.floor((page - 1) / PAGE_BUTTON_COUNT) * PAGE_BUTTON_COUNT + 1;
-  const pageGroupEnd = Math.min(pageGroupStart + PAGE_BUTTON_COUNT - 1, pageCount);
 
   useEffect(() => {
     if (!hasGeneratingReport) return;
@@ -221,9 +219,6 @@ function ReportListPage() {
             <h2 id="report-table-title" className="text-xl font-black text-ink">
               보고서 목록
             </h2>
-            <p className="mt-1 text-sm text-text-muted">
-              총 <span className="font-bold tabular-nums text-primary">{totalCount}</span>건
-            </p>
           </div>
           {isLoading ? (
             <div className="px-5 py-5 sm:px-7">
@@ -325,7 +320,7 @@ function ReportListPage() {
                             onClick={() => openDeleteModal(report)}
                             disabled={deletingId !== null}
                             aria-label={`${report.title} 삭제`}
-                            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-text-muted outline-none transition hover:bg-danger-soft hover:text-danger-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-muted outline-none transition hover:bg-danger-soft hover:text-danger-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Trash2 aria-hidden="true" className="h-4 w-4" />
                           </button>
@@ -335,47 +330,17 @@ function ReportListPage() {
                   </tbody>
                 </table>
               </div>
-              {pageCount > 1 && (
-                <nav
-                  className="flex items-center justify-center gap-2 border-t border-line px-5 py-3"
-                  aria-label="보고서 목록 페이지"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setPage(Math.max(1, pageGroupStart - PAGE_BUTTON_COUNT))}
-                    disabled={pageGroupStart === 1}
-                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    이전
-                  </button>
-                  {Array.from(
-                    { length: pageGroupEnd - pageGroupStart + 1 },
-                    (_, index) => pageGroupStart + index,
-                  ).map((pageNumber) => (
-                    <button
-                      key={pageNumber}
-                      type="button"
-                      onClick={() => setPage(pageNumber)}
-                      aria-current={page === pageNumber ? 'page' : undefined}
-                      className={`flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
-                        page === pageNumber
-                          ? 'bg-primary text-white'
-                          : 'border border-line text-text-strong hover:bg-surface'
-                      }`}
-                    >
-                      {pageNumber}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setPage(Math.min(pageCount, pageGroupEnd + 1))}
-                    disabled={pageGroupEnd === pageCount}
-                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    다음
-                  </button>
-                </nav>
-              )}
+              <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
+                <p className="text-sm tabular-nums text-text-muted">
+                  총 {totalCount.toLocaleString()}건
+                </p>
+                <Pagination
+                  page={page}
+                  pageCount={pageCount}
+                  onPageChange={setPage}
+                  ariaLabel="보고서 목록 페이지"
+                />
+              </div>
               {actionError && (
                 <div
                   role="alert"

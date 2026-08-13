@@ -24,6 +24,10 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,6 +35,7 @@ import org.springframework.util.StringUtils;
 @Service
 /** 보고서 목록의 검색·상태 필터·페이지네이션 규칙을 소유한다. */
 public class ReportService {
+    private static final Logger log = LoggerFactory.getLogger(ReportService.class);
     private static final int MAX_PAGE = 100_000;
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -61,17 +66,7 @@ public class ReportService {
         long offset = (long) (page - 1) * size;
         List<ReportListItem> items =
                 reportMapper.findReports(normalizedQuery, normalizedStatus, authorId, size, offset);
-        Map<Long, String> authorNames =
-                authorDirectoryClient
-                        .findByIds(
-                                items.stream()
-                                        .map(ReportListItem::authorId)
-                                        .distinct()
-                                        .toList(),
-                                authorization)
-                        .stream()
-                        .collect(java.util.stream.Collectors.toMap(
-                                AuthorDirectoryClient.AuthorSummary::id, AuthorDirectoryClient.AuthorSummary::name));
+        Map<Long, String> authorNames = findAuthorNames(items, authorization);
         List<ReportListItem> namedItems = items.stream()
                 .map(report -> report.withAuthorName(authorNames.get(report.authorId())))
                 .toList();
@@ -232,6 +227,25 @@ public class ReportService {
             return user.userId();
         }
         throw new ForbiddenException("보고서 목록 조회 권한이 없습니다.");
+    }
+
+    private Map<Long, String> findAuthorNames(List<ReportListItem> items, String authorization) {
+        List<Long> authorIds = items.stream()
+                .map(ReportListItem::authorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (authorIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return authorDirectoryClient.findByIds(authorIds, authorization).stream()
+                    .collect(Collectors.toMap(
+                            AuthorDirectoryClient.AuthorSummary::id, AuthorDirectoryClient.AuthorSummary::name));
+        } catch (RuntimeException exception) {
+            log.warn("Failed to resolve author names. authorIds={}", authorIds, exception);
+            return Map.of();
+        }
     }
 
     private ReportDetailRow findReport(Long reportId) {

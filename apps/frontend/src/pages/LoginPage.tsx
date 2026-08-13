@@ -69,12 +69,12 @@ function LoginPage() {
             className="mt-2 w-full rounded-2xl border border-ink/15 bg-white px-5 py-4 text-ink placeholder:text-ink/30 outline-none transition focus-visible:border-ink focus-visible:ring-4 focus-visible:ring-ink"
           />
 
-          <label className="mt-7 flex w-fit cursor-pointer items-center gap-2 text-sm text-ink/70">
+          <label className="mt-7 flex w-fit items-center gap-2 text-sm text-ink/70">
             <input
               type="checkbox"
               checked={rememberMe}
               onChange={(event) => setRememberMe(event.target.checked)}
-              className="h-4 w-4 shrink-0 cursor-pointer accent-lime"
+              className="h-4 w-4 shrink-0 accent-lime"
             />
             로그인 상태 유지
           </label>

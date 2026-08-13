@@ -7,6 +7,7 @@ public record RiskResponse(
         Long id,
         Long simulationResultId,
         Long assigneeId,
+        String assigneeName,
         String title,
         String description,
         Double startX,

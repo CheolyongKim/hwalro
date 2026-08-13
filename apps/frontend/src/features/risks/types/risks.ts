@@ -7,6 +7,7 @@ export interface Risk {
   id: number;
   simulationResultId: number | null;
   assigneeId: number | null;
+  assigneeName: string | null;
   title: string;
   description: string | null;
   startX: number | null;

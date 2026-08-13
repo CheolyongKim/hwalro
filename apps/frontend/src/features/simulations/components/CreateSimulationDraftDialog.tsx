@@ -75,7 +75,7 @@ export function CreateSimulationDraftDialog({
         </>
       }
     >
-      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 transition has-checked:border-primary has-checked:bg-primary-soft/40">
+      <label className="flex items-start gap-3 rounded-xl border border-line p-4 transition has-checked:border-primary has-checked:bg-primary-soft/40">
         <input
           type="radio"
           name="draft-source"
@@ -112,7 +112,7 @@ export function CreateSimulationDraftDialog({
           summaries.map((summary) => (
             <label
               key={summary.id}
-              className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 transition has-checked:border-primary has-checked:bg-primary-soft/40"
+              className="flex items-start gap-3 rounded-xl border border-line p-4 transition has-checked:border-primary has-checked:bg-primary-soft/40"
             >
               <input
                 type="radio"

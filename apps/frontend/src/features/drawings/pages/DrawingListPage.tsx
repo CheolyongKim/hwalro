@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FileText } from 'lucide-react';
-import { useDeleteDrawing, useDrawingList } from '../hooks';
+import { useDeleteDrawing, useDrawingList, useDuplicateDrawing } from '../hooks';
 import DrawingListTable from '../components/DrawingListTable';
 import {
   Button,
@@ -11,22 +11,23 @@ import {
   ErrorState,
   Modal,
   PageHeader,
+  Pagination,
 } from '../../../components/ui';
 import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
 import type { DrawingSummary } from '../types/drawing';
 
 const PAGE_SIZE = 5;
-const PAGE_BUTTON_COUNT = 5;
 
 function DrawingListPage() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [drawingToDelete, setDrawingToDelete] = useState<DrawingSummary | null>(null);
+  const [drawingToBlock, setDrawingToBlock] = useState<DrawingSummary | null>(null);
   const { items, totalCount, isPending, isError, error } = useDrawingList(page, PAGE_SIZE);
   const deleteDrawing = useDeleteDrawing();
+  const duplicateDrawing = useDuplicateDrawing();
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const pageGroupStart = Math.floor((page - 1) / PAGE_BUTTON_COUNT) * PAGE_BUTTON_COUNT + 1;
-  const pageGroupEnd = Math.min(pageGroupStart + PAGE_BUTTON_COUNT - 1, pageCount);
 
   useEffect(() => {
     if (!isPending && !isError && page > pageCount) {
@@ -35,7 +36,20 @@ function DrawingListPage() {
   }, [isPending, isError, page, pageCount]);
 
   const handleDelete = (drawing: DrawingSummary) => {
+    if (drawing.simulationCount > 0) {
+      setDrawingToBlock(drawing);
+      return;
+    }
     setDrawingToDelete(drawing);
+  };
+
+  const handleDuplicate = (drawing: DrawingSummary) => {
+    duplicateDrawing.mutate(drawing.id, {
+      onSuccess: (duplicated) => navigate(`/layout/${duplicated.id}`),
+      onError: (duplicateError) => {
+        window.alert(getDrawingErrorMessage(duplicateError));
+      },
+    });
   };
 
   const confirmDelete = () => {
@@ -77,7 +91,24 @@ function DrawingListPage() {
               <ErrorState message={getDrawingErrorMessage(error)} className="w-full" />
             </div>
           ) : items.length > 0 ? (
-            <DrawingListTable items={items} onDelete={handleDelete} />
+            <>
+              <DrawingListTable
+                items={items}
+                onDelete={handleDelete}
+                onDuplicate={handleDuplicate}
+              />
+              <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
+                <p className="text-sm tabular-nums text-text-muted">
+                  총 {totalCount.toLocaleString()}건
+                </p>
+                <Pagination
+                  page={page}
+                  pageCount={pageCount}
+                  onPageChange={setPage}
+                  ariaLabel="도면 목록 페이지"
+                />
+              </div>
+            </>
           ) : totalCount > 0 ? (
             <EmptyState
               icon={FileText}
@@ -98,43 +129,6 @@ function DrawingListPage() {
                 </Link>
               }
             />
-          )}
-          {pageCount > 1 && (
-            <nav
-              className="flex items-center justify-center gap-2 border-t border-line px-5 py-3"
-              aria-label="도면 목록 페이지"
-            >
-              <button
-                type="button"
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-                className="rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted outline-none transition hover:bg-surface hover:text-text-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
-              >
-                이전
-              </button>
-              {Array.from(
-                { length: pageGroupEnd - pageGroupStart + 1 },
-                (_, index) => pageGroupStart + index,
-              ).map((pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() => setPage(pageNumber)}
-                  aria-current={page === pageNumber ? 'page' : undefined}
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring ${page === pageNumber ? 'bg-primary text-white' : 'text-text-muted hover:bg-surface hover:text-text-strong'}`}
-                >
-                  {pageNumber}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setPage(page + 1)}
-                disabled={page === pageCount}
-                className="rounded-lg px-3 py-1.5 text-xs font-bold text-text-muted outline-none transition hover:bg-surface hover:text-text-strong focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
-              >
-                다음
-              </button>
-            </nav>
           )}
         </Card>
 
@@ -160,6 +154,27 @@ function DrawingListPage() {
           }
         >
           <p className="text-sm text-text-muted">삭제한 도면은 복구할 수 없습니다.</p>
+        </Modal>
+
+        <Modal
+          open={drawingToBlock !== null}
+          onClose={() => setDrawingToBlock(null)}
+          title="도면 삭제 불가"
+          size="sm"
+          description={
+            drawingToBlock !== null
+              ? `도면 "${drawingToBlock.title}"은(는) 시뮬레이션이 연결되어 있어 삭제할 수 없습니다.`
+              : undefined
+          }
+          footer={
+            <Button type="button" variant="primary" onClick={() => setDrawingToBlock(null)}>
+              확인
+            </Button>
+          }
+        >
+          <p className="text-sm text-text-muted">
+            시뮬레이션 연결을 해제한 뒤 다시 삭제할 수 있습니다.
+          </p>
         </Modal>
       </div>
     </main>
