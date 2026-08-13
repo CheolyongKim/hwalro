@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 START TRANSACTION;
 
 INSERT IGNORE INTO roles (role_name, description) VALUES

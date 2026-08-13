@@ -22,7 +22,13 @@ services:
       - ./apps/regulation-service/src/main/resources/db/safety-check-dml.sql:/docker-entrypoint-initdb.d/06-safety-check-dml.sql:ro
       - ./apps/simulation-service/src/main/resources/db/density-threshold-dml.sql:/docker-entrypoint-initdb.d/07-density-threshold-dml.sql:ro
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      # The MySQL image exposes a temporary socket-only server while init scripts run.
+      # Check TCP so Compose reports healthy only after initialization and the final server restart.
+      test:
+        [
+          'CMD-SHELL',
+          'MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysqladmin ping --protocol=TCP -h 127.0.0.1 -P 3306 -uroot',
+        ]
       interval: 5s
       retries: 30
 
