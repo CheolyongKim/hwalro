@@ -64,6 +64,7 @@ public interface LayoutSearchMapper {
             String engineVersion,
             String terminationReason,
             String metrics,
+            Double totalMoveDistance,
             LocalDateTime finishedAt,
             String failureMessage);
 

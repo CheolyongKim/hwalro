@@ -108,6 +108,10 @@ public class CandidateTrialService {
         return Boolean.TRUE.equals(claimed);
     }
 
+    private Double candidateTotalMoveDistance(LayoutSearchCandidateEntity candidate) {
+        return totalMoveDistanceOf(candidate);
+    }
+
     private Double totalMoveDistanceOf(LayoutSearchCandidateEntity candidate) {
         if (candidate == null || candidate.getChangeSet() == null) {
             return null;
@@ -139,6 +143,7 @@ public class CandidateTrialService {
                     output.engineVersion(),
                     output.terminationReason(),
                     writeJson(trialMetrics),
+                    candidateTotalMoveDistance(candidate),
                     LocalDateTime.now(),
                     null);
             if (completed != 1) {
@@ -159,7 +164,7 @@ public class CandidateTrialService {
     private void recordTrialFailure(Long candidateId, String message) {
         transactionTemplate.executeWithoutResult(status -> {
             if (layoutStudyMapper.updateTrialResult(
-                            trialIdOf(candidateId), null, null, null, LocalDateTime.now(), message)
+                            trialIdOf(candidateId), null, null, null, null, LocalDateTime.now(), message)
                     != 1) {
                 return;
             }

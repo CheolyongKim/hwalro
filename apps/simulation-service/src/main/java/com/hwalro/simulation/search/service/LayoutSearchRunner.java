@@ -127,9 +127,20 @@ public class LayoutSearchRunner {
         value.put("surrogateMode", input.surrogateMode());
         value.put("surrogateBundle", input.surrogateBundle());
         if (input.constraints() != null) {
-            value.put("constraints", input.constraints());
+            value.put("constraints", parseConstraintsInput(input.constraints()));
         }
         return value;
+    }
+
+    private Object parseConstraintsInput(Object raw) {
+        if (raw instanceof String json && !json.isBlank()) {
+            try {
+                return objectMapper.readValue(json, Object.class);
+            } catch (IOException exception) {
+                throw new IllegalStateException("제약 조건 JSON을 파싱하지 못했습니다.", exception);
+            }
+        }
+        return raw;
     }
 
     static void validate(SearchResult result, int maxCandidates, boolean exhaustive) {
