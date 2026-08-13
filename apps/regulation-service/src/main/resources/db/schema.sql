@@ -26,6 +26,21 @@ CREATE TABLE IF NOT EXISTS risks (
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
+-- Law articles attached to a risk for reference; only identifiers are stored, not content snapshots.
+CREATE TABLE IF NOT EXISTS risk_attached_laws (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    risk_id BIGINT UNSIGNED NOT NULL,
+    law_serial_number VARCHAR(30) NOT NULL,
+    law_article_number VARCHAR(100) NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_risk_attached_laws PRIMARY KEY (id),
+    CONSTRAINT uk_risk_attached_laws_risk_law UNIQUE (risk_id, law_serial_number, law_article_number),
+    CONSTRAINT fk_risk_attached_laws_risk FOREIGN KEY (risk_id) REFERENCES risks (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    INDEX idx_risk_attached_laws_risk_id (risk_id)
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
 -- An independently managed area selected for regulation-service safety inspections.
 CREATE TABLE IF NOT EXISTS inspection_areas (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

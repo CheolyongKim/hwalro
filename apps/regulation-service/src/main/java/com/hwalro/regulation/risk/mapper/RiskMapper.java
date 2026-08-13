@@ -1,6 +1,8 @@
 package com.hwalro.regulation.risk.mapper;
 
 import com.hwalro.regulation.risk.domain.Risk;
+import com.hwalro.regulation.risk.dto.AttachedLawRef;
+import com.hwalro.regulation.risk.dto.RiskAttachedLaw;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -23,4 +25,10 @@ public interface RiskMapper {
     int update(Risk risk);
 
     int deleteById(@Param("id") Long id);
+
+    int insertAttachedLaws(@Param("riskId") Long riskId, @Param("attachedLaws") List<AttachedLawRef> attachedLaws);
+
+    int deleteAttachedLawsByRiskId(@Param("riskId") Long riskId);
+
+    List<RiskAttachedLaw> findAttachedLawsByRiskIds(@Param("riskIds") List<Long> riskIds);
 }

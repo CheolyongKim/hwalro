@@ -15,6 +15,7 @@ function risk(overrides: Partial<Risk> & Pick<Risk, 'id'>): Risk {
     endY: null,
     severity: '높음',
     status: '조치 중',
+    attachedLaws: [],
     createdAt: '2026-08-01T09:00:00',
     ...overrides,
   };

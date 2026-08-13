@@ -1,3 +1,8 @@
+export interface AttachedLawRef {
+  lawSerialNumber: string;
+  lawArticleNumber: string;
+}
+
 export interface Risk {
   id: number;
   simulationResultId: number | null;
@@ -11,6 +16,7 @@ export interface Risk {
   endY: number | null;
   severity: string;
   status: string;
+  attachedLaws: AttachedLawRef[];
   createdAt: string;
 }
 
@@ -24,6 +30,7 @@ export interface RiskCreateRequest {
   description: string | null;
   severity: string;
   status: string;
+  attachedLaws: AttachedLawRef[];
 }
 
 export interface RiskUpdateRequest {
@@ -31,6 +38,7 @@ export interface RiskUpdateRequest {
   description: string | null;
   severity: string;
   status: string;
+  attachedLaws: AttachedLawRef[];
 }
 
 export interface RiskListResponse {

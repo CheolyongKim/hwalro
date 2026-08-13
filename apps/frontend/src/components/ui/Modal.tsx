@@ -23,6 +23,8 @@ const sizeClasses: Record<ModalSize, string> = {
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
+let modalDepth = 0;
+
 function Modal({ open, onClose, title, description, size = 'md', children, footer }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -31,11 +33,14 @@ function Modal({ open, onClose, title, description, size = 'md', children, foote
 
   useEffect(() => {
     if (!open) return;
+    modalDepth += 1;
+    const currentDepth = modalDepth;
     previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (currentDepth !== modalDepth) return;
         event.stopPropagation();
         onCloseRef.current();
         return;
@@ -60,6 +65,7 @@ function Modal({ open, onClose, title, description, size = 'md', children, foote
     document.body.style.overflow = 'hidden';
 
     return () => {
+      modalDepth -= 1;
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
       previouslyFocusedRef.current?.focus();

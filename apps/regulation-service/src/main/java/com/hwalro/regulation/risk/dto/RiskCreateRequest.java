@@ -1,5 +1,7 @@
 package com.hwalro.regulation.risk.dto;
 
+import java.util.List;
+
 public record RiskCreateRequest(
         Long simulationResultId,
         Double startX,
@@ -9,4 +11,5 @@ public record RiskCreateRequest(
         String title,
         String description,
         String severity,
-        String status) {}
+        String status,
+        List<AttachedLawRef> attachedLaws) {}
