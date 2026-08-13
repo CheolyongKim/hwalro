@@ -1,7 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, ErrorState, Field, Input, Select, Skeleton, Textarea } from '../../components/ui';
+import {
+  Button,
+  ConfirmDialog,
+  ErrorState,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+} from '../../components/ui';
 import { AttachedLawChipList } from '../../features/risks/components/AttachedLawChipList';
 import LawArticlePickerModal from '../../features/risks/components/LawArticlePickerModal';
 import { riskApi } from '../../features/risks/api/riskApi';
@@ -36,6 +45,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const updateMutation = useUpdateRisk();
   const deleteMutation = useDeleteRisk();
@@ -82,9 +92,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   };
 
   const handleDelete = () => {
-    if (window.confirm('삭제하시겠습니까?')) {
-      deleteMutation.mutate(risk.id);
-    }
+    setDeleteConfirmOpen(true);
   };
 
   const handleOpenSimulation = () => {
@@ -220,6 +228,16 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
           }}
         />
       )}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="위험 항목 삭제"
+        description={`'${risk.title}' 위험 항목을 삭제하시겠습니까?`}
+        isLoading={deleteMutation.isPending}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => deleteMutation.mutate(risk.id)}
+      >
+        <p className="text-sm text-text-muted">삭제한 위험 항목은 복구할 수 없습니다.</p>
+      </ConfirmDialog>
     </div>
   );
 }
