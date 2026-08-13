@@ -539,6 +539,9 @@ public class DrawingService {
         String suffix = " 복사본";
         int maxBaseLength = MAX_TITLE_LENGTH - suffix.length();
         String base = sourceTitle.length() > maxBaseLength ? sourceTitle.substring(0, maxBaseLength) : sourceTitle;
+        if (!base.isEmpty() && Character.isHighSurrogate(base.charAt(base.length() - 1))) {
+            base = base.substring(0, base.length() - 1);
+        }
         return base + suffix;
     }
 
