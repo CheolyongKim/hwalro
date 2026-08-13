@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -90,6 +91,7 @@ public class RiskService {
                 risk, fetchAttachedLawsByRiskIds(List.of(risk.getId())).getOrDefault(risk.getId(), List.of()));
     }
 
+    @Transactional
     public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
         validateSimulationResultId(request.simulationResultId());
@@ -113,6 +115,7 @@ public class RiskService {
         return toResponse(findByIdOrThrow(risk.getId()), attachedLaws);
     }
 
+    @Transactional
     public RiskResponse update(Long id, RiskUpdateRequest request, JwtUser user) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
         List<AttachedLawRef> attachedLaws = validateAttachedLaws(request.attachedLaws());

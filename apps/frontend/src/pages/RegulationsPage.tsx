@@ -81,6 +81,7 @@ function RegulationsPage() {
     const requestId = ++latestListRequestId.current;
     setListLoading(true);
     setListError('');
+    let firstSerialNumber = '';
     try {
       const params = new URLSearchParams({ page: String(nextPage), size: String(PAGE_SIZE) });
       if (searchQuery) params.set('query', searchQuery);
@@ -90,13 +91,7 @@ function RegulationsPage() {
       setPage(result.page);
       setTotalCount(result.totalCount);
       setHasNext(result.hasNext);
-      if (replace && result.items[0]) {
-        if (initialSerialNumber) {
-          selectLaw(initialSerialNumber);
-        } else {
-          selectLaw(result.items[0].serialNumber);
-        }
-      }
+      firstSerialNumber = result.items[0]?.serialNumber ?? '';
     } catch (error) {
       if (requestId !== latestListRequestId.current) return;
       setListError(error instanceof Error ? error.message : '법령 목록을 불러오지 못했습니다.');
@@ -106,6 +101,9 @@ function RegulationsPage() {
       }
     } finally {
       if (requestId === latestListRequestId.current) setListLoading(false);
+    }
+    if (replace && requestId === latestListRequestId.current && (initialSerialNumber || firstSerialNumber)) {
+      selectLaw(initialSerialNumber || firstSerialNumber);
     }
   }
   useEffect(() => {
