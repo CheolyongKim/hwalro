@@ -159,7 +159,7 @@ function createAgentTexture(app: Application) {
 
 function drawDashedCircle(layer: Graphics, centerX: number, centerY: number, radius: number) {
   const circumference = Math.PI * 2 * radius;
-  const segmentCount = Math.max(12, Math.round(circumference / 2.25));
+  const segmentCount = Math.min(512, Math.max(12, Math.round(circumference / 2.25)));
   const segmentAngle = (Math.PI * 2) / segmentCount;
   const dashAngle = segmentAngle * 0.58;
   for (let index = 0; index < segmentCount; index += 1) {
