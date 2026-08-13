@@ -37,10 +37,10 @@ export function ReportDraftDialog({
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const animationFrame = window.requestAnimationFrame(() => {
-      const firstControl = dialogRef.current?.querySelector<HTMLElement>(
-        'input:not([disabled]), button:not([disabled])',
+      const firstComparison = dialogRef.current?.querySelector<HTMLInputElement>(
+        'input[type="checkbox"]:not([disabled])',
       );
-      (firstControl ?? dialogRef.current)?.focus();
+      (firstComparison ?? dialogRef.current)?.focus();
     });
     return () => {
       window.cancelAnimationFrame(animationFrame);
