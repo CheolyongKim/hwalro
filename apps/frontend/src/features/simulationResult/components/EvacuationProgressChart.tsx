@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Chart } from '@tanstack/charts/react/tooltip';
 import { areaY, d3Curve, defineChart, lineY } from '@tanstack/charts';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
@@ -115,7 +115,7 @@ export function EvacuationProgressChart({
         placement: 'top',
         offset: 10,
       },
-      margin: { top: 8, right: 6, bottom: 2, left: 4 },
+      margin: { top: 8 },
       clip: true,
       theme: {
         foreground: 'var(--color-text-strong)',
@@ -127,6 +127,21 @@ export function EvacuationProgressChart({
   }, [visible, safeDuration, safeTotalPeople]);
 
   const [plotBounds, setPlotBounds] = useState<ChartBounds | null>(null);
+  const plotRef = useRef<HTMLDivElement | null>(null);
+  const [plotWidth, setPlotWidth] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const plot = plotRef.current;
+    if (!plot) return;
+    const updateWidth = () => {
+      const next = plot.offsetWidth;
+      setPlotWidth((previous) => (next > 0 && next !== previous ? next : previous));
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(plot);
+    return () => observer.disconnect();
+  }, []);
 
   const handleRender = useCallback(
     (context: ChartRenderContext<EvacuationPoint, number, number>) => {
@@ -182,11 +197,12 @@ export function EvacuationProgressChart({
           {evacuationProgress.countLabel} · {evacuationProgress.rateLabel}
         </span>
       </div>
-      <div className="evacuation-chart-plot">
+      <div className="evacuation-chart-plot" ref={plotRef}>
         <Chart
           definition={definition}
           ariaLabel="시간별 대피 인원"
           height={150}
+          width={plotWidth ?? undefined}
           onRender={handleRender}
           renderTooltipBody={renderTooltipBody}
         />
