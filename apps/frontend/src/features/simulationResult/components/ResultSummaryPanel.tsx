@@ -101,7 +101,8 @@ export function ResultSummaryPanel({
             <CircleCheck aria-hidden="true" />
             <div>
               <strong>감지된 병목 구간이 없습니다</strong>
-              <span>이번 결과에서는 기준 밀집도를 초과한 병목 구간이</span><span> 확인되지 않았습니다.</span>
+              <span>이번 결과에서는 기준 밀집도를 초과한 병목 구간이</span>
+              <span> 확인되지 않았습니다.</span>
             </div>
           </div>
         ) : (
