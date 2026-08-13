@@ -25,8 +25,14 @@ function RiskManagementPage() {
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  const handlePageChange = (nextPage: number) => {
+    setSelectedId(null);
+    setPage(nextPage);
+  };
+
   useEffect(() => {
     if (!isPending && !isError && page > pageCount) {
+      setSelectedId(null);
       setPage(pageCount);
     }
   }, [isPending, isError, page, pageCount]);
@@ -87,7 +93,7 @@ function RiskManagementPage() {
                     <Pagination
                       page={page}
                       pageCount={pageCount}
-                      onPageChange={setPage}
+                      onPageChange={handlePageChange}
                       ariaLabel="위험 예상 목록 페이지"
                     />
                   </div>
