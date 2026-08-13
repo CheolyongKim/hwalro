@@ -1,5 +1,6 @@
 package com.hwalro.regulation.report.mapper;
 
+import com.hwalro.regulation.report.dto.AiReportDraftMonitorItem;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
 import com.hwalro.regulation.report.dto.ReportDraftInsert;
 import com.hwalro.regulation.report.dto.ReportListItem;
@@ -18,6 +19,8 @@ public interface ReportMapper {
             @Param("authorId") Long authorId,
             @Param("limit") int limit,
             @Param("offset") long offset);
+
+    List<AiReportDraftMonitorItem> findAiDraftMonitorItems(@Param("authorId") Long authorId);
 
     ReportDetailRow findDetailById(@Param("id") Long id);
 

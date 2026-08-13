@@ -17,14 +17,21 @@ class ReportPromptFactoryTest {
                 100L,
                 "현재 배치안",
                 List.of(
-                        new Metric("TOTAL_EVACUATION_TIME", 264, "SECOND"),
-                        new Metric("MAX_DENSITY", 4.8, "PERSON_PER_M2"),
-                        new Metric("TOTAL_PEOPLE", 100, "PERSON"),
-                        new Metric("EVACUATED_PEOPLE", 100, "PERSON"),
-                        new Metric("BOTTLENECK_COUNT", 2, "COUNT")),
-                List.of(new Bottleneck(1, 12, 72, 4.8, 3.5)));
-        Context comparison =
-                new Context(20L, 200L, "중앙 통로 확장안", List.of(new Metric("TOTAL_EVACUATION_TIME", 302, "s")), List.of());
+                        new Metric("SIMULATION_DURATION_SECONDS", 149, "seconds"),
+                        new Metric("AVERAGE_EVACUATION_TIME_SECONDS", 42.601511, "seconds"),
+                        new Metric("MAX_DENSITY", 4, "PERSON_PER_M2"),
+                        new Metric("EVACUATED_PEOPLE", 4998, "people"),
+                        new Metric("REMAINING_PEOPLE", 2, "people")),
+                List.of(new Bottleneck(1, 12.005, 72.104, 4, 3)));
+        Context comparison = new Context(
+                20L,
+                200L,
+                "중앙 통로 확장안",
+                List.of(
+                        new Metric("AVERAGE_EVACUATION_TIME_SECONDS", 44.843082, "seconds"),
+                        new Metric("EVACUATED_PEOPLE", 2000, "people"),
+                        new Metric("REMAINING_PEOPLE", 0, "people")),
+                List.of());
         ReportDraftInput input = new ReportDraftInput(
                 source,
                 List.of(comparison),
@@ -33,30 +40,50 @@ class ReportPromptFactoryTest {
         ReportPromptFactory.Prompt prompt = new ReportPromptFactory(new ObjectMapper()).create(input);
 
         assertThat(prompt.system())
-                .contains("쉬운 한국어", "영문 지표 코드", "공식 지표를 계산", "추정하지")
+                .contains(
+                        "쉬운 한국어",
+                        "영문 지표 코드",
+                        "소수 셋째 자리에서 반올림",
+                        "2,000명",
+                        "미대피 인원",
+                        "관련 문장 2~4개",
+                        "설명 주제가 달라질 때만 한 번 줄을 바꾸세요",
+                        "한 문단이 5문장 이상이면",
+                        "모든 문장을 '권합니다', '추천합니다'처럼 같은 표현으로 끝내지 마세요",
+                        "검토해 볼 수 있습니다",
+                        "확인이 필요합니다",
+                        "동일한 종결 표현을 연속으로 사용하지 말고",
+                        "공식 지표를 계산",
+                        "추정하지")
+                .doesNotContain("문장 하나가 끝날 때마다 줄을 바꾸세요")
+                .doesNotContain("~하시길 추천합니다.와 비슷한 부드러운 표현")
                 .doesNotContain("전문 용어를 적극적으로 사용");
         assertThat(prompt.user())
                 .contains(
                         "[현재안]",
                         "현재 배치안",
-                        "총 대피 시간: 264.0 초",
-                        "최대 밀집도: 4.8 명/㎡",
-                        "총인원: 100.0 명",
-                        "대피 완료 인원: 100.0 명",
-                        "병목 구간 수: 2.0 곳",
-                        "병목 1: 12.0초~72.0초",
+                        "전체 진행 시간: 149초",
+                        "평균 대피 시간: 42.6초",
+                        "최대 밀집도: 4명/㎡",
+                        "대피 완료 인원: 4,998명",
+                        "미대피 인원: 2명",
+                        "병목 1: 12.01초~72.1초, 최고 밀집도 4명/㎡, 기준값 3명/㎡",
                         "[비교안 1]",
                         "중앙 통로 확장안",
-                        "총 대피 시간: 302.0 초",
+                        "평균 대피 시간: 44.84초",
+                        "대피 완료 인원: 2,000명",
+                        "미대피 인원: 0명",
                         "무대 전면 위험 예상 구역",
                         "\"severity\":\"높음\"")
                 .doesNotContain(
-                        "TOTAL_EVACUATION_TIME",
+                        "SIMULATION_DURATION_SECONDS",
+                        "AVERAGE_EVACUATION_TIME_SECONDS",
                         "MAX_DENSITY",
-                        "TOTAL_PEOPLE",
                         "EVACUATED_PEOPLE",
-                        "BOTTLENECK_COUNT",
+                        "REMAINING_PEOPLE",
                         "PERSON_PER_M2",
+                        "seconds",
+                        "people",
                         "HIGH");
     }
 
@@ -67,7 +94,7 @@ class ReportPromptFactoryTest {
         ReportPromptFactory.Prompt prompt =
                 new ReportPromptFactory(new ObjectMapper()).create(new ReportDraftInput(source, List.of(), List.of()));
 
-        assertThat(prompt.user()).contains("NEW_METRIC: 7.0 NEW_UNIT");
+        assertThat(prompt.user()).contains("NEW_METRIC: 7 NEW_UNIT");
     }
 
     @Test
