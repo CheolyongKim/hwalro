@@ -296,4 +296,17 @@
         WHERE lv.layout_id = #{layoutId}
     </select>
 
+    <select
+            id="countSimulationsByLayoutIds"
+            resultType="com.hwalro.simulation.drawing.dto.SimulationCountByLayout">
+        SELECT lv.layout_id AS layoutId, COUNT(*) AS simulationCount
+        FROM simulations s
+        JOIN layout_versions lv ON s.layout_version_id = lv.id
+        WHERE lv.layout_id IN
+        <foreach collection="layoutIds" item="layoutId" open="(" separator="," close=")">
+            #{layoutId}
+        </foreach>
+        GROUP BY lv.layout_id
+    </select>
+
 </mapper>
