@@ -18,6 +18,8 @@ public interface SimulationResultDetailMapper {
 
     List<SegmentRow> findFabrics(@Param("layoutVersionId") Long layoutVersionId);
 
+    List<HazardZoneRow> findHazardZones(@Param("simulationId") Long simulationId);
+
     List<BottleneckRow> findBottlenecks(@Param("simulationResultId") Long simulationResultId);
 
     List<ComparableRow> findComparableSimulations(
@@ -37,6 +39,8 @@ public interface SimulationResultDetailMapper {
     record MetricRow(String metricType, double metricValue) {}
 
     record SegmentRow(String name, double startX, double startY, double endX, double endY, double rotation) {}
+
+    record HazardZoneRow(Long id, double centerX, double centerY, double radius) {}
 
     record BottleneckRow(
             Long id,

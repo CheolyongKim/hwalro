@@ -122,6 +122,10 @@ export function createMockSimulationResult(simulationId: string): SimulationResu
     maxDensity: 4.8,
     densityThreshold: 3.5,
     drawing,
+    hazardZones: [
+      { id: 1, centerX: 82, centerY: 44, radius: 8 },
+      { id: 2, centerX: 128, centerY: 72, radius: 6 },
+    ],
     agentFrames,
     heatmap: {
       originX: 0,
