@@ -46,9 +46,11 @@ function LawDetailChips({
     <>
       {articleNumbers.map((articleNumber) => {
         const key = `${serialNumber}:${articleNumber}`;
-        const label = names?.get(key) ?? (detailQuery.isError
-          ? `법령 정보를 불러올 수 없습니다 (${serialNumber} 제${articleNumber}조)`
-          : buildArticleLabel(serialNumber, articleNumber, detailQuery.data));
+        const label =
+          names?.get(key) ??
+          (detailQuery.isError
+            ? `법령 정보를 불러올 수 없습니다 (${serialNumber} 제${articleNumber}조)`
+            : buildArticleLabel(serialNumber, articleNumber, detailQuery.data));
         return (
           <Chip
             key={articleNumber}

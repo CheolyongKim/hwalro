@@ -37,10 +37,7 @@ export function RiskZoneEditorDialog({
     setAttachedLaws((prev) =>
       prev.filter(
         (item) =>
-          !(
-            item.lawSerialNumber === lawSerialNumber &&
-            item.lawArticleNumber === lawArticleNumber
-          ),
+          !(item.lawSerialNumber === lawSerialNumber && item.lawArticleNumber === lawArticleNumber),
       ),
     );
   };
@@ -75,64 +72,64 @@ export function RiskZoneEditorDialog({
           aria-labelledby="zone-editor-title"
           onMouseDown={(event) => event.stopPropagation()}
         >
-        <h2 id="zone-editor-title">위험 예상 항목 이름</h2>
-        <input
-          aria-label="위험 예상 항목 이름"
-          value={zoneName}
-          onChange={(event) => setZoneName(event.target.value)}
-          autoFocus
-        />
-        <label htmlFor="zone-editor-severity">심각도</label>
-        <select
-          id="zone-editor-severity"
-          value={severity}
-          onChange={(event) => setSeverity(event.target.value)}
-        >
-          {SEVERITY_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <label htmlFor="zone-editor-status">상태</label>
-        <select
-          id="zone-editor-status"
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <div className="law-attach-section">
-          <span className="law-attach-label">법령 첨부</span>
-          {attachedLaws.length > 0 && (
-            <AttachedLawChipList
-              refs={attachedLaws}
-              className="law-attach-chips"
-              onRemove={(ref) => removeAttachedLaw(ref.lawSerialNumber, ref.lawArticleNumber)}
-            />
-          )}
-          <button type="button" className="law-attach-button" onClick={() => setPickerOpen(true)}>
-            + 법령 첨부
-          </button>
-        </div>
-        {errorMessage && <p role="alert">{errorMessage}</p>}
-        <div>
-          <button type="button" onClick={onCancel}>
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={createMutation.isPending || !zoneName.trim()}
+          <h2 id="zone-editor-title">위험 예상 항목 이름</h2>
+          <input
+            aria-label="위험 예상 항목 이름"
+            value={zoneName}
+            onChange={(event) => setZoneName(event.target.value)}
+            autoFocus
+          />
+          <label htmlFor="zone-editor-severity">심각도</label>
+          <select
+            id="zone-editor-severity"
+            value={severity}
+            onChange={(event) => setSeverity(event.target.value)}
           >
-            {createMutation.isPending ? '등록 중...' : '확정'}
-          </button>
-        </div>
-      </section>
+            {SEVERITY_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="zone-editor-status">상태</label>
+          <select
+            id="zone-editor-status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <div className="law-attach-section">
+            <span className="law-attach-label">법령 첨부</span>
+            {attachedLaws.length > 0 && (
+              <AttachedLawChipList
+                refs={attachedLaws}
+                className="law-attach-chips"
+                onRemove={(ref) => removeAttachedLaw(ref.lawSerialNumber, ref.lawArticleNumber)}
+              />
+            )}
+            <button type="button" className="law-attach-button" onClick={() => setPickerOpen(true)}>
+              + 법령 첨부
+            </button>
+          </div>
+          {errorMessage && <p role="alert">{errorMessage}</p>}
+          <div>
+            <button type="button" onClick={onCancel}>
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={createMutation.isPending || !zoneName.trim()}
+            >
+              {createMutation.isPending ? '등록 중...' : '확정'}
+            </button>
+          </div>
+        </section>
       </div>
       {pickerOpen && (
         <LawArticlePickerModal

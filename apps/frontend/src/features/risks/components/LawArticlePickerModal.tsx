@@ -171,9 +171,7 @@ function LawArticlePickerModal({
                 icon={Landmark}
                 title={activeQuery ? '검색 결과가 없습니다.' : '표시할 법령이 없습니다.'}
                 description={
-                  activeQuery
-                    ? '다른 검색어로 다시 시도해 보세요.'
-                    : '잠시 후 다시 시도해 주세요.'
+                  activeQuery ? '다른 검색어로 다시 시도해 보세요.' : '잠시 후 다시 시도해 주세요.'
                 }
               />
             )}

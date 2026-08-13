@@ -38,10 +38,7 @@ export function useRiskForm(initial: RiskFormValues) {
     setAttachedLaws((prev) =>
       prev.filter(
         (item) =>
-          !(
-            item.lawSerialNumber === lawSerialNumber &&
-            item.lawArticleNumber === lawArticleNumber
-          ),
+          !(item.lawSerialNumber === lawSerialNumber && item.lawArticleNumber === lawArticleNumber),
       ),
     );
   };
