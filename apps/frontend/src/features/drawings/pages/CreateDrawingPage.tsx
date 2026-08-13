@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useCreateDrawing } from '../hooks/useDrawingMutations';
 import {
   Button,
@@ -17,6 +18,7 @@ import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
 function CreateDrawingPage() {
   const navigate = useNavigate();
   const createDrawing = useCreateDrawing();
+  const recordLastActivity = useRecordLastActivity();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -30,7 +32,10 @@ function CreateDrawingPage() {
         description: description.trim() === '' ? null : description.trim(),
       },
       {
-        onSuccess: (drawing) => navigate(`/layout/${drawing.id}`),
+        onSuccess: (drawing) => {
+          recordLastActivity('LAYOUT_EDIT', drawing.id);
+          navigate(`/layout/${drawing.id}`);
+        },
         onError: (error) => setErrorMessage(getDrawingErrorMessage(error)),
       },
     );
