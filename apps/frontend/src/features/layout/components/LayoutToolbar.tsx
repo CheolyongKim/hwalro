@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { Pencil } from 'lucide-react';
 import type { EditorState } from '../types';
 
 interface LayoutToolbarProps {
@@ -5,6 +7,7 @@ interface LayoutToolbarProps {
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   onSave: () => void;
   onStartSimulation: () => void;
+  onRename: (name: string) => void;
   readOnly: boolean;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -15,16 +18,64 @@ export function LayoutToolbar({
   saveStatus,
   onSave,
   onStartSimulation,
+  onRename,
   readOnly,
   collapsed,
   onToggleCollapse,
 }: LayoutToolbarProps) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState('');
+
+  const startEditing = () => {
+    setDraftName(state.doc.name);
+    setEditing(true);
+  };
+
+  const commitRename = () => {
+    setEditing(false);
+    const next = draftName.trim();
+    if (next !== '' && next !== state.doc.name) {
+      onRename(next);
+    }
+  };
+
   return (
     <div className="shrink-0 border-b border-panel-divider p-3">
       <div className="flex items-center gap-2">
-        <h1 className="min-w-0 flex-1 truncate text-[15px] font-bold text-panel-text">
-          {state.doc.name}
-        </h1>
+        {editing ? (
+          <input
+            autoFocus
+            type="text"
+            value={draftName}
+            onChange={(event) => setDraftName(event.currentTarget.value)}
+            onBlur={commitRename}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                commitRename();
+              } else if (event.key === 'Escape') {
+                setEditing(false);
+              }
+            }}
+            aria-label="도면 이름"
+            maxLength={50}
+            className="h-8 min-w-0 flex-1 rounded-md border border-panel-border bg-panel-soft px-2 text-[15px] font-bold text-panel-text outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          />
+        ) : (
+          <h1 className="min-w-0 flex-1 truncate text-[15px] font-bold text-panel-text">
+            {state.doc.name}
+          </h1>
+        )}
+        {!editing && (
+          <button
+            type="button"
+            onClick={startEditing}
+            disabled={readOnly}
+            aria-label="도면 이름 수정"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-panel-muted transition-colors hover:bg-panel-soft hover:text-panel-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Pencil aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleCollapse}

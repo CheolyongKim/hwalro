@@ -340,6 +340,7 @@ function LayoutPage() {
           saveStatus={saveStatus}
           onSave={() => void performSave()}
           onStartSimulation={() => void handleOpenDraftDialog()}
+          onRename={(name) => dispatch({ type: 'renameDoc', name })}
           readOnly={readOnly}
           collapsed={panelCollapsed}
           onToggleCollapse={() => setPanelCollapsed((value) => !value)}
