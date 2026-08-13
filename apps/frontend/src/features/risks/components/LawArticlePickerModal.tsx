@@ -1,7 +1,6 @@
 import { FileText, Landmark } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button, EmptyState, ErrorState, Input, Modal, Skeleton } from '../../../components/ui';
 import { useLawDetail } from '../hooks/useLawDetail';
 import { useLawSearch } from '../hooks/useLawSearch';
@@ -29,7 +28,6 @@ function LawArticlePickerModal({
   const [selectedLaw, setSelectedLaw] = useState<RegulationSummary | null>(null);
   const [checked, setChecked] = useState<AttachedLawRef[]>(selected);
   const lastAppliedPageRef = useRef(0);
-  const navigate = useNavigate();
 
   const searchQuery = useLawSearch(activeQuery, page);
   const detailQuery = useLawDetail(selectedLaw?.serialNumber);
@@ -87,13 +85,6 @@ function LawArticlePickerModal({
   const handleConfirm = () => {
     onConfirm(checked);
     onClose();
-  };
-
-  const handleViewDetail = () => {
-    if (!selectedLaw) return;
-    navigate(
-      `/regulations?serialNumber=${encodeURIComponent(selectedLaw.serialNumber)}&query=${encodeURIComponent(selectedLaw.name)}`,
-    );
   };
 
   return (
@@ -198,11 +189,17 @@ function LawArticlePickerModal({
         <div className="flex min-h-0 flex-col">
           <span className="text-xs font-bold tracking-wide text-text-muted">조문 선택</span>
           <div className="mt-1.5 max-h-96 min-h-0 flex-1 overflow-y-auto">
-            {detailQuery.isPending ? (
+            {!selectedLaw ? (
+              <EmptyState
+                icon={FileText}
+                title="법령을 선택하세요"
+                description="왼쪽 목록에서 법령을 선택하면 조문을 확인할 수 있습니다."
+              />
+            ) : detailQuery.isPending ? (
               <Skeleton className="h-40 w-full" />
             ) : detailQuery.isError ? (
               <ErrorState message="법령 상세를 불러오지 못했습니다." />
-            ) : selectedLaw && detailQuery.data ? (
+            ) : detailQuery.data ? (
               detailQuery.data.articles.length === 0 ? (
                 <EmptyState title="표시할 조문이 없습니다." />
               ) : (
@@ -240,26 +237,21 @@ function LawArticlePickerModal({
                               제{article.number}조{article.title ? ` (${article.title})` : ''}
                             </span>
                           </label>
-                          <button
-                            type="button"
-                            onClick={handleViewDetail}
+                          <a
+                            href={`/regulations?serialNumber=${encodeURIComponent(selectedLaw.serialNumber)}&query=${encodeURIComponent(selectedLaw.name)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="mr-3 shrink-0 rounded-md px-2 py-1 text-xs font-bold text-primary outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-focus-ring"
                           >
                             상세보기
-                          </button>
+                          </a>
                         </div>
                       </li>
                     ),
                   )}
                 </ul>
               )
-            ) : (
-              <EmptyState
-                icon={FileText}
-                title="법령을 선택하세요"
-                description="왼쪽 목록에서 법령을 선택하면 조문을 확인할 수 있습니다."
-              />
-            )}
+            ) : null}
           </div>
         </div>
       </div>
