@@ -2,6 +2,7 @@ package com.hwalro.regulation.risk.service;
 
 import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
+import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.exception.SimulationServiceException;
 import com.hwalro.regulation.risk.client.RiskDrawingContextClient;
 import com.hwalro.regulation.risk.domain.Risk;
@@ -13,7 +14,10 @@ import com.hwalro.regulation.risk.dto.RiskUpdateRequest;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import com.hwalro.regulation.risk.mapper.RiskMapper;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -31,18 +35,26 @@ public class RiskService {
 
     private final RiskMapper riskMapper;
     private final RiskDrawingContextClient drawingContextClient;
+    private final AuthorDirectoryClient authorDirectoryClient;
 
-    public RiskService(RiskMapper riskMapper, RiskDrawingContextClient drawingContextClient) {
+    public RiskService(
+            RiskMapper riskMapper,
+            RiskDrawingContextClient drawingContextClient,
+            AuthorDirectoryClient authorDirectoryClient) {
         this.riskMapper = riskMapper;
         this.drawingContextClient = drawingContextClient;
+        this.authorDirectoryClient = authorDirectoryClient;
     }
 
-    public RiskListResponse list(int page, int size, JwtUser user) {
+    public RiskListResponse list(int page, int size, JwtUser user, String authorization) {
         validatePage(page, size);
         Long assigneeFilter = resolveAssigneeFilter(user);
         long totalCount = riskMapper.count(assigneeFilter);
         List<Risk> risks = riskMapper.findPage((page - 1) * size, size, assigneeFilter);
-        List<RiskResponse> items = risks.stream().map(this::toResponse).toList();
+        Map<Long, String> assigneeNames = findAssigneeNames(risks, authorization);
+        List<RiskResponse> items = risks.stream()
+                .map(risk -> toResponse(risk, assigneeNames.get(risk.getAssigneeId())))
+                .toList();
         return new RiskListResponse((int) totalCount, page, size, page * size < totalCount, items);
     }
 
@@ -145,11 +157,30 @@ public class RiskService {
         return risk;
     }
 
+    private Map<Long, String> findAssigneeNames(List<Risk> risks, String authorization) {
+        List<Long> assigneeIds = risks.stream()
+                .map(Risk::getAssigneeId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (assigneeIds.isEmpty()) {
+            return Map.of();
+        }
+        return authorDirectoryClient.findByIds(assigneeIds, authorization).stream()
+                .collect(Collectors.toMap(
+                        AuthorDirectoryClient.AuthorSummary::id, AuthorDirectoryClient.AuthorSummary::name));
+    }
+
     private RiskResponse toResponse(Risk risk) {
+        return toResponse(risk, null);
+    }
+
+    private RiskResponse toResponse(Risk risk, String assigneeName) {
         return new RiskResponse(
                 risk.getId(),
                 risk.getSimulationResultId(),
                 risk.getAssigneeId(),
+                assigneeName,
                 risk.getTitle(),
                 risk.getDescription(),
                 risk.getStartX(),
