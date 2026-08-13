@@ -33,6 +33,12 @@ interface SimulationResultSummaryResponse {
     fabrics: SegmentResponse[];
     layoutTexts: Array<{ text: string; x: number; y: number }>;
   };
+  hazardZones: Array<{
+    id: number;
+    centerX: number;
+    centerY: number;
+    radius: number;
+  }>;
   bottlenecks: Array<{
     id: number;
     order: number;
@@ -57,6 +63,7 @@ function toSummaryViewModel(
   return {
     ...response,
     simulationId: String(response.simulationId),
+    hazardZones: response.hazardZones ?? [],
   };
 }
 

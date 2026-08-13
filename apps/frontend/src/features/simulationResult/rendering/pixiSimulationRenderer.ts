@@ -1,6 +1,7 @@
 import {
   Application,
   Container,
+  FillGradient,
   Graphics,
   Particle,
   ParticleContainer,
@@ -30,6 +31,8 @@ export interface PixiSimulationScene {
   app: Application;
   world: Container;
   heatmapLayer: Graphics;
+  hazardLayer: Graphics;
+  hazardGradient: FillGradient;
   bottleneckLayer: Graphics;
   riskLayer: Graphics;
   agentLayer: ParticleContainer<Particle>;
@@ -68,7 +71,10 @@ export function pixiScreenToWorld(x: number, y: number, transform: PixiCameraTra
   };
 }
 
-type PixiSceneConfig = Pick<SimulationResultSummaryViewModel, 'drawing' | 'totalPeople'>;
+type PixiSceneConfig = Pick<
+  SimulationResultSummaryViewModel,
+  'drawing' | 'hazardZones' | 'totalPeople'
+>;
 
 function traceBoundary(graphics: Graphics, points: PixiSceneConfig['drawing']['outsideBoundary']) {
   const first = points[0];
@@ -151,6 +157,41 @@ function createAgentTexture(app: Application) {
   return texture;
 }
 
+function drawDashedCircle(layer: Graphics, centerX: number, centerY: number, radius: number) {
+  const circumference = Math.PI * 2 * radius;
+  const segmentCount = Math.max(12, Math.round(circumference / 2.25));
+  const segmentAngle = (Math.PI * 2) / segmentCount;
+  const dashAngle = segmentAngle * 0.58;
+  for (let index = 0; index < segmentCount; index += 1) {
+    const startAngle = index * segmentAngle;
+    layer.moveTo(centerX + Math.cos(startAngle) * radius, centerY + Math.sin(startAngle) * radius);
+    layer.arc(centerX, centerY, radius, startAngle, startAngle + dashAngle);
+  }
+  layer.stroke({ color: 0xef7777, alpha: 1, width: 0.32 });
+}
+
+function drawHazardZones(result: PixiSceneConfig) {
+  const layer = new Graphics();
+  const gradient = new FillGradient({
+    type: 'radial',
+    center: { x: 0.5, y: 0.5 },
+    innerRadius: 0,
+    outerCenter: { x: 0.5, y: 0.5 },
+    outerRadius: 0.5,
+    colorStops: [
+      { offset: 0, color: 'rgba(177, 32, 32, 0.58)' },
+      { offset: 0.5, color: 'rgba(225, 75, 75, 0.28)' },
+      { offset: 1, color: 'rgba(239, 119, 119, 0.08)' },
+    ],
+    textureSpace: 'local',
+  });
+  for (const hazard of result.hazardZones) {
+    layer.circle(hazard.centerX, hazard.centerY, hazard.radius).fill(gradient);
+    drawDashedCircle(layer, hazard.centerX, hazard.centerY, hazard.radius);
+  }
+  return { layer, gradient };
+}
+
 export async function createPixiSimulationScene(
   host: HTMLDivElement,
   result: PixiSceneConfig,
@@ -172,6 +213,7 @@ export async function createPixiSimulationScene(
 
   const world = new Container();
   const heatmapLayer = new Graphics();
+  const hazards = drawHazardZones(result);
   const bottleneckLayer = new Graphics();
   const riskLayer = new Graphics();
   const floorPlan = drawFloorPlan(result);
@@ -206,6 +248,7 @@ export async function createPixiSimulationScene(
     heatmapLayer,
     floorPlan.structureLayer,
     agentLayer,
+    hazards.layer,
     bottleneckLayer,
     riskLayer,
   );
@@ -215,6 +258,8 @@ export async function createPixiSimulationScene(
     app,
     world,
     heatmapLayer,
+    hazardLayer: hazards.layer,
+    hazardGradient: hazards.gradient,
     bottleneckLayer,
     riskLayer,
     agentLayer,
@@ -410,5 +455,6 @@ export function applyPixiCamera(scene: PixiSimulationScene, transform: PixiCamer
 
 export function destroyPixiSimulationScene(scene: PixiSimulationScene) {
   scene.app.destroy({ removeView: true }, { children: true });
+  scene.hazardGradient.destroy();
   scene.agentTexture.destroy(true);
 }
