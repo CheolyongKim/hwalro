@@ -14,7 +14,15 @@ import {
   getSafetyCheckError,
 } from '../features/safetyChecks/utils';
 import { useAuth } from '../features/auth/context/AuthContext';
-import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  Skeleton,
+} from '../components/ui';
 import type { BadgeTone } from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
@@ -35,6 +43,7 @@ function SafetyCheckHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [inspectionToDelete, setInspectionToDelete] = useState<InspectionHistory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const canManageTemplate =
@@ -82,19 +91,23 @@ function SafetyCheckHistoryPage() {
     }
   }
 
-  async function deleteInspection(inspection: InspectionHistory) {
-    const confirmed = window.confirm(
-      `점검 #${inspection.id}을 삭제하시겠습니까? 삭제한 작성 중 점검은 복구할 수 없습니다.`,
-    );
-    if (!confirmed) return;
+  function openDeleteConfirm(inspection: InspectionHistory) {
+    setInspectionToDelete(inspection);
+    setActionError(null);
+  }
 
-    setDeletingId(inspection.id);
+  async function confirmDeleteInspection() {
+    if (!inspectionToDelete) return;
+
+    setDeletingId(inspectionToDelete.id);
     setActionError(null);
     try {
-      await safetyCheckApi.deleteInspection(inspection.id);
-      setInspections((current) => current.filter((item) => item.id !== inspection.id));
+      await safetyCheckApi.deleteInspection(inspectionToDelete.id);
+      setInspections((current) => current.filter((item) => item.id !== inspectionToDelete.id));
+      setInspectionToDelete(null);
     } catch (requestError) {
       setActionError(getSafetyCheckError(requestError));
+      setInspectionToDelete(null);
     } finally {
       setDeletingId(null);
     }
@@ -244,7 +257,7 @@ function SafetyCheckHistoryPage() {
                   {canDelete && (
                     <button
                       type="button"
-                      onClick={() => void deleteInspection(inspection)}
+                      onClick={() => openDeleteConfirm(inspection)}
                       disabled={deletingId === inspection.id}
                       aria-label={`점검 #${inspection.id} 삭제`}
                       title="작성 중 점검 삭제"
@@ -259,6 +272,19 @@ function SafetyCheckHistoryPage() {
           </div>
         )}
       </Card>
+
+      {inspectionToDelete && (
+        <ConfirmDialog
+          open
+          title="점검 삭제"
+          description={`점검 #${inspectionToDelete.id}을 삭제하시겠습니까?`}
+          isLoading={deletingId !== null}
+          onCancel={() => setInspectionToDelete(null)}
+          onConfirm={() => void confirmDeleteInspection()}
+        >
+          <p className="text-sm text-text-muted">삭제한 작성 중 점검은 복구할 수 없습니다.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }
