@@ -55,11 +55,11 @@ function RiskManagementPage() {
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <Card padded={false} className="overflow-hidden">
+        <Card padded={false} className="flex min-h-[500px] flex-col overflow-hidden">
           <div className="border-b border-line px-5 py-4 sm:px-7">
             <h2 className="text-xl font-black text-ink">위험 예상 목록</h2>
           </div>
-          <div>
+          <div className="flex min-h-0 flex-1 flex-col">
             {isPending ? (
               <ul className="divide-y divide-line">
                 {Array.from({ length: 4 }).map((_, index) => (
@@ -86,7 +86,7 @@ function RiskManagementPage() {
                   onSelect={setSelectedId}
                 />
                 {items.length > 0 && (
-                  <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
+                  <div className="mt-auto flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
                     <p className="text-sm tabular-nums text-text-muted">
                       총 {totalCount.toLocaleString()}건
                     </p>
