@@ -558,3 +558,25 @@ def test_rotation_disabled_removes_rotate_candidates():
     result = layout_search.generate(base_input(drawing, constraints={"rotationAllowed": {"1": False}}))
     for candidate in result["candidates"]:
         assert candidate["operatorType"] != "ROTATE_TO_OPEN"
+
+
+def test_fixed_fabric_is_excluded_from_dual_gap_candidates():
+    drawing = room_drawing(
+        fabrics=[
+            {"id": 1, "name": "a", "startX": 4, "startY": 5, "endX": 6, "endY": 6, "rotation": 0},
+            {"id": 2, "name": "b", "startX": 7, "startY": 5, "endX": 9, "endY": 6, "rotation": 0},
+        ]
+    )
+    result = layout_search.generate(base_input(drawing, constraints={"moveRadii": {"1": 0.0}}))
+    for candidate in result["candidates"]:
+        assert all(op["fabricId"] != 1 for op in candidate["ops"])
+
+
+def test_agents_overlapping_obstacles_are_relocated_before_routing():
+    drawing = room_drawing(fabrics=[{"id": 1, "name": "f", "startX": 2, "startY": 2, "endX": 6, "endY": 4, "rotation": 0}])
+    overlapping = [{"x": 4.0, "y": 3.0}, {"x": 1.0, "y": 1.0}]
+    result = layout_search.generate(
+        {**base_input(drawing, findings=[bottleneck_finding()], max_candidates=6), "agents": overlapping}
+    )
+    assert result["plannerVersion"] == "DIAGNOSTIC_BEAM_V1"
+    assert len(result["candidates"]) > 0

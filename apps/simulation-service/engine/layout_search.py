@@ -41,6 +41,7 @@ from route_planner import (
     build_walkable_geometry,
     parse_exits,
     parse_hazards,
+    relocate_agents,
 )
 
 PLANNER_VERSION = "DIAGNOSTIC_BEAM_V1"
@@ -648,6 +649,7 @@ def _touches_any_wall(geometry: Any, walls: Sequence[dict[str, Any]]) -> bool:
 
 def _baseline(drawing: dict[str, Any], agents, hazards, exits) -> RouterSnapshot:
     routing = build_routing_geometry(drawing, CORRIDOR_CLEARANCE_METERS)
+    relocated, _ = relocate_agents(routing, agents)
     router = GridRouter(
         routing,
         hazards,
@@ -656,7 +658,7 @@ def _baseline(drawing: dict[str, Any], agents, hazards, exits) -> RouterSnapshot
         physical_walkable=build_walkable_geometry(drawing),
         exit_clearance=0.3,
     )
-    route_costs, exit_counts = _plan_all(router, agents)
+    route_costs, exit_counts = _plan_all(router, relocated)
     return RouterSnapshot(router, routing, route_costs, exit_counts)
 
 
@@ -873,6 +875,13 @@ class _Generation:
         id_b = _fabric_key(fabric_b)
         before_a = _coords_only(fabric_a)
         before_b = _coords_only(fabric_b)
+        if self.constraints is not None:
+            if self.constraints.move_radius_of(fabric_a.get("id")) == 0.0:
+                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric_a), "CONSTRAINT_FIXED")
+                return
+            if self.constraints.move_radius_of(fabric_b.get("id")) == 0.0:
+                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric_b), "CONSTRAINT_FIXED")
+                return
         normal = _region_normal(finding)
         for distance in DUAL_GAP_DISTANCES:
             if self._full(finding_index):
@@ -883,6 +892,10 @@ class _Generation:
             else:
                 after_a = _translated_after(before_a, distance, 0.0)
                 after_b = _translated_after(before_b, -distance, 0.0)
+            if self._violates_place_constraints(fabric_a, before_a, after_a) or self._violates_place_constraints(
+                fabric_b, before_b, after_b
+            ):
+                continue
             reason, snapshot = _assess_moves(
                 drawing,
                 self.agents,
@@ -1197,10 +1210,11 @@ def generate(input_data: dict[str, Any]) -> dict[str, Any]:
     round_index = _round_index(input_data)
     generation_mode = _generation_mode(input_data)
     runtime = surrogate.create(input_data.get("surrogateMode"), input_data.get("surrogateBundle"))
+    relocated, _ = relocate_agents(build_routing_geometry(drawing, CORRIDOR_CLEARANCE_METERS), agents)
 
     generation = _generate_raw(
         drawing,
-        agents,
+        relocated,
         hazards,
         exits,
         findings,
