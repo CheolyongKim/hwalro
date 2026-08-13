@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import { simulationApi } from '../api/simulationApi';
@@ -11,9 +11,16 @@ import {
   getSimulationListAction,
   readStatusDialogSimulationId,
 } from '../utils/simulationListAction';
-import { buttonClassName, Card, EmptyState, ErrorState, PageHeader } from '../../../components/ui';
+import {
+  buttonClassName,
+  Card,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  Pagination,
+} from '../../../components/ui';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 5;
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-';
@@ -52,11 +59,6 @@ function SimulationListPage() {
   });
   const items = query.data?.items ?? [];
   const totalPages = Math.max(1, Math.ceil((query.data?.totalCount ?? 0) / PAGE_SIZE));
-  const visiblePages = useMemo(() => {
-    const count = Math.min(5, totalPages);
-    const start = Math.max(1, Math.min(page - 2, totalPages - count + 1));
-    return Array.from({ length: count }, (_, index) => start + index);
-  }, [page, totalPages]);
   const hasRunning = items.some(
     (simulation) => simulation.status === 'REQUESTED' || simulation.status === 'RUNNING',
   );
@@ -295,41 +297,13 @@ function SimulationListPage() {
                 <p className="text-sm tabular-nums text-text-muted">
                   총 {(query.data?.totalCount ?? 0).toLocaleString()}건
                 </p>
-                <nav className="flex items-center gap-1" aria-label="시뮬레이션 목록 페이지">
-                  <button
-                    type="button"
-                    onClick={() => setPage((current) => current - 1)}
-                    disabled={page === 1 || query.isFetching}
-                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    이전
-                  </button>
-                  {visiblePages.map((pageNumber) => (
-                    <button
-                      key={pageNumber}
-                      type="button"
-                      onClick={() => setPage(pageNumber)}
-                      disabled={query.isFetching}
-                      aria-current={pageNumber === page ? 'page' : undefined}
-                      aria-label={`${pageNumber}페이지`}
-                      className={`h-9 min-w-9 rounded-lg px-2 text-sm font-bold tabular-nums outline-none transition focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
-                        pageNumber === page
-                          ? 'bg-primary text-white'
-                          : 'border border-line text-text-strong hover:bg-surface'
-                      }`}
-                    >
-                      {pageNumber}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setPage((current) => current + 1)}
-                    disabled={page === totalPages || query.isFetching}
-                    className="h-9 rounded-lg border border-line px-3 text-sm font-bold text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    다음
-                  </button>
-                </nav>
+                <Pagination
+                  page={page}
+                  pageCount={totalPages}
+                  onPageChange={setPage}
+                  disabled={query.isFetching}
+                  ariaLabel="시뮬레이션 목록 페이지"
+                />
               </div>
               {actionError && (
                 <div
