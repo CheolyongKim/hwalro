@@ -52,6 +52,7 @@ export interface DrawingSummary {
   description: string | null;
   createdBy: number;
   createdAt: string;
+  simulationCount: number;
 }
 
 export type DrawingLayoutVersionStatus = '초안' | '잠금';

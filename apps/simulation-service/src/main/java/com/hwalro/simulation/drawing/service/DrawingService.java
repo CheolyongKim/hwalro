@@ -22,6 +22,7 @@ import com.hwalro.simulation.drawing.dto.FabricDto;
 import com.hwalro.simulation.drawing.dto.LayoutTextDto;
 import com.hwalro.simulation.drawing.dto.OutsideWallDto;
 import com.hwalro.simulation.drawing.dto.PillarDto;
+import com.hwalro.simulation.drawing.dto.SimulationCountByLayout;
 import com.hwalro.simulation.drawing.dto.WallDto;
 import com.hwalro.simulation.drawing.exception.DrawingConflictException;
 import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedException;
@@ -30,7 +31,9 @@ import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -75,15 +78,26 @@ public class DrawingService {
         Long createdByFilter = resolveCreatedByFilter(user);
         long totalCount = drawingMapper.countLayouts(createdByFilter);
         List<Layout> layouts = drawingMapper.findLayoutPage((page - 1) * size, size, createdByFilter);
+        Map<Long, Integer> simulationCounts = countSimulationsByLayout(layouts);
         List<DrawingSummary> items = layouts.stream()
                 .map(layout -> new DrawingSummary(
                         layout.getId(),
                         layout.getTitle(),
                         layout.getDescription(),
                         layout.getCreatedBy(),
-                        layout.getCreatedAt()))
+                        layout.getCreatedAt(),
+                        simulationCounts.getOrDefault(layout.getId(), 0)))
                 .toList();
         return new DrawingListResponse((int) totalCount, page, size, page * size < totalCount, items);
+    }
+
+    private Map<Long, Integer> countSimulationsByLayout(List<Layout> layouts) {
+        List<Long> layoutIds = layouts.stream().map(Layout::getId).toList();
+        if (layoutIds.isEmpty()) {
+            return Map.of();
+        }
+        return drawingMapper.countSimulationsByLayoutIds(layoutIds).stream()
+                .collect(Collectors.toMap(SimulationCountByLayout::layoutId, SimulationCountByLayout::simulationCount));
     }
 
     public DrawingResponse get(Long id, JwtUser user) {

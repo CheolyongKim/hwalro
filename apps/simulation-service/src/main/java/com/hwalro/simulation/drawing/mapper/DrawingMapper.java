@@ -9,6 +9,7 @@ import com.hwalro.simulation.drawing.domain.LayoutVersion;
 import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.domain.Pillar;
 import com.hwalro.simulation.drawing.domain.Wall;
+import com.hwalro.simulation.drawing.dto.SimulationCountByLayout;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -81,4 +82,6 @@ public interface DrawingMapper {
     int deleteFloorPlanById(@Param("id") Long id);
 
     int countSimulationsByLayoutId(@Param("layoutId") Long layoutId);
+
+    List<SimulationCountByLayout> countSimulationsByLayoutIds(@Param("layoutIds") List<Long> layoutIds);
 }
