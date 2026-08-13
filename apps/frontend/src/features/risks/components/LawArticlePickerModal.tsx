@@ -10,6 +10,8 @@ import type { AttachedLawRef } from '../types/risks';
 const formatDate = (value: string) =>
   value.length === 8 ? `${value.slice(0, 4)}.${value.slice(4, 6)}.${value.slice(6)}` : value;
 
+const MAX_ATTACHED_LAWS = 10;
+
 function LawArticlePickerModal({
   open,
   onClose,
@@ -51,21 +53,24 @@ function LawArticlePickerModal({
     );
 
   const toggleArticle = (ref: AttachedLawRef) => {
-    setChecked((prev) =>
-      prev.some(
+    setChecked((prev) => {
+      const exists = prev.some(
         (item) =>
           item.lawSerialNumber === ref.lawSerialNumber &&
           item.lawArticleNumber === ref.lawArticleNumber,
-      )
-        ? prev.filter(
-            (item) =>
-              !(
-                item.lawSerialNumber === ref.lawSerialNumber &&
-                item.lawArticleNumber === ref.lawArticleNumber
-              ),
-          )
-        : [...prev, ref],
-    );
+      );
+      if (exists) {
+        return prev.filter(
+          (item) =>
+            !(
+              item.lawSerialNumber === ref.lawSerialNumber &&
+              item.lawArticleNumber === ref.lawArticleNumber
+            ),
+        );
+      }
+      if (prev.length >= MAX_ATTACHED_LAWS) return prev;
+      return [...prev, ref];
+    });
   };
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
@@ -103,7 +108,7 @@ function LawArticlePickerModal({
             취소
           </Button>
           <Button type="button" onClick={handleConfirm} disabled={checked.length === 0}>
-            {checked.length}개 선택
+            {checked.length}/{MAX_ATTACHED_LAWS}개 선택
           </Button>
         </>
       }

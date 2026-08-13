@@ -30,6 +30,8 @@ public class RiskService {
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_DESCRIPTION_LENGTH = 10_000;
     private static final int MAX_ATTACHED_LAWS = 10;
+    private static final int MAX_LAW_SERIAL_NUMBER_LENGTH = 30;
+    private static final int MAX_LAW_ARTICLE_NUMBER_LENGTH = 100;
     private static final Set<String> ALLOWED_SEVERITIES = Set.of("높음", "보통", "낮음");
     private static final Set<String> ALLOWED_STATUSES = Set.of("임시저장", "조치 중", "완료");
     private static final String ROLE_ADMIN = "ADMIN";
@@ -118,7 +120,6 @@ public class RiskService {
     @Transactional
     public RiskResponse update(Long id, RiskUpdateRequest request, JwtUser user) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
-        List<AttachedLawRef> attachedLaws = validateAttachedLaws(request.attachedLaws());
         Risk risk = findByIdOrThrow(id);
         requireAccessible(risk, user);
         risk.setTitle(request.title().trim());
@@ -126,9 +127,15 @@ public class RiskService {
         risk.setSeverity(request.severity().trim());
         risk.setStatus(request.status().trim());
         riskMapper.update(risk);
-        riskMapper.deleteAttachedLawsByRiskId(id);
-        if (!attachedLaws.isEmpty()) {
-            riskMapper.insertAttachedLaws(id, attachedLaws);
+        List<AttachedLawRef> attachedLaws;
+        if (request.attachedLaws() == null) {
+            attachedLaws = fetchAttachedLawsByRiskIds(List.of(id)).getOrDefault(id, List.of());
+        } else {
+            attachedLaws = validateAttachedLaws(request.attachedLaws());
+            riskMapper.deleteAttachedLawsByRiskId(id);
+            if (!attachedLaws.isEmpty()) {
+                riskMapper.insertAttachedLaws(id, attachedLaws);
+            }
         }
         return toResponse(risk, attachedLaws);
     }
@@ -213,6 +220,12 @@ public class RiskService {
                     : ref.lawArticleNumber().trim();
             if (!StringUtils.hasText(lawSerialNumber) || !StringUtils.hasText(lawArticleNumber)) {
                 throw new IllegalArgumentException("법령 일련번호와 조문 번호를 입력해 주세요.");
+            }
+            if (lawSerialNumber.length() > MAX_LAW_SERIAL_NUMBER_LENGTH) {
+                throw new IllegalArgumentException("법령 일련번호는 30자 이하여야 합니다.");
+            }
+            if (lawArticleNumber.length() > MAX_LAW_ARTICLE_NUMBER_LENGTH) {
+                throw new IllegalArgumentException("법령 조문 번호는 100자 이하여야 합니다.");
             }
             unique.putIfAbsent(
                     lawSerialNumber + "|" + lawArticleNumber, new AttachedLawRef(lawSerialNumber, lawArticleNumber));
