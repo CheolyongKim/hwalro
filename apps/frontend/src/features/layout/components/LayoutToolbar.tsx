@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import type { EditorState } from '../types';
 
@@ -25,14 +25,23 @@ export function LayoutToolbar({
 }: LayoutToolbarProps) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
+  const editingRef = useRef(false);
 
   const startEditing = () => {
+    editingRef.current = true;
     setDraftName(state.doc.name);
     setEditing(true);
   };
 
-  const commitRename = () => {
+  const endEditing = (commit: boolean) => {
+    if (!editingRef.current) {
+      return;
+    }
+    editingRef.current = false;
     setEditing(false);
+    if (!commit) {
+      return;
+    }
     const next = draftName.trim();
     if (next !== '' && next !== state.doc.name) {
       onRename(next);
@@ -48,12 +57,12 @@ export function LayoutToolbar({
             type="text"
             value={draftName}
             onChange={(event) => setDraftName(event.currentTarget.value)}
-            onBlur={commitRename}
+            onBlur={() => endEditing(true)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
-                commitRename();
+                endEditing(true);
               } else if (event.key === 'Escape') {
-                setEditing(false);
+                endEditing(false);
               }
             }}
             aria-label="도면 이름"
