@@ -358,7 +358,9 @@ public class LayoutSearchRunner {
                     findings,
                     parents,
                     maxCandidates,
-                    false);
+                    false,
+                    "SHADOW",
+                    "");
         }
     }
 
