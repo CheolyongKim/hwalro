@@ -233,10 +233,25 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
         title="위험 항목 삭제"
         description={`'${risk.title}' 위험 항목을 삭제하시겠습니까?`}
         isLoading={deleteMutation.isPending}
-        onCancel={() => setDeleteConfirmOpen(false)}
-        onConfirm={() => deleteMutation.mutate(risk.id)}
+        onCancel={() => {
+          setDeleteConfirmOpen(false);
+          deleteMutation.reset();
+        }}
+        onConfirm={() =>
+          deleteMutation.mutate(risk.id, {
+            onSuccess: () => setDeleteConfirmOpen(false),
+          })
+        }
       >
         <p className="text-sm text-text-muted">삭제한 위험 항목은 복구할 수 없습니다.</p>
+        {deleteMutation.isError && (
+          <p
+            role="alert"
+            className="mt-4 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-strong"
+          >
+            {getRiskErrorMessage(deleteMutation.error)}
+          </p>
+        )}
       </ConfirmDialog>
     </div>
   );
