@@ -569,6 +569,34 @@
   font-size: 9px;
   line-height: 1.5;
 }
+.result-summary .bottleneck-analysis-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid rgba(209, 241, 75, 0.24);
+  border-radius: 14px;
+  background: rgba(209, 241, 75, 0.07);
+  padding: 12px;
+}
+.result-summary .bottleneck-analysis-empty > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  color: #d1f14b;
+}
+.result-summary .bottleneck-analysis-empty > div {
+  display: grid;
+  gap: 4px;
+}
+.result-summary .bottleneck-analysis-empty strong {
+  color: #e5eeec;
+  font-size: 10px;
+}
+.result-summary .bottleneck-analysis-empty span {
+  color: #a8bcb7;
+  font-size: 9px;
+  line-height: 1.5;
+}
 .result-summary .risk-zone-summary h2 {
   margin-top: 14px;
 }
