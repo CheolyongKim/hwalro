@@ -47,6 +47,8 @@ jwt:
 
 auth-service:
   base-url: ${AUTH_SERVICE_URL:http://localhost:8080}
+  connect-timeout: ${AUTH_SERVICE_CONNECT_TIMEOUT:2s}
+  read-timeout: ${AUTH_SERVICE_READ_TIMEOUT:10s}
 
 simulation-service:
   base-url: ${SIMULATION_SERVICE_URL:http://localhost:8081}

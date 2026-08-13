@@ -18,11 +18,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RiskService {
+    private static final Logger log = LoggerFactory.getLogger(RiskService.class);
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_PAGE = 100_000;
     private static final int MAX_TITLE_LENGTH = 200;
@@ -166,9 +170,14 @@ public class RiskService {
         if (assigneeIds.isEmpty()) {
             return Map.of();
         }
-        return authorDirectoryClient.findByIds(assigneeIds, authorization).stream()
-                .collect(Collectors.toMap(
-                        AuthorDirectoryClient.AuthorSummary::id, AuthorDirectoryClient.AuthorSummary::name));
+        try {
+            return authorDirectoryClient.findByIds(assigneeIds, authorization).stream()
+                    .collect(Collectors.toMap(
+                            AuthorDirectoryClient.AuthorSummary::id, AuthorDirectoryClient.AuthorSummary::name));
+        } catch (ResponseStatusException exception) {
+            log.warn("Failed to resolve assignee names. assigneeIds={}", assigneeIds, exception);
+            return Map.of();
+        }
     }
 
     private RiskResponse toResponse(Risk risk) {
