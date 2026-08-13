@@ -1,4 +1,4 @@
-﻿package com.hwalro.simulation.search.dto;
+package com.hwalro.simulation.search.dto;
 
 import com.hwalro.simulation.search.domain.SearchConstraints;
 import java.math.BigDecimal;
