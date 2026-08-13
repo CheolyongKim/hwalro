@@ -57,7 +57,7 @@ function RiskItemTable({
                 <span className="text-sm font-bold text-ink">{item.title}</span>
                 <Badge tone={SEVERITY_TONES[item.severity] ?? 'neutral'}>{item.severity}</Badge>
                 <span className="text-sm tabular-nums text-text-strong">
-                  {item.assigneeId ?? '-'}
+                  {item.assigneeName ?? '-'}
                 </span>
                 <span className="text-sm tabular-nums text-text-strong">
                   {formatDate(item.createdAt)}

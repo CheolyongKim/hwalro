@@ -52,11 +52,12 @@ export interface DrawingSummary {
   description: string | null;
   createdBy: number;
   createdAt: string;
+  simulationCount: number;
 }
 
 export type DrawingLayoutVersionStatus = '초안' | '잠금';
 
-export interface Drawing extends DrawingSummary {
+export interface Drawing extends Omit<DrawingSummary, 'simulationCount'> {
   layoutVersionId: number;
   layoutVersionNumber: number;
   layoutVersionStatus: DrawingLayoutVersionStatus;
@@ -74,6 +75,7 @@ export interface Drawing extends DrawingSummary {
 export interface DrawingCreateRequest {
   title: string | null;
   description: string | null;
+  withDefaultData: boolean;
 }
 
 export interface DrawingUpdateRequest {

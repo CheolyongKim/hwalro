@@ -22,3 +22,13 @@ export function useDeleteDrawing() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['drawings', userId] }),
   });
 }
+
+export function useDuplicateDrawing() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id ?? 'unknown';
+  return useMutation({
+    mutationFn: (id: number) => drawingApi.duplicate(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['drawings', userId] }),
+  });
+}

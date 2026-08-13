@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FileText } from 'lucide-react';
-import { useDeleteDrawing, useDrawingList } from '../hooks';
+import { useDeleteDrawing, useDrawingList, useDuplicateDrawing } from '../hooks';
 import DrawingListTable from '../components/DrawingListTable';
 import {
   Button,
@@ -19,10 +19,13 @@ import type { DrawingSummary } from '../types/drawing';
 const PAGE_SIZE = 5;
 
 function DrawingListPage() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [drawingToDelete, setDrawingToDelete] = useState<DrawingSummary | null>(null);
+  const [drawingToBlock, setDrawingToBlock] = useState<DrawingSummary | null>(null);
   const { items, totalCount, isPending, isError, error } = useDrawingList(page, PAGE_SIZE);
   const deleteDrawing = useDeleteDrawing();
+  const duplicateDrawing = useDuplicateDrawing();
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -33,7 +36,20 @@ function DrawingListPage() {
   }, [isPending, isError, page, pageCount]);
 
   const handleDelete = (drawing: DrawingSummary) => {
+    if (drawing.simulationCount > 0) {
+      setDrawingToBlock(drawing);
+      return;
+    }
     setDrawingToDelete(drawing);
+  };
+
+  const handleDuplicate = (drawing: DrawingSummary) => {
+    duplicateDrawing.mutate(drawing.id, {
+      onSuccess: (duplicated) => navigate(`/layout/${duplicated.id}`),
+      onError: (duplicateError) => {
+        window.alert(getDrawingErrorMessage(duplicateError));
+      },
+    });
   };
 
   const confirmDelete = () => {
@@ -76,7 +92,11 @@ function DrawingListPage() {
             </div>
           ) : items.length > 0 ? (
             <>
-              <DrawingListTable items={items} onDelete={handleDelete} />
+              <DrawingListTable
+                items={items}
+                onDelete={handleDelete}
+                onDuplicate={handleDuplicate}
+              />
               <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
                 <p className="text-sm tabular-nums text-text-muted">
                   총 {totalCount.toLocaleString()}건
@@ -134,6 +154,27 @@ function DrawingListPage() {
           }
         >
           <p className="text-sm text-text-muted">삭제한 도면은 복구할 수 없습니다.</p>
+        </Modal>
+
+        <Modal
+          open={drawingToBlock !== null}
+          onClose={() => setDrawingToBlock(null)}
+          title="도면 삭제 불가"
+          size="sm"
+          description={
+            drawingToBlock !== null
+              ? `도면 "${drawingToBlock.title}"은(는) 시뮬레이션이 연결되어 있어 삭제할 수 없습니다.`
+              : undefined
+          }
+          footer={
+            <Button type="button" variant="primary" onClick={() => setDrawingToBlock(null)}>
+              확인
+            </Button>
+          }
+        >
+          <p className="text-sm text-text-muted">
+            시뮬레이션 연결을 해제한 뒤 다시 삭제할 수 있습니다.
+          </p>
         </Modal>
       </div>
     </main>
