@@ -368,9 +368,7 @@ function SimulationListPage() {
         onConfirm={() => void cancelSimulation()}
       >
         <div className="space-y-2 text-sm leading-6">
-          <p className="font-bold text-text-strong">
-            진행 중인 시뮬레이션을 취소하시겠습니까?
-          </p>
+          <p className="font-bold text-text-strong">진행 중인 시뮬레이션을 취소하시겠습니까?</p>
           <p className="text-text-muted">
             취소된 시뮬레이션은 동일한 설정으로 다시 실행할 수 있습니다.
           </p>
