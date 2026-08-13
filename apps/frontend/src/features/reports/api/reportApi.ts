@@ -1,6 +1,7 @@
 import { apiClient } from '../../../api/client';
 import type {
   AiReportDraftJobResponse,
+  AiReportDraftMonitorItem,
   ReportDetailResponse,
   ReportListResponse,
   ReportStatus,
@@ -21,6 +22,10 @@ export interface AiReportDraftCreateRequest {
 }
 
 export const reportApi = {
+  listAiDraftMonitor: () =>
+    apiClient
+      .get<AiReportDraftMonitorItem[]>('/api/reports/ai-drafts/monitor')
+      .then((response) => response.data),
   list: (params: ReportListParams) =>
     apiClient.get<ReportListResponse>('/api/reports', { params }).then((response) => response.data),
   get: (id: string) =>

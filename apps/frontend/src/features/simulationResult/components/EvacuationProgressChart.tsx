@@ -186,7 +186,8 @@ export function EvacuationProgressChart({
     <section
       className={`evacuation-chart ${isCollapsing ? 'is-collapsing' : ''} ${isExpanding ? 'is-expanding' : ''}`}
       aria-label="시간별 대피 인원"
-      onAnimationEnd={() => {
+      onAnimationEnd={(event) => {
+        if (event.currentTarget !== event.target) return;
         if (isCollapsing) onCollapseEnd?.();
         if (isExpanding) onExpandEnd?.();
       }}

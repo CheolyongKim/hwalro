@@ -9,6 +9,7 @@ import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.client.SimulationReportVisualContextClient;
 import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
 import com.hwalro.regulation.report.dto.AiReportDraftJobResponse;
+import com.hwalro.regulation.report.dto.AiReportDraftMonitorItem;
 import com.hwalro.regulation.report.dto.ReportContent;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportDetailRow;
@@ -77,6 +78,10 @@ public class ReportService {
 
         return new ReportListResponse(
                 Math.toIntExact(totalCount), page, size, offset + namedItems.size() < totalCount, namedItems);
+    }
+
+    public List<AiReportDraftMonitorItem> getAiDraftMonitor(JwtUser user) {
+        return reportMapper.findAiDraftMonitorItems(user.userId());
     }
 
     @Transactional

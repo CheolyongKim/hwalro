@@ -5,6 +5,7 @@ import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.common.jwt.RequireRole;
 import com.hwalro.regulation.report.dto.AiReportDraftCreateRequest;
 import com.hwalro.regulation.report.dto.AiReportDraftJobResponse;
+import com.hwalro.regulation.report.dto.AiReportDraftMonitorItem;
 import com.hwalro.regulation.report.dto.ReportDetailResponse;
 import com.hwalro.regulation.report.dto.ReportListResponse;
 import com.hwalro.regulation.report.dto.ReportUpdateRequest;
@@ -60,6 +61,13 @@ public class ReportController {
             @Parameter(description = "1부터 시작하는 페이지 번호") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "페이지당 조회 건수") @RequestParam(defaultValue = "5") int size) {
         return reportService.getReports(user, authorization, query, status, page, size);
+    }
+
+    @GetMapping("/ai-drafts/monitor")
+    @Operation(summary = "내 AI 보고서 생성 상태 조회", description = "현재 사용자가 생성한 최근 AI 보고서의 상태를 조회합니다.")
+    public List<AiReportDraftMonitorItem> getAiDraftMonitor(
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return reportService.getAiDraftMonitor(user);
     }
 
     @GetMapping("/{id}")

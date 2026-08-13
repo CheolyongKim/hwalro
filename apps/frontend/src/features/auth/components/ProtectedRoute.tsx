@@ -1,4 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { CompletionToastViewport } from '../../../components/notifications/CompletionToast';
+import AiReportCompletionNotifier from '../../reports/components/AiReportCompletionNotifier';
 import SimulationCompletionNotifier from '../../simulations/components/SimulationCompletionNotifier';
 import { useAuth } from '../context/AuthContext';
 
@@ -20,7 +22,10 @@ function ProtectedRoute() {
 
   return (
     <>
-      <SimulationCompletionNotifier userId={user.id} />
+      <CompletionToastViewport>
+        <SimulationCompletionNotifier userId={user.id} />
+        <AiReportCompletionNotifier />
+      </CompletionToastViewport>
       <Outlet />
     </>
   );
