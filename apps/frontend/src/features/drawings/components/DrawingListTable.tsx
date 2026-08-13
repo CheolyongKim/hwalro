@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 import type { DrawingSummary } from '../types/drawing';
+import DrawingRowActions from './DrawingRowActions';
 
 interface DrawingListTableProps {
   items: DrawingSummary[];
   onDelete: (drawing: DrawingSummary) => void;
+  onDuplicate: (drawing: DrawingSummary) => void;
 }
 
 function formatCreatedAt(value: string): string {
@@ -24,8 +26,9 @@ function creatorLabel(
   return `#${createdBy}`;
 }
 
-function DrawingListTable({ items, onDelete }: DrawingListTableProps) {
+function DrawingListTable({ items, onDelete, onDuplicate }: DrawingListTableProps) {
   const { user } = useAuth();
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   return (
     <div>
@@ -76,15 +79,19 @@ function DrawingListTable({ items, onDelete }: DrawingListTableProps) {
                   {formatCreatedAt(drawing.createdAt)}
                 </td>
                 <td className="px-5 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onDelete(drawing)}
-                    aria-label={`도면 #${drawing.id} 삭제`}
-                    title="도면 삭제"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-muted outline-none transition hover:bg-danger-soft hover:text-danger focus-visible:ring-2 focus-visible:ring-focus-ring"
-                  >
-                    <Trash2 aria-hidden="true" className="h-4 w-4" />
-                  </button>
+                  <DrawingRowActions
+                    label={`도면 #${drawing.id} 관리 메뉴`}
+                    open={openMenuId === drawing.id}
+                    onToggle={() => setOpenMenuId(openMenuId === drawing.id ? null : drawing.id)}
+                    onDuplicate={() => {
+                      setOpenMenuId(null);
+                      onDuplicate(drawing);
+                    }}
+                    onDelete={() => {
+                      setOpenMenuId(null);
+                      onDelete(drawing);
+                    }}
+                  />
                 </td>
               </tr>
             ))}

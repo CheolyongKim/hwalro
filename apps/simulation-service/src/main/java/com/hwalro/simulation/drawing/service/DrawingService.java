@@ -119,12 +119,14 @@ public class DrawingService {
         version.setOptimisticLock(0);
         drawingMapper.insertLayoutVersion(version);
 
-        insertWallsIfPresent(toWallsFromDefault(defaultDrawing.walls(), version.getId()));
-        insertOutsideWallsIfPresent(toOutsideWallsFromDefault(defaultDrawing.outsideWalls(), version.getId()));
-        insertPillarsIfPresent(toPillarsFromDefault(defaultDrawing.pillars(), version.getId()));
-        insertFabricsIfPresent(toFabricsFromDefault(defaultDrawing.fabrics(), version.getId()));
-        insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
-        insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
+        if (request.hasDefaultData()) {
+            insertWallsIfPresent(toWallsFromDefault(defaultDrawing.walls(), version.getId()));
+            insertOutsideWallsIfPresent(toOutsideWallsFromDefault(defaultDrawing.outsideWalls(), version.getId()));
+            insertPillarsIfPresent(toPillarsFromDefault(defaultDrawing.pillars(), version.getId()));
+            insertFabricsIfPresent(toFabricsFromDefault(defaultDrawing.fabrics(), version.getId()));
+            insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
+            insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
+        }
 
         layout.setCurrentVersionId(version.getId());
         drawingMapper.updateLayoutCurrentVersion(layout);
@@ -179,6 +181,52 @@ public class DrawingService {
         insertExitsIfPresent(toExits(request.exits(), version.getId()));
 
         return toResponse(findLayoutOrThrow(id));
+    }
+
+    @Transactional
+    public DrawingResponse duplicate(Long id, JwtUser user) {
+        Layout source = findLayoutOrThrow(id);
+        requireAccessible(source, user);
+        FloorPlan sourceFloorPlan = drawingMapper.findFloorPlanById(source.getFloorPlanId());
+        LayoutVersion sourceVersion = findVersionOrThrow(source.getCurrentVersionId());
+        String title = resolveDuplicateTitle(source.getTitle());
+
+        FloorPlan floorPlan = new FloorPlan();
+        floorPlan.setName(title);
+        floorPlan.setWidth(sourceFloorPlan.getWidth());
+        floorPlan.setHeight(sourceFloorPlan.getHeight());
+        drawingMapper.insertFloorPlan(floorPlan);
+
+        Layout layout = new Layout();
+        layout.setFloorPlanId(floorPlan.getId());
+        layout.setCreatedBy(user.userId());
+        layout.setTitle(title);
+        layout.setDescription(source.getDescription());
+        drawingMapper.insertLayout(layout);
+
+        LayoutVersion version = new LayoutVersion();
+        version.setLayoutId(layout.getId());
+        version.setVersion(1);
+        version.setStatus(LAYOUT_STATUS_DRAFT);
+        version.setOptimisticLock(0);
+        drawingMapper.insertLayoutVersion(version);
+
+        insertWallsIfPresent(copyWalls(drawingMapper.findWallsByVersionId(sourceVersion.getId()), version.getId()));
+        insertOutsideWallsIfPresent(
+                copyOutsideWalls(drawingMapper.findOutsideWallsByVersionId(sourceVersion.getId()), version.getId()));
+        insertPillarsIfPresent(
+                copyPillars(drawingMapper.findPillarsByVersionId(sourceVersion.getId()), version.getId()));
+        insertFabricsIfPresent(
+                copyFabrics(drawingMapper.findFabricsByVersionId(sourceVersion.getId()), version.getId()));
+        insertLayoutTextsIfPresent(
+                copyLayoutTexts(drawingMapper.findLayoutTextsByVersionId(sourceVersion.getId()), version.getId()));
+        insertExitsIfPresent(
+                copyExits(drawingMapper.findLayoutExitsByVersionId(sourceVersion.getId()), version.getId()));
+
+        layout.setCurrentVersionId(version.getId());
+        drawingMapper.updateLayoutCurrentVersion(layout);
+
+        return toResponse(findLayoutOrThrow(layout.getId()));
     }
 
     @Transactional
@@ -485,6 +533,103 @@ public class DrawingService {
             return defaultName;
         }
         return title.trim();
+    }
+
+    private String resolveDuplicateTitle(String sourceTitle) {
+        String suffix = " 복사본";
+        int maxBaseLength = MAX_TITLE_LENGTH - suffix.length();
+        String base = sourceTitle.length() > maxBaseLength ? sourceTitle.substring(0, maxBaseLength) : sourceTitle;
+        return base + suffix;
+    }
+
+    private List<Wall> copyWalls(List<Wall> sourceWalls, Long layoutVersionId) {
+        return sourceWalls.stream()
+                .map(wall -> {
+                    Wall copy = new Wall();
+                    copy.setLayoutVersionId(layoutVersionId);
+                    copy.setName(wall.getName());
+                    copy.setStartX(wall.getStartX());
+                    copy.setStartY(wall.getStartY());
+                    copy.setEndX(wall.getEndX());
+                    copy.setEndY(wall.getEndY());
+                    return copy;
+                })
+                .toList();
+    }
+
+    private List<OutsideWall> copyOutsideWalls(List<OutsideWall> sourceOutsideWalls, Long layoutVersionId) {
+        return sourceOutsideWalls.stream()
+                .map(outsideWall -> {
+                    OutsideWall copy = new OutsideWall();
+                    copy.setLayoutVersionId(layoutVersionId);
+                    copy.setName(outsideWall.getName());
+                    copy.setStartX(outsideWall.getStartX());
+                    copy.setStartY(outsideWall.getStartY());
+                    copy.setEndX(outsideWall.getEndX());
+                    copy.setEndY(outsideWall.getEndY());
+                    return copy;
+                })
+                .toList();
+    }
+
+    private List<Pillar> copyPillars(List<Pillar> sourcePillars, Long layoutVersionId) {
+        return sourcePillars.stream()
+                .map(pillar -> {
+                    Pillar copy = new Pillar();
+                    copy.setLayoutVersionId(layoutVersionId);
+                    copy.setName(pillar.getName());
+                    copy.setStartX(pillar.getStartX());
+                    copy.setStartY(pillar.getStartY());
+                    copy.setEndX(pillar.getEndX());
+                    copy.setEndY(pillar.getEndY());
+                    copy.setRotation(pillar.getRotation());
+                    return copy;
+                })
+                .toList();
+    }
+
+    private List<Fabric> copyFabrics(List<Fabric> sourceFabrics, Long layoutVersionId) {
+        return sourceFabrics.stream()
+                .map(fabric -> {
+                    Fabric copy = new Fabric();
+                    copy.setLayoutVersionId(layoutVersionId);
+                    copy.setName(fabric.getName());
+                    copy.setStartX(fabric.getStartX());
+                    copy.setStartY(fabric.getStartY());
+                    copy.setEndX(fabric.getEndX());
+                    copy.setEndY(fabric.getEndY());
+                    copy.setRotation(fabric.getRotation());
+                    return copy;
+                })
+                .toList();
+    }
+
+    private List<LayoutText> copyLayoutTexts(List<LayoutText> sourceLayoutTexts, Long layoutVersionId) {
+        return sourceLayoutTexts.stream()
+                .map(text -> {
+                    LayoutText copy = new LayoutText();
+                    copy.setLayoutVersionId(layoutVersionId);
+                    copy.setText(text.getText());
+                    copy.setX(text.getX());
+                    copy.setY(text.getY());
+                    return copy;
+                })
+                .toList();
+    }
+
+    private List<LayoutExit> copyExits(List<LayoutExit> sourceExits, Long layoutVersionId) {
+        return sourceExits.stream()
+                .map(exit -> {
+                    LayoutExit copy = new LayoutExit();
+                    copy.setLayoutVersionId(layoutVersionId);
+                    copy.setName(exit.getName());
+                    copy.setStartX(exit.getStartX());
+                    copy.setStartY(exit.getStartY());
+                    copy.setEndX(exit.getEndX());
+                    copy.setEndY(exit.getEndY());
+                    return copy;
+                })
+                .toList();
     }
 
     private void validatePage(int page, int size) {

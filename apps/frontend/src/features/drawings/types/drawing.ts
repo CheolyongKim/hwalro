@@ -74,6 +74,7 @@ export interface Drawing extends DrawingSummary {
 export interface DrawingCreateRequest {
   title: string | null;
   description: string | null;
+  withDefaultData: boolean;
 }
 
 export interface DrawingUpdateRequest {

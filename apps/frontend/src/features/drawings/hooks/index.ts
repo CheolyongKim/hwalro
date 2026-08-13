@@ -1,2 +1,2 @@
 export { useDrawingList } from './useDrawingList';
-export { useCreateDrawing, useDeleteDrawing } from './useDrawingMutations';
+export { useCreateDrawing, useDeleteDrawing, useDuplicateDrawing } from './useDrawingMutations';
