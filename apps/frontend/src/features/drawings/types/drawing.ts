@@ -57,7 +57,7 @@ export interface DrawingSummary {
 
 export type DrawingLayoutVersionStatus = '초안' | '잠금';
 
-export interface Drawing extends DrawingSummary {
+export interface Drawing extends Omit<DrawingSummary, 'simulationCount'> {
   layoutVersionId: number;
   layoutVersionNumber: number;
   layoutVersionStatus: DrawingLayoutVersionStatus;
