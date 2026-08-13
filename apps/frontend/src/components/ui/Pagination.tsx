@@ -27,9 +27,9 @@ function Pagination({
   );
 
   return (
-    <nav className='flex items-center justify-center gap-2' aria-label={ariaLabel}>
+    <nav className="flex items-center justify-center gap-2" aria-label={ariaLabel}>
       <button
-        type='button'
+        type="button"
         onClick={() => onPageChange(safePage - 1)}
         disabled={disabled || safePage === 1}
         className={navButtonClassName}
@@ -39,7 +39,7 @@ function Pagination({
       {pageNumbers.map((pageNumber) => (
         <button
           key={pageNumber}
-          type='button'
+          type="button"
           onClick={() => onPageChange(pageNumber)}
           disabled={disabled}
           aria-current={pageNumber === safePage ? 'page' : undefined}
@@ -54,7 +54,7 @@ function Pagination({
         </button>
       ))}
       <button
-        type='button'
+        type="button"
         onClick={() => onPageChange(safePage + 1)}
         disabled={disabled || safePage === pageCount}
         className={navButtonClassName}
