@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import { useMemo } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { drawingApi } from '../../drawings/api/drawingApi';
@@ -25,6 +26,13 @@ import {
 
 const RECENT_SIMULATION_LIMIT = 5;
 const RISK_SCAN_SIZE = 20;
+
+function resolveIfExists<T>(request: Promise<T>): Promise<T | null> {
+  return request.catch((error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return null;
+    throw error;
+  });
+}
 
 export function useHomeDashboard() {
   const { user } = useAuth();
@@ -58,13 +66,13 @@ export function useHomeDashboard() {
 
   const pointedSimulationQuery = useQuery({
     queryKey: ['home', 'pointed-simulation', simulationPointerId],
-    queryFn: () => homeApi.getSimulationOverview(simulationPointerId as number),
+    queryFn: () => resolveIfExists(homeApi.getSimulationOverview(simulationPointerId as number)),
     enabled: simulationPointerId != null,
   });
 
   const pointedDrawingQuery = useQuery({
     queryKey: ['home', 'pointed-drawing', drawingPointerId],
-    queryFn: () => drawingApi.get(drawingPointerId as number),
+    queryFn: () => resolveIfExists(drawingApi.get(drawingPointerId as number)),
     enabled: drawingPointerId != null,
   });
 
