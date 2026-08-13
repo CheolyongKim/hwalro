@@ -1,7 +1,12 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
+import { Check, FileText, Loader2, Sparkles, X } from 'lucide-react';
 import type { SimulationResultViewModel } from '../types';
 
 const MAX_COMPARISON_COUNT = 5;
+
+function formatDuration(seconds: number): string {
+  return `${seconds.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}초`;
+}
 
 interface Props {
   open: boolean;
@@ -99,54 +104,131 @@ export function ReportDraftDialog({
         tabIndex={-1}
         aria-modal="true"
         aria-labelledby="report-dialog-title"
+        aria-describedby="report-dialog-description"
         aria-busy={isGenerating}
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={handleDialogKeyDown}
       >
-        <h2 id="report-dialog-title">AI 보고서 비교 결과 선택</h2>
-        <p>현재 결과와 함께 분석할 시뮬레이션을 최대 5개 선택하세요.</p>
-        <div className="current-simulation">
-          <strong>{result.title}</strong>
-          <span>현재 결과 · 필수</span>
-        </div>
-        {result.comparableSimulations.map((item) => {
-          const comparisonResultId = item.simulationResultId;
-          return (
-            <label key={item.id}>
-              <input
-                type="checkbox"
-                checked={selectedComparisons.includes(comparisonResultId)}
-                disabled={
-                  isGenerating ||
-                  (!selectedComparisons.includes(comparisonResultId) &&
-                    selectedComparisons.length >= MAX_COMPARISON_COUNT)
-                }
-                onChange={() => toggleComparison(comparisonResultId)}
-              />
-              <span>
-                <strong>{item.name}</strong>
-                <small>총 대피 시간 {item.totalEvacuationTime}초</small>
-              </span>
-            </label>
-          );
-        })}
-        {errorMessage && (
-          <p className="report-dialog-error" role="alert">
-            {errorMessage}
-          </p>
-        )}
-        <div className="dialog-actions">
-          <button type="button" disabled={isGenerating} onClick={onClose}>
-            취소
-          </button>
+        <header className="report-dialog-header">
+          <div className="report-dialog-heading">
+            <span className="report-dialog-heading-icon" aria-hidden="true">
+              <Sparkles />
+            </span>
+            <div>
+              <h2 id="report-dialog-title">AI 보고서 초안 만들기</h2>
+              <p id="report-dialog-description">
+                현재 결과를 기준으로 비교할 시뮬레이션을 선택하세요.
+              </p>
+            </div>
+          </div>
           <button
             type="button"
+            className="report-dialog-close"
+            aria-label="닫기"
             disabled={isGenerating}
-            onClick={() => onGenerate(selectedComparisons)}
+            onClick={onClose}
           >
-            {isGenerating ? 'AI 초안 생성 중…' : '초안 생성하기'}
+            <X aria-hidden="true" />
           </button>
+        </header>
+
+        <div className="report-dialog-body">
+          <section className="current-simulation" aria-label="보고서 분석 기준">
+            <span className="current-simulation-icon" aria-hidden="true">
+              <FileText />
+            </span>
+            <div>
+              <span>분석 기준</span>
+              <strong>{result.title}</strong>
+              <small>{result.subtitle}</small>
+            </div>
+            <em>필수</em>
+          </section>
+
+          <section className="report-comparison-section" aria-labelledby="comparison-title">
+            <div className="report-comparison-heading">
+              <div>
+                <h3 id="comparison-title">비교 시뮬레이션</h3>
+                <p>선택하지 않으면 현재 결과만으로 초안을 생성합니다.</p>
+              </div>
+              <span aria-live="polite">
+                {selectedComparisons.length} / {MAX_COMPARISON_COUNT}
+              </span>
+            </div>
+
+            {result.comparableSimulations.length > 0 ? (
+              <div className="report-comparison-list">
+                {result.comparableSimulations.map((item) => {
+                  const comparisonResultId = item.simulationResultId;
+                  const isSelected = selectedComparisons.includes(comparisonResultId);
+                  return (
+                    <label
+                      key={item.id}
+                      className={`report-comparison-option ${isSelected ? 'is-selected' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={
+                          isGenerating ||
+                          (!isSelected && selectedComparisons.length >= MAX_COMPARISON_COUNT)
+                        }
+                        onChange={() => toggleComparison(comparisonResultId)}
+                      />
+                      <span className="report-comparison-check" aria-hidden="true">
+                        <Check />
+                      </span>
+                      <span className="report-comparison-copy">
+                        <strong>{item.name}</strong>
+                        <small>총 대피 시간 {formatDuration(item.totalEvacuationTime)}</small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="report-comparison-empty">
+                <strong>비교 가능한 시뮬레이션이 없습니다</strong>
+                <span>현재 결과만으로 AI 보고서 초안을 생성할 수 있습니다.</span>
+              </div>
+            )}
+          </section>
+
+          {errorMessage && (
+            <p className="report-dialog-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
         </div>
+
+        <footer className="report-dialog-footer">
+          <p>
+            <Sparkles aria-hidden="true" />
+            선택한 결과는 초안의 비교 분석에 반영됩니다.
+          </p>
+          <div className="dialog-actions">
+            <button type="button" disabled={isGenerating} onClick={onClose}>
+              취소
+            </button>
+            <button
+              type="button"
+              disabled={isGenerating}
+              onClick={() => onGenerate(selectedComparisons)}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 aria-hidden="true" className="report-dialog-spinner" />
+                  초안 생성 중
+                </>
+              ) : (
+                <>
+                  <Sparkles aria-hidden="true" />
+                  AI 초안 생성
+                </>
+              )}
+            </button>
+          </div>
+        </footer>
       </section>
     </div>
   );
