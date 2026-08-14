@@ -152,6 +152,18 @@ export function LayoutCanvas({
     }
   };
 
+  const onClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (readOnly || tool !== 'text') {
+      return;
+    }
+    if (event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
+    dispatch({ type: 'textPlace', point: world });
+  };
+
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button === 1 || (event.button === 0 && spaceDown)) {
       startPan({ x: event.clientX, y: event.clientY }, camera);
@@ -215,7 +227,6 @@ export function LayoutCanvas({
       return;
     }
     if (tool === 'text') {
-      dispatch({ type: 'textPlace', point: world });
       return;
     }
     if (tool === 'erase') {
@@ -527,6 +538,7 @@ export function LayoutCanvas({
       role="application"
       aria-label="도면 캔버스"
       onDoubleClick={onDoubleClick}
+      onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
