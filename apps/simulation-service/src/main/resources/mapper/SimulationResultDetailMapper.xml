@@ -95,10 +95,8 @@
         LEFT JOIN improvement_proposals proposal ON proposal.id = proposal_simulation.improvement_proposal_id
         WHERE candidate.created_by = #{createdBy}
           AND candidate.id != #{simulationId}
-        ORDER BY CASE WHEN candidate.parent_simulation_id = #{simulationId} THEN 0 ELSE 1 END,
-                 candidate.created_at DESC,
+        ORDER BY candidate.created_at DESC,
                  candidate.id DESC
-        LIMIT 5
     </select>
 
 </mapper>

@@ -1003,12 +1003,21 @@
 }
 .risk-zone-summary-card {
   display: flex;
+  width: 100%;
   flex-direction: column;
   gap: 3px;
   border: 1px solid color-mix(in srgb, var(--color-lime) 22%, transparent);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.07);
   padding: 11px 12px;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+.risk-zone-summary-card:hover {
+  border-color: color-mix(in srgb, var(--color-lime) 52%, transparent);
+  background: rgba(255, 255, 255, 0.12);
 }
 .result-summary .risk-zone-summary-card {
   height: 52px;
@@ -1325,34 +1334,6 @@
 @media (min-width: 1101px) and (max-width: 1400px) {
   .playback-controls {
     width: min(480px, calc(100vw - 760px));
-  }
-}
-@media (max-width: 1400px), (max-height: 900px) {
-  .result-summary.has-improvement-panel {
-    max-height: calc(100dvh - 102px);
-  }
-
-  .improvement-action-restore {
-    top: 24px;
-    bottom: auto;
-  }
-
-  .improvement-action {
-    top: 102px;
-    right: 386px;
-    bottom: auto;
-  }
-}
-@media (max-width: 1100px) {
-  .improvement-action {
-    display: block;
-    right: 328px;
-  }
-}
-@media (max-width: 700px) {
-  .improvement-action {
-    right: auto;
-    left: 14px;
   }
 }
 

@@ -15,3 +15,14 @@ export function useRiskList(page: number, pageSize: number) {
     error,
   };
 }
+
+export function useRiskDetail(id: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ['risks', 'detail', id],
+    queryFn: () => {
+      if (id === null) throw new Error('Risk id is required.');
+      return riskApi.get(id);
+    },
+    enabled: enabled && id !== null,
+  });
+}
