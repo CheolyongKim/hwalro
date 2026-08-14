@@ -1,7 +1,83 @@
 import { useState } from 'react';
-import type { SimulationDrawing } from '../../simulations/types';
+import type { SimulationDrawing, SimulationRect } from '../../simulations/types';
 import type { ForbiddenZone, SearchConstraints } from '../api/layoutSearchApi';
 import { ConstraintEditor, type ConstraintEditorTool } from './ConstraintEditor';
+
+const WALL_CONTACT_EPSILON = 0.05;
+
+function pointToSegmentDistance(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lengthSq = dx * dx + dy * dy;
+  const t = lengthSq === 0 ? 0 : Math.min(Math.max(((px - ax) * dx + (py - ay) * dy) / lengthSq, 0), 1);
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+function segmentDistance(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
+): number {
+  return Math.min(
+    pointToSegmentDistance(ax, ay, cx, cy, dx, dy),
+    pointToSegmentDistance(bx, by, cx, cy, dx, dy),
+    pointToSegmentDistance(cx, cy, ax, ay, bx, by),
+    pointToSegmentDistance(dx, dy, ax, ay, bx, by),
+  );
+}
+
+function fabricCorners(fabric: SimulationRect): Array<[number, number]> {
+  const minX = Math.min(fabric.startX, fabric.endX);
+  const maxX = Math.max(fabric.startX, fabric.endX);
+  const minY = Math.min(fabric.startY, fabric.endY);
+  const maxY = Math.max(fabric.startY, fabric.endY);
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const rad = (fabric.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const corners: Array<[number, number]> = [
+    [minX, minY],
+    [maxX, minY],
+    [maxX, maxY],
+    [minX, maxY],
+  ];
+  return corners.map(([x, y]) => [
+    cx + (x - cx) * cos - (y - cy) * sin,
+    cy + (x - cx) * sin + (y - cy) * cos,
+  ]);
+}
+
+function touchesWall(fabric: SimulationRect, drawing: SimulationDrawing): boolean {
+  const segments: Array<[number, number, number, number]> = [];
+  for (const wall of drawing.walls) {
+    segments.push([wall.startX, wall.startY, wall.endX, wall.endY]);
+  }
+  const boundary = drawing.outsideBoundary;
+  if (boundary.length >= 2) {
+    for (let i = 0; i < boundary.length; i += 1) {
+      const start = boundary[i];
+      const end = boundary[(i + 1) % boundary.length];
+      segments.push([start.x, start.y, end.x, end.y]);
+    }
+  }
+  const corners = fabricCorners(fabric);
+  for (let i = 0; i < corners.length; i += 1) {
+    const [ax, ay] = corners[i];
+    const [bx, by] = corners[(i + 1) % corners.length];
+    for (const [cx, cy, dx, dy] of segments) {
+      if (segmentDistance(ax, ay, bx, by, cx, cy, dx, dy) <= WALL_CONTACT_EPSILON) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 const RADIUS_OPTIONS = [
   { value: 0, label: '고정' },
@@ -24,7 +100,7 @@ function fabricBadges(fabricId: number, constraints: SearchConstraints): string[
   if (radius === 0) badges.push('고정');
   else if (radius === 0.5) badges.push('0.5m');
   else if (radius === 1) badges.push('1m');
-  if (constraints.rotationAllowed[fabricId] === false) badges.push('회전잠금');
+  if (constraints.rotationAllowed[fabricId] === false) badges.push('회전');
   if (constraints.wallAnchored[fabricId] === true) badges.push('벽면');
   return badges;
 }
@@ -44,6 +120,9 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
     selectedFabricId === null
       ? null
       : drawing.fabrics.find((fabric) => fabric.id === selectedFabricId) ?? null;
+
+  const selectedTouchesWall =
+    selectedFabric !== null && touchesWall(selectedFabric, drawing);
 
   const setRadius = (fabricId: number, optionValue: number) => {
     onChange((current) => {
@@ -102,6 +181,22 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
     });
   };
 
+  const moveForbiddenZone = (index: number, dx: number, dy: number) => {
+    onChange((current) => ({
+      ...current,
+      forbiddenZones: current.forbiddenZones.map((zone, i) =>
+        i === index
+          ? {
+              x: Math.round((zone.x + dx) * 100) / 100,
+              y: Math.round((zone.y + dy) * 100) / 100,
+              width: zone.width,
+              height: zone.height,
+            }
+          : zone,
+      ),
+    }));
+  };
+
   return (
     <section className="constraint-inspector" aria-label="구조물 제약 설정">
       <div className="constraint-inspector__canvas">
@@ -126,6 +221,7 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
           tool={tool}
           onSelectFabric={setSelectedFabricId}
           onAddForbiddenZone={addForbiddenZone}
+          onMoveForbiddenZone={moveForbiddenZone}
           selectedZoneIndex={selectedZoneIndex}
           onSelectZone={setSelectedZoneIndex}
         />
@@ -137,7 +233,10 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
       </div>
       <aside className="constraint-inspector__panel">
         <div className="constraint-inspector__group">
-          <h3 className="constraint-inspector__group-title">구조물 목록</h3>
+          <h3 className="constraint-inspector__group-title">
+            구조물 목록
+            {drawing.fabrics.length > 0 && <small>{drawing.fabrics.length}개</small>}
+          </h3>
           {drawing.fabrics.length === 0 ? (
             <p className="constraint-inspector__empty">구조물이 없습니다.</p>
           ) : (
@@ -208,14 +307,24 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
                   />
                   회전 허용
                 </label>
-                <label className="constraint-inspector__check">
+                <label
+                  className={`constraint-inspector__check${
+                    selectedTouchesWall ? '' : ' is-disabled'
+                  }`}
+                >
                   <input
                     type="checkbox"
-                    checked={constraints.wallAnchored[selectedFabric.id] ?? false}
+                    checked={constraints.wallAnchored[selectedFabric.id] === true}
+                    disabled={!selectedTouchesWall}
                     onChange={() => toggleWallAnchored(selectedFabric.id)}
                   />
                   벽면 접촉 유지
                 </label>
+                {!selectedTouchesWall && (
+                  <small className="constraint-inspector__check-hint">
+                    벽에 닿아 있는 구조물만 벽면 접촉 유지를 설정할 수 있습니다.
+                  </small>
+                )}
               </div>
             </div>
           </div>
