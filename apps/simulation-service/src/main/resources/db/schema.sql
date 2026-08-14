@@ -195,8 +195,7 @@ CREATE TABLE IF NOT EXISTS simulations (
         ON UPDATE CASCADE
         ON DELETE RESTRICT,
     CONSTRAINT fk_simulations_parent_simulation
-        FOREIGN KEY (parent_simulation_id, layout_version_id)
-        REFERENCES simulations (id, layout_version_id)
+        FOREIGN KEY (parent_simulation_id) REFERENCES simulations (id)
         ON UPDATE CASCADE
         ON DELETE RESTRICT,
     INDEX idx_simulations_created_by (created_by)
