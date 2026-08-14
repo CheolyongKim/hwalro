@@ -386,7 +386,8 @@ public class LayoutSearchOrchestrator {
             entity.setOriginFindingType(findingTypeOf(rejected.operatorType()));
             entity.setOperatorType(rejected.operatorType());
             entity.setStatus(CandidateStatus.REJECTED_CONSTRAINT.name());
-            entity.setChangeSet(writeJson(new ChangeSet(1, "METER", List.of())));
+            List<ChangeOp> ops = rejected.ops() == null ? List.of() : rejected.ops();
+            entity.setChangeSet(writeJson(new ChangeSet(1, "METER", ops)));
             entity.setRationale(writeJson(Map.of("rejectReason", rejected.reason())));
             entity.setRejectReason(rejected.reason());
             layoutSearchMapper.insertCandidate(entity);
