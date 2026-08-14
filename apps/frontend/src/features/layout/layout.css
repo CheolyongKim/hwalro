@@ -214,7 +214,7 @@
     transform 150ms ease;
 }
 
-.layout-tool-button:not(:disabled):hover {
+.layout-tool-button:not(.is-active):not(:disabled):hover {
   background: rgba(255, 255, 255, 0.14);
   transform: translateY(-1px);
 }
