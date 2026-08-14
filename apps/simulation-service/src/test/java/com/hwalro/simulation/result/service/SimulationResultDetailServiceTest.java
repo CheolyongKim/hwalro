@@ -74,9 +74,6 @@ class SimulationResultDetailServiceTest {
                         4.8,
                         3.5,
                         "{\"name\":\"중앙 통로\",\"x\":93,\"y\":36,\"width\":31,\"height\":27}")));
-        when(mapper.findComparableSimulations(simulationId, 9001L))
-                .thenReturn(List.of(new SimulationResultDetailMapper.ComparableRow(9202L, 9302L, "비교안", 221)));
-
         var result = service.find(simulationId, new JwtUser(9001L, Set.of("OPERATOR")));
 
         assertThat(result.simulationResultId()).isEqualTo(9301L);
@@ -99,7 +96,6 @@ class SimulationResultDetailServiceTest {
             assertThat(text.y()).isEqualTo(5);
         });
         assertThat(result.bottlenecks().get(0).name()).isEqualTo("중앙 통로");
-        assertThat(result.comparableSimulations().get(0).simulationResultId()).isEqualTo(9302L);
     }
 
     @Test
@@ -122,30 +118,27 @@ class SimulationResultDetailServiceTest {
     }
 
     @Test
-    void usesResultOwnerWhenLoadingComparableSimulationsForReviewer() {
+    void returnsComparableSimulationPageUsingResultOwnerForReviewer() {
         long simulationId = 9201L;
         when(mapper.findSummary(simulationId))
                 .thenReturn(new SimulationResultDetailMapper.SummaryRow(
                         9301L, simulationId, 9001L, 9100L, "행사장", "지하 2층", 20, 10, 100));
-        when(mapper.findMetrics(9301L))
-                .thenReturn(List.of(
-                        new SimulationResultDetailMapper.MetricRow("SIMULATION_DURATION_SECONDS", 264),
-                        new SimulationResultDetailMapper.MetricRow("MAX_DENSITY", 4.8)));
-        when(densityThresholdProvider.getCurrent())
-                .thenReturn(new DensityThreshold(new BigDecimal("3.5"), "PERSON_PER_M2"));
-        when(mapper.findWalls(9100L)).thenReturn(List.of());
-        when(mapper.findExits(9100L)).thenReturn(List.of());
-        when(mapper.findPillars(9100L)).thenReturn(List.of());
-        when(mapper.findFabrics(9100L)).thenReturn(List.of());
-        when(mapper.findHazardZones(simulationId)).thenReturn(List.of());
-        when(drawingMapper.findOutsideWallsByVersionId(9100L)).thenReturn(rectangularBoundary());
-        when(drawingMapper.findLayoutTextsByVersionId(9100L)).thenReturn(List.of());
-        when(mapper.findBottlenecks(9301L)).thenReturn(List.of());
-        when(mapper.findComparableSimulations(simulationId, 9001L)).thenReturn(List.of());
+        when(mapper.countComparableSimulations(simulationId, 9001L)).thenReturn(7L);
+        when(mapper.findComparableSimulationPage(simulationId, 9001L, 5, 5))
+                .thenReturn(List.of(new SimulationResultDetailMapper.ComparableRow(9202L, 9302L, "비교안", 221)));
 
-        service.find(simulationId, new JwtUser(77L, Set.of("SAFETY_REVIEWER")));
+        var result = service.findComparableSimulations(simulationId, 2, 5, new JwtUser(77L, Set.of("SAFETY_REVIEWER")));
 
-        verify(mapper).findComparableSimulations(simulationId, 9001L);
+        assertThat(result.totalCount()).isEqualTo(7);
+        assertThat(result.page()).isEqualTo(2);
+        assertThat(result.size()).isEqualTo(5);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.items()).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo(9202L);
+            assertThat(item.simulationResultId()).isEqualTo(9302L);
+            assertThat(item.name()).isEqualTo("비교안");
+        });
+        verify(mapper).findComparableSimulationPage(simulationId, 9001L, 5, 5);
     }
 
     @Test

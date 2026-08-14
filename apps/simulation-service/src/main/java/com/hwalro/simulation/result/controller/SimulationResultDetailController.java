@@ -3,6 +3,7 @@ package com.hwalro.simulation.result.controller;
 import com.hwalro.simulation.common.jwt.JwtAuthInterceptor;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
+import com.hwalro.simulation.result.dto.ComparableSimulationPageResponse;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse;
 import com.hwalro.simulation.result.service.SimulationResultDetailService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,5 +32,15 @@ public class SimulationResultDetailController {
             @PathVariable Long simulationId,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return service.find(simulationId, user);
+    }
+
+    @GetMapping("/{simulationId}/result/comparable-simulations")
+    @Operation(summary = "비교 가능한 시뮬레이션 목록 조회")
+    public ComparableSimulationPageResponse findComparableSimulations(
+            @PathVariable Long simulationId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return service.findComparableSimulations(simulationId, page, size, user);
     }
 }

@@ -316,6 +316,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         onSelectBottleneck={setSelectedBottleneckId}
         onShowMoreBottlenecks={handleShowMoreBottlenecks}
         onOpenReport={handleOpenReport}
+        onOpenRisk={(riskId) => navigate(`/risk-management?riskId=${riskId}`)}
       />
 
       {evacuationChart.isMinimized ? (

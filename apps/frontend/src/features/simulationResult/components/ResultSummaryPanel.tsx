@@ -19,6 +19,7 @@ interface Props {
   onSelectBottleneck: (id: number) => void;
   onShowMoreBottlenecks: () => void;
   onOpenReport: () => void;
+  onOpenRisk: (id: number) => void;
 }
 
 export function ResultSummaryPanel({
@@ -36,6 +37,7 @@ export function ResultSummaryPanel({
   onSelectBottleneck,
   onShowMoreBottlenecks,
   onOpenReport,
+  onOpenRisk,
 }: Props) {
   const panel = useCollapsiblePanel();
   const selectedBottleneck = bottlenecks.find((item) => item.id === selectedBottleneckId);
@@ -149,10 +151,16 @@ export function ResultSummaryPanel({
             <h2 id="risk-zone-summary-title">위험 예상 항목</h2>
             <div className="risk-zone-list">
               {riskZones.map((zone) => (
-                <div className="risk-zone-summary-card" key={zone.id}>
+                <button
+                  type="button"
+                  className="risk-zone-summary-card cursor-pointer"
+                  key={zone.id}
+                  aria-label={`${zone.name} 위험 예상 항목 관리로 이동`}
+                  onClick={() => onOpenRisk(Number(zone.id))}
+                >
                   <strong>{zone.name}</strong>
                   <span>사용자 지정 위험 예상 항목</span>
-                </div>
+                </button>
               ))}
             </div>
           </section>
