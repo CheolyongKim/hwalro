@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { Minus } from 'lucide-react';
 
 interface LayoutToolbarProps {
@@ -6,6 +7,7 @@ interface LayoutToolbarProps {
   onStartSimulation: () => void;
   readOnly: boolean;
   onCollapse: () => void;
+  collapseButtonRef?: Ref<HTMLButtonElement>;
 }
 
 export function LayoutToolbar({
@@ -14,6 +16,7 @@ export function LayoutToolbar({
   onStartSimulation,
   readOnly,
   onCollapse,
+  collapseButtonRef,
 }: LayoutToolbarProps) {
   return (
     <div className="layout-panel-actions">
@@ -23,8 +26,11 @@ export function LayoutToolbar({
           <h2>도면 설정</h2>
         </div>
         <button
+          ref={collapseButtonRef}
           type="button"
           onClick={onCollapse}
+          aria-controls="layout-settings-panel"
+          aria-expanded="true"
           aria-label="도면 설정 최소화"
           className="layout-panel-actions__collapse"
         >

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '../ui';
 import './canvasWorkspace.css';
@@ -36,7 +36,7 @@ export function CanvasWorkspaceBackButton({
       type="button"
       variant="secondary"
       size="sm"
-      className={joinClassNames('canvas-workspace-back', className)}
+      className={joinClassNames('canvas-workspace-back', 'cursor-pointer', className)}
       {...rest}
     >
       <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
@@ -124,13 +124,13 @@ interface CanvasWorkspacePanelRestoreProps extends Omit<
   children: ReactNode;
 }
 
-export function CanvasWorkspacePanelRestore({
-  children,
-  className,
-  ...rest
-}: CanvasWorkspacePanelRestoreProps) {
+export const CanvasWorkspacePanelRestore = forwardRef<
+  HTMLButtonElement,
+  CanvasWorkspacePanelRestoreProps
+>(function CanvasWorkspacePanelRestore({ children, className, ...rest }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
       className={joinClassNames('canvas-workspace-panel-restore', className)}
       {...rest}
@@ -138,7 +138,7 @@ export function CanvasWorkspacePanelRestore({
       {children}
     </button>
   );
-}
+});
 
 interface CanvasWorkspaceStateProps extends HTMLAttributes<HTMLDivElement> {
   message: ReactNode;

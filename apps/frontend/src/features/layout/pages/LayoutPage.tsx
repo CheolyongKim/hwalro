@@ -69,10 +69,26 @@ function LayoutPage() {
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
+  const collapseButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreButtonRef = useRef<HTMLButtonElement>(null);
+  const restorePanelFocusRef = useRef(false);
 
   useLayoutEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useLayoutEffect(() => {
+    if (!restorePanelFocusRef.current) {
+      return;
+    }
+    if (settingsPanel.isMinimized) {
+      restoreButtonRef.current?.focus();
+      restorePanelFocusRef.current = false;
+    } else if (settingsPanel.isExpanding) {
+      collapseButtonRef.current?.focus();
+      restorePanelFocusRef.current = false;
+    }
+  }, [settingsPanel.isExpanding, settingsPanel.isMinimized]);
 
   const onSizeChange = useCallback((next: { w: number; h: number }) => {
     setSize(next);
@@ -332,11 +348,20 @@ function LayoutPage() {
         readOnly={readOnly}
       />
       {settingsPanel.isMinimized ? (
-        <CanvasWorkspacePanelRestore onClick={settingsPanel.restore}>
+        <CanvasWorkspacePanelRestore
+          ref={restoreButtonRef}
+          aria-controls="layout-settings-panel"
+          aria-expanded="false"
+          onClick={() => {
+            restorePanelFocusRef.current = true;
+            settingsPanel.restore();
+          }}
+        >
           도면 설정 열기
         </CanvasWorkspacePanelRestore>
       ) : (
         <CanvasWorkspacePanel
+          id="layout-settings-panel"
           ariaLabel="도면 설정"
           animate
           className={`${settingsPanel.isCollapsing ? 'is-collapsing' : ''} ${settingsPanel.isExpanding ? 'is-expanding' : ''}`}
@@ -349,7 +374,11 @@ function LayoutPage() {
             onSave={() => void performSave()}
             onStartSimulation={() => void handleOpenDraftDialog()}
             readOnly={readOnly}
-            onCollapse={settingsPanel.collapse}
+            collapseButtonRef={collapseButtonRef}
+            onCollapse={() => {
+              restorePanelFocusRef.current = true;
+              settingsPanel.collapse();
+            }}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className={readOnly ? 'pointer-events-none opacity-60' : ''}>
