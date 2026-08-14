@@ -191,15 +191,27 @@ def test_rebalance_targets_follow_passed_drawing():
     assert not any(layout_search._fabric_key(fabric) == "1" for fabric, _ in targets_after)
 
 
-def test_finding_quotas_distribute_evenly():
-    findings = [{"type": "A", "severity": 0.9}, {"type": "B", "severity": 0.8}, {"type": "C", "severity": 0.7}]
-    assert layout_search._finding_quotas(findings, 3) == [1, 1, 1]
-    assert layout_search._finding_quotas(findings, 2) == [1, 1, 0]
-    assert layout_search._finding_quotas(findings, 5) == [2, 2, 1]
-    assert layout_search._finding_quotas([], 3) == []
+def test_selection_takes_the_global_top_scorers_not_one_per_finding():
+    """The trial budget goes to the best candidates in the pool, whatever finding produced them.
+
+    An equal share per finding meant a finding holding the top several candidates ran exactly one
+    of them while a much weaker candidate elsewhere took a slot.
+    """
+    search_input = multi_finding_input(max_candidates=3)
+    whole_pool = layout_search.generate({**search_input, "generationMode": "EXHAUSTIVE"})
+    selected = layout_search.generate(search_input)
+
+    chosen = {ops_key(candidate) for candidate in selected["candidates"]}
+    assert len(chosen) == 3
+    # Scores tie often, so which of two equal candidates wins is a tie-breaker detail. What must
+    # hold is that nothing left behind scores better than anything taken - the property an equal
+    # share per finding breaks.
+    taken = [c["proxyScore"] for c in selected["candidates"]]
+    left = [c["proxyScore"] for c in whole_pool["candidates"] if ops_key(c) not in chosen]
+    assert min(taken) >= max(left)
 
 
-def test_round_one_covers_multiple_findings():
+def multi_finding_input(max_candidates: int = 3) -> dict:
     exits = [
         {"id": 1, "name": "top", "startX": 10, "startY": 0, "endX": 10, "endY": 2},
         {"id": 2, "name": "bottom", "startX": 10, "startY": 8, "endX": 10, "endY": 10},
@@ -217,10 +229,15 @@ def test_round_one_covers_multiple_findings():
         {"type": "EXIT_IMBALANCE", "severity": 0.6, "region": {"startX": 8.0, "startY": 4.0, "endX": 9.5, "endY": 6.0},
          "evidence": {"metric": "EXIT_DEMAND", "value": 2.0, "unit": "RATIO", "source": "TIMELINE"}, "description": "imbalance"},
     ]
-    search_input = base_input(drawing, findings=findings, max_candidates=3)
+    search_input = base_input(drawing, findings=findings, max_candidates=max_candidates)
     search_input["selectedExitIds"] = [1, 2]
-    result = layout_search.generate(search_input)
-    covered = {candidate["originFindingType"] for candidate in result["candidates"]}
+    return search_input
+
+
+def test_every_finding_still_contributes_to_the_pool():
+    """Global ranking changes who gets a trial, not who gets generated."""
+    whole_pool = layout_search.generate({**multi_finding_input(), "generationMode": "EXHAUSTIVE"})
+    covered = {candidate["originFindingType"] for candidate in whole_pool["candidates"]}
     assert covered == {"BOTTLENECK", "CONGESTION_HOTSPOT", "EXIT_IMBALANCE"}
 
 

@@ -1083,13 +1083,6 @@ def _actionable_findings(findings: Sequence[dict[str, Any]]) -> list[tuple[int, 
     ]
 
 
-def _finding_quotas(findings: Sequence[Any], max_candidates: int) -> list[int]:
-    if not findings or max_candidates <= 0:
-        return [0] * len(findings)
-    base, remainder = divmod(max_candidates, len(findings))
-    return [base + (1 if index < remainder else 0) for index in range(len(findings))]
-
-
 def _matching_finding(findings: Sequence[dict[str, Any]], finding_type: str) -> tuple[int, dict[str, Any] | None]:
     for index, finding in enumerate(findings):
         if str(finding.get("type", "")) == finding_type:
@@ -1277,27 +1270,19 @@ def _ranked(items: Sequence[RawCandidate], count: int, score_of) -> list[RawCand
     return [item for _, item in ordered[:count]]
 
 
-def _select(
-    raw: Sequence[RawCandidate],
-    findings: Sequence[dict[str, Any]],
-    parents: Sequence[dict[str, Any]],
-    max_candidates: int,
-    score_of,
-) -> list[RawCandidate]:
+def _select(raw: Sequence[RawCandidate], max_candidates: int, score_of) -> list[RawCandidate]:
+    """The best `max_candidates` of the whole pool, regardless of which finding they came from.
+
+    This used to hand every finding an equal share of the trial budget. With four findings and a
+    budget of four that is one trial each, so a finding holding the top four candidates got to run
+    exactly one of them while a far weaker candidate from another finding took a slot - a measured
+    case had a 0.0057 candidate tried while a 0.0675 one from the same finding was dropped.
+    Spreading trials across findings is worth nothing if the spread costs the best candidates;
+    coverage is not the goal, finding one verified improvement is.
+    """
     if max_candidates <= 0 or not raw:
         return []
-    if parents:
-        return _ranked(raw, max_candidates, score_of)
-    actionable = _actionable_findings(findings)
-    quotas = _finding_quotas(actionable, max_candidates)
-    selected: list[RawCandidate] = []
-    for position, (finding_index, _) in enumerate(actionable):
-        quota = quotas[position]
-        if quota <= 0:
-            continue
-        group = [item for item in raw if item.finding_index == finding_index]
-        selected.extend(_ranked(group, quota, score_of))
-    return selected[:max_candidates]
+    return _ranked(raw, max_candidates, score_of)
 
 
 def _candidate_output(
@@ -1400,7 +1385,7 @@ def generate(input_data: dict[str, Any]) -> dict[str, Any]:
         score_of = (
             (lambda item: item.surrogate_score) if use_surrogate else (lambda item: item.proxy_score)
         )
-        selected = _select(raw, findings, parents, max_candidates, score_of)
+        selected = _select(raw, max_candidates, score_of)
 
     if runtime.requested_mode != surrogate.MODE_OFF:
         print(runtime.summary(), file=sys.stderr)
