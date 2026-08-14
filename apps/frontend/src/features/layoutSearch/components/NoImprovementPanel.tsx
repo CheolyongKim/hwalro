@@ -9,6 +9,7 @@ import {
   rejectReasonLabel,
 } from '../utils/searchLabels';
 import { primaryDelta } from './CandidateList';
+import { DrawingElements } from './LayoutDiffCanvas';
 
 interface Props {
   candidates: SearchCandidate[];
@@ -35,6 +36,53 @@ function summarizeChangeSet(ops: ChangeOp[], fabricNameById: (id: number) => str
     parts.push(`${fabricNameById(op.fabricId)} ${changes.join(' · ')}`);
   }
   return parts.join(', ');
+}
+
+function RejectedMiniMap({ candidate, drawing }: { candidate: SearchCandidate; drawing: SimulationDrawing }) {
+  const ops = candidate.changeSet?.ops ?? [];
+  if (ops.length === 0) {
+    return null;
+  }
+  return (
+    <div className="no-improvement-minimap">
+      <svg
+        viewBox={`0 0 ${drawing.width} ${drawing.height}`}
+        role="img"
+        aria-label={`${operatorLabel(candidate.operatorType)} 시도 배치`}
+      >
+        <DrawingElements drawing={drawing} />
+        {ops.map((op) => {
+          const x = Math.min(op.after.startX, op.after.endX);
+          const y = Math.min(op.after.startY, op.after.endY);
+          const width = Math.abs(op.after.endX - op.after.startX);
+          const height = Math.abs(op.after.endY - op.after.startY);
+          const centerX = x + width / 2;
+          const centerY = y + height / 2;
+          const beforeX = (op.before.startX + op.before.endX) / 2;
+          const beforeY = (op.before.startY + op.before.endY) / 2;
+          return (
+            <g key={op.fabricId}>
+              <line
+                x1={beforeX}
+                y1={beforeY}
+                x2={centerX}
+                y2={centerY}
+                className="no-improvement-minimap__arrow"
+              />
+              <rect
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                transform={`rotate(${op.after.rotation} ${centerX} ${centerY})`}
+                className="no-improvement-minimap__attempt"
+              />
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
 }
 
 export function NoImprovementPanel({ candidates, drawing }: Props) {
@@ -72,7 +120,7 @@ export function NoImprovementPanel({ candidates, drawing }: Props) {
   return (
     <section className="no-improvement-panel" aria-label="개선안을 찾지 못한 사유">
       <p className="no-improvement-panel__intro">
-        개선을 위해 시도한 변경이 아래 사유로 제약 검사를 통과하지 못했습니다.
+        시도한 변경이 아래 사유로 제약 검사를 통과하지 못했습니다.
       </p>
       <div className="no-improvement-tabs" role="tablist" aria-label="거부 사유별 후보">
         {groups.map(([reason, list], index) => (
@@ -102,12 +150,23 @@ export function NoImprovementPanel({ candidates, drawing }: Props) {
             const delta = primaryDelta(candidate);
             return (
               <li key={candidate.candidateId}>
-                <strong>{operatorLabel(candidate.operatorType)}</strong>
-                <span className={`candidate-chip is-${candidate.status.toLowerCase()}`}>
-                  {CANDIDATE_STATUS_LABELS[candidate.status]}
-                </span>
-                {delta && <em className="delta-badge">{formatDelta(delta)}</em>}
-                <small>{summarizeChangeSet(candidate.changeSet.ops, fabricNameById)}</small>
+                <div className="no-improvement-candidate">
+                  <div className="no-improvement-candidate__summary">
+                    <strong>{operatorLabel(candidate.operatorType)}</strong>
+                    <span className={`candidate-chip is-${candidate.status.toLowerCase()}`}>
+                      {CANDIDATE_STATUS_LABELS[candidate.status]}
+                    </span>
+                    {delta && <em className="delta-badge">{formatDelta(delta)}</em>}
+                  </div>
+                  {candidate.changeSet.ops.length > 0 && (
+                    <small className="no-improvement-candidate__change">
+                      {summarizeChangeSet(candidate.changeSet.ops, fabricNameById)}
+                    </small>
+                  )}
+                  {drawing && (
+                    <RejectedMiniMap candidate={candidate} drawing={drawing} />
+                  )}
+                </div>
               </li>
             );
           })}

@@ -105,6 +105,15 @@
 .no-improvement-tab.is-active .no-improvement-tab__count { color: #0e6c61; }
 .no-improvement-tab:focus-visible { outline: 3px solid rgba(185, 231, 57, .85); outline-offset: 2px; }
 .no-improvement-tabpanel { min-width: 0; }
+.no-improvement-tabpanel .rejected-list { display: grid; gap: 10px; margin: 10px 0 0; padding: 0; list-style: none; max-height: 440px; overflow-y: auto; }
+.no-improvement-candidate { display: grid; gap: 6px; border: 1px solid #e5eeeb; border-radius: 10px; background: #fbfdfc; padding: 10px; }
+.no-improvement-candidate__summary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.no-improvement-candidate__summary strong { font-size: 11px; }
+.no-improvement-candidate__change { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.no-improvement-minimap { position: relative; border: 1px solid #e5eeeb; border-radius: 8px; background: #f9fbfa; overflow: hidden; }
+.no-improvement-minimap svg { display: block; width: 100%; height: auto; }
+.no-improvement-minimap__attempt { fill: rgba(230, 102, 78, 0.18); stroke: #df624b; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.no-improvement-minimap__arrow { stroke: #df624b; stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
 .no-improvement-tabpanel .rejected-list li { background: #fff; border: 1px solid #e5eeeb; }
 .plan-preview__fabric.is-changed { fill: rgba(230, 102, 78, .18); stroke: var(--orange); stroke-width: 2; }
 .search-insight > p { margin: 9px 0 18px; color: #526b63; font-size: 13px; line-height: 1.65; }
