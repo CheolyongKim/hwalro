@@ -7,11 +7,10 @@ import { getSimulationErrorMessage } from '../../simulations/utils/getSimulation
 import type { SearchStatus } from '../api/layoutSearchApi';
 import { CandidateDetailPanel } from '../components/CandidateDetailPanel';
 import { CandidateList } from '../components/CandidateList';
+import { CandidateTabs, RejectedCandidateDetail } from '../components/NoImprovementPanel';
 import { ConstraintInspector } from '../components/ConstraintInspector';
 import { DiagnosisPanel } from '../components/DiagnosisPanel';
 import { HoldToCompare } from '../components/HoldToCompare';
-import { NoImprovementPanel } from '../components/NoImprovementPanel';
-import { RejectedCandidateList } from '../components/RejectedCandidateList';
 import { SearchProgressHeader } from '../components/SearchProgressHeader';
 import { useLayoutSearch } from '../hooks/useLayoutSearch';
 import { applyChangeSet } from '../utils/applyChangeSet';
@@ -45,7 +44,7 @@ export default function LayoutSearchPage() {
   const [sourceSetup, setSourceSetup] = useState<SimulationSetup | null>(null);
   const [sourceLoading, setSourceLoading] = useState(true);
   const [sourceError, setSourceError] = useState<string | null>(null);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
+  const [selectedTabKey, setSelectedTabKey] = useState<string | null>(null);
   const {
     search,
     hasSearch,
@@ -87,17 +86,38 @@ export default function LayoutSearchPage() {
   }, [loadSourceSetup]);
 
   useEffect(() => {
-    setSelectedCandidateId(null);
+    setSelectedTabKey(null);
   }, [search?.searchId]);
 
-  const selectedCandidate = useMemo(() => {
-    const candidates = search?.improvedCandidates ?? [];
-    return (
-      candidates.find((candidate) => candidate.candidateId === selectedCandidateId) ??
-      candidates[0] ??
-      null
-    );
-  }, [search, selectedCandidateId]);
+  const improvedCandidates = search?.improvedCandidates ?? [];
+  const rejectedCandidates = search?.rejectedCandidates ?? [];
+
+  const defaultTabKey = useMemo(() => {
+    if (improvedCandidates.length > 0) {
+      return `i-${improvedCandidates[0].candidateId}`;
+    }
+    if (rejectedCandidates.length > 0) {
+      return `r-${rejectedCandidates[0].candidateId}`;
+    }
+    return null;
+  }, [improvedCandidates, rejectedCandidates]);
+
+  const activeTabKey = selectedTabKey ?? defaultTabKey;
+
+  const activeTab = useMemo(() => {
+    if (activeTabKey === null) {
+      return null;
+    }
+    const candidateId = Number(activeTabKey.slice(2));
+    if (activeTabKey.startsWith('i-')) {
+      const candidate = improvedCandidates.find((entry) => entry.candidateId === candidateId) ?? null;
+      return candidate === null ? null : { kind: 'improved' as const, candidate };
+    }
+    const candidate = rejectedCandidates.find((entry) => entry.candidateId === candidateId) ?? null;
+    return candidate === null ? null : { kind: 'rejected' as const, candidate };
+  }, [activeTabKey, improvedCandidates, rejectedCandidates]);
+
+  const selectedCandidate = activeTab?.kind === 'improved' ? activeTab.candidate : null;
 
   const preview = useMemo(() => {
     if (!sourceSetup || !selectedCandidate) {
@@ -115,7 +135,7 @@ export default function LayoutSearchPage() {
 
   const runSearch = useCallback(async () => {
     if (await start()) {
-      setSelectedCandidateId(null);
+      setSelectedTabKey(null);
     }
   }, [start]);
 
@@ -210,7 +230,7 @@ export default function LayoutSearchPage() {
           <CandidateList
             candidates={search.improvedCandidates}
             selectedCandidateId={selectedCandidate?.candidateId ?? null}
-            onSelect={setSelectedCandidateId}
+            onSelect={(candidateId) => setSelectedTabKey(`i-${candidateId}`)}
           />
         </div>
 
@@ -221,21 +241,26 @@ export default function LayoutSearchPage() {
               <h2 id="comparison-title">
                 {selectedCandidate
                   ? '기존 배치와 개선 배치'
-                  : search.status === 'NO_IMPROVEMENT'
-                    ? '개선안을 찾지 못했습니다'
-                    : '검증 중인 배치'}
+                  : activeTab?.kind === 'rejected'
+                    ? '시도 배치'
+                    : search.status === 'NO_IMPROVEMENT'
+                      ? '개선안을 찾지 못했습니다'
+                      : '검증 중인 배치'}
               </h2>
             </div>
-            <p>
-              버튼으로 배치를 전환해 확인할 수 있으며 공식 검증은 서버의 실제 엔진이 수행합니다.
-            </p>
           </div>
+          <CandidateTabs
+            improved={search.improvedCandidates}
+            rejected={search.rejectedCandidates}
+            activeKey={activeTabKey ?? ''}
+            onSelect={setSelectedTabKey}
+          />
           <div className="comparison-plans">
             <div className="comparison-plan">
               <div className="comparison-plan__heading">
                 <div>
                   <span>배치 도면 비교</span>
-                  <strong>{selectedCandidate ? '기존 배치와 개선 배치' : '개선안 없음'}</strong>
+                  <strong>{selectedCandidate ? '기존 배치와 개선 배치' : '시도 배치'}</strong>
                 </div>
                 {selectedCandidate && (
                   <p>
@@ -244,7 +269,7 @@ export default function LayoutSearchPage() {
                   </p>
                 )}
               </div>
-              {sourceSetup && preview.drawing && selectedCandidate ? (
+              {selectedCandidate && sourceSetup && preview.drawing ? (
                 <HoldToCompare
                   before={sourceSetup.drawing}
                   after={preview.drawing}
@@ -257,9 +282,9 @@ export default function LayoutSearchPage() {
                     원본 배치 다시 불러오기
                   </button>
                 </div>
-              ) : search.status === 'NO_IMPROVEMENT' ? (
-                <NoImprovementPanel
-                  candidates={search.rejectedCandidates}
+              ) : activeTab?.kind === 'rejected' && activeTab.candidate ? (
+                <RejectedCandidateDetail
+                  candidate={activeTab.candidate}
                   drawing={sourceSetup?.drawing ?? null}
                 />
               ) : (
@@ -284,14 +309,15 @@ export default function LayoutSearchPage() {
         ) : (
           <aside className="search-insight">
             <p>
-              {search.status === 'NO_IMPROVEMENT'
-                ? '시도한 변경은 그 밖의 검증 결과에서 확인할 수 있습니다.'
-                : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
+              {activeTab?.kind === 'rejected'
+                ? '거부된 후보는 시도한 변경과 거부 사유를 확인할 수 있습니다.'
+                : search.status === 'NO_IMPROVEMENT'
+                  ? '시도한 변경은 그 밖의 검증 결과에서 확인할 수 있습니다.'
+                  : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
             </p>
           </aside>
         )}
       </div>
-      <RejectedCandidateList candidates={search.rejectedCandidates} />
     </main>
   );
 }

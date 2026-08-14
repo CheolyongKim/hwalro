@@ -1,5 +1,5 @@
 import type { SearchCandidate } from '../api/layoutSearchApi';
-import { formatDelta, formatNumber, findingLabel, operatorLabel } from '../utils/searchLabels';
+import { formatDelta, formatNumber, findingLabel, metricLabel, operatorLabel } from '../utils/searchLabels';
 import { primaryDelta } from './CandidateList';
 
 interface Props {
@@ -32,7 +32,7 @@ export function CandidateDetailPanel({
       </div>
       <div className="strategy-tags">
         <span>{findingLabel(candidate.originFindingType)}</span>
-        <span>{candidate.round}라운드</span>
+        <span>{candidate.round === 1 ? '1차 개선안' : `${candidate.round}차 개선안`}</span>
       </div>
       <h2>{operatorLabel(candidate.operatorType)}</h2>
       <p>{candidate.rationale?.description ?? '변경 근거가 없습니다.'}</p>
@@ -56,7 +56,7 @@ export function CandidateDetailPanel({
             );
             return (
               <div className="comparison-metric" key={metric.metricType}>
-                <span>{metric.metricType}</span>
+                <span>{metricLabel(metric.metricType)}</span>
                 <strong>{formatNumber(metric.metricValue)}</strong>
                 {metricDelta && (
                   <em className="delta-badge is-improved">{formatDelta(metricDelta)}</em>

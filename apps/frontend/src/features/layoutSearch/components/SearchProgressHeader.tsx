@@ -42,7 +42,9 @@ export function SearchProgressHeader({
           {SEARCH_STATUS_LABELS[search.status]}
         </span>
         <strong>{PHASE_MESSAGES[search.status]}</strong>
-        {active && progress.round > 0 && <small>라운드 {progress.round}</small>}
+        {active && progress.round > 0 && (
+          <small>{progress.round === 1 ? '1차 개선' : `${progress.round}차 개선`}</small>
+        )}
       </div>
       <div className="search-progress__meta">
         {active && progress.plannedCount === null ? (
@@ -57,7 +59,6 @@ export function SearchProgressHeader({
           progress.estimatedRemainingSeconds > 0 && (
             <span>남은 시간 {formatDuration(progress.estimatedRemainingSeconds)}</span>
           )}
-        <span>trial 상한 {formatNumber(progress.trialCapSeconds)}초</span>
         {active && (
           <button
             type="button"

@@ -25,7 +25,7 @@ export function DiagnosisPanel({ diagnosis, loading }: Props) {
     <section className="diagnosis-panel" aria-label="진단 결과">
       <div className="workspace-section-heading">
         <span>진단 결과</span>
-        <small>문제 위치와 근거</small>
+        <small>위험도는 0~100%, 높을수록 대피 흐름에 미치는 영향이 큽니다</small>
       </div>
       <ul className="diagnosis-findings">
         {diagnosis.findings.map((finding) => (

@@ -50,6 +50,19 @@ export const REJECT_REASON_LABELS: Record<string, string> = {
   CONSTRAINT_WALL_ANCHOR: '벽면 접촉을 벗어남',
 };
 
+export const METRIC_LABELS: Record<string, string> = {
+  SIMULATION_DURATION_SECONDS: '시뮬레이션 시간',
+  TOTAL_EVACUATION_TIME_SECONDS: '총 대피 시간',
+  AVERAGE_EVACUATION_TIME_SECONDS: '평균 대피 시간',
+  EVACUATED_PEOPLE: '대피 완료 인원',
+  REMAINING_PEOPLE: '남은 인원',
+  MAX_DENSITY: '최대 밀집도',
+};
+
+export function metricLabel(metricType: string) {
+  return METRIC_LABELS[metricType] ?? metricType;
+}
+
 export function operatorLabel(operatorType: string) {
   return OPERATOR_LABELS[operatorType] ?? operatorType;
 }
