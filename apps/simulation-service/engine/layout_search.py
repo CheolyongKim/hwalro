@@ -740,11 +740,32 @@ class _Rejections:
         self.counts: dict[str, int] = {}
         self._examples_per_reason = examples_per_reason
 
-    def add(self, operator: str, fabric_id: Any, reason: str) -> None:
+    def add(
+        self,
+        operator: str,
+        fabric_id: Any,
+        reason: str,
+        before: dict[str, Any] | None = None,
+        after: dict[str, Any] | None = None,
+    ) -> None:
         seen = self.counts.get(reason, 0)
         self.counts[reason] = seen + 1
         if seen < self._examples_per_reason:
-            self.examples.append({"operatorType": operator, "fabricId": fabric_id, "reason": reason})
+            example: dict[str, Any] = {
+                "operatorType": operator,
+                "fabricId": fabric_id,
+                "reason": reason,
+            }
+            if before is not None and after is not None:
+                example["ops"] = [
+                    {
+                        "type": MOVE_FABRIC,
+                        "fabricId": fabric_id,
+                        "before": before,
+                        "after": after,
+                    }
+                ]
+            self.examples.append(example)
 
 
 class _Generation:
@@ -830,7 +851,7 @@ class _Generation:
         fabric_id = _fabric_key(fabric)
         before = _coords_only(fabric)
         if self.constraints is not None and self.constraints.move_radius_of(fabric.get("id")) == 0.0:
-            self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_FIXED")
+            self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_FIXED", before)
             return
         for after, direction, distance in variants:
             if self._full(finding_index):
@@ -839,7 +860,7 @@ class _Generation:
                 continue
             reason, snapshot = _assess(drawing, self.agents, self.hazards, self.exits, fabric_id, before, after)
             if reason is not None:
-                self.rejections.add(operator, _raw_fabric_id(fabric), reason)
+                self.rejections.add(operator, _raw_fabric_id(fabric), reason, before, after)
                 continue
             ops = [{"type": MOVE_FABRIC, "fabricId": _raw_fabric_id(fabric), "before": before, "after": after}]
             self.add(finding_index, finding, region, origin_finding_type, operator, ops, direction, distance, snapshot)
@@ -848,16 +869,16 @@ class _Generation:
         if self.constraints is None:
             return False
         if self.constraints.move_radius_of(fabric.get("id")) == 0.0:
-            self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_FIXED")
+            self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_FIXED", before, after)
             return True
         after_geometry = _rect_geometry({**fabric, **after})
         if self.constraints.intersects_forbidden_zone(after_geometry):
-            self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_ZONE")
+            self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_ZONE", before, after)
             return True
         if self.constraints.is_wall_anchored(fabric.get("id")):
             walls = drawing_walls(self.drawing)
             if not _touches_any_wall(after_geometry, walls):
-                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_WALL_ANCHOR")
+                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_WALL_ANCHOR", before, after)
                 return True
         return False
 
@@ -877,10 +898,10 @@ class _Generation:
         before_b = _coords_only(fabric_b)
         if self.constraints is not None:
             if self.constraints.move_radius_of(fabric_a.get("id")) == 0.0:
-                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric_a), "CONSTRAINT_FIXED")
+                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric_a), "CONSTRAINT_FIXED", before_a)
                 return
             if self.constraints.move_radius_of(fabric_b.get("id")) == 0.0:
-                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric_b), "CONSTRAINT_FIXED")
+                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric_b), "CONSTRAINT_FIXED", before_b)
                 return
         normal = _region_normal(finding)
         for distance in DUAL_GAP_DISTANCES:
@@ -904,7 +925,7 @@ class _Generation:
                 [(id_a, before_a, after_a), (id_b, before_b, after_b)],
             )
             if reason is not None:
-                self.rejections.add("OPEN_DUAL_GAP", _raw_fabric_id(fabric_a), reason)
+                self.rejections.add("OPEN_DUAL_GAP", _raw_fabric_id(fabric_a), reason, before_a, after_a)
                 continue
             ops = [
                 {"type": MOVE_FABRIC, "fabricId": _raw_fabric_id(fabric_a), "before": before_a, "after": after_a},
@@ -1087,7 +1108,7 @@ def _generate_from_parents(
                     working_drawing, generation.agents, generation.hazards, generation.exits, fabric_id, before, after
                 )
                 if reason is not None:
-                    generation.rejections.add(primary, _raw_fabric_id(fabric), reason)
+                    generation.rejections.add(primary, _raw_fabric_id(fabric), reason, before, after)
                     continue
                 combined_ops = [*parent_ops, {
                     "type": MOVE_FABRIC,

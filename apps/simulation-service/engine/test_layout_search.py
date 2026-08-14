@@ -447,6 +447,25 @@ def test_rejection_examples_are_capped_but_counts_are_complete():
     assert set(counts) <= set(layout_search.REJECT_REASONS)
 
 
+def test_rejected_examples_carry_attempted_move_coordinates():
+    drawing = bottom_edge_drawing()
+    result = layout_search.generate(base_input(drawing, findings=[bottom_edge_finding()], max_candidates=6))
+
+    with_ops = [entry for entry in result["rejected"] if entry.get("ops")]
+    assert with_ops, "rejected examples should include attempted move coordinates"
+    for entry in with_ops:
+        assert entry["reason"] != "CONSTRAINT_FIXED"
+        for op in entry["ops"]:
+            assert op["type"] == "MOVE_FABRIC"
+            assert op["fabricId"] == entry["fabricId"]
+            for side in ("before", "after"):
+                rect = op[side]
+                for key in ("startX", "startY", "endX", "endY", "rotation"):
+                    assert math.isfinite(rect[key])
+                assert (rect["endX"] - rect["startX"]) != 0
+                assert (rect["endY"] - rect["startY"]) != 0
+
+
 def assert_java_contract(result: dict, max_candidates: int) -> None:
     """Mirror of `LayoutSearchRunner.validate`, which fails the whole search.
 
