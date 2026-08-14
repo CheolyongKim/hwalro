@@ -32,6 +32,7 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupRespon
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationWorkSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TextDto;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
@@ -302,31 +303,107 @@ public class SimulationService {
             JsonNode root = objectMapper.readTree(simulation.getFailureDetail());
             if (root == null
                     || !root.isObject()
-                    || root.size() != 4
                     || !root.has("code")
-                    || !root.has("agentId")
-                    || !root.has("currentPosition")
-                    || !root.has("recommendedPosition")
-                    || !root.get("code").isTextual()
-                    || !ROUTING_ERROR_CODE.equals(root.get("code").textValue())
-                    || !root.get("agentId").isIntegralNumber()
-                    || !root.get("agentId").canConvertToLong()) {
+                    || !root.get("code").isTextual()) {
                 return null;
             }
-            long agentId = root.get("agentId").longValue();
-            PointDto currentPosition = readFailurePoint(root.get("currentPosition"));
-            JsonNode recommendationNode = root.get("recommendedPosition");
-            PointDto recommendation = recommendationNode.isNull() ? null : readFailurePoint(recommendationNode);
-            if (agentId < 1
-                    || agentId > SimulationGeometry.MAX_AGENTS
-                    || currentPosition == null
-                    || (!recommendationNode.isNull() && recommendation == null)) {
-                return null;
+            String code = root.get("code").textValue();
+            if (ROUTING_ERROR_CODE.equals(code)) {
+                return readAgentRouteUnreachableFailureDetail(root);
             }
-            return new SimulationFailureDetailResponse(ROUTING_ERROR_CODE, agentId, currentPosition, recommendation);
+            if (SimulationEngineRunner.NO_REACHABLE_EXIT_CODE.equals(code)) {
+                return readNoReachableExitFailureDetail(root);
+            }
+            return null;
         } catch (IOException | RuntimeException exception) {
             return null;
         }
+    }
+
+    private static SimulationFailureDetailResponse readAgentRouteUnreachableFailureDetail(JsonNode root) {
+        if (root.size() != 4
+                || !root.has("agentId")
+                || !root.has("currentPosition")
+                || !root.has("recommendedPosition")
+                || !root.get("agentId").isIntegralNumber()
+                || !root.get("agentId").canConvertToLong()) {
+            return null;
+        }
+        long agentId = root.get("agentId").longValue();
+        PointDto currentPosition = readFailurePoint(root.get("currentPosition"));
+        JsonNode recommendationNode = root.get("recommendedPosition");
+        PointDto recommendation = recommendationNode.isNull() ? null : readFailurePoint(recommendationNode);
+        if (agentId < 1
+                || agentId > SimulationGeometry.MAX_AGENTS
+                || currentPosition == null
+                || (!recommendationNode.isNull() && recommendation == null)) {
+            return null;
+        }
+        return new SimulationFailureDetailResponse(
+                ROUTING_ERROR_CODE, agentId, currentPosition, recommendation, null, null, null, null);
+    }
+
+    private static SimulationFailureDetailResponse readNoReachableExitFailureDetail(JsonNode root) {
+        if (root.size() != 7
+                || !root.has("affectedAgentCount")
+                || !root.has("representativeAgentIds")
+                || !root.has("componentCount")
+                || !root.has("selectedExitIds")
+                || !root.has("reason")
+                || !root.get("affectedAgentCount").isIntegralNumber()
+                || !root.get("affectedAgentCount").canConvertToLong()
+                || !root.get("componentCount").isIntegralNumber()
+                || !root.get("componentCount").canConvertToLong()) {
+            return null;
+        }
+        long affected = root.get("affectedAgentCount").longValue();
+        long componentCount = root.get("componentCount").longValue();
+        List<Long> representativeIds =
+                readFailureIdList(root.get("representativeAgentIds"), SimulationGeometry.MAX_AGENTS);
+        List<Long> selectedExitIds = readFailureIdList(root.get("selectedExitIds"), SimulationGeometry.MAX_AGENTS);
+        if (affected < 1
+                || affected > SimulationGeometry.MAX_AGENTS
+                || componentCount < 1
+                || componentCount > SimulationGeometry.MAX_AGENTS
+                || representativeIds == null
+                || representativeIds.isEmpty()
+                || selectedExitIds == null
+                || selectedExitIds.isEmpty()
+                || !root.get("reason").isTextual()
+                || !isSupportedNoReachableExitReason(root.get("reason").textValue())) {
+            return null;
+        }
+        return new SimulationFailureDetailResponse(
+                SimulationEngineRunner.NO_REACHABLE_EXIT_CODE,
+                null,
+                null,
+                null,
+                affected,
+                representativeIds,
+                selectedExitIds,
+                root.get("reason").textValue());
+    }
+
+    private static boolean isSupportedNoReachableExitReason(String reason) {
+        return "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT".equals(reason);
+    }
+
+    private static List<Long> readFailureIdList(JsonNode node, int maximumValue) {
+        if (node == null || !node.isArray() || node.size() < 1 || node.size() > maximumValue) {
+            return null;
+        }
+        java.util.ArrayList<Long> values = new java.util.ArrayList<>(node.size());
+        for (JsonNode item : node) {
+            if (!item.isIntegralNumber() || !item.canConvertToLong()) {
+                return null;
+            }
+            long value = item.longValue();
+            if (value < 1 || value > maximumValue) {
+                return null;
+            }
+            values.add(value);
+        }
+        return List.copyOf(values);
     }
 
     @Transactional
@@ -500,7 +577,10 @@ public class SimulationService {
     }
 
     private static boolean matchesFailureDetail(SimulationFailureDetailResponse failureDetail, List<PointDto> agents) {
-        if (failureDetail == null || failureDetail.agentId() < 1 || failureDetail.agentId() > agents.size()) {
+        if (failureDetail == null
+                || failureDetail.agentId() == null
+                || failureDetail.agentId() < 1
+                || failureDetail.agentId() > agents.size()) {
             return false;
         }
         PointDto stored = agents.get(Math.toIntExact(failureDetail.agentId() - 1));

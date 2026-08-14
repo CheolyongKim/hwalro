@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.simulation.domain.Simulation;
+import com.hwalro.simulation.simulation.domain.SimulationResult;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -107,6 +108,57 @@ class SimulationSchemaIntegrationTest {
             assertThat(columns.next()).isTrue();
             assertThat(columns.getString("Type")).isEqualTo("json");
             assertThat(columns.getString("Null")).isEqualTo("YES");
+        }
+    }
+
+    @Test
+    void simulationResultsHasJsonTerminationDetail() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement();
+                ResultSet columns =
+                        statement.executeQuery("SHOW COLUMNS FROM simulation_results LIKE 'termination_detail'")) {
+            assertThat(columns.next()).isTrue();
+            assertThat(columns.getString("Type")).isEqualTo("json");
+            assertThat(columns.getString("Null")).isEqualTo("YES");
+        }
+    }
+
+    @Test
+    void mapperPersistsAndReadsTerminationDetail() throws Exception {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate(
+                    "INSERT INTO floor_plans (id, name, width, height) VALUES (941, 'termination', 10, 10)");
+            statement.executeUpdate(
+                    "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (942, 941, 7, 'termination')");
+            statement.executeUpdate(
+                    "INSERT INTO layout_versions (id, layout_id, version, status) VALUES (943, 942, 1, '잠금')");
+            statement.executeUpdate(
+                    "INSERT INTO simulations (id, layout_version_id, created_by, status) VALUES (944, 943, 7, 'COMPLETED')");
+        }
+
+        String detail =
+                """
+                {"schemaVersion":1,"globalReason":"GLOBAL_STALLED","remainingPeople":1,"reasonCounts":{"ROUTE_FOLLOWING_STUCK":1},"representativeAgents":[1]}
+                """
+                        .strip();
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            SimulationMapper mapper = session.getMapper(SimulationMapper.class);
+
+            SimulationResult result = new SimulationResult();
+            result.setSimulationId(944L);
+            result.setEngineVersion("1.4.2+hwalro.2");
+            result.setTerminationReason("STALLED");
+            result.setFrameIntervalSeconds(BigDecimal.ONE);
+            result.setTerminationDetail(detail);
+            assertThat(mapper.insertSimulationResult(result)).isEqualTo(1);
+
+            SimulationResult stored = mapper.findSimulationResult(944L);
+            assertThat(stored.getTerminationDetail()).isNotBlank();
+            assertThat(new ObjectMapper().readTree(stored.getTerminationDetail()))
+                    .isEqualTo(new ObjectMapper().readTree(detail));
+
+            session.commit();
         }
     }
 

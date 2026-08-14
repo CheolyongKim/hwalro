@@ -32,7 +32,8 @@ public class SimulationEngineRunner {
     private static final int MAX_ENGINE_MESSAGE_LENGTH = 1000;
     private static final long MAX_FAILURE_DETAIL_BYTES = 4096;
     private static final int ROUTING_ERROR_EXIT_CODE = 3;
-    private static final String ROUTING_ERROR_CODE = "AGENT_ROUTE_UNREACHABLE";
+    public static final String ROUTING_ERROR_CODE = "AGENT_ROUTE_UNREACHABLE";
+    public static final String NO_REACHABLE_EXIT_CODE = "NO_REACHABLE_SELECTED_EXIT";
     private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
 
     private final ObjectMapper objectMapper;
@@ -146,13 +147,19 @@ public class SimulationEngineRunner {
                         failureDetail = readFailureDetail(outputDirectory, setup);
                         if (failureDetail == null) {
                             log.warn("Simulation {} engine returned an invalid routing failure detail", simulationId);
-                        } else {
+                        } else if (ROUTING_ERROR_CODE.equals(failureDetail.code())) {
                             log.warn(
                                     "Simulation {} engine routing failure code={} agentId={} recommendationPresent={}",
                                     simulationId,
                                     failureDetail.code(),
                                     failureDetail.agentId(),
                                     failureDetail.recommendedPosition() != null);
+                        } else {
+                            log.warn(
+                                    "Simulation {} engine setup failure code={} affectedAgentCount={}",
+                                    simulationId,
+                                    failureDetail.code(),
+                                    failureDetail.affectedAgentCount());
                         }
                     } else {
                         log.warn("Simulation {} engine process failed: {}", simulationId, diagnostic);
@@ -283,46 +290,148 @@ public class SimulationEngineRunner {
                 return null;
             }
             JsonNode root = objectMapper.readTree(detailPath.toFile());
-            if (root == null
-                    || !root.isObject()
-                    || root.size() != 4
-                    || !root.has("schemaVersion")
-                    || !root.has("code")
-                    || !root.has("agentId")
-                    || !root.has("recommendedPosition")) {
+            if (root == null || !root.isObject() || !root.has("schemaVersion") || !root.has("code")) {
                 return null;
             }
             JsonNode schemaVersion = root.get("schemaVersion");
             JsonNode code = root.get("code");
-            JsonNode agentIdNode = root.get("agentId");
             if (!schemaVersion.isIntegralNumber()
                     || !schemaVersion.canConvertToInt()
                     || schemaVersion.intValue() != 1
-                    || !code.isTextual()
-                    || !ROUTING_ERROR_CODE.equals(code.textValue())
-                    || !agentIdNode.isIntegralNumber()
-                    || !agentIdNode.canConvertToInt()) {
+                    || !code.isTextual()) {
                 return null;
             }
-            int agentId = agentIdNode.intValue();
-            if (agentId < 1 || agentId > setup.agentPositions().size()) {
-                return null;
+            String codeValue = code.textValue();
+            if (ROUTING_ERROR_CODE.equals(codeValue)) {
+                return readAgentRouteUnreachableDetail(root, setup);
             }
-            JsonNode recommendedPosition = root.get("recommendedPosition");
-            PointDto recommendation = recommendedPosition.isNull() ? null : readPoint(recommendedPosition);
-            if (!recommendedPosition.isNull()
-                    && (recommendation == null
-                            || recommendation.x().signum() < 0
-                            || recommendation.y().signum() < 0
-                            || recommendation.x().compareTo(setup.drawing().width()) > 0
-                            || recommendation.y().compareTo(setup.drawing().height()) > 0)) {
-                return null;
+            if (NO_REACHABLE_EXIT_CODE.equals(codeValue)) {
+                return readNoReachableExitDetail(root, setup);
             }
-            return new SimulationFailureDetailResponse(
-                    ROUTING_ERROR_CODE, (long) agentId, setup.agentPositions().get(agentId - 1), recommendation);
+            return null;
         } catch (IOException | RuntimeException exception) {
             return null;
         }
+    }
+
+    private SimulationFailureDetailResponse readAgentRouteUnreachableDetail(
+            JsonNode root, SimulationSetupResponse setup) {
+        if (root.size() != 4
+                || !root.has("agentId")
+                || !root.has("recommendedPosition")
+                || !ROUTING_ERROR_CODE.equals(root.get("code").textValue())) {
+            return null;
+        }
+        JsonNode agentIdNode = root.get("agentId");
+        if (!agentIdNode.isIntegralNumber() || !agentIdNode.canConvertToInt()) {
+            return null;
+        }
+        int agentId = agentIdNode.intValue();
+        if (agentId < 1 || agentId > setup.agentPositions().size()) {
+            return null;
+        }
+        JsonNode recommendedPosition = root.get("recommendedPosition");
+        PointDto recommendation = recommendedPosition.isNull() ? null : readPoint(recommendedPosition);
+        if (!recommendedPosition.isNull()
+                && (recommendation == null
+                        || recommendation.x().signum() < 0
+                        || recommendation.y().signum() < 0
+                        || recommendation.x().compareTo(setup.drawing().width()) > 0
+                        || recommendation.y().compareTo(setup.drawing().height()) > 0)) {
+            return null;
+        }
+        return new SimulationFailureDetailResponse(
+                ROUTING_ERROR_CODE,
+                (long) agentId,
+                setup.agentPositions().get(agentId - 1),
+                recommendation,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    private SimulationFailureDetailResponse readNoReachableExitDetail(JsonNode root, SimulationSetupResponse setup) {
+        if (root.size() != 7
+                || !root.has("affectedAgentCount")
+                || !root.has("representativeAgentIds")
+                || !root.has("componentCount")
+                || !root.has("selectedExitIds")
+                || !root.has("reason")
+                || !NO_REACHABLE_EXIT_CODE.equals(root.get("code").textValue())) {
+            return null;
+        }
+        JsonNode affectedNode = root.get("affectedAgentCount");
+        JsonNode componentNode = root.get("componentCount");
+        if (!affectedNode.isIntegralNumber()
+                || !affectedNode.canConvertToLong()
+                || affectedNode.longValue() < 1
+                || affectedNode.longValue() > setup.agentPositions().size()
+                || !componentNode.isIntegralNumber()
+                || !componentNode.canConvertToLong()
+                || componentNode.longValue() < 1
+                || componentNode.longValue() > setup.agentPositions().size()) {
+            return null;
+        }
+        List<Long> representativeIds = readBoundedIdList(
+                root.get("representativeAgentIds"), setup.agentPositions().size());
+        List<Long> exitIds = readIdListInSet(root.get("selectedExitIds"), setup.selectedExitIds());
+        if (representativeIds == null || representativeIds.isEmpty() || exitIds == null || exitIds.isEmpty()) {
+            return null;
+        }
+        JsonNode reasonNode = root.get("reason");
+        if (!reasonNode.isTextual() || !isSupportedNoReachableExitReason(reasonNode.textValue())) {
+            return null;
+        }
+        return new SimulationFailureDetailResponse(
+                NO_REACHABLE_EXIT_CODE,
+                null,
+                null,
+                null,
+                affectedNode.longValue(),
+                representativeIds,
+                exitIds,
+                reasonNode.textValue());
+    }
+
+    private static boolean isSupportedNoReachableExitReason(String reason) {
+        return "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT".equals(reason);
+    }
+
+    private static List<Long> readBoundedIdList(JsonNode node, int maximumValue) {
+        if (node == null || !node.isArray() || node.size() < 1 || node.size() > maximumValue) {
+            return null;
+        }
+        java.util.ArrayList<Long> values = new java.util.ArrayList<>(node.size());
+        for (JsonNode item : node) {
+            if (!item.isIntegralNumber() || !item.canConvertToLong()) {
+                return null;
+            }
+            long value = item.longValue();
+            if (value < 1 || value > maximumValue) {
+                return null;
+            }
+            values.add(value);
+        }
+        return List.copyOf(values);
+    }
+
+    private static List<Long> readIdListInSet(JsonNode node, List<Long> allowedValues) {
+        if (node == null || !node.isArray() || node.size() < 1 || node.size() > allowedValues.size()) {
+            return null;
+        }
+        java.util.ArrayList<Long> values = new java.util.ArrayList<>(node.size());
+        for (JsonNode item : node) {
+            if (!item.isIntegralNumber() || !item.canConvertToLong()) {
+                return null;
+            }
+            long value = item.longValue();
+            if (!allowedValues.contains(value)) {
+                return null;
+            }
+            values.add(value);
+        }
+        return List.copyOf(values);
     }
 
     private static PointDto readPoint(JsonNode node) {
@@ -492,7 +601,8 @@ public class SimulationEngineRunner {
             Double frameIntervalSeconds,
             Integer timelineChunkCount,
             Integer heatmapChunkCount,
-            Double maxDensity) {}
+            Double maxDensity,
+            com.fasterxml.jackson.databind.JsonNode terminationDetail) {}
 
     public static class EngineRunException extends Exception {
         private final boolean timeout;

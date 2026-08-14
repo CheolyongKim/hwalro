@@ -100,10 +100,18 @@ public final class SimulationDtos {
             Integer timelineChunkCount,
             BigDecimal timelineChunkDurationSeconds,
             Integer heatmapChunkCount,
+            String terminationDetail,
             List<SimulationMetricResponse> metrics) {}
 
     public record SimulationFailureDetailResponse(
-            String code, Long agentId, PointDto currentPosition, PointDto recommendedPosition) {}
+            String code,
+            Long agentId,
+            PointDto currentPosition,
+            PointDto recommendedPosition,
+            Long affectedAgentCount,
+            List<Long> representativeAgentIds,
+            List<Long> selectedExitIds,
+            String reason) {}
 
     public record SimulationExecutionResponse(
             Long simulationId,

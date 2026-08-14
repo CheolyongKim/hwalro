@@ -235,6 +235,7 @@
                sr.engine_version,
                sr.termination_reason,
                sr.frame_interval_seconds,
+               sr.termination_detail,
                sr.created_at,
                (SELECT COUNT(*) FROM timelines t WHERE t.simulation_result_id = sr.id) AS timeline_chunk_count,
                (SELECT COUNT(*) FROM heatmaps h WHERE h.simulation_result_id = sr.id) AS heatmap_chunk_count,
@@ -408,9 +409,13 @@
 
     <insert id="insertSimulationResult" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO simulation_results
-            (simulation_id, engine_version, termination_reason, frame_interval_seconds)
+            (simulation_id, engine_version, termination_reason, frame_interval_seconds, termination_detail)
         VALUES
-            (#{simulationId}, #{engineVersion}, #{terminationReason}, #{frameIntervalSeconds})
+            (#{simulationId}, #{engineVersion}, #{terminationReason}, #{frameIntervalSeconds},
+             <choose>
+                 <when test="terminationDetail != null">CAST(#{terminationDetail} AS JSON)</when>
+                 <otherwise>NULL</otherwise>
+             </choose>)
     </insert>
 
     <insert id="insertSimulationMetrics">

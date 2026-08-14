@@ -38,6 +38,11 @@ PHASE_NAMES = (
 )
 STALL_ITERATION_LIMIT = 500
 STALL_MOVEMENT_EPSILON_METERS = 0.001
+PROGRESS_EPSILON_METERS = 0.25
+STALL_PROGRESS_SAMPLE_INTERVAL_ITERATIONS = 50
+EXIT_PORTAL_COMPLETION_BAND_METERS = (
+    AGENT_RADIUS_METERS + WAYPOINT_REACHED_DISTANCE_METERS
+)
 
 
 class RunnerError(RuntimeError):
@@ -45,6 +50,10 @@ class RunnerError(RuntimeError):
 
 
 class AgentRouteUnreachableRunnerError(RunnerError):
+    pass
+
+
+class NoReachableSelectedExitRunnerError(RunnerError):
     pass
 
 
@@ -106,6 +115,8 @@ class SimulationContext:
     exit_ends: Any = field(init=False, repr=False)
     seen: Any = field(init=False, repr=False)
     cursor_changed: Any = field(init=False, repr=False)
+    progress_anchors: Any = field(init=False, repr=False)
+    last_progress_iterations: Any = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         np = self.numpy
@@ -150,6 +161,8 @@ class SimulationContext:
         ).reshape(count, 2)
         self.seen = np.zeros(count, dtype=bool)
         self.cursor_changed = np.zeros(count, dtype=bool)
+        self.progress_anchors = self.positions.copy()
+        self.last_progress_iterations = np.zeros(count, dtype=np.int64)
 
 
 class TimelineWriter:
@@ -410,7 +423,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
 
     contexts: list[SimulationContext] = []
     routing_groups: list[tuple[Any, Any, Any]] = []
-    trapped: dict[int, tuple[float, float]] = {}
+    failed_components: list[list[tuple[int, tuple[float, float]]]] = []
     for component, indexed_agents in groups:
         try:
             physical_component = containing_component(walkable, component)
@@ -424,9 +437,28 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         except ValueError as exc:
             if str(exc) != "no selected exit is reachable from this walkable component":
                 raise RunnerError(str(exc)) from exc
-            trapped.update((index + 1, position) for index, position in indexed_agents)
+            failed_components.append(list(indexed_agents))
             continue
         routing_groups.append((physical_component, router, indexed_agents))
+
+    if failed_components:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        affected_indexes = sorted(
+            index for indexed_agents in failed_components for index, _position in indexed_agents
+        )
+        _write_json(
+            output_dir / "error.json",
+            {
+                "schemaVersion": 1,
+                "code": "NO_REACHABLE_SELECTED_EXIT",
+                "affectedAgentCount": len(affected_indexes),
+                "representativeAgentIds": [index + 1 for index in affected_indexes[:3]],
+                "componentCount": len(failed_components),
+                "selectedExitIds": selected_exit_ids,
+                "reason": "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT",
+            },
+        )
+        raise NoReachableSelectedExitRunnerError("NO_REACHABLE_SELECTED_EXIT")
 
     if phase_profile is not None:
         phase_profile.add("inputAndContextSetup", setup_started)
@@ -501,7 +533,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     timeline = TimelineWriter(output_dir, len(agents), frame_interval)
     heatmap = HeatmapWriter(output_dir, walkable.bounds, frame_interval)
     snapshot_started = time.perf_counter_ns() if phase_profile is not None else 0
-    heatmap.add(timeline.add(_snapshot(contexts, trapped, 0.0)))
+    heatmap.add(timeline.add(_snapshot(contexts, 0.0)))
     if phase_profile is not None:
         phase_profile.add("snapshotAndSerialization", snapshot_started)
         phase_profile.increment("snapshots")
@@ -533,6 +565,8 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             if active_slots.size:
                 delta = context.positions[active_slots] - context.next_positions[active_slots]
                 moved += float(context.numpy.hypot(delta[:, 0], delta[:, 1]).sum())
+                if iteration % STALL_PROGRESS_SAMPLE_INTERVAL_ITERATIONS == 0:
+                    _update_progress(context, active_slots, context.positions, iteration)
         if evacuated_this_iteration:
             stalled_iterations = 0
         elif moved < STALL_MOVEMENT_EPSILON_METERS:
@@ -543,13 +577,15 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             stalled_iterations = 0
         if iteration % frame_steps == 0:
             snapshot_started = time.perf_counter_ns() if phase_profile is not None else 0
-            heatmap.add(timeline.add(_snapshot(contexts, trapped, elapsed)))
+            heatmap.add(timeline.add(_snapshot(contexts, elapsed)))
             if phase_profile is not None:
                 phase_profile.add("snapshotAndSerialization", snapshot_started)
                 phase_profile.increment("snapshots")
 
-    remaining = len(trapped) + sum(len(context.states) for context in contexts)
+    remaining = sum(len(context.states) for context in contexts)
     evacuated = len(agents) - remaining
+    if iteration == 0 and remaining > 0:
+        raise RunnerError("simulation produced a stalled result without running any iteration")
     if remaining == 0:
         termination_reason = "ALL_EVACUATED"
     elif iteration >= maximum_iterations:
@@ -563,7 +599,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         or not math.isclose(timeline.last_time_seconds, simulation_duration, abs_tol=1e-9)
         or timeline.last_agent_count != remaining
     ):
-        heatmap.add(timeline.add(_snapshot(contexts, trapped, simulation_duration)))
+        heatmap.add(timeline.add(_snapshot(contexts, simulation_duration)))
         if phase_profile is not None:
             phase_profile.increment("snapshots")
     timeline.finish()
@@ -585,11 +621,84 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         "heatmapChunkCount": heatmap.sequence,
         "maxDensity": _rounded(heatmap.max_density),
     }
+    if termination_reason == "STALLED":
+        result["terminationDetail"] = _termination_detail(contexts, iteration)
     _write_json(output_dir / "result.json", result)
     if phase_profile is not None:
         phase_profile.add("snapshotAndSerialization", serialization_started)
         phase_profile.write()
     return result
+
+
+def _update_progress(context: SimulationContext, active_slots, positions, iteration: int) -> None:
+    np = context.numpy
+    delta = positions[active_slots] - context.progress_anchors[active_slots]
+    progressed = np.hypot(delta[:, 0], delta[:, 1]) >= PROGRESS_EPSILON_METERS
+    progressed_slots = active_slots[progressed]
+    if progressed_slots.size:
+        context.progress_anchors[progressed_slots] = positions[progressed_slots]
+        context.last_progress_iterations[progressed_slots] = iteration
+
+
+def _termination_detail(contexts: Sequence[SimulationContext], iteration: int) -> dict[str, Any]:
+    remaining_states: list[tuple[AgentRouteState, int, tuple[float, float]]] = []
+    for context in contexts:
+        if not context.states:
+            continue
+        for slot in context.numpy.flatnonzero(context.active):
+            stable_id = int(context.stable_ids[slot])
+            state = context.states[int(context.agent_ids[slot])]
+            position = (
+                float(context.positions[slot, 0]),
+                float(context.positions[slot, 1]),
+            )
+            remaining_states.append(
+                (
+                    state,
+                    int(context.last_progress_iterations[slot]),
+                    position,
+                )
+            )
+    reason_counts: dict[str, int] = {}
+    stagnant = True
+    for state, last_progress_iteration, position in remaining_states:
+        if iteration - last_progress_iteration < STALL_ITERATION_LIMIT:
+            stagnant = False
+        if state.cursor + 1 == len(state.waypoints) and _exit_segment_distance(
+            position, state.exit_start, state.exit_end
+        ) <= EXIT_PORTAL_COMPLETION_BAND_METERS:
+            reason = "EXIT_PORTAL_STUCK"
+        else:
+            reason = "ROUTE_FOLLOWING_STUCK"
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+    remaining_states.sort(key=lambda item: item[0].stable_id)
+    return {
+        "schemaVersion": 1,
+        "globalReason": "GLOBAL_STALLED" if stagnant else "PARTIAL_STALLED",
+        "remainingPeople": len(remaining_states),
+        "reasonCounts": reason_counts,
+        "representativeAgents": [
+            state.stable_id for state, _last_progress, _position in remaining_states[:5]
+        ],
+    }
+
+
+def _exit_segment_distance(
+    position: tuple[float, float],
+    segment_start: tuple[float, float],
+    segment_end: tuple[float, float],
+) -> float:
+    ax, ay = segment_start
+    bx, by = segment_end
+    vx, vy = bx - ax, by - ay
+    length_squared = vx * vx + vy * vy
+    if length_squared <= 1e-12:
+        return math.dist(position, segment_start)
+    projection = max(
+        0.0,
+        min(1.0, ((position[0] - ax) * vx + (position[1] - ay) * vy) / length_squared),
+    )
+    return math.dist(position, (ax + projection * vx, ay + projection * vy))
 
 
 def _create_context(
@@ -893,13 +1002,9 @@ def _waypoint_reached(
 
 def _snapshot(
     contexts: Sequence[SimulationContext],
-    trapped: dict[int, tuple[float, float]],
     elapsed: float,
 ) -> dict[str, Any]:
-    agents = [
-        {"agentId": stable_id, "x": _rounded(point[0]), "y": _rounded(point[1])}
-        for stable_id, point in trapped.items()
-    ]
+    agents: list[dict[str, Any]] = []
     for context in contexts:
         if not context.states:
             continue
@@ -988,6 +1093,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("input and output_dir are required")
         run(args.input, args.output_dir)
         return 0
+    except NoReachableSelectedExitRunnerError:
+        print("runner error: NO_REACHABLE_SELECTED_EXIT", file=sys.stderr)
+        return 3
     except AgentRouteUnreachableRunnerError:
         print("runner error: AGENT_ROUTE_UNREACHABLE", file=sys.stderr)
         return 3

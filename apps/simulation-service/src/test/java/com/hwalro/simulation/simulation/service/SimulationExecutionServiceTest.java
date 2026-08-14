@@ -16,6 +16,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.analysis.domain.DetectedBottleneck;
 import com.hwalro.simulation.analysis.domain.DetectedBottleneck.RectangleGeometry;
@@ -168,9 +170,96 @@ class SimulationExecutionServiceTest {
     @Test
     void acceptsMaxDurationMatchingTheConfiguredRunLimit() {
         SimulationExecutionService.validateEngineResult(
-                new EngineResult("1.4.2", "MAX_DURATION", 400.0, 0, 1, null, null, 1.0, 1, 1, 1.0),
+                new EngineResult("1.4.2", "MAX_DURATION", 400.0, 0, 1, null, null, 1.0, 1, 1, 1.0, null),
                 validSetup(),
                 400.0);
+    }
+
+    @Test
+    void rejectsStalledResultWithoutTerminationDetail() {
+        assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 1, null, null, 1.0, 1, 1, 1.0, null),
+                        validSetup(),
+                        400.0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("종료 상세 정보가 누락");
+    }
+
+    @Test
+    void rejectsTerminationDetailWhoseRemainingPeopleDisagreesWithTheResult() throws JsonProcessingException {
+        JsonNode detail = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"globalReason":"GLOBAL_STALLED","remainingPeople":3,
+                         "reasonCounts":{"ROUTE_FOLLOWING_STUCK":3},"representativeAgents":[1,2]}
+                        """);
+        assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail),
+                        twoAgentSetup(),
+                        400.0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("종료 상세 정보 형식");
+    }
+
+    @Test
+    void rejectsTerminationDetailWhoseReasonCountsDisagreeWithRemainingPeople() throws JsonProcessingException {
+        JsonNode detail = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"globalReason":"GLOBAL_STALLED","remainingPeople":2,
+                         "reasonCounts":{"ROUTE_FOLLOWING_STUCK":1},"representativeAgents":[1,2]}
+                        """);
+        assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail),
+                        twoAgentSetup(),
+                        400.0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("사유 집계 합계");
+    }
+
+    @Test
+    void rejectsTerminationDetailWithInvalidRepresentativeAgents() throws JsonProcessingException {
+        JsonNode duplicated = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"globalReason":"GLOBAL_STALLED","remainingPeople":2,
+                         "reasonCounts":{"ROUTE_FOLLOWING_STUCK":2},"representativeAgents":[1,1]}
+                        """);
+        assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, duplicated),
+                        twoAgentSetup(),
+                        400.0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대표 에이전트");
+
+        JsonNode outOfRange = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"globalReason":"GLOBAL_STALLED","remainingPeople":2,
+                         "reasonCounts":{"ROUTE_FOLLOWING_STUCK":2},"representativeAgents":[3]}
+                        """);
+        assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, outOfRange),
+                        twoAgentSetup(),
+                        400.0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대표 에이전트");
+    }
+
+    @Test
+    void rejectsTerminationDetailWithUnsupportedReasonKey() throws JsonProcessingException {
+        JsonNode detail = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"globalReason":"GLOBAL_STALLED","remainingPeople":2,
+                         "reasonCounts":{"PHYSICAL_CONGESTION":2},"representativeAgents":[1,2]}
+                        """);
+        assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail),
+                        twoAgentSetup(),
+                        400.0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("사유 종류");
     }
 
     @Test
@@ -452,7 +541,14 @@ class SimulationExecutionServiceTest {
         when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
         when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
         SimulationFailureDetailResponse detail = new SimulationFailureDetailResponse(
-                "AGENT_ROUTE_UNREACHABLE", 1L, new PointDto(BigDecimal.ONE, BigDecimal.ONE), null);
+                "AGENT_ROUTE_UNREACHABLE",
+                1L,
+                new PointDto(BigDecimal.ONE, BigDecimal.ONE),
+                null,
+                null,
+                null,
+                null,
+                null);
         when(engineRunner.run(eq(21L), any())).thenThrow(new EngineRunException("private diagnostic", false, detail));
 
         service.execute(21L, user);
@@ -461,6 +557,34 @@ class SimulationExecutionServiceTest {
         verify(simulationMapper)
                 .markExecutionFailed(
                         eq(21L), eq("Agent #1의 시작 위치를 대피 경로에 연결할 수 없습니다."), contains("\"recommendedPosition\":null"));
+    }
+
+    @Test
+    void persistsTypedNoReachableExitFailureFields() throws Exception {
+        stubDraftAndRequestedStatus();
+        captureWorker();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
+        SimulationFailureDetailResponse detail = new SimulationFailureDetailResponse(
+                "NO_REACHABLE_SELECTED_EXIT",
+                null,
+                null,
+                null,
+                3L,
+                List.of(1L, 2L),
+                List.of(501L),
+                "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT");
+        when(engineRunner.run(eq(21L), any())).thenThrow(new EngineRunException("private diagnostic", false, detail));
+
+        service.execute(21L, user);
+        queued.get().run();
+
+        verify(simulationMapper)
+                .markExecutionFailed(
+                        eq(21L),
+                        eq("선택한 출입구에 도달할 수 없는 구역이 있습니다. 도면과 출입구를 확인해 주세요."),
+                        contains("\"affectedAgentCount\":3"));
     }
 
     @Test
@@ -477,7 +601,14 @@ class SimulationExecutionServiceTest {
         Simulation failed = simulation("FAILED");
         failed.setFailureMessage("route failure");
         SimulationFailureDetailResponse detail = new SimulationFailureDetailResponse(
-                "AGENT_ROUTE_UNREACHABLE", 1L, new PointDto(BigDecimal.ONE, BigDecimal.ONE), null);
+                "AGENT_ROUTE_UNREACHABLE",
+                1L,
+                new PointDto(BigDecimal.ONE, BigDecimal.ONE),
+                null,
+                null,
+                null,
+                null,
+                null);
         when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(failed);
         when(simulationService.readFailureDetail(failed)).thenReturn(detail);
 
@@ -533,9 +664,17 @@ class SimulationExecutionServiceTest {
         return setup(List.of(new PointDto(BigDecimal.ONE, BigDecimal.ONE)), List.of(501L));
     }
 
+    private static SimulationSetupResponse twoAgentSetup() {
+        return setup(
+                List.of(
+                        new PointDto(BigDecimal.ONE, BigDecimal.ONE),
+                        new PointDto(BigDecimal.valueOf(2), BigDecimal.ONE)),
+                List.of(501L));
+    }
+
     private static EngineRun successfulRun() {
         return new EngineRun(
-                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0),
+                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0, null),
                 List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
                 List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
                 400.0);

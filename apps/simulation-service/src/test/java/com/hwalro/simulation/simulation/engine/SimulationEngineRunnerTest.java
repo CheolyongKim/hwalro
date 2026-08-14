@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 class SimulationEngineRunnerTest {
     @Test
     void rejectsMissingChunkCountsBeforeUnboxing() {
-        EngineResult result = new EngineResult("1.4.2", "ALL_EVACUATED", 1.0, 1, 0, 1.0, 1.0, 1.0, null, 1, 0.0);
+        EngineResult result = new EngineResult("1.4.2", "ALL_EVACUATED", 1.0, 1, 0, 1.0, 1.0, 1.0, null, 1, 0.0, null);
 
         assertThatThrownBy(() -> SimulationEngineRunner.validateChunkCounts(result))
                 .isInstanceOf(EngineRunException.class)
@@ -147,6 +147,83 @@ class SimulationEngineRunnerTest {
                 """
                 {"schemaVersion":1,"code":"AGENT_ROUTE_UNREACHABLE","agentId":1,
                  "recommendedPosition":null,"extra":true}
+                """);
+        assertThat(runner.readFailureDetail(output, setup())).isNull();
+    }
+
+    @Test
+    void readsStrictTypedNoReachableExitFailure(@TempDir Path temporaryDirectory) throws Exception {
+        Path output = temporaryDirectory.resolve("output");
+        Files.createDirectories(output);
+        Files.writeString(
+                output.resolve("error.json"),
+                """
+                {"schemaVersion":1,"code":"NO_REACHABLE_SELECTED_EXIT","affectedAgentCount":2,
+                 "representativeAgentIds":[1,2],"componentCount":1,"selectedExitIds":[501],
+                 "reason":"NO_EXIT_SEED_IN_OCCUPIED_COMPONENT"}
+                """);
+
+        var detail = runner(temporaryDirectory).readFailureDetail(output, setup());
+
+        assertThat(detail).isNotNull();
+        assertThat(detail.code()).isEqualTo("NO_REACHABLE_SELECTED_EXIT");
+        assertThat(detail.affectedAgentCount()).isEqualTo(2L);
+        assertThat(detail.representativeAgentIds()).containsExactly(1L, 2L);
+        assertThat(detail.selectedExitIds()).containsExactly(501L);
+        assertThat(detail.reason()).isEqualTo("NO_EXIT_SEED_IN_OCCUPIED_COMPONENT");
+        assertThat(detail.agentId()).isNull();
+        assertThat(detail.currentPosition()).isNull();
+        assertThat(detail.recommendedPosition()).isNull();
+    }
+
+    @Test
+    void rejectsInvalidNoReachableExitFailureSidecars(@TempDir Path temporaryDirectory) throws Exception {
+        Path output = temporaryDirectory.resolve("output");
+        Files.createDirectories(output);
+        SimulationEngineRunner runner = runner(temporaryDirectory);
+
+        Files.writeString(
+                output.resolve("error.json"),
+                """
+                {"schemaVersion":1,"code":"NO_REACHABLE_SELECTED_EXIT","affectedAgentCount":3,
+                 "representativeAgentIds":[1],"componentCount":1,"selectedExitIds":[501],
+                 "reason":"NO_EXIT_SEED_IN_OCCUPIED_COMPONENT"}
+                """);
+        assertThat(runner.readFailureDetail(output, setup())).isNull();
+
+        Files.writeString(
+                output.resolve("error.json"),
+                """
+                {"schemaVersion":1,"code":"NO_REACHABLE_SELECTED_EXIT","affectedAgentCount":1,
+                 "representativeAgentIds":[2],"componentCount":1,"selectedExitIds":[999],
+                 "reason":"NO_EXIT_SEED_IN_OCCUPIED_COMPONENT"}
+                """);
+        assertThat(runner.readFailureDetail(output, setup())).isNull();
+
+        Files.writeString(
+                output.resolve("error.json"),
+                """
+                {"schemaVersion":1,"code":"NO_REACHABLE_SELECTED_EXIT","affectedAgentCount":1,
+                 "representativeAgentIds":[],"componentCount":1,"selectedExitIds":[501],
+                 "reason":"NO_EXIT_SEED_IN_OCCUPIED_COMPONENT"}
+                """);
+        assertThat(runner.readFailureDetail(output, setup())).isNull();
+
+        Files.writeString(
+                output.resolve("error.json"),
+                """
+                {"schemaVersion":1,"code":"NO_REACHABLE_SELECTED_EXIT","affectedAgentCount":1,
+                 "representativeAgentIds":[1],"componentCount":1,"selectedExitIds":[501],
+                 "reason":"UNKNOWN_REASON"}
+                """);
+        assertThat(runner.readFailureDetail(output, setup())).isNull();
+
+        Files.writeString(
+                output.resolve("error.json"),
+                """
+                {"schemaVersion":1,"code":"NO_REACHABLE_SELECTED_EXIT","affectedAgentCount":1,
+                 "representativeAgentIds":[1],"componentCount":1,"selectedExitIds":[501],
+                 "reason":"NO_EXIT_SEED_IN_OCCUPIED_COMPONENT","extra":true}
                 """);
         assertThat(runner.readFailureDetail(output, setup())).isNull();
     }

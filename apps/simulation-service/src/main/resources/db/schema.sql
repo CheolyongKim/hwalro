@@ -281,6 +281,7 @@ CREATE TABLE IF NOT EXISTS simulation_results (
     engine_version VARCHAR(100) NOT NULL,
     termination_reason VARCHAR(30) NOT NULL,
     frame_interval_seconds DECIMAL(8, 3) NOT NULL,
+    termination_detail JSON NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_simulation_results PRIMARY KEY (id),
     CONSTRAINT uk_simulation_results_simulation UNIQUE (simulation_id),

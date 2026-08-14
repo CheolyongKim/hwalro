@@ -93,12 +93,21 @@ export interface SimulationExecution {
   startedAt: string | null;
   finishedAt: string | null;
   failureMessage: string | null;
-  failureDetail?: {
-    code: 'AGENT_ROUTE_UNREACHABLE';
-    agentId: number;
-    currentPosition: SimulationPoint;
-    recommendedPosition: SimulationPoint | null;
-  } | null;
+  failureDetail?:
+    | {
+        code: 'AGENT_ROUTE_UNREACHABLE';
+        agentId: number;
+        currentPosition: SimulationPoint;
+        recommendedPosition: SimulationPoint | null;
+      }
+    | {
+        code: 'NO_REACHABLE_SELECTED_EXIT';
+        affectedAgentCount: number;
+        representativeAgentIds: number[];
+        selectedExitIds: number[];
+        reason: 'NO_EXIT_SEED_IN_OCCUPIED_COMPONENT';
+      }
+    | null;
   result: SimulationResultSummary | null;
 }
 

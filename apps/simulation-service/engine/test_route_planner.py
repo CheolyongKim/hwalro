@@ -570,6 +570,21 @@ class GridRoutingTest(unittest.TestCase):
         self.assertTrue(router.can_connect(route.waypoints[0], route.waypoints[1]))
         self.assertEqual(router.plan(start), route)
 
+    def test_mixed_boundary_and_interior_exits_are_both_routable(self):
+        walkable = Polygon(((0, 0), (20, 0), (20, 10), (0, 10)))
+        exits = [
+            Exit(1, (20, 4), (20, 6)),
+            Exit(2, (10, 4), (10, 6)),
+        ]
+        router = GridRouter(walkable, [], exits)
+
+        first = router.plan((16.0, 5.0))
+        second = router.plan((3.0, 5.0))
+
+        self.assertEqual(first.exit_id, 1)
+        self.assertEqual(second.exit_id, 2)
+        self.assertEqual(router.plan((16.0, 5.0)), first)
+
     def test_long_expanded_connector_samples_hazard_at_grid_step_intervals(self):
         router = GridRouter(
             box(0, 0, 10, 2),

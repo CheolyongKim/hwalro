@@ -184,8 +184,63 @@ class JuPedSimSmokeTest(unittest.TestCase):
         self.assertEqual(agent.position, (2.0, 2.0))
         self.assertEqual(agent.model.velocity, (0.0, 0.0))
 
-    def test_agent_without_connected_exit_remains_in_timeline(self):
+    def test_mixed_boundary_and_interior_exit_selection_runs_and_evacuates(self):
         from runner import run
+
+        payload = {
+            "model": {
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
+                "walkingSpeed": 1.2,
+                "reactionTime": 0.5,
+            },
+            "drawing": {
+                "outsideBoundary": [
+                    {"x": 0, "y": 0},
+                    {"x": 20, "y": 0},
+                    {"x": 20, "y": 10},
+                    {"x": 0, "y": 10},
+                ],
+                "walls": [],
+                "pillars": [],
+                "fabrics": [],
+                "exits": [
+                    {"id": 1, "startX": 20, "startY": 4, "endX": 20, "endY": 6},
+                    {"id": 2, "startX": 10, "startY": 4, "endX": 10, "endY": 6},
+                ],
+            },
+            "agents": [
+                {"x": 16, "y": 5},
+                {"x": 17, "y": 4.4},
+                {"x": 17, "y": 5.6},
+            ],
+            "hazards": [],
+            "selectedExitIds": [1, 2],
+            "maxSimulationTimeSeconds": 60,
+            "frameIntervalSeconds": 1,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_path = root / "output"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = run(input_path, output_path)
+
+            self.assertEqual(result["terminationReason"], "ALL_EVACUATED")
+            self.assertEqual(result["evacuatedPeople"], 3)
+            self.assertFalse((output_path / "error.json").exists())
+            exit_events = [
+                event["exitId"]
+                for chunk_path in sorted((output_path / "timeline").glob("*.json"))
+                for event in json.loads(chunk_path.read_text("utf-8")).get("exitEvents", [])
+            ]
+            self.assertTrue(exit_events)
+            self.assertTrue(all(exit_id == 1 for exit_id in exit_events))
+
+    def test_agent_in_component_without_connected_exit_fails_with_typed_setup_error(self):
+        from runner import run
+        from runner import NoReachableSelectedExitRunnerError
 
         payload = {
             "model": {
@@ -218,20 +273,18 @@ class JuPedSimSmokeTest(unittest.TestCase):
             output_path = root / "output"
             input_path.write_text(json.dumps(payload), encoding="utf-8")
 
-            result = run(input_path, output_path)
-            last_chunk = json.loads(
-                (output_path / "timeline" / f"{result['timelineChunkCount'] - 1:06d}.json").read_text(
-                    "utf-8"
-                )
-            )
+            with self.assertRaises(NoReachableSelectedExitRunnerError):
+                run(input_path, output_path)
 
-            self.assertEqual(result["terminationReason"], "STALLED")
-            self.assertEqual(result["evacuatedPeople"], 1)
-            self.assertEqual(result["remainingPeople"], 1)
-            self.assertEqual(
-                last_chunk["frames"][-1]["agents"],
-                [{"agentId": 2, "x": 5.0, "y": 2.0}],
-            )
+            error = json.loads((output_path / "error.json").read_text("utf-8"))
+            self.assertEqual(error["code"], "NO_REACHABLE_SELECTED_EXIT")
+            self.assertEqual(error["affectedAgentCount"], 1)
+            self.assertEqual(error["representativeAgentIds"], [2])
+            self.assertEqual(error["componentCount"], 1)
+            self.assertEqual(error["reason"], "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT")
+            self.assertFalse((output_path / "result.json").exists())
+            self.assertFalse((output_path / "timeline").exists())
+            self.assertFalse((output_path / "heatmap").exists())
 
 
 if __name__ == "__main__":

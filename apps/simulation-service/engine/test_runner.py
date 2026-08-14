@@ -13,6 +13,7 @@ from runner import (
     WAYPOINT_REACHED_DISTANCE_METERS,
     AgentRouteState,
     HeatmapWriter,
+    NoReachableSelectedExitRunnerError,
     RunnerError,
     SimulationContext,
     TimelineWriter,
@@ -20,8 +21,11 @@ from runner import (
     _initialize_targets,
     _rollback_invalid_moves,
     _snapshot,
+    _termination_detail,
+    _update_progress,
     _waypoint_reached,
     main,
+    run,
 )
 from route_planner import AgentRouteUnreachableError
 
@@ -222,6 +226,257 @@ class AgentRouteErrorContractTest(unittest.TestCase):
             self.assertEqual(plan.call_count, 1)
             self.assertEqual(error["agentId"], 1)
             self.assertEqual(recommend.call_args.kwargs["start"], (1.0, 1.0))
+
+
+class NoReachableSelectedExitContractTest(unittest.TestCase):
+    @staticmethod
+    def _payload():
+        return {
+            "model": {
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
+                "walkingSpeed": 1.2,
+                "reactionTime": 0.5,
+            },
+            "maxSimulationTimeSeconds": 0.01,
+            "frameIntervalSeconds": 0.01,
+            "drawing": {
+                "outsideBoundary": [
+                    {"x": 0, "y": 0},
+                    {"x": 6, "y": 0},
+                    {"x": 6, "y": 4},
+                    {"x": 0, "y": 4},
+                ],
+                "walls": [{"startX": 3, "startY": 0, "endX": 3, "endY": 4}],
+                "pillars": [],
+                "fabrics": [],
+                "exits": [{"id": 1, "startX": 0, "startY": 1.5, "endX": 0, "endY": 2.5}],
+            },
+            "agents": [{"x": 0.5, "y": 2}, {"x": 5, "y": 2}],
+            "hazards": [],
+            "selectedExitIds": [1],
+        }
+
+    def test_component_without_exit_seed_fails_with_typed_detail_and_no_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(json.dumps(self._payload()), encoding="utf-8")
+            stderr = io.StringIO()
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter",
+                    side_effect=ValueError(
+                        "no selected exit is reachable from this walkable component"
+                    ),
+                ),
+                redirect_stderr(stderr),
+            ):
+                exit_code = main([str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(stderr.getvalue(), "runner error: NO_REACHABLE_SELECTED_EXIT\n")
+            error = json.loads((output_dir / "error.json").read_text("utf-8"))
+            self.assertEqual(
+                error,
+                {
+                    "schemaVersion": 1,
+                    "code": "NO_REACHABLE_SELECTED_EXIT",
+                    "affectedAgentCount": 2,
+                    "representativeAgentIds": [1, 2],
+                    "componentCount": 2,
+                    "selectedExitIds": [1],
+                    "reason": "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT",
+                },
+            )
+            self.assertFalse((output_dir / "result.json").exists())
+            self.assertFalse((output_dir / "timeline").exists())
+            self.assertFalse((output_dir / "heatmap").exists())
+
+    def test_partial_component_failure_does_not_produce_partial_results(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(json.dumps(self._payload()), encoding="utf-8")
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter",
+                    side_effect=[
+                        object(),
+                        ValueError("no selected exit is reachable from this walkable component"),
+                    ],
+                ),
+                redirect_stderr(io.StringIO()),
+            ):
+                with self.assertRaises(NoReachableSelectedExitRunnerError):
+                    run(input_path, output_dir)
+
+            error = json.loads((output_dir / "error.json").read_text("utf-8"))
+            self.assertEqual(error["code"], "NO_REACHABLE_SELECTED_EXIT")
+            self.assertEqual(error["affectedAgentCount"], 1)
+            self.assertEqual(error["representativeAgentIds"], [2])
+            self.assertEqual(error["componentCount"], 1)
+            self.assertFalse((output_dir / "result.json").exists())
+
+    def test_unrelated_grid_router_failure_is_not_swallowed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(json.dumps(self._payload()), encoding="utf-8")
+            stderr = io.StringIO()
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter",
+                    side_effect=ValueError("drawing is too large for the 0.25m routing grid"),
+                ),
+                redirect_stderr(stderr),
+            ):
+                exit_code = main([str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 2)
+            self.assertIn("drawing is too large", stderr.getvalue())
+            self.assertFalse((output_dir / "error.json").exists())
+
+
+class TerminationDetailTest(unittest.TestCase):
+    @staticmethod
+    def _context(states, positions, last_progress):
+        context = SimulationContext(None, None, states, positions, numpy=np)
+        for index, agent_id in enumerate(states):
+            context.last_progress_iterations[index] = last_progress[index]
+        return context
+
+    @staticmethod
+    def _state(stable_id, cursor, waypoint_count, exit_start=(20.0, 0.0), exit_end=(20.0, 1.0)):
+        return AgentRouteState(
+            stable_id=stable_id,
+            exit_id=501,
+            waypoints=tuple((float(index), 0.0) for index in range(waypoint_count)),
+            terminal_point=(waypoint_count - 1.0, 0.0),
+            exit_start=exit_start,
+            exit_end=exit_end,
+            cursor=cursor,
+        )
+
+    def test_global_stalled_when_every_remaining_agent_is_stagnant(self):
+        states = {
+            11: self._state(1, cursor=2, waypoint_count=3),
+            12: self._state(2, cursor=0, waypoint_count=4),
+        }
+        positions = {11: (19.5, 0.0), 12: (1.0, 1.0)}
+        context = self._context(states, positions, [100, 100])
+
+        detail = _termination_detail([context], iteration=600)
+
+        self.assertEqual(detail["globalReason"], "GLOBAL_STALLED")
+        self.assertEqual(detail["remainingPeople"], 2)
+        self.assertEqual(detail["reasonCounts"], {"EXIT_PORTAL_STUCK": 1, "ROUTE_FOLLOWING_STUCK": 1})
+        self.assertEqual(detail["representativeAgents"], [1, 2])
+
+    def test_partial_stalled_when_one_agent_still_progresses(self):
+        states = {
+            11: self._state(1, cursor=0, waypoint_count=4),
+            12: self._state(2, cursor=0, waypoint_count=4),
+        }
+        positions = {11: (0.0, 0.0), 12: (0.0, 0.0)}
+        context = self._context(states, positions, [450, 599])
+
+        detail = _termination_detail([context], iteration=600)
+
+        self.assertEqual(detail["globalReason"], "PARTIAL_STALLED")
+        self.assertEqual(detail["reasonCounts"], {"ROUTE_FOLLOWING_STUCK": 2})
+
+    def test_final_stage_agent_far_from_exit_is_route_following_stuck(self):
+        states = {11: self._state(1, cursor=2, waypoint_count=3)}
+        positions = {11: (10.0, 10.0)}
+        context = self._context(states, positions, [100])
+
+        detail = _termination_detail([context], iteration=600)
+
+        self.assertEqual(detail["reasonCounts"], {"ROUTE_FOLLOWING_STUCK": 1})
+
+
+class ProgressTrackerTest(unittest.TestCase):
+    @staticmethod
+    def _context(count):
+        context = type("TrackerContext", (), {})()
+        context.numpy = np
+        context.positions = np.zeros((count, 2), dtype=float)
+        context.progress_anchors = np.zeros((count, 2), dtype=float)
+        context.last_progress_iterations = np.zeros(count, dtype=np.int64)
+        return context
+
+    def test_fifty_small_ticks_register_as_progress_without_losing_intermediate_ticks(self):
+        context = self._context(1)
+        slots = np.asarray([0])
+        for tick in range(1, 51):
+            context.positions[0, 0] += 0.006
+            if tick % 50 == 0:
+                _update_progress(context, slots, context.positions, tick)
+
+        self.assertEqual(context.last_progress_iterations[0], 50)
+        np.testing.assert_allclose(context.progress_anchors[0], [0.3, 0.0], atol=1e-9)
+
+    def test_thirty_centimeter_ticks_update_on_the_first_sampling(self):
+        context = self._context(1)
+        for _ in range(30):
+            context.positions[0, 0] += 0.01
+
+        _update_progress(context, np.asarray([0]), context.positions, 30)
+
+        self.assertEqual(context.last_progress_iterations[0], 30)
+        np.testing.assert_allclose(context.progress_anchors[0], [0.3, 0.0], atol=1e-9)
+
+    def test_subthreshold_movement_keeps_the_anchor_until_the_next_sampling(self):
+        context = self._context(1)
+        context.positions[0, 0] = 0.2
+        _update_progress(context, np.asarray([0]), context.positions, 50)
+
+        self.assertEqual(context.last_progress_iterations[0], 0)
+        np.testing.assert_array_equal(context.progress_anchors[0], [0.0, 0.0])
+
+        context.positions[0, 0] = 0.3
+        _update_progress(context, np.asarray([0]), context.positions, 100)
+
+        self.assertEqual(context.last_progress_iterations[0], 100)
+        np.testing.assert_array_equal(context.progress_anchors[0], [0.3, 0.0])
+
+    def test_round_trip_oscillation_is_not_progress(self):
+        context = self._context(1)
+        for tick in (50, 100, 150, 200):
+            context.positions[0, 0] = 0.2
+            _update_progress(context, np.asarray([0]), context.positions, tick)
+        context.positions[0, 0] = 0.0
+        _update_progress(context, np.asarray([0]), context.positions, 250)
+
+        self.assertEqual(context.last_progress_iterations[0], 0)
+        np.testing.assert_array_equal(context.progress_anchors[0], [0.0, 0.0])
+
+    def test_agents_with_different_speeds_update_independently(self):
+        context = self._context(3)
+        context.positions[:, 0] = [0.3, 0.1, 0.5]
+
+        _update_progress(context, np.asarray([0, 1, 2]), context.positions, 50)
+
+        self.assertEqual(context.last_progress_iterations.tolist(), [50, 0, 50])
+        np.testing.assert_array_equal(context.progress_anchors[0], [0.3, 0.0])
+        np.testing.assert_array_equal(context.progress_anchors[1], [0.0, 0.0])
+        np.testing.assert_array_equal(context.progress_anchors[2], [0.5, 0.0])
+
+    def test_slots_outside_the_active_set_are_never_touched(self):
+        context = self._context(2)
+        context.positions[:, 0] = [0.3, 0.3]
+
+        _update_progress(context, np.asarray([0]), context.positions, 50)
+
+        self.assertEqual(context.last_progress_iterations.tolist(), [50, 0])
+        np.testing.assert_array_equal(context.progress_anchors[1], [0.0, 0.0])
 
 
 class WaypointProgressTest(unittest.TestCase):
@@ -444,7 +699,7 @@ class BulkAgentAccessTest(unittest.TestCase):
         context.states.pop(1)
         self.assertEqual((first.target_writes, second.target_writes), (1, 1))
 
-        frame = _snapshot([context], {}, 0.01)
+        frame = _snapshot([context], 0.01)
         self.assertEqual(frame["agents"], [{"agentId": 2, "x": 5.0, "y": 0.0}])
 
         self.assertEqual(_advance_context(context, 2), [])
@@ -478,7 +733,7 @@ class BulkAgentAccessTest(unittest.TestCase):
         simulation = self.Simulation([self.BackingAgent(1, (1.0, 1.0))])
         context = SimulationContext(simulation, self.Router(), {}, numpy=np)
 
-        frame = _snapshot([context], {}, 0.01)
+        frame = _snapshot([context], 0.01)
 
         self.assertEqual(frame["agents"], [])
         self.assertEqual(simulation.traversals, 0)
@@ -505,7 +760,7 @@ class BulkAgentAccessTest(unittest.TestCase):
             numpy=np,
         )
 
-        frame = _snapshot([context], {}, 0.01)
+        frame = _snapshot([context], 0.01)
 
         self.assertEqual(
             frame["agents"],
