@@ -47,6 +47,7 @@ simulation:
     improvement-margin: ${LAYOUT_SEARCH_IMPROVEMENT_MARGIN:0.02}
     abort-margin: ${LAYOUT_SEARCH_ABORT_MARGIN:0.15}
     trial-concurrency: ${LAYOUT_SEARCH_TRIAL_CONCURRENCY:2}
+    keep-job-directory: ${LAYOUT_SEARCH_KEEP_JOB_DIRECTORY:false}
     surrogate-mode: ${LAYOUT_SEARCH_SURROGATE_MODE:OFF}
     surrogate-bundle: ${LAYOUT_SEARCH_SURROGATE_BUNDLE:}
     budgets:

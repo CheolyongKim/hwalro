@@ -34,6 +34,7 @@ public class LayoutSearchRunner {
     private final Path scriptPath;
     private final Path workRoot;
     private final Duration timeout;
+    private final boolean keepJobDirectory;
 
     public LayoutSearchRunner(
             ObjectMapper objectMapper,
@@ -49,6 +50,7 @@ public class LayoutSearchRunner {
                         .normalize()
                 : Path.of(properties.getWorkDirectory()).toAbsolutePath().normalize();
         this.timeout = properties.getSearchTimeout();
+        this.keepJobDirectory = properties.isKeepJobDirectory();
     }
 
     public SearchResult run(SearchInput input) {
@@ -104,7 +106,11 @@ public class LayoutSearchRunner {
             Thread.currentThread().interrupt();
             throw new SearchRunException("배치 탐색 엔진 실행이 중단되었습니다.", exception);
         } finally {
-            deleteJobDirectory(jobDirectory);
+            if (keepJobDirectory) {
+                log.info("Layout search {} job directory kept for inspection: {}", input.studyId(), jobDirectory);
+            } else {
+                deleteJobDirectory(jobDirectory);
+            }
         }
     }
 

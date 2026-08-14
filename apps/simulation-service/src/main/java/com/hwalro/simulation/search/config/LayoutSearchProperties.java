@@ -16,6 +16,7 @@ public class LayoutSearchProperties {
     private double improvementMargin = 0.02;
     private double abortMargin = 0.15;
     private int trialConcurrency = 2;
+    private boolean keepJobDirectory = false;
     private Map<String, Budget> budgets = new LinkedHashMap<>();
 
     public record Budget(int trials, int rounds) {}
@@ -98,6 +99,14 @@ public class LayoutSearchProperties {
 
     public void setTrialConcurrency(int trialConcurrency) {
         this.trialConcurrency = trialConcurrency;
+    }
+
+    public boolean isKeepJobDirectory() {
+        return keepJobDirectory;
+    }
+
+    public void setKeepJobDirectory(boolean keepJobDirectory) {
+        this.keepJobDirectory = keepJobDirectory;
     }
 
     public Map<String, Budget> getBudgets() {
