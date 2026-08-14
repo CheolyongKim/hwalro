@@ -863,7 +863,9 @@
 }
 .result-summary .primary-action {
   margin-top: 12px;
+  background: var(--color-lime);
   padding: 11px;
+  color: var(--color-ink-deep);
   font-size: 11px;
 }
 .result-summary .bottleneck-analysis-locked {
