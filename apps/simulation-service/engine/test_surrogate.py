@@ -76,6 +76,10 @@ class StubBooster:
         self.calls += 1
         if isinstance(self.result, Exception):
             raise self.result
+        # A callable lets a test say "one bad score per candidate" without hardcoding how many
+        # candidates the generator happens to produce today.
+        if callable(self.result):
+            return self.result(matrix)
         return self.result
 
 

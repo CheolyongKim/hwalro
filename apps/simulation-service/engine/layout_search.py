@@ -53,7 +53,11 @@ CORRIDOR_CLEARANCE_METERS = GRID_STEP_METERS
 CLEAR_CORRIDOR_DISTANCES = (0.5, 1.0, 1.5)
 RELIEVE_HOTSPOT_DISTANCES = (0.75, 1.5)
 REBALANCE_EXIT_DISTANCES = (0.5, 1.0)
-ROTATE_ANGLES = (90.0, -90.0)
+# Coarse-to-fine. +-90 flips the long axis (the topological change); the smaller steps let a
+# fabric line up with a wall or corridor it currently cuts across at an angle. Every angle costs
+# one full routing pass over all agents, so this set is deliberately short - widen it only with a
+# generation-time measurement in hand (5 minute engine timeout).
+ROTATE_ANGLES = (90.0, -90.0, 45.0, -45.0, 30.0, -30.0, 15.0, -15.0)
 WALL_ANCHOR_EPSILON = 0.05
 DUAL_GAP_DISTANCES = (0.5, 1.0)
 EXIT_OPENING_DISTANCES = (0.5, 1.0)

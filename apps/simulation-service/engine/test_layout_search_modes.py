@@ -174,7 +174,7 @@ def test_a_raising_model_falls_the_whole_round_back_to_the_proxy(tmp_path, monke
 
 def test_a_non_finite_prediction_falls_the_whole_round_back_to_the_proxy(tmp_path, monkeypatch):
     bundle = write_bundle(tmp_path, surrogate.PROMOTION_PROMOTED)
-    install_stub_booster(monkeypatch, [float("nan")] * 8)
+    install_stub_booster(monkeypatch, lambda matrix: [float("nan")] * len(matrix))
     baseline = layout_search.generate(single_fabric_input())
     result = layout_search.generate(
         single_fabric_input(surrogateMode=surrogate.MODE_ACTIVE, surrogateBundle=str(bundle))
