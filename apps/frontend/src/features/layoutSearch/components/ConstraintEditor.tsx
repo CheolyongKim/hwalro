@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 import { GridLayer } from '../../layout/components/layers';
 import type { Camera, Vec2 } from '../../layout/types';
@@ -118,6 +118,48 @@ export function ConstraintEditor({
     }
   }, [drawing.height, drawing.width, size.h, size.w]);
 
+  const cameraRef = useRef(camera);
+  useEffect(() => {
+    cameraRef.current = camera;
+  }, [camera]);
+  const sizeRef = useRef(size);
+  useEffect(() => {
+    sizeRef.current = size;
+  }, [size]);
+  const drawingRef = useRef(drawing);
+  useEffect(() => {
+    drawingRef.current = drawing;
+  }, [drawing]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) {
+      return;
+    }
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const current = cameraRef.current;
+      const next = zoomAtPoint(
+        current,
+        { x: event.clientX, y: event.clientY },
+        rect,
+        event.deltaY < 0 ? 1.12 : 1 / 1.12,
+      );
+      setCamera(
+        clampPan(
+          next,
+          drawingRef.current.width,
+          drawingRef.current.height,
+          sizeRef.current.w / (next.zoom * PX_PER_METER),
+          sizeRef.current.h / (next.zoom * PX_PER_METER),
+        ) as Camera,
+      );
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code === 'Space' && !event.repeat) {
@@ -230,26 +272,6 @@ export function ConstraintEditor({
     }
   };
 
-  const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const next = zoomAtPoint(
-      camera,
-      { x: event.clientX, y: event.clientY },
-      rect,
-      event.deltaY < 0 ? 1.12 : 1 / 1.12,
-    );
-    setCamera(
-      clampPan(
-        next,
-        drawing.width,
-        drawing.height,
-        size.w / (next.zoom * PX_PER_METER),
-        size.h / (next.zoom * PX_PER_METER),
-      ) as Camera,
-    );
-  };
-
   const k = camera.zoom * PX_PER_METER;
   const s = (pixels: number) => pixels / k;
   const boundaryPoints = drawing.outsideBoundary.flatMap((point) => [point.x, point.y]);
@@ -273,9 +295,7 @@ export function ConstraintEditor({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onWheel={onWheel}
-    >
-      {size.w > 0 && size.h > 0 && (
+    >      {size.w > 0 && size.h > 0 && (
         <Stage width={size.w} height={size.h} listening={false}>
           <Layer x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             <GridLayer

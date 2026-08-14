@@ -118,7 +118,6 @@ function search(status: LayoutSearch['status'] = 'COMPLETED'): LayoutSearch {
       verifiedCount: status === 'GENERATING' ? 0 : 2,
       plannedCount: status === 'GENERATING' ? null : 2,
       round: status === 'GENERATING' ? 0 : 1,
-      budget: 'STANDARD',
       baselineRunSeconds: 1840,
       estimatedRemainingSeconds: status === 'GENERATING' ? null : 0,
       trialCapSeconds: 210,
@@ -142,17 +141,6 @@ function search(status: LayoutSearch['status'] = 'COMPLETED'): LayoutSearch {
     rejectedCandidates: [],
     failureCode: null,
     failureMessage: null,
-  };
-}
-
-function estimate() {
-  return {
-    baselineRunSeconds: 1840,
-    budgets: [
-      { budget: 'QUICK' as const, trials: 3, rounds: 1, estimatedSeconds: 600 },
-      { budget: 'STANDARD' as const, trials: 6, rounds: 2, estimatedSeconds: 1200 },
-      { budget: 'THOROUGH' as const, trials: null, rounds: 2, estimatedSeconds: null },
-    ],
   };
 }
 
@@ -260,7 +248,6 @@ describe('배치 개선안 페이지 interaction', () => {
     let current = search();
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     vi.spyOn(layoutSearchApi, 'latest').mockImplementation(async () => current);
-    vi.spyOn(layoutSearchApi, 'estimate').mockResolvedValue(estimate());
     const preparation = vi
       .spyOn(layoutSearchApi, 'prepareSimulation')
       .mockImplementation(async (_searchId, candidateId) => {
@@ -298,7 +285,6 @@ describe('배치 개선안 페이지 interaction', () => {
     const pending = new Map<number, (value: { simulationId: number; status: string }) => void>();
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     vi.spyOn(layoutSearchApi, 'latest').mockResolvedValue(search());
-    vi.spyOn(layoutSearchApi, 'estimate').mockResolvedValue(estimate());
     const preparation = vi
       .spyOn(layoutSearchApi, 'prepareSimulation')
       .mockImplementation(
@@ -330,46 +316,36 @@ describe('배치 개선안 페이지 interaction', () => {
     });
   });
 
-  it('terminal 상태에서 같은 예산으로 새로 탐색한다', async () => {
+  it('terminal 상태에서 제약 설정 화면으로 돌아가 다시 탐색한다', async () => {
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     vi.spyOn(layoutSearchApi, 'latest').mockResolvedValue(search('COMPLETED'));
-    vi.spyOn(layoutSearchApi, 'estimate').mockResolvedValue(estimate());
     const start = vi
       .spyOn(layoutSearchApi, 'start')
       .mockResolvedValue({ searchId: 2, status: 'PENDING' });
 
     await renderPage();
-    await act(async () => button('새로 탐색').click());
+    await act(async () => button('제약 설정 다시 열기').click());
+    await act(async () => button('배치 개선안 탐색 시작').click());
 
-    expect(start).toHaveBeenCalledWith(42, 'STANDARD', expect.anything());
+    expect(start).toHaveBeenCalledWith(42, expect.anything());
   });
 
-  it('전수 탐색은 장시간 안내 확인 뒤에만 시작한다', async () => {
+  it('제약 설정 화면에서 배치 개선안 탐색을 시작한다', async () => {
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     vi.spyOn(layoutSearchApi, 'latest').mockRejectedValue(
       new AxiosError('not found', undefined, undefined, undefined, { status: 404 } as never),
     );
-    vi.spyOn(layoutSearchApi, 'estimate').mockResolvedValue(estimate());
     const start = vi
       .spyOn(layoutSearchApi, 'start')
       .mockResolvedValue({ searchId: 2, status: 'PENDING' });
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     await renderPage();
-    const thorough = [...container.querySelectorAll<HTMLInputElement>('input')].find((input) =>
-      input.parentElement?.textContent?.includes('전수 탐색'),
-    );
-    await act(async () => thorough?.click());
-    await act(async () => button('배치 개선안 탐색 시작').click());
-    expect(confirm).toHaveBeenCalledTimes(1);
-    expect(start).not.toHaveBeenCalled();
-
-    confirm.mockReturnValue(true);
+    expect(container.textContent).toContain('구조물 제약 설정');
     await act(async () => {
       button('배치 개선안 탐색 시작').click();
       await Promise.resolve();
     });
-    expect(start).toHaveBeenCalledWith(42, 'THOROUGH', expect.anything());
+    expect(start).toHaveBeenCalledWith(42, expect.anything());
   });
 
   it('원본 setup 오류에서 다시 시도하면 실제 setup을 재요청한다', async () => {
@@ -379,7 +355,6 @@ describe('배치 개선안 페이지 interaction', () => {
     vi.spyOn(layoutSearchApi, 'latest').mockRejectedValue(
       new AxiosError('not found', undefined, undefined, undefined, { status: 404 } as never),
     );
-    vi.spyOn(layoutSearchApi, 'estimate').mockResolvedValue(estimate());
 
     await renderPage();
     expect(button('다시 시도')).toBeTruthy();
@@ -389,17 +364,16 @@ describe('배치 개선안 페이지 interaction', () => {
     });
 
     expect(simulationApi.getSetup).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('탐색 방식 선택');
+    expect(container.textContent).toContain('구조물 제약 설정');
   });
 
   it('active 상태에서만 poll하고 unmount 뒤 timer를 정리한다', async () => {
     vi.useFakeTimers();
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     const latest = vi.spyOn(layoutSearchApi, 'latest').mockResolvedValue(search('GENERATING'));
-    vi.spyOn(layoutSearchApi, 'estimate').mockResolvedValue(estimate());
 
     await renderPage();
-    expect(container.textContent).toContain('위험 신호를 분석하고 있습니다');
+    expect(container.textContent).toContain('검증 중인 배치');
     expect(container.textContent).toContain('전체 후보 계산 중');
     await act(async () => vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS));
     expect(latest).toHaveBeenCalledTimes(2);

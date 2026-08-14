@@ -7,11 +7,7 @@ import java.util.List;
 public final class LayoutSearchDtos {
     private LayoutSearchDtos() {}
 
-    public record BudgetEstimateResponse(String budget, Integer trials, int rounds, Long estimatedSeconds) {}
-
-    public record EstimateResponse(long baselineRunSeconds, List<BudgetEstimateResponse> budgets) {}
-
-    public record StartStudyRequest(String budget, SearchConstraints constraints) {
+    public record StartStudyRequest(SearchConstraints constraints) {
         public StartStudyRequest {
             if (constraints == null) {
                 constraints = SearchConstraints.empty();
@@ -53,7 +49,6 @@ public final class LayoutSearchDtos {
             int verifiedCount,
             Integer plannedCount,
             int round,
-            String budget,
             long baselineRunSeconds,
             Long estimatedRemainingSeconds,
             double trialCapSeconds) {}
@@ -85,4 +80,3 @@ public final class LayoutSearchDtos {
             String failureCode,
             String failureMessage) {}
 }
-

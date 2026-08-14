@@ -5,7 +5,6 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
 import com.hwalro.simulation.search.domain.LayoutSearchEntity;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.CancellationResponse;
-import com.hwalro.simulation.search.dto.LayoutSearchDtos.EstimateResponse;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.LayoutSearchResponse;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.PreparedSimulationDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.StartStudyRequest;
@@ -28,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Layout Searches", description = "배치 개선안 탐색 API")
 @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
 public class LayoutSearchController {
+    private static final String DEFAULT_BUDGET = "STANDARD";
+
     private final LayoutSearchQueryService layoutSearchQueryService;
     private final LayoutSearchOrchestrator layoutSearchOrchestrator;
     private final CandidateAdoptionService candidateAdoptionService;
@@ -41,23 +42,14 @@ public class LayoutSearchController {
         this.candidateAdoptionService = candidateAdoptionService;
     }
 
-    @GetMapping("/simulations/{simulationId}/layout-searches/estimate")
-    @Operation(summary = "예산별 예상 소요 시간 조회", description = "기준 실행 시간을 기준으로 예산별 검증 소요 시간을 추정합니다.")
-    public EstimateResponse estimate(
-            @PathVariable long simulationId,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return layoutSearchQueryService.estimate(simulationId, user);
-    }
-
     @PostMapping("/simulations/{simulationId}/layout-searches")
     @Operation(summary = "배치 개선안 탐색 시작", description = "완료된 기준 시뮬레이션에서 배치 개선안 탐색을 시작합니다.")
     public StartStudyResponse start(
             @PathVariable long simulationId,
             @RequestBody(required = false) StartStudyRequest request,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        String budget = request == null || request.budget() == null ? "STANDARD" : request.budget();
-        LayoutSearchEntity search =
-                layoutSearchOrchestrator.start(simulationId, user, budget, request == null ? null : request.constraints());
+        LayoutSearchEntity search = layoutSearchOrchestrator.start(
+                simulationId, user, DEFAULT_BUDGET, request == null ? null : request.constraints());
         return new StartStudyResponse(search.getId(), search.getStatus());
     }
 

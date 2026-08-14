@@ -15,12 +15,10 @@ import com.hwalro.simulation.search.domain.LayoutSearchTrialEntity;
 import com.hwalro.simulation.search.domain.Metric;
 import com.hwalro.simulation.search.domain.MetricDelta;
 import com.hwalro.simulation.search.domain.SearchBudget;
-import com.hwalro.simulation.search.dto.LayoutSearchDtos.BudgetEstimateResponse;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.CandidateDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.ChangeOpDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.ChangeSetDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.DiagnosisDto;
-import com.hwalro.simulation.search.dto.LayoutSearchDtos.EstimateResponse;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.EvidenceDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.FabricTransformDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.FindingDto;
@@ -33,7 +31,6 @@ import com.hwalro.simulation.search.dto.LayoutSearchDtos.RationaleDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.RegionDto;
 import com.hwalro.simulation.search.mapper.LayoutSearchMapper;
 import com.hwalro.simulation.simulation.domain.Simulation;
-import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import com.hwalro.simulation.simulation.service.SimulationService;
@@ -65,27 +62,6 @@ public class LayoutSearchQueryService {
         this.simulationMapper = simulationMapper;
         this.properties = properties;
         this.objectMapper = objectMapper;
-    }
-
-    public EstimateResponse estimate(long simulationId, JwtUser user) {
-        SimulationSetupResponse setup = simulationService.getSetup(simulationId, user);
-        long baselineRunSeconds = baselineRunSeconds(simulationId);
-        List<BudgetEstimateResponse> budgets = properties.getBudgets().entrySet().stream()
-                .map(entry -> new BudgetEstimateResponse(
-                        entry.getKey(),
-                        "THOROUGH".equals(entry.getKey())
-                                ? null
-                                : entry.getValue().trials(),
-                        entry.getValue().rounds(),
-                        "THOROUGH".equals(entry.getKey())
-                                ? null
-                                : TrialBudgetCalculator.estimatedStudySeconds(
-                                        entry.getValue().trials(),
-                                        properties.getTrialConcurrency(),
-                                        baselineRunSeconds,
-                                        properties.getAbortMargin())))
-                .toList();
-        return new EstimateResponse(baselineRunSeconds, budgets);
     }
 
     public LayoutSearchResponse getLatest(long simulationId, JwtUser user) {
@@ -157,13 +133,7 @@ public class LayoutSearchQueryService {
                 .orElse(0);
 
         ProgressDto progress = new ProgressDto(
-                verifiedCount,
-                plannedCount,
-                round,
-                budget.preset(),
-                baselineRunSeconds,
-                estimatedRemaining,
-                budget.trialCapSeconds());
+                verifiedCount, plannedCount, round, baselineRunSeconds, estimatedRemaining, budget.trialCapSeconds());
 
         return new LayoutSearchResponse(
                 search.getId(),

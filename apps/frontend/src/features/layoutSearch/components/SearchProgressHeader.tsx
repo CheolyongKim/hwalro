@@ -45,7 +45,6 @@ export function SearchProgressHeader({
         {active && progress.round > 0 && <small>라운드 {progress.round}</small>}
       </div>
       <div className="search-progress__meta">
-        <span>탐색 방식 {progress.budget === 'THOROUGH' ? '전수 탐색' : progress.budget}</span>
         {active && progress.plannedCount === null ? (
           <span>진행 {formatNumber(progress.verifiedCount)}건 검증 · 전체 후보 계산 중</span>
         ) : active ? (
@@ -76,11 +75,7 @@ export function SearchProgressHeader({
             disabled={rerunning}
             onClick={onRerun}
           >
-            {rerunning
-              ? '탐색 준비 중'
-              : search.status === 'FAILED' || search.status === 'CANCELLED'
-                ? '다시 탐색'
-                : '새로 탐색'}
+            {rerunning ? '준비 중' : '제약 설정 다시 열기'}
           </button>
         )}
       </div>

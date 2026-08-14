@@ -41,6 +41,7 @@ class SearchConstraints:
         self.forbidden_zones = [
             box(float(z["x"]), float(z["y"]), float(z["x"]) + float(z["width"]), float(z["y"]) + float(z["height"]))
             for z in forbidden_zones
+            if float(z.get("width", 0.0)) > 0 and float(z.get("height", 0.0)) > 0
         ]
         self.rotation_allowed = rotation_allowed or {}
         self.wall_anchored = wall_anchored or {}
@@ -74,13 +75,19 @@ class SearchConstraints:
         }
 
 
+def _key_to_int(value: Any) -> int:
+    if isinstance(value, int):
+        return value
+    return int(float(value))
+
+
 def parse_constraints(raw: dict[str, Any] | None) -> SearchConstraints:
     if not raw:
         return SearchConstraints()
-    move_radii = {int(k): float(v) for k, v in (raw.get("moveRadii") or {}).items()}
+    move_radii = {_key_to_int(k): float(v) for k, v in (raw.get("moveRadii") or {}).items()}
     forbidden = list(raw.get("forbiddenZones") or [])
-    rotation_allowed = {int(k): bool(v) for k, v in (raw.get("rotationAllowed") or {}).items()}
-    wall_anchored = {int(k): bool(v) for k, v in (raw.get("wallAnchored") or {}).items()}
+    rotation_allowed = {_key_to_int(k): bool(v) for k, v in (raw.get("rotationAllowed") or {}).items()}
+    wall_anchored = {_key_to_int(k): bool(v) for k, v in (raw.get("wallAnchored") or {}).items()}
     return SearchConstraints(move_radii, forbidden, rotation_allowed, wall_anchored)
 
 

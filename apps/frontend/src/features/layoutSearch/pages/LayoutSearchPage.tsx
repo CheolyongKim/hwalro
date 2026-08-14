@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import type { SimulationDrawing, SimulationSetup } from '../../simulations/types';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
-import type { BudgetPreset, SearchStatus } from '../api/layoutSearchApi';
+import type { SearchStatus } from '../api/layoutSearchApi';
 import { CandidateDetailPanel } from '../components/CandidateDetailPanel';
 import { CandidateList } from '../components/CandidateList';
 import { ConstraintInspector } from '../components/ConstraintInspector';
@@ -13,21 +14,9 @@ import { RejectedCandidateList } from '../components/RejectedCandidateList';
 import { SearchProgressHeader } from '../components/SearchProgressHeader';
 import { useLayoutSearch } from '../hooks/useLayoutSearch';
 import { applyChangeSet } from '../utils/applyChangeSet';
-import { formatDuration } from '../utils/searchLabels';
 import '../layoutSearch.css';
 
-const BUDGET_ORDER: BudgetPreset[] = ['QUICK', 'STANDARD', 'THOROUGH'];
-
-const BUDGET_LABELS: Record<BudgetPreset, string> = {
-  QUICK: '빠른 탐색',
-  STANDARD: '표준 탐색',
-  THOROUGH: '전수 탐색',
-};
-
 const DIAGNOSIS_LOADING_STATUSES: SearchStatus[] = ['PENDING', 'DIAGNOSING', 'GENERATING'];
-
-export const EXHAUSTIVE_CONFIRMATION_MESSAGE =
-  '전수 탐색은 유효한 후보 전체를 실제 엔진으로 검증하므로 수시간에서 수일이 걸릴 수 있습니다. 화면을 닫아도 서버에서 계속 진행됩니다. 시작하시겠습니까?';
 
 export function changedFabricIds(baseline: SimulationDrawing, after: SimulationDrawing) {
   const afterById = new Map(after.fabrics.map((fabric) => [fabric.id, fabric]));
@@ -48,10 +37,6 @@ export function changedFabricIds(baseline: SimulationDrawing, after: SimulationD
   return changed;
 }
 
-function isKnownEstimate(value: number | null): value is number {
-  return value !== null && value >= 0;
-}
-
 export default function LayoutSearchPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
@@ -60,11 +45,8 @@ export default function LayoutSearchPage() {
   const [sourceLoading, setSourceLoading] = useState(true);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
-  const [selectedBudget, setSelectedBudget] = useState<BudgetPreset>('STANDARD');
-  const [constraintPanelOpen, setConstraintPanelOpen] = useState(false);
   const {
     search,
-    estimate,
     hasSearch,
     loading,
     starting,
@@ -78,6 +60,7 @@ export default function LayoutSearchPage() {
     cancel,
     prepareSimulation,
     updateConstraints,
+    resetToSetup,
     rejectCandidate,
   } = useLayoutSearch(id);
 
@@ -129,17 +112,11 @@ export default function LayoutSearchPage() {
     return changedFabricIds(sourceSetup.drawing, preview.drawing);
   }, [sourceSetup, preview.drawing]);
 
-  const runSearch = useCallback(
-    async (budget: BudgetPreset) => {
-      if (budget === 'THOROUGH' && !window.confirm(EXHAUSTIVE_CONFIRMATION_MESSAGE)) {
-        return;
-      }
-      if (await start(budget)) {
-        setSelectedCandidateId(null);
-      }
-    },
-    [start],
-  );
+  const runSearch = useCallback(async () => {
+    if (await start()) {
+      setSelectedCandidateId(null);
+    }
+  }, [start]);
 
   const retry = useCallback(() => {
     void Promise.all([loadSourceSetup(), initialize()]);
@@ -175,94 +152,43 @@ export default function LayoutSearchPage() {
 
   if (!hasSearch || !search) {
     return (
-      <main className="improvement-page">
-        <header className="improvement-page-header">
+      <main className="constraint-page">
+        <header className="constraint-page__header">
           <button
             type="button"
-            className="improvement-back"
+            aria-label="시뮬레이션 결과 화면으로 돌아가기"
+            className="constraint-page__back"
             onClick={() => navigate(`/simulations/${id}/results`)}
           >
-            ← 결과 화면
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           </button>
-          <div className="improvement-heading">
-            <span>SIMULATION REVIEW / 배치 개선안 탐색</span>
-            <h1>배치 개선안 탐색</h1>
+          <div className="constraint-page__heading">
+            <span>배치 개선안 탐색</span>
+            <h1>구조물 제약 설정</h1>
             <p>{sourceSetup?.drawing.title ?? ''}</p>
           </div>
+          <div className="constraint-page__actions">
+            <button
+              type="button"
+              className="constraint-page__start"
+              disabled={starting}
+              onClick={() => void runSearch()}
+            >
+              {starting ? '탐색 준비 중' : '배치 개선안 탐색 시작'}
+            </button>
+          </div>
         </header>
-        <section className={`search-start${constraintPanelOpen ? ' is-constraints-open' : ''}`}>
-          <div className="workspace-section-heading">
-            <span>탐색 방식 선택</span>
-            <small>검증은 실제 엔진 실행으로 진행됩니다</small>
-          </div>
-          {estimate && (
-            <p className="search-start__baseline">
-              기준 실행 1회 약 {formatDuration(estimate.baselineRunSeconds)}
-            </p>
-          )}
-          <div className="budget-options">
-            {BUDGET_ORDER.map((budget) => {
-              const item = estimate?.budgets.find((entry) => entry.budget === budget);
-              const count = item?.trials ?? null;
-              const seconds = item?.estimatedSeconds ?? null;
-              return (
-                <label
-                  key={budget}
-                  className={`budget-option ${selectedBudget === budget ? 'is-selected' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="budget"
-                    checked={selectedBudget === budget}
-                    onChange={() => setSelectedBudget(budget)}
-                  />
-                  <strong>{BUDGET_LABELS[budget]}</strong>
-                  <span>
-                    {isKnownEstimate(count) ? `${count}회 검증` : '후보 생성 후 검증 수 확정'}
-                  </span>
-                  <em>
-                    {isKnownEstimate(seconds)
-                      ? `예상 ${formatDuration(seconds)}`
-                      : budget === 'THOROUGH'
-                        ? '수시간~수일 소요 가능'
-                        : '예상 시간 계산 중'}
-                  </em>
-                  {budget === 'THOROUGH' && (
-                    <small>유효 후보 전체를 검증하며 화면을 닫아도 계속 진행됩니다.</small>
-                  )}
-                </label>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            className="constraint-toggle"
-            aria-expanded={constraintPanelOpen}
-            onClick={() => setConstraintPanelOpen((open) => !open)}
-          >
-            {constraintPanelOpen ? '제약 설정 접기' : '구조물 제약 설정'}
-          </button>
-          {constraintPanelOpen && sourceSetup && (
+        {sourceSetup && (
+          <div className="constraint-page__body">
             <ConstraintInspector
               drawing={sourceSetup.drawing}
               constraints={constraints}
               onChange={updateConstraints}
-              onStart={() => void runSearch(selectedBudget)}
+              onStart={() => void runSearch()}
               starting={starting}
             />
-          )}
-          <button
-            type="button"
-            className="search-start-button"
-            disabled={starting}
-            onClick={() => void runSearch(selectedBudget)}
-          >
-            {starting ? '탐색 준비 중' : '배치 개선안 탐색 시작'}
-          </button>
-          <p className="search-start__note">
-            화면을 떠나도 서버에서 탐색이 계속되며 나중에 돌아와 진행 상태를 확인할 수 있습니다.
-          </p>
-        </section>
+          </div>
+        )}
       </main>
     );
   }
@@ -276,8 +202,8 @@ export default function LayoutSearchPage() {
         onCancel={() => void cancel()}
         cancelling={cancelling}
         onBackToResult={() => navigate(`/simulations/${id}/results`)}
-        onRerun={() => void runSearch(search.progress.budget)}
-        rerunning={starting}
+        onRerun={resetToSetup}
+        rerunning={false}
       />
       {errorMessage && (
         <div className="search-action-error" role="alert">
@@ -356,7 +282,7 @@ export default function LayoutSearchPage() {
             preparing={preparingCandidateIds.has(selectedCandidate.candidateId)}
             onContinueComparing={focusComparison}
             previewAvailable={preview.drawing !== null}
-            onReject={() => void rejectCandidate(selectedCandidate.candidateId, search.progress.budget)}
+            onReject={() => void rejectCandidate(selectedCandidate.candidateId)}
             rejecting={starting}
           />
         ) : (

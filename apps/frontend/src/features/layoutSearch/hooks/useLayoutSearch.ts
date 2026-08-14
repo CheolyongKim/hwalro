@@ -4,11 +4,9 @@ import { getSimulationErrorMessage } from '../../simulations/utils/getSimulation
 import {
   layoutSearchApi,
   emptyConstraints,
-  type BudgetPreset,
   type LayoutSearch,
   type PreparedSimulation,
   type SearchConstraints,
-  type SearchEstimate,
   type SearchStatus,
 } from '../api/layoutSearchApi';
 
@@ -31,7 +29,6 @@ export function isNotFoundError(error: unknown) {
 
 export function useLayoutSearch(simulationId: number) {
   const [search, setSearch] = useState<LayoutSearch | null>(null);
-  const [estimate, setEstimate] = useState<SearchEstimate | null>(null);
   const [hasSearch, setHasSearch] = useState(false);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -62,21 +59,11 @@ export function useLayoutSearch(simulationId: number) {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const [latest, estimateResult] = await Promise.all([
-        layoutSearchApi.latest(simulationId),
-        layoutSearchApi.estimate(simulationId),
-      ]);
+      const latest = await layoutSearchApi.latest(simulationId);
       setSearch(latest);
       setHasSearch(true);
-      setEstimate(estimateResult);
     } catch (error) {
       if (isNotFoundError(error)) {
-        try {
-          const estimateResult = await layoutSearchApi.estimate(simulationId);
-          setEstimate(estimateResult);
-        } catch (estimateError) {
-          setErrorMessage(getSimulationErrorMessage(estimateError));
-        }
         setHasSearch(false);
       } else {
         setErrorMessage(getSimulationErrorMessage(error));
@@ -111,12 +98,12 @@ export function useLayoutSearch(simulationId: number) {
   }, [active, refresh]);
 
   const start = useCallback(
-    async (budget: BudgetPreset, nextConstraints?: SearchConstraints): Promise<boolean> => {
+    async (nextConstraints?: SearchConstraints): Promise<boolean> => {
       setStarting(true);
       setErrorMessage(null);
       try {
         const applied = nextConstraints ?? constraints;
-        await layoutSearchApi.start(simulationId, budget, applied);
+        await layoutSearchApi.start(simulationId, applied);
         await refresh();
         return true;
       } catch (error) {
@@ -133,8 +120,15 @@ export function useLayoutSearch(simulationId: number) {
     setConstraints((current) => updater(current));
   }, []);
 
+  const resetToSetup = useCallback(() => {
+    setSearch(null);
+    setHasSearch(false);
+    setErrorMessage(null);
+    setCancelling(false);
+  }, []);
+
   const rejectCandidate = useCallback(
-    async (candidateId: number, budget: BudgetPreset): Promise<boolean> => {
+    async (candidateId: number): Promise<boolean> => {
       if (!search) {
         return false;
       }
@@ -151,7 +145,7 @@ export function useLayoutSearch(simulationId: number) {
         next.moveRadii[fabricId] = 0;
       });
       setConstraints(next);
-      return start(budget, next);
+      return start(next);
     },
     [constraints, search, start],
   );
@@ -212,7 +206,6 @@ export function useLayoutSearch(simulationId: number) {
 
   return {
     search,
-    estimate,
     hasSearch,
     loading,
     starting,
@@ -226,6 +219,7 @@ export function useLayoutSearch(simulationId: number) {
     cancel,
     prepareSimulation,
     updateConstraints,
+    resetToSetup,
     rejectCandidate,
   };
 }

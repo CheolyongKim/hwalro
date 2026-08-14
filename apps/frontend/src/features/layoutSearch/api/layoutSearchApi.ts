@@ -10,8 +10,6 @@ export type SearchStatus =
   | 'FAILED'
   | 'CANCELLED';
 
-export type BudgetPreset = 'QUICK' | 'STANDARD' | 'THOROUGH';
-
 export type CandidateStatus =
   | 'GENERATED'
   | 'REJECTED_CONSTRAINT'
@@ -94,7 +92,6 @@ export interface SearchProgress {
   verifiedCount: number;
   plannedCount: number | null;
   round: number;
-  budget: BudgetPreset;
   baselineRunSeconds: number;
   estimatedRemainingSeconds: number | null;
   trialCapSeconds: number;
@@ -135,18 +132,6 @@ export interface LayoutSearch {
   failureMessage: string | null;
 }
 
-export interface BudgetEstimate {
-  budget: BudgetPreset;
-  trials: number | null;
-  rounds: number;
-  estimatedSeconds: number | null;
-}
-
-export interface SearchEstimate {
-  baselineRunSeconds: number;
-  budgets: BudgetEstimate[];
-}
-
 export interface StartSearchResult {
   searchId: number;
   status: string;
@@ -171,15 +156,9 @@ export function emptyConstraints(): SearchConstraints {
 }
 
 export const layoutSearchApi = {
-  estimate: (simulationId: number) =>
-    apiClient
-      .get<SearchEstimate>(`/api/simulations/${simulationId}/layout-searches/estimate`)
-      .then((response) => response.data),
-
-  start: (simulationId: number, budget: BudgetPreset, constraints?: SearchConstraints) =>
+  start: (simulationId: number, constraints?: SearchConstraints) =>
     apiClient
       .post<StartSearchResult>(`/api/simulations/${simulationId}/layout-searches`, {
-        budget,
         constraints: constraints ?? null,
       })
       .then((response) => response.data),
