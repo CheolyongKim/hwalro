@@ -16,22 +16,27 @@ function buildInspectUrl(areaId: number): string {
 
 function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!area) return;
     let active = true;
     setDataUrl(null);
+    setQrError(null);
     setCopyNotice(false);
     void QRCode.toDataURL(buildInspectUrl(area.id), { width: 640, margin: 2 })
       .then((url) => {
         if (active) setDataUrl(url);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setQrError('QR 코드를 생성하지 못했습니다. 다시 시도해 주세요.');
+      });
     return () => {
       active = false;
     };
-  }, [area]);
+  }, [area, attempt]);
 
   if (!area) return null;
 
@@ -72,6 +77,18 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
               alt={`${area.name} 체크리스트 QR 코드`}
               className="h-56 w-56 rounded-xl border border-line bg-white p-2"
             />
+          ) : qrError ? (
+            <div className="flex h-56 w-56 flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface px-4 text-center">
+              <span className="text-sm text-text-muted">{qrError}</span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setAttempt((value) => value + 1)}
+              >
+                다시 시도
+              </Button>
+            </div>
           ) : (
             <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-line bg-surface">
               <span className="text-sm text-text-muted">QR 생성 중...</span>
@@ -103,7 +120,12 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
               <Download aria-hidden="true" className="h-4 w-4" />
               이미지
             </Button>
-            <Button type="button" className="flex-1" onClick={() => window.print()}>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={() => window.print()}
+              disabled={!dataUrl}
+            >
               <Printer aria-hidden="true" className="h-4 w-4" />
               인쇄
             </Button>

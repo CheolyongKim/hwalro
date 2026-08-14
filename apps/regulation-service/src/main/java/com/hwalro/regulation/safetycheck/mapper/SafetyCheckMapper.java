@@ -38,6 +38,8 @@ public interface SafetyCheckMapper {
 
     Long findActiveTemplateId(@Param("areaId") Long areaId);
 
+    Long findOpenDraftId(@Param("areaId") Long areaId, @Param("inspectorId") Long inspectorId);
+
     Integer findTemplateVersion(@Param("templateId") Long templateId);
 
     List<ChecklistTemplateItemResponse> findTemplateItems(@Param("templateId") Long templateId);

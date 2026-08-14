@@ -19,6 +19,7 @@ import com.hwalro.regulation.safetycheck.dto.InspectionAreaRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionAreaResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionCreateRequest;
 import com.hwalro.regulation.safetycheck.dto.InspectionDetailHeader;
+import com.hwalro.regulation.safetycheck.dto.InspectionDetailResponse;
 import com.hwalro.regulation.safetycheck.dto.InspectionUpdateRequest;
 import com.hwalro.regulation.safetycheck.exception.InspectionAreaNotFoundException;
 import com.hwalro.regulation.safetycheck.mapper.SafetyCheckMapper;
@@ -139,6 +140,49 @@ class SafetyCheckServiceTest {
 
         service.createInspection(2L, null, inspector);
 
+        verify(safetyCheckMapper).insertInspectionItems(12L, 7L);
+    }
+
+    @Test
+    void returnsExistingOpenDraftInsteadOfCreatingAnother() {
+        SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
+        JwtUser inspector = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
+        when(safetyCheckMapper.lockInspectionArea(2L)).thenReturn(2L);
+        when(safetyCheckMapper.findOpenDraftId(2L, 3L)).thenReturn(12L);
+        when(safetyCheckMapper.findInspectionHeader(12L))
+                .thenReturn(
+                        new InspectionDetailHeader(12L, 2L, "B2", null, 3L, "DRAFT", null, LocalDateTime.now(), null));
+        when(safetyCheckMapper.findInspectionItems(12L)).thenReturn(List.of());
+
+        InspectionDetailResponse response = service.getOrCreateOpenInspection(2L, inspector);
+
+        assertThat(response.id()).isEqualTo(12L);
+        verify(safetyCheckMapper, never()).insertInspection(any(SafetyInspection.class));
+    }
+
+    @Test
+    void createsOpenDraftWhenNoneExists() {
+        SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
+        JwtUser inspector = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
+        when(safetyCheckMapper.lockInspectionArea(2L)).thenReturn(2L);
+        when(safetyCheckMapper.findOpenDraftId(2L, 3L)).thenReturn(null);
+        when(safetyCheckMapper.areaExists(2L)).thenReturn(true);
+        when(safetyCheckMapper.findActiveTemplateId(2L)).thenReturn(7L);
+        doAnswer(invocation -> {
+                    SafetyInspection inspection = invocation.getArgument(0);
+                    inspection.setId(12L);
+                    return 1;
+                })
+                .when(safetyCheckMapper)
+                .insertInspection(any(SafetyInspection.class));
+        when(safetyCheckMapper.findInspectionHeader(12L))
+                .thenReturn(
+                        new InspectionDetailHeader(12L, 2L, "B2", null, 3L, "DRAFT", null, LocalDateTime.now(), null));
+        when(safetyCheckMapper.findInspectionItems(12L)).thenReturn(List.of());
+
+        InspectionDetailResponse response = service.getOrCreateOpenInspection(2L, inspector);
+
+        assertThat(response.id()).isEqualTo(12L);
         verify(safetyCheckMapper).insertInspectionItems(12L, 7L);
     }
 

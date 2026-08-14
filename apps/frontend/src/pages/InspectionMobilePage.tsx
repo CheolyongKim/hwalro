@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Check, X } from 'lucide-react';
-import { useAuth } from '../features/auth/context/AuthContext';
+import { Check, ClipboardList, X } from 'lucide-react';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type {
   InspectionDetail,
@@ -10,7 +9,7 @@ import type {
   InspectionStatus,
 } from '../features/safetyChecks/types';
 import { getSafetyCheckError, RESULT_LABELS } from '../features/safetyChecks/utils';
-import { Badge, Button, ErrorState, Skeleton } from '../components/ui';
+import { Badge, Button, EmptyState, ErrorState, Skeleton } from '../components/ui';
 
 const RESULT_ORDER: InspectionResult[] = ['PENDING', 'PASS', 'REVIEW_REQUIRED', 'FAIL'];
 
@@ -40,7 +39,6 @@ function InspectionMobilePage() {
   const { areaId: areaIdParam } = useParams();
   const areaId = Number(areaIdParam);
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [areaName, setAreaName] = useState('');
   const [inspection, setInspection] = useState<InspectionDetail | null>(null);
   const [items, setItems] = useState<InspectionItem[]>([]);
@@ -59,19 +57,12 @@ function InspectionMobilePage() {
         return;
       }
       try {
-        const [area, history] = await Promise.all([
+        const [area, detail] = await Promise.all([
           safetyCheckApi.getArea(areaId),
-          safetyCheckApi.getHistory(areaId),
+          safetyCheckApi.getOrCreateCurrentInspection(areaId),
         ]);
         if (!active) return;
         setAreaName(area.name);
-        const mine = history.find(
-          (entry) => entry.status === 'DRAFT' && entry.inspectorId === user?.id,
-        );
-        const detail = mine
-          ? await safetyCheckApi.getInspection(mine.id)
-          : await safetyCheckApi.createInspection(areaId);
-        if (!active) return;
         setInspection(detail);
         setItems(detail.items);
         setComment(detail.comment ?? '');
@@ -85,7 +76,7 @@ function InspectionMobilePage() {
     return () => {
       active = false;
     };
-  }, [areaId, user?.id]);
+  }, [areaId]);
 
   const counts = useMemo(
     () => ({
@@ -254,6 +245,13 @@ function InspectionMobilePage() {
             </li>
           ))}
         </ol>
+        {items.length === 0 && (
+          <EmptyState
+            icon={ClipboardList}
+            title="등록된 점검 항목이 없습니다."
+            description="관리자가 체크리스트 항목을 먼저 등록해야 이 구역을 점검할 수 있습니다."
+          />
+        )}
       </main>
 
       {canEdit && (

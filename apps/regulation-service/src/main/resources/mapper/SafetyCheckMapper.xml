@@ -145,6 +145,16 @@
         LIMIT 1
     </select>
 
+    <select id="findOpenDraftId" resultType="long">
+        SELECT id
+        FROM safety_inspections
+        WHERE inspection_area_id = #{areaId}
+          AND inspector_id = #{inspectorId}
+          AND status = 'DRAFT'
+        ORDER BY id
+        LIMIT 1
+    </select>
+
     <select id="findTemplateVersion" resultType="int">
         SELECT version
         FROM checklist_templates
