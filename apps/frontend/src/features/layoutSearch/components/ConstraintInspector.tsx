@@ -79,27 +79,25 @@ function touchesWall(fabric: SimulationRect, drawing: SimulationDrawing): boolea
   return false;
 }
 
-const RADIUS_OPTIONS = [
-  { value: 0, label: '고정' },
-  { value: 0.5, label: '0.5m' },
-  { value: 1, label: '1m' },
-  { value: -1, label: '자유' },
-];
+const RADIUS_SLIDER_MAX = 5;
+const RADIUS_SLIDER_STEP = 0.5;
 
-interface Props {
-  drawing: SimulationDrawing;
-  constraints: SearchConstraints;
-  onChange: (updater: (current: SearchConstraints) => SearchConstraints) => void;
-  onStart: () => void;
-  starting: boolean;
+function radiusToSlider(radius: number | undefined): number {
+  if (radius === undefined) return RADIUS_SLIDER_MAX;
+  return Math.min(radius, RADIUS_SLIDER_MAX);
+}
+
+function radiusLabel(radius: number | undefined): string {
+  if (radius === undefined) return '자유';
+  if (radius === 0) return '고정';
+  return `${Math.round(radius * 10) / 10}m`;
 }
 
 function fabricBadges(fabricId: number, constraints: SearchConstraints): string[] {
   const badges: string[] = [];
   const radius = constraints.moveRadii[fabricId];
   if (radius === 0) badges.push('고정');
-  else if (radius === 0.5) badges.push('0.5m');
-  else if (radius === 1) badges.push('1m');
+  else if (radius !== undefined && radius > 0) badges.push(`${Math.round(radius * 10) / 10}m`);
   if (constraints.rotationAllowed[fabricId] === false) badges.push('회전');
   if (constraints.wallAnchored[fabricId] === true) badges.push('벽면');
   return badges;
@@ -109,6 +107,14 @@ function formatZone(zone: ForbiddenZone): string {
   const width = Math.round(zone.width * 10) / 10;
   const height = Math.round(zone.height * 10) / 10;
   return `${width} × ${height} m`;
+}
+
+interface Props {
+  drawing: SimulationDrawing;
+  constraints: SearchConstraints;
+  onChange: (updater: (current: SearchConstraints) => SearchConstraints) => void;
+  onStart: () => void;
+  starting: boolean;
 }
 
 export function ConstraintInspector({ drawing, constraints, onChange, onStart, starting }: Props) {
@@ -124,16 +130,16 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
   const selectedTouchesWall =
     selectedFabric !== null && touchesWall(selectedFabric, drawing);
 
-  const setRadius = (fabricId: number, optionValue: number) => {
+  const setRadius = (fabricId: number, sliderValue: number) => {
     onChange((current) => {
       const next: SearchConstraints = {
         ...current,
         moveRadii: { ...current.moveRadii },
       };
-      if (optionValue === -1) {
+      if (sliderValue >= RADIUS_SLIDER_MAX) {
         delete next.moveRadii[fabricId];
       } else {
-        next.moveRadii[fabricId] = optionValue;
+        next.moveRadii[fabricId] = Math.round(sliderValue * 10) / 10;
       }
       return next;
     });
@@ -200,20 +206,6 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
   return (
     <section className="constraint-inspector" aria-label="구조물 제약 설정">
       <div className="constraint-inspector__canvas">
-        <div className="constraint-editor-toolbar">
-          <span className="constraint-editor-toolbar__hint">
-            {tool === 'zone'
-              ? '드래그하여 금지 영역을 그립니다'
-              : '구조물을 클릭하여 제약을 지정합니다'}
-          </span>
-          <button
-            type="button"
-            aria-pressed={tool === 'zone'}
-            onClick={() => setTool((current) => (current === 'zone' ? 'select' : 'zone'))}
-          >
-            금지 영역 그리기
-          </button>
-        </div>
         <ConstraintEditor
           drawing={drawing}
           constraints={constraints}
@@ -225,12 +217,26 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
           selectedZoneIndex={selectedZoneIndex}
           onSelectZone={setSelectedZoneIndex}
         />
-        {tool === 'zone' && (
-          <p className="constraint-editor-zone-hint" role="status">
-            금지 영역 안으로는 구조물이 이동할 수 없습니다. 최소 크기는 0.2m입니다.
-          </p>
-        )}
       </div>
+      <div className="constraint-editor-toolbar">
+        <span className="constraint-editor-toolbar__hint">
+          {tool === 'zone'
+            ? '드래그하여 금지 영역을 그립니다'
+            : '구조물을 클릭하여 제약을 지정합니다'}
+        </span>
+        <button
+          type="button"
+          aria-pressed={tool === 'zone'}
+          onClick={() => setTool((current) => (current === 'zone' ? 'select' : 'zone'))}
+        >
+          금지 영역 그리기
+        </button>
+      </div>
+      {tool === 'zone' && (
+        <p className="constraint-editor-zone-hint" role="status">
+          금지 영역 안으로는 구조물이 이동할 수 없습니다. 최소 크기는 0.2m입니다.
+        </p>
+      )}
       <aside className="constraint-inspector__panel">
         <div className="constraint-inspector__group">
           <h3 className="constraint-inspector__group-title">
@@ -277,25 +283,24 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
             <div className="constraint-inspector__detail">
               <div className="constraint-inspector__controls">
                 <span className="constraint-inspector__label">이동 반경</span>
-                <div
-                  className="constraint-inspector__segments"
-                  role="radiogroup"
-                  aria-label={`${selectedFabric.name ?? `구조물 ${selectedFabric.id}`} 이동 반경`}
-                >
-                  {RADIUS_OPTIONS.map((option) => {
-                    const radius = constraints.moveRadii[selectedFabric.id];
-                    const radiusValue = radius === undefined ? -1 : radius;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        aria-pressed={radiusValue === option.value}
-                        onClick={() => setRadius(selectedFabric.id, option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
+                <div className="constraint-inspector__slider-row">
+                  <input
+                    type="range"
+                    min={0}
+                    max={RADIUS_SLIDER_MAX}
+                    step={RADIUS_SLIDER_STEP}
+                    value={radiusToSlider(constraints.moveRadii[selectedFabric.id])}
+                    aria-label={`${selectedFabric.name ?? `구조물 ${selectedFabric.id}`} 이동 반경`}
+                    onChange={(event) => setRadius(selectedFabric.id, Number(event.target.value))}
+                  />
+                  <span className="constraint-inspector__slider-value">
+                    {radiusLabel(constraints.moveRadii[selectedFabric.id])}
+                  </span>
+                </div>
+                <div className="constraint-inspector__slider-scale" aria-hidden="true">
+                  <span>고정</span>
+                  <span>{Math.round(RADIUS_SLIDER_MAX * 10) / 10}m</span>
+                  <span>자유</span>
                 </div>
               </div>
               <div className="constraint-inspector__controls">
