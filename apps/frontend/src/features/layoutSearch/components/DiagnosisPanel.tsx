@@ -1,5 +1,5 @@
 import type { SearchDiagnosis } from '../api/layoutSearchApi';
-import { findingLabel, formatNumber } from '../utils/searchLabels';
+import { findingLabel } from '../utils/searchLabels';
 
 interface Props {
   diagnosis: SearchDiagnosis | null;
@@ -44,12 +44,6 @@ export function DiagnosisPanel({ diagnosis, loading }: Props) {
               <i style={{ width: `${Math.round(finding.severity * 100)}%` }} />
             </div>
             <p>{finding.description}</p>
-            {finding.evidence && (
-              <small>
-                {finding.evidence.metric} {formatNumber(finding.evidence.value)}{' '}
-                {finding.evidence.unit}
-              </small>
-            )}
           </li>
         ))}
       </ul>

@@ -10,6 +10,7 @@ import { CandidateList } from '../components/CandidateList';
 import { ConstraintInspector } from '../components/ConstraintInspector';
 import { DiagnosisPanel } from '../components/DiagnosisPanel';
 import { HoldToCompare } from '../components/HoldToCompare';
+import { NoImprovementPanel } from '../components/NoImprovementPanel';
 import { RejectedCandidateList } from '../components/RejectedCandidateList';
 import { SearchProgressHeader } from '../components/SearchProgressHeader';
 import { useLayoutSearch } from '../hooks/useLayoutSearch';
@@ -167,16 +168,6 @@ export default function LayoutSearchPage() {
             <h1>구조물 제약 설정</h1>
             <p>{sourceSetup?.drawing.title ?? ''}</p>
           </div>
-          <div className="constraint-page__actions">
-            <button
-              type="button"
-              className="constraint-page__start"
-              disabled={starting}
-              onClick={() => void runSearch()}
-            >
-              {starting ? '탐색 준비 중' : '배치 개선안 탐색 시작'}
-            </button>
-          </div>
         </header>
         {sourceSetup && (
           <div className="constraint-page__body">
@@ -266,6 +257,11 @@ export default function LayoutSearchPage() {
                     원본 배치 다시 불러오기
                   </button>
                 </div>
+              ) : search.status === 'NO_IMPROVEMENT' ? (
+                <NoImprovementPanel
+                  candidates={search.rejectedCandidates}
+                  drawing={sourceSetup?.drawing ?? null}
+                />
               ) : (
                 <div className="proposal-layout-loading" role="status">
                   {active ? '개선안이 검증되면 배치를 표시합니다.' : '표시할 개선안이 없습니다.'}
