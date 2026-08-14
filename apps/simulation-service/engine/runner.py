@@ -502,6 +502,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             _create_context(
                 jps,
                 np,
+                _shapely,
                 physical_component,
                 router,
                 indexed_agents,
@@ -609,9 +610,60 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     return result
 
 
+def _add_agent_with_spacing(
+    simulation,
+    jps,
+    np,
+    shapely,
+    physical_component,
+    placed_positions: list[tuple[float, float]],
+    journey_id,
+    stage_id,
+    position: tuple[float, float],
+    target,
+    walking_speed: float,
+    reaction_time: float,
+) -> int:
+    min_spacing = AGENT_RADIUS_METERS * 2.0
+    candidates = [position]
+    for ring in range(1, 5):
+        radius = min_spacing * ring
+        for step in range(12):
+            angle = 2.0 * math.pi * step / 12
+            candidates.append((position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle)))
+    last_error: Exception | None = None
+    for candidate in candidates:
+        if not physical_component.covers(shapely.Point(candidate)):
+            continue
+        if any(math.dist(candidate, other) < min_spacing - 1e-6 for other in placed_positions):
+            continue
+        direction = np.asarray(target, dtype=float) - np.asarray(candidate, dtype=float)
+        norm = float(np.linalg.norm(direction))
+        orientation = (1.0, 0.0) if norm <= 1e-12 else tuple((direction / norm).tolist())
+        try:
+            agent_id = simulation.add_agent(
+                jps.SocialForceModelAgentParameters(
+                    position=candidate,
+                    orientation=orientation,
+                    journey_id=journey_id,
+                    stage_id=stage_id,
+                    desired_speed=walking_speed,
+                    reaction_time=reaction_time,
+                    radius=AGENT_RADIUS_METERS,
+                )
+            )
+        except Exception as exc:
+            last_error = exc
+            continue
+        placed_positions.append(candidate)
+        return agent_id
+    raise RunnerError(f"could not add agent: {last_error}") from last_error
+
+
 def _create_context(
     jps,
     np,
+    shapely,
     physical_component,
     router,
     indexed_agents,
@@ -627,24 +679,25 @@ def _create_context(
     journey_id = simulation.add_journey(jps.JourneyDescription([stage_id]))
     states: dict[int, AgentRouteState] = {}
     positions: dict[int, tuple[float, float]] = {}
+    placed_positions: list[tuple[float, float]] = []
     for (index, position), route in zip(indexed_agents, routes, strict=True):
         target = route.waypoints[1] if len(route.waypoints) > 1 else route.waypoints[0]
-        direction = np.asarray(target, dtype=float) - np.asarray(position, dtype=float)
-        norm = float(np.linalg.norm(direction))
-        orientation = (1.0, 0.0) if norm <= 1e-12 else tuple((direction / norm).tolist())
         try:
-            agent_id = simulation.add_agent(
-                jps.SocialForceModelAgentParameters(
-                    position=position,
-                    orientation=orientation,
-                    journey_id=journey_id,
-                    stage_id=stage_id,
-                    desired_speed=walking_speed,
-                    reaction_time=reaction_time,
-                    radius=AGENT_RADIUS_METERS,
-                )
+            agent_id = _add_agent_with_spacing(
+                simulation,
+                jps,
+                np,
+                shapely,
+                physical_component,
+                placed_positions,
+                journey_id,
+                stage_id,
+                position,
+                target,
+                walking_speed,
+                reaction_time,
             )
-        except Exception as exc:
+        except RunnerError as exc:
             raise RunnerError(f"could not add agent {index}: {exc}") from exc
         states[agent_id] = AgentRouteState(
             stable_id=index + 1,
