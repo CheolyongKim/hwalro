@@ -257,7 +257,25 @@ public class LayoutSearchOrchestrator {
                 List<LayoutSearchCandidateEntity> improved =
                         improvedCandidates(candidatesAfterVerification, baselineMetrics);
                 if (improved.isEmpty()) {
-                    finish(searchId, false);
+                    // 2라운드는 개선된 부모 후보를 확장하는 단계라 여기서 돌 수 없다. 그렇다고 종료하면
+                    // 어려운 배치일수록 예산 6회 중 2회만 쓰고 포기하게 된다 - 정확히 개선안이 가장
+                    // 필요한 배치가 가장 적게 탐색된다. 남은 예산으로 1라운드를 더 깊게 뽑는다.
+                    // 이미 시행한 변경은 persistCandidates가 걸러낸다.
+                    if (!runRound(
+                            searchId,
+                            1,
+                            budget.maxTrials(),
+                            exhaustive,
+                            source,
+                            diagnosis,
+                            baselineSetup,
+                            baselineMetrics,
+                            trialCap,
+                            List.of(),
+                            constraints)) {
+                        return;
+                    }
+                    finish(searchId, hasImproved(searchId));
                     return;
                 }
                 List<LayoutSearchCandidateEntity> parents = exhaustive
@@ -356,8 +374,23 @@ public class LayoutSearchOrchestrator {
             List<LayoutSearchCandidateEntity> queued,
             SearchConstraints constraints) {
         String constraintsSnapshot = constraints == null ? null : constraints.toJson(objectMapper);
-        int order = 1;
+        // 같은 라운드를 두 번 돌릴 수 있으므로(1라운드 전멸 시 심화 재탐색) 이미 시행한 변경은
+        // 다시 큐에 넣지 않고, candidate_order도 이어서 매긴다 - (study_id, round_index, order)가 유니크다.
+        List<LayoutSearchCandidateEntity> alreadyPersisted = layoutSearchMapper.findCandidatesBySearchId(searchId);
+        Set<String> seenOps = alreadyPersisted.stream()
+                .filter(entity -> entity.getChangeSet() != null)
+                .map(entity -> opsKey(readOps(entity.getChangeSet())))
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        int order = alreadyPersisted.stream()
+                        .filter(entity -> entity.getRoundIndex() != null && entity.getRoundIndex() == round)
+                        .mapToInt(entity -> entity.getCandidateOrder() == null ? 0 : entity.getCandidateOrder())
+                        .max()
+                        .orElse(0)
+                + 1;
         for (SearchCandidate candidate : search.candidates()) {
+            if (!seenOps.add(opsKey(candidate.ops()))) {
+                continue;
+            }
             LayoutSearchCandidateEntity entity = new LayoutSearchCandidateEntity();
             entity.setStudyId(searchId);
             entity.setParentCandidateId(candidate.parentCandidateId());
@@ -573,6 +606,11 @@ public class LayoutSearchOrchestrator {
 
     private List<ChangeOp> readOps(String json) {
         return readChangeSet(json).ops();
+    }
+
+    /** 같은 변경인지 판정하는 키. 저장본과 새 후보를 같은 직렬화기로 통과시켜 비교한다. */
+    private String opsKey(List<ChangeOp> ops) {
+        return writeJson(ops);
     }
 
     private LayoutSearchEntity requireSearch(Long searchId) {
