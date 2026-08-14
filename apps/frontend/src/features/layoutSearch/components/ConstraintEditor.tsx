@@ -27,6 +27,7 @@ interface ConstraintEditorProps {
   tool: ConstraintEditorTool;
   onSelectFabric: (id: number | null) => void;
   onAddForbiddenZone: (zone: ForbiddenZone) => void;
+  onMoveForbiddenZone: (index: number, dx: number, dy: number) => void;
   selectedZoneIndex: number | null;
   onSelectZone: (index: number | null) => void;
 }
@@ -90,6 +91,7 @@ export function ConstraintEditor({
   tool,
   onSelectFabric,
   onAddForbiddenZone,
+  onMoveForbiddenZone,
   selectedZoneIndex,
   onSelectZone,
 }: ConstraintEditorProps) {
@@ -101,6 +103,8 @@ export function ConstraintEditor({
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [camera, setCamera] = useState<Camera>({ zoom: 1, panX: 0, panY: 0 });
   const [zoneDrag, setZoneDrag] = useState<ZoneDragSession | null>(null);
+  const zoneMoveRef = useRef<{ index: number; last: SimulationPoint } | null>(null);
+  const cameraInitializedRef = useRef(false);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -113,7 +117,8 @@ export function ConstraintEditor({
   }, []);
 
   useEffect(() => {
-    if (size.w > 0 && size.h > 0) {
+    if (size.w > 0 && size.h > 0 && !cameraInitializedRef.current) {
+      cameraInitializedRef.current = true;
       setCamera(fitCamera(drawing.width, drawing.height, size.w, size.h) as Camera);
     }
   }, [drawing.height, drawing.width, size.h, size.w]);
@@ -220,6 +225,7 @@ export function ConstraintEditor({
     if (zoneIndex !== null) {
       onSelectZone(zoneIndex);
       onSelectFabric(null);
+      zoneMoveRef.current = { index: zoneIndex, last: point };
       return;
     }
     onSelectZone(null);
@@ -253,6 +259,16 @@ export function ConstraintEditor({
       const next = { ...zoneDragRef.current, current: point };
       zoneDragRef.current = next;
       setZoneDrag(next);
+      return;
+    }
+    if (zoneMoveRef.current) {
+      const move = zoneMoveRef.current;
+      const dx = point.x - move.last.x;
+      const dy = point.y - move.last.y;
+      move.last = point;
+      if (dx !== 0 || dy !== 0) {
+        onMoveForbiddenZone(move.index, dx, dy);
+      }
     }
   };
 
@@ -266,6 +282,7 @@ export function ConstraintEditor({
         onAddForbiddenZone(zone);
       }
     }
+    zoneMoveRef.current = null;
     panRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -364,7 +381,7 @@ export function ConstraintEditor({
               const wallAnchored = constraints.wallAnchored[fabric.id] === true;
               const badges: string[] = [];
               if (moveRadius === 0) badges.push('고정');
-              if (rotationAllowed === false) badges.push('회전잠금');
+              if (rotationAllowed === false) badges.push('회전');
               if (wallAnchored) badges.push('벽면');
               const label = fabric.name || `구조물 ${fabric.id}`;
               return (
@@ -405,7 +422,7 @@ export function ConstraintEditor({
                   {camera.zoom >= BADGE_MIN_ZOOM &&
                     badges.map((badge, index) => {
                       const badgeFont = s(10);
-                      const badgeWidth = estimateTextWidthPx(badge, badgeFont) + s(6);
+                      const badgeWidth = estimateTextWidthPx(badge, badgeFont) + s(8);
                       const badgeHeight = badgeFont + s(4);
                       return (
                         <Group
@@ -416,11 +433,11 @@ export function ConstraintEditor({
                           <Rect
                             width={badgeWidth}
                             height={badgeHeight}
-                            cornerRadius={s(2)}
+                            cornerRadius={badgeHeight / 2}
                             fill="rgba(23,53,45,0.72)"
                           />
                           <KonvaText
-                            x={s(3)}
+                            x={s(4)}
                             y={s(2)}
                             text={badge}
                             fontSize={badgeFont}
