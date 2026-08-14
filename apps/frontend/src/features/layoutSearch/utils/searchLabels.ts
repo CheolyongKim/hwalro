@@ -24,8 +24,12 @@ export const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
 export const OPERATOR_LABELS: Record<string, string> = {
   CLEAR_CORRIDOR: '통로 확보',
   RELIEVE_HOTSPOT: '혼잡 완화',
+  RELIEVE_DIAGONAL: '혼잡 완화(대각)',
   REBALANCE_EXIT: '출구 균형',
   ROTATE_TO_OPEN: '회전 개방',
+  OPEN_DUAL_GAP: '양쪽 통로 확보',
+  EXIT_OPENING: '출구 전면 확보',
+  CONSTRAINT: '제약 위반',
 };
 
 export const FINDING_LABELS: Record<string, string> = {
@@ -41,6 +45,9 @@ export const REJECT_REASON_LABELS: Record<string, string> = {
   CORRIDOR_BLOCKED: '통로가 막힘',
   AGENT_UNREACHABLE_EXIT: '대피 경로 단절',
   INVALID_GEOMETRY: '좌표가 유효하지 않음',
+  CONSTRAINT_FIXED: '고정된 구조물',
+  CONSTRAINT_ZONE: '금지 영역과 겹침',
+  CONSTRAINT_WALL_ANCHOR: '벽면 접촉을 벗어남',
 };
 
 export function operatorLabel(operatorType: string) {

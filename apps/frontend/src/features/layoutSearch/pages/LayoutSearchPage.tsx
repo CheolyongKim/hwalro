@@ -190,7 +190,7 @@ export default function LayoutSearchPage() {
             <p>{sourceSetup?.drawing.title ?? ''}</p>
           </div>
         </header>
-        <section className="search-start">
+        <section className={`search-start${constraintPanelOpen ? ' is-constraints-open' : ''}`}>
           <div className="workspace-section-heading">
             <span>탐색 방식 선택</span>
             <small>검증은 실제 엔진 실행으로 진행됩니다</small>
