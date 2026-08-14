@@ -7,7 +7,7 @@ import { getSimulationErrorMessage } from '../../simulations/utils/getSimulation
 import type { SearchStatus } from '../api/layoutSearchApi';
 import { CandidateDetailPanel } from '../components/CandidateDetailPanel';
 import { CandidateList } from '../components/CandidateList';
-import { CandidateTabs, RejectedCandidateDetail } from '../components/NoImprovementPanel';
+import { CandidateTabs } from '../components/NoImprovementPanel';
 import { ConstraintInspector } from '../components/ConstraintInspector';
 import { DiagnosisPanel } from '../components/DiagnosisPanel';
 import { HoldToCompare } from '../components/HoldToCompare';
@@ -90,34 +90,22 @@ export default function LayoutSearchPage() {
   }, [search?.searchId]);
 
   const improvedCandidates = search?.improvedCandidates ?? [];
-  const rejectedCandidates = search?.rejectedCandidates ?? [];
 
-  const defaultTabKey = useMemo(() => {
-    if (improvedCandidates.length > 0) {
-      return `i-${improvedCandidates[0].candidateId}`;
-    }
-    if (rejectedCandidates.length > 0) {
-      return `r-${rejectedCandidates[0].candidateId}`;
-    }
-    return null;
-  }, [improvedCandidates, rejectedCandidates]);
+  // 거부된 후보는 "그 자리에 넣을 수 없다"는 사실일 뿐 제안이 아니므로 탭에 올리지 않는다.
+  const defaultTabKey = useMemo(
+    () => (improvedCandidates.length > 0 ? `i-${improvedCandidates[0].candidateId}` : null),
+    [improvedCandidates],
+  );
 
   const activeTabKey = selectedTabKey ?? defaultTabKey;
 
-  const activeTab = useMemo(() => {
+  const selectedCandidate = useMemo(() => {
     if (activeTabKey === null) {
       return null;
     }
     const candidateId = Number(activeTabKey.slice(2));
-    if (activeTabKey.startsWith('i-')) {
-      const candidate = improvedCandidates.find((entry) => entry.candidateId === candidateId) ?? null;
-      return candidate === null ? null : { kind: 'improved' as const, candidate };
-    }
-    const candidate = rejectedCandidates.find((entry) => entry.candidateId === candidateId) ?? null;
-    return candidate === null ? null : { kind: 'rejected' as const, candidate };
-  }, [activeTabKey, improvedCandidates, rejectedCandidates]);
-
-  const selectedCandidate = activeTab?.kind === 'improved' ? activeTab.candidate : null;
+    return improvedCandidates.find((entry) => entry.candidateId === candidateId) ?? null;
+  }, [activeTabKey, improvedCandidates]);
 
   const preview = useMemo(() => {
     if (!sourceSetup || !selectedCandidate) {
@@ -241,17 +229,14 @@ export default function LayoutSearchPage() {
               <h2 id="comparison-title">
                 {selectedCandidate
                   ? '기존 배치와 개선 배치'
-                  : activeTab?.kind === 'rejected'
-                    ? '시도 배치'
-                    : search.status === 'NO_IMPROVEMENT'
-                      ? '개선안을 찾지 못했습니다'
-                      : '검증 중인 배치'}
+                  : search.status === 'NO_IMPROVEMENT'
+                    ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
+                    : '검증 중인 배치'}
               </h2>
             </div>
           </div>
           <CandidateTabs
             improved={search.improvedCandidates}
-            rejected={search.rejectedCandidates}
             activeKey={activeTabKey ?? ''}
             onSelect={setSelectedTabKey}
           />
@@ -282,14 +267,11 @@ export default function LayoutSearchPage() {
                     원본 배치 다시 불러오기
                   </button>
                 </div>
-              ) : activeTab?.kind === 'rejected' && activeTab.candidate ? (
-                <RejectedCandidateDetail
-                  candidate={activeTab.candidate}
-                  drawing={sourceSetup?.drawing ?? null}
-                />
               ) : (
                 <div className="proposal-layout-loading" role="status">
-                  {active ? '개선안이 검증되면 배치를 표시합니다.' : '표시할 개선안이 없습니다.'}
+                  {active
+                    ? '개선안이 검증되면 배치를 표시합니다.'
+                    : '현재 탐색 범위에서 개선안을 찾지 못했습니다.'}
                 </div>
               )}
             </div>
@@ -309,11 +291,9 @@ export default function LayoutSearchPage() {
         ) : (
           <aside className="search-insight">
             <p>
-              {activeTab?.kind === 'rejected'
-                ? '거부된 후보는 시도한 변경과 거부 사유를 확인할 수 있습니다.'
-                : search.status === 'NO_IMPROVEMENT'
-                  ? '시도한 변경은 그 밖의 검증 결과에서 확인할 수 있습니다.'
-                  : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
+              {search.status === 'NO_IMPROVEMENT'
+                ? '구조물 제약을 조정한 뒤 다시 탐색하면 다른 배치안을 찾을 수 있습니다.'
+                : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
             </p>
           </aside>
         )}

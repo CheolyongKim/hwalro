@@ -61,7 +61,6 @@ public class LayoutSearchOrchestrator {
     private static final int MAX_FINDINGS = 4;
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 1000;
     private static final String COMPLETED_STATUS = "COMPLETED";
-    private static final int MAX_REJECTED_EXAMPLES_PER_REASON = 20;
 
     private final LayoutSearchMapper layoutSearchMapper;
     private final LayoutSearchSourceMapper layoutSearchSourceMapper;
@@ -406,24 +405,15 @@ public class LayoutSearchOrchestrator {
             layoutSearchMapper.insertCandidate(entity);
             queued.add(entity);
         }
+        // 거부된 변경은 제안이 아니라 "그 자리에 넣을 수 없다"는 사실일 뿐이라 사용자에게 보여줄
+        // 것이 없다. 후보로 저장하지 않고 사유별 집계만 로그로 남긴다 - 후보가 갑자기 줄어드는
+        // 원인을 추적할 때 이 분포가 결정적이므로 완전히 버리지는 않는다.
         Map<String, Integer> rejectedByReason = new LinkedHashMap<>();
         for (RejectedCandidate rejected : search.rejected()) {
-            int seen = rejectedByReason.merge(rejected.reason(), 1, Integer::sum);
-            if (seen > MAX_REJECTED_EXAMPLES_PER_REASON) {
-                continue;
-            }
-            LayoutSearchCandidateEntity entity = new LayoutSearchCandidateEntity();
-            entity.setStudyId(searchId);
-            entity.setRoundIndex(round);
-            entity.setCandidateOrder(order++);
-            entity.setOriginFindingType(findingTypeOf(rejected.operatorType()));
-            entity.setOperatorType(rejected.operatorType());
-            entity.setStatus(CandidateStatus.REJECTED_CONSTRAINT.name());
-            List<ChangeOp> ops = rejected.ops() == null ? List.of() : rejected.ops();
-            entity.setChangeSet(writeJson(new ChangeSet(1, "METER", ops)));
-            entity.setRationale(writeJson(Map.of("rejectReason", rejected.reason())));
-            entity.setRejectReason(rejected.reason());
-            layoutSearchMapper.insertCandidate(entity);
+            rejectedByReason.merge(rejected.reason(), 1, Integer::sum);
+        }
+        if (!rejectedByReason.isEmpty()) {
+            log.info("Layout search {} round {} rejected candidates by reason: {}", searchId, round, rejectedByReason);
         }
     }
 
@@ -528,18 +518,6 @@ public class LayoutSearchOrchestrator {
             case "RELIEVE_DIAGONAL" -> "혼잡 구역에서 대각 방향으로 멀어지도록 집기를 이동했습니다.";
             case "EXIT_OPENING" -> "한산한 출구 접근로의 집기를 정리해 출구 수요를 분산했습니다.";
             default -> "배치 변경으로 대피 흐름을 개선합니다.";
-        };
-    }
-
-    private String findingTypeOf(String operatorType) {
-        return switch (operatorType) {
-            case "CLEAR_CORRIDOR" -> "BOTTLENECK";
-            case "RELIEVE_HOTSPOT" -> "CONGESTION_HOTSPOT";
-            case "REBALANCE_EXIT" -> "EXIT_IMBALANCE";
-            case "OPEN_DUAL_GAP" -> "BOTTLENECK";
-            case "RELIEVE_DIAGONAL" -> "CONGESTION_HOTSPOT";
-            case "EXIT_OPENING" -> "EXIT_IMBALANCE";
-            default -> "BOTTLENECK";
         };
     }
 
