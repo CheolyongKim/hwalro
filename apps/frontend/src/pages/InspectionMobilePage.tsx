@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Check, ChevronLeft, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type {
@@ -172,14 +172,6 @@ function InspectionMobilePage() {
     <div className="mx-auto min-h-dvh w-full max-w-xl bg-background pb-32">
       <header className="sticky top-0 z-10 border-b border-line bg-background/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(`/safety-checklists/areas/${areaId}`)}
-            aria-label="점검 구역 이력으로 돌아가기"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-strong outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
-          >
-            <ChevronLeft aria-hidden="true" className="h-5 w-5" />
-          </button>
           <div className="min-w-0">
             <p className="truncate text-base font-black text-ink">{areaName}</p>
             <p className="text-xs font-bold text-text-muted">
