@@ -78,6 +78,7 @@ export function LayoutCanvas({
   readOnly = false,
 }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
+  const suppressClickRef = useRef(false);
   const [panning, setPanning] = useState(false);
 
   const { containerRef, spaceDown } = useCanvasListeners({
@@ -153,6 +154,10 @@ export function LayoutCanvas({
   };
 
   const onClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     if (readOnly || tool !== 'text') {
       return;
     }
@@ -165,6 +170,7 @@ export function LayoutCanvas({
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    suppressClickRef.current = false;
     if (event.button === 1 || (event.button === 0 && spaceDown)) {
       startPan({ x: event.clientX, y: event.clientY }, camera);
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -477,6 +483,7 @@ export function LayoutCanvas({
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panRef.current) {
+      suppressClickRef.current = true;
       stopPan();
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
