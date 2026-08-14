@@ -554,7 +554,7 @@ def test_fixed_fabric_is_excluded_from_candidates():
     drawing = room_drawing(fabrics=[{"id": 1, "name": "f", "startX": 4, "startY": 5, "endX": 6, "endY": 6, "rotation": 0}])
     result = layout_search.generate(base_input(drawing, constraints={"moveRadii": {"1": 0.0}}))
     assert result["candidates"] == []
-    assert result["rejectedCounts"].get("CONSTRAINT_FIXED", 0) > 0
+    assert result["rejectedCounts"].get("CONSTRAINT_FIXED", 0) == 0
 
 
 def test_move_radius_limits_candidate_distances():
@@ -599,3 +599,44 @@ def test_agents_overlapping_obstacles_are_relocated_before_routing():
     )
     assert result["plannerVersion"] == "DIAGNOSTIC_BEAM_V1"
     assert len(result["candidates"]) > 0
+
+
+def test_wall_contact_rotation_keeps_anchor():
+    drawing = room_drawing(
+        fabrics=[{"id": 1, "name": "f", "startX": 5, "startY": 3, "endX": 7, "endY": 6, "rotation": 0}],
+        walls=[{"id": 1, "startX": 5, "startY": 0, "endX": 5, "endY": 10}],
+    )
+    before = {"startX": 5, "startY": 3, "endX": 7, "endY": 6, "rotation": 0}
+    rotated = layout_search._rotated_around_wall_contact(before, 90.0, drawing)
+    assert layout_search._spans_match(before, rotated)
+    geometry = layout_search._rect_geometry(rotated)
+    nearest = layout_search._nearest_wall_projection(geometry, layout_search._wall_segments(drawing))
+    assert nearest is not None and nearest[1] <= 0.05
+
+
+def test_wall_contact_rotation_produces_rotate_candidates():
+    drawing = room_drawing(
+        fabrics=[{"id": 1, "name": "f", "startX": 5, "startY": 3, "endX": 7, "endY": 6, "rotation": 0}],
+        walls=[{"id": 1, "startX": 5, "startY": 0, "endX": 5, "endY": 4}],
+    )
+    finding = bottleneck_finding(region={"startX": 5, "startY": 3, "endX": 7, "endY": 6})
+    result = layout_search.generate(base_input(drawing, findings=[finding], max_candidates=6))
+    rotate_ops = [c for c in result["candidates"] if c["operatorType"] == "ROTATE_TO_OPEN"]
+    assert rotate_ops
+    for candidate in rotate_ops:
+        for op in candidate["ops"]:
+            assert layout_search._spans_match(op["before"], op["after"])
+
+
+def test_rotation_pivots_to_wall_contact_mid_rotation():
+    drawing = room_drawing(
+        fabrics=[{"id": 1, "name": "f", "startX": 0.5, "startY": 3, "endX": 2.5, "endY": 6, "rotation": 0}],
+        walls=[{"id": 1, "startX": 0, "startY": 0, "endX": 0, "endY": 10}],
+    )
+    before = {"startX": 0.5, "startY": 3, "endX": 2.5, "endY": 6, "rotation": 0}
+    rotated = layout_search._rotated_around_wall_contact(before, 90.0, drawing)
+    assert layout_search._spans_match(before, rotated)
+    geometry = layout_search._rect_geometry(rotated)
+    nearest = layout_search._nearest_wall_projection(geometry, layout_search._wall_segments(drawing))
+    assert nearest is not None and nearest[1] <= 0.05
+    assert nearest[1] > 0.0

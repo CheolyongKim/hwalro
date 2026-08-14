@@ -24,6 +24,7 @@ from typing import Any, Sequence
 
 from shapely.affinity import rotate
 from shapely.geometry import LineString, Point, Polygon, box
+from shapely.ops import nearest_points
 
 import surrogate
 from constraints import SearchConstraints, parse_constraints, touches_wall
@@ -53,6 +54,7 @@ CLEAR_CORRIDOR_DISTANCES = (0.5, 1.0, 1.5)
 RELIEVE_HOTSPOT_DISTANCES = (0.75, 1.5)
 REBALANCE_EXIT_DISTANCES = (0.5, 1.0)
 ROTATE_ANGLES = (90.0, -90.0)
+WALL_ANCHOR_EPSILON = 0.05
 DUAL_GAP_DISTANCES = (0.5, 1.0)
 EXIT_OPENING_DISTANCES = (0.5, 1.0)
 POOL_CAP = 24
@@ -289,9 +291,13 @@ def _outside_polygon(drawing: dict[str, Any]) -> Polygon:
 
 
 def _find_qualifying_targets(
-    drawing: dict[str, Any], finding: dict[str, Any]
+    drawing: dict[str, Any], finding: dict[str, Any], constraints: SearchConstraints | None = None
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    fabric_list = list(drawing.get("fabrics", []))
+    fabric_list = [
+        fabric
+        for fabric in drawing.get("fabrics", [])
+        if constraints is None or constraints.move_radius_of(fabric.get("id")) != 0.0
+    ]
     region = _region_geometry(finding)
     if region is not None:
         widened = region.buffer(CLEARANCE_METERS)
@@ -307,7 +313,7 @@ def _find_qualifying_targets(
 
 
 def _find_rebalance_targets(
-    drawing: dict[str, Any], agents, hazards, exits
+    drawing: dict[str, Any], agents, hazards, exits, constraints: SearchConstraints | None = None
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     try:
         snapshot = _baseline(drawing, agents, hazards, exits)
@@ -332,7 +338,12 @@ def _find_rebalance_targets(
     busiest = max(counts, key=lambda exit_id: (counts[exit_id], exit_rank(exit_id)))
     quietest = min(counts, key=lambda exit_id: (counts[exit_id], exit_rank(exit_id)))
     corridor = LineString((exit_positions[busiest], exit_positions[quietest])).buffer(CLEARANCE_METERS)
-    return [(fabric, dict(fabric)) for fabric in drawing.get("fabrics", []) if corridor.intersects(_rect_geometry(fabric))]
+    return [
+        (fabric, dict(fabric))
+        for fabric in drawing.get("fabrics", [])
+        if constraints is None or constraints.move_radius_of(fabric.get("id")) != 0.0
+        if corridor.intersects(_rect_geometry(fabric))
+    ]
 
 
 def _find_exit_opening_targets(
@@ -427,6 +438,101 @@ def _rotated_after(before: dict[str, Any], angle: float) -> dict[str, Any]:
     }
 
 
+def _wall_segments(drawing: dict[str, Any]) -> list[Any]:
+    """Wall line segments the fabric can anchor to."""
+    walls = drawing_walls(drawing)
+    return [
+        LineString(((_numeric(w["startX"]), _numeric(w["startY"])), (_numeric(w["endX"]), _numeric(w["endY"]))))
+        for w in walls
+        if (_numeric(w["startX"]), _numeric(w["startY"])) != (_numeric(w["endX"]), _numeric(w["endY"]))
+    ]
+
+
+def _rect_corners(geometry: Any) -> list[Any]:
+    xs, ys = geometry.exterior.coords.xy
+    return [Point(x, y) for x, y in zip(xs[:-1], ys[:-1])]
+
+
+def _nearest_wall_projection(geometry: Any, segments: Sequence[Any]) -> tuple[Any, float] | None:
+    """Return the point on the closest wall segment to the fabric boundary, with distance."""
+    boundary = geometry.boundary
+    best: tuple[Any, float] | None = None
+    for segment in segments:
+        distance = boundary.distance(segment)
+        if best is None or distance < best[1]:
+            projected = nearest_points(boundary, segment)[0]
+            best = (projected, distance)
+    return best
+
+
+def _rotated_around_wall_contact(before: dict[str, Any], angle: float, drawing: dict[str, Any]) -> dict[str, Any]:
+    """Rotate a fabric around the wall, switching the pivot to every point that
+    touches a wall during the rotation.
+
+    Starts from the wall contact corner when the fabric already touches a wall,
+    otherwise from the fabric center; whenever the rotating boundary reaches a
+    wall, the contact point becomes the new pivot so the fabric keeps resting on
+    the wall through the remaining rotation. Falls back to center rotation when
+    the anchored path would leave the outside boundary.
+    """
+    if angle == 0.0:
+        return _rotated_after(before, angle)
+    segments = _wall_segments(drawing)
+    if not segments:
+        return _rotated_after(before, angle)
+    boundary = _outside_polygon(drawing)
+    geometry = _rect_geometry(before)
+    contacts = [corner for corner in _rect_corners(geometry) if any(corner.distance(s) <= 0.05 for s in segments)]
+    origin = contacts[0] if contacts else geometry.centroid
+    direction = 1.0 if angle > 0 else -1.0
+    remaining = abs(angle)
+    current = geometry
+    was_touching = bool(contacts)
+    safeguard = 0
+    while remaining > 1e-6 and safeguard < 720:
+        safeguard += 1
+        step_angle = min(1.0, remaining)
+        candidate = rotate(current, direction * step_angle, origin=origin, use_radians=False)
+        if not boundary.covers(candidate):
+            return _rotated_after(before, angle)
+        nearest = _nearest_wall_projection(candidate, segments)
+        touching = nearest is not None and nearest[1] <= WALL_ANCHOR_EPSILON
+        if not touching or was_touching:
+            current = candidate
+            remaining -= step_angle
+            was_touching = touching
+            continue
+        low, high = 0.0, step_angle
+        for _ in range(12):
+            middle = (low + high) / 2.0
+            middle_geometry = rotate(current, direction * middle, origin=origin, use_radians=False)
+            nearest_middle = _nearest_wall_projection(middle_geometry, segments)
+            if nearest_middle is not None and nearest_middle[1] <= WALL_ANCHOR_EPSILON:
+                high = middle
+            else:
+                low = middle
+        touched = rotate(current, direction * low, origin=origin, use_radians=False)
+        if not boundary.covers(touched):
+            return _rotated_after(before, angle)
+        remaining -= low
+        contact = _nearest_wall_projection(touched, segments)
+        if contact is None or contact[1] > WALL_ANCHOR_EPSILON * 4:
+            break
+        current = touched
+        origin = contact[0]
+        was_touching = True
+    final_rotation = (_numeric(before["rotation"]) + angle) % 360.0
+    unrotated = rotate(current, -final_rotation, origin=current.centroid, use_radians=False)
+    min_x, min_y, max_x, max_y = unrotated.bounds
+    return {
+        "startX": float(_quantized(_decimal(min_x))),
+        "startY": float(_quantized(_decimal(min_y))),
+        "endX": float(_quantized(_decimal(max_x))),
+        "endY": float(_quantized(_decimal(max_y))),
+        "rotation": final_rotation,
+    }
+
+
 def _region_normal(finding: dict[str, Any]) -> str:
     bounds = _region_bounds(finding)
     if bounds is None or (bounds[2] - bounds[0]) < (bounds[3] - bounds[1]):
@@ -439,6 +545,7 @@ def _mutation_variants(
     finding: dict[str, Any],
     target: tuple[dict[str, Any], dict[str, Any]],
     constraints: Any | None = None,
+    drawing: dict[str, Any] | None = None,
 ) -> list[tuple[dict[str, Any], str, float]]:
     fabric, _ = target
     before = _coords_only(fabric)
@@ -521,7 +628,11 @@ def _mutation_variants(
         if constraints is not None and not constraints.rotation_allowed_of(fabric.get("id")):
             return []
         return [
-            (_rotated_after(before, angle), "ROTATE_POSITIVE" if angle > 0 else "ROTATE_NEGATIVE", angle)
+            (
+                _rotated_around_wall_contact(before, angle, drawing) if drawing is not None else _rotated_after(before, angle),
+                "ROTATE_POSITIVE" if angle > 0 else "ROTATE_NEGATIVE",
+                angle,
+            )
             for angle in ROTATE_ANGLES
         ]
     return []
@@ -591,7 +702,8 @@ def _assess_moves(
             physical_walkable=walkable,
             exit_clearance=0.3,
         )
-        route_costs, exit_counts = _plan_all(router, agents)
+        relocated, _ = relocate_agents(routing_area, agents)
+        route_costs, exit_counts = _plan_all(router, relocated)
     except (AgentRouteUnreachableError, ValueError):
         return "AGENT_UNREACHABLE_EXIT", None
     return None, RouterSnapshot(router, routing_area, route_costs, exit_counts)
@@ -622,7 +734,7 @@ def _intersects_obstacles(drawing: dict[str, Any], fabrics: Sequence[dict[str, A
         if keys[index] not in moved_ids:
             continue
         for wall in walls:
-            if geometry.intersects(wall):
+            if geometry.intersects(wall) and not geometry.touches(wall):
                 return True
         for pillar in pillars:
             if geometry.intersects(pillar):
@@ -750,6 +862,8 @@ class _Rejections:
     ) -> None:
         seen = self.counts.get(reason, 0)
         self.counts[reason] = seen + 1
+        if reason == "OVERLAP":
+            return
         if seen < self._examples_per_reason:
             example: dict[str, Any] = {
                 "operatorType": operator,
@@ -1001,9 +1115,11 @@ def _generate_from_findings(
         primary = _PRIMARY_OPERATOR[finding_type]
         region = _region_geometry(finding)
         if primary == "REBALANCE_EXIT":
-            targets = _find_rebalance_targets(drawing, generation.agents, generation.hazards, generation.exits)
+            targets = _find_rebalance_targets(
+                drawing, generation.agents, generation.hazards, generation.exits, generation.constraints
+            )
         else:
-            targets = _find_qualifying_targets(drawing, finding)
+            targets = _find_qualifying_targets(drawing, finding, generation.constraints)
         for fabric, _ in targets:
             generation.try_single_moves(
                 drawing,
@@ -1013,7 +1129,7 @@ def _generate_from_findings(
                 finding_type,
                 primary,
                 fabric,
-                _mutation_variants(primary, finding, (fabric, _coords_only(fabric)), generation.constraints),
+                _mutation_variants(primary, finding, (fabric, _coords_only(fabric)), generation.constraints, drawing),
             )
         if not targets:
             continue
@@ -1028,7 +1144,7 @@ def _generate_from_findings(
                 finding_type,
                 "ROTATE_TO_OPEN",
                 fabric,
-                _mutation_variants("ROTATE_TO_OPEN", finding, target, generation.constraints),
+                _mutation_variants("ROTATE_TO_OPEN", finding, target, generation.constraints, drawing),
             )
         pairs = combinations(targets, 2) if generation.exhaustive else [tuple(targets[:2])]
         for pair in pairs:
@@ -1048,7 +1164,7 @@ def _generate_from_findings(
                     finding_type,
                     "RELIEVE_DIAGONAL",
                     fabric,
-                    _mutation_variants("RELIEVE_DIAGONAL", finding, target, generation.constraints),
+                    _mutation_variants("RELIEVE_DIAGONAL", finding, target, generation.constraints, drawing),
                 )
         if primary == "REBALANCE_EXIT":
             opening_targets, exit_pos = _find_exit_opening_targets(
@@ -1092,10 +1208,10 @@ def _generate_from_parents(
         region = _region_geometry(finding)
         if primary == "REBALANCE_EXIT":
             targets = _find_rebalance_targets(
-                working_drawing, generation.agents, generation.hazards, generation.exits
+                working_drawing, generation.agents, generation.hazards, generation.exits, constraints
             )
         else:
-            targets = _find_qualifying_targets(working_drawing, finding)
+            targets = _find_qualifying_targets(working_drawing, finding, constraints)
         if not targets:
             continue
         selected_targets = targets if generation.exhaustive else targets[:1]
@@ -1103,7 +1219,9 @@ def _generate_from_parents(
             fabric = target[0]
             fabric_id = _fabric_key(fabric)
             before = _coords_only(fabric)
-            for after, direction, distance in _mutation_variants(primary, finding, target, constraints):
+            for after, direction, distance in _mutation_variants(
+                primary, finding, target, constraints, working_drawing
+            ):
                 reason, snapshot = _assess(
                     working_drawing, generation.agents, generation.hazards, generation.exits, fabric_id, before, after
                 )
