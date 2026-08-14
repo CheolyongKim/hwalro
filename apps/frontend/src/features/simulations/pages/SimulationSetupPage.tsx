@@ -1,20 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Info, Minus, MousePointer2, Plus, Redo2, Undo2, X } from 'lucide-react';
+import { Info, Minus, MousePointer2, Plus, X } from 'lucide-react';
 import { SimulationCanvas } from '../components/SimulationCanvas';
 import type { SimulationTool } from '../components/SimulationCanvas';
 import {
   AgentDeletionConfirmDialog,
   AgentDeletionSuccessToast,
 } from '../components/AgentDeletionFeedback';
+import { NumberStepperInput } from '../components/NumberStepperInput';
 import { simulationApi } from '../api/simulationApi';
-import { STATUS_STYLES } from '../constants/simulationStatus';
-import type {
-  EditableHazardZone,
-  SimulationExecutionStatus,
-  SimulationPoint,
-  SimulationSetup,
-} from '../types';
+import type { EditableHazardZone, SimulationPoint, SimulationSetup } from '../types';
 import {
   AGENT_RADIUS,
   MAX_AGENTS,
@@ -25,7 +20,17 @@ import {
 } from '../utils/placement';
 import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
-import { Button, Input } from '../../../components/ui';
+import { Button } from '../../../components/ui';
+import {
+  CanvasWorkspace,
+  CanvasWorkspaceBackButton,
+  CanvasWorkspaceHeader,
+  CanvasWorkspacePanel,
+  CanvasWorkspacePanelRestore,
+  CanvasWorkspaceState,
+  useCollapsibleWorkspacePanel,
+} from '../../../components/workspace';
+import '../simulationSetup.css';
 
 interface PlacementSnapshot {
   agents: SimulationPoint[];
@@ -64,7 +69,7 @@ function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) 
       <span
         id={id}
         role="tooltip"
-        className={`pointer-events-none invisible absolute top-full z-30 mt-2 w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white opacity-0 shadow-raised transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${align === 'right' ? 'right-0' : 'left-0'}`}
+        className={`pointer-events-none absolute top-full z-30 mt-2 hidden w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white shadow-raised group-hover:block group-focus-within:block ${align === 'right' ? 'right-0' : 'left-0'}`}
       >
         {children}
       </span>
@@ -81,6 +86,7 @@ function SimulationSetupPage() {
   const navigate = useNavigate();
   const recordLastActivity = useRecordLastActivity();
   const [searchParams, setSearchParams] = useSearchParams();
+  const settingsPanel = useCollapsibleWorkspacePanel();
   const requestedHighlightRef = useRef({
     simulationId,
     value: searchParams.get('highlightAgent'),
@@ -102,7 +108,7 @@ function SimulationSetupPage() {
   const [highlightedAgentId, setHighlightedAgentId] = useState<number | null>(null);
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
   const [reactionTime, setReactionTime] = useState(0.5);
-  const [tool, setTool] = useState<SimulationTool>('spray');
+  const [tool, setTool] = useState<SimulationTool>('select');
   const [sprayRadius, setSprayRadius] = useState(1);
   const [eraserRadius, setEraserRadius] = useState(1);
   const [uniformCount, setUniformCount] = useState(100);
@@ -115,6 +121,20 @@ function SimulationSetupPage() {
   const futureRef = useRef<PlacementSnapshot[]>([]);
   const gestureOriginRef = useRef<PlacementSnapshot | null>(null);
   const hazardSequenceRef = useRef(0);
+  const collapseButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreButtonRef = useRef<HTMLButtonElement>(null);
+  const panelToggleFocusPendingRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!panelToggleFocusPendingRef.current) return;
+    if (settingsPanel.isMinimized) {
+      restoreButtonRef.current?.focus();
+      panelToggleFocusPendingRef.current = false;
+    } else if (settingsPanel.isExpanding) {
+      collapseButtonRef.current?.focus();
+      panelToggleFocusPendingRef.current = false;
+    }
+  }, [settingsPanel.isExpanding, settingsPanel.isMinimized]);
 
   const replacePlacement = useCallback((next: PlacementSnapshot) => {
     const agentsChanged = placementRef.current.agents !== next.agents;
@@ -147,6 +167,7 @@ function SimulationSetupPage() {
       setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
       setReactionTime(data.reactionTime);
+      setTool('select');
       setSelectedHazardId(null);
       setAgentDeletionToast(null);
       pastRef.current = [];
@@ -240,26 +261,19 @@ function SimulationSetupPage() {
   }, [agentDeletionToast]);
 
   if (loadState === 'loading') {
-    return (
-      <div className="flex h-dvh items-center justify-center bg-background text-sm text-text-muted">
-        시뮬레이션 설정을 불러오는 중...
-      </div>
-    );
+    return <CanvasWorkspaceState message="시뮬레이션 설정을 불러오는 중..." />;
   }
 
   if (loadState === 'error' || setup === null) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background px-6 text-center">
-        <p
-          role="alert"
-          className="rounded-xl border border-danger/25 bg-danger-soft px-5 py-3 text-sm text-danger-strong"
-        >
-          {message ?? '시뮬레이션 설정을 불러오지 못했습니다.'}
-        </p>
-        <Button type="button" className="cursor-pointer" onClick={() => navigate('/drawings')}>
-          도면 목록으로 이동
-        </Button>
-      </div>
+      <CanvasWorkspaceState
+        message={message ?? '시뮬레이션 설정을 불러오지 못했습니다.'}
+        actions={
+          <Button type="button" className="cursor-pointer" onClick={() => navigate('/drawings')}>
+            도면 목록으로 이동
+          </Button>
+        }
+      />
     );
   }
 
@@ -325,6 +339,24 @@ function SimulationSetupPage() {
         hazard.clientId === clientId ? { ...hazard, centerX: point.x, centerY: point.y } : hazard,
       ),
     });
+  };
+
+  const resizeHazard = (clientId: string, radius: number) => {
+    const current = placementRef.current;
+    replacePlacement({
+      ...current,
+      hazards: current.hazards.map((hazard) =>
+        hazard.clientId === clientId ? { ...hazard, radius } : hazard,
+      ),
+    });
+  };
+
+  const deleteHazard = (clientId: string) => {
+    commitPlacement({
+      ...placementRef.current,
+      hazards: placementRef.current.hazards.filter((hazard) => hazard.clientId !== clientId),
+    });
+    setSelectedHazardId(null);
   };
 
   const handleUniformPlacement = () => {
@@ -436,459 +468,430 @@ function SimulationSetupPage() {
   };
 
   return (
-    <main className="flex h-dvh min-w-[960px] flex-col overflow-hidden bg-background text-ink">
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line bg-white px-5">
-        <button
-          type="button"
-          onClick={() => navigate(`/layout/${setup.drawing.layoutId}`)}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-line bg-white text-text-strong outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
-          aria-label="도면 편집 화면으로 돌아가기"
-        >
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-        </button>
-        <div className="min-w-0">
-          <h1 className="truncate text-base font-black">시뮬레이션 배치 · {setup.drawing.title}</h1>
-          <p className="text-xs text-text-muted">
-            도면 버전 ID #{setup.layoutVersionId} · {setup.modelProfile}
-          </p>
-        </div>
-        <span
-          className={`ml-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[setup.status as SimulationExecutionStatus]}`}
-        >
-          {setup.status}
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={undo}
-            disabled={!editable || pastRef.current.length === 0}
-          >
-            <Undo2 aria-hidden="true" className="h-3.5 w-3.5" />
-            실행 취소
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={redo}
-            disabled={!editable || futureRef.current.length === 0}
-          >
-            <Redo2 aria-hidden="true" className="h-3.5 w-3.5" />
-            다시 실행
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => void handleSave()}
-            disabled={!editable || saveState === 'saving' || executing}
-          >
-            {saveState === 'saving'
-              ? '저장 중...'
-              : saveState === 'saved'
-                ? '저장 완료'
-                : '설정 저장'}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void handleExecute()}
-            disabled={!editable || executing || saveState === 'saving'}
-            title={
-              agents.length === 0
-                ? '에이전트를 1명 이상 배치해 주세요.'
-                : selectedExitIds.length === 0
-                  ? '출입구를 1개 이상 선택해 주세요.'
-                  : undefined
-            }
-          >
-            {executing ? '실행 요청 중...' : '시뮬레이션 실행'}
-          </Button>
-        </div>
-      </header>
+    <CanvasWorkspace className="simulation-setup-workspace">
+      <CanvasWorkspaceBackButton
+        label="도면 배치"
+        aria-label="도면 편집 화면으로 돌아가기"
+        onClick={() => navigate(`/layout/${setup.drawing.layoutId}`)}
+      />
+      <CanvasWorkspaceHeader
+        title={setup.drawing.title}
+        subtitle={`시뮬레이션 배치 · 도면 버전 #${setup.layoutVersionId} · ${setup.modelProfile}`}
+        status={editable ? '설정 중' : setup.status}
+        statusTone={editable ? 'editing' : 'locked'}
+      />
 
-      <div className="flex min-h-0 flex-1">
-        <section className="relative min-w-0 flex-1" aria-label="배치 미리보기">
-          <SimulationCanvas
-            drawing={setup.drawing}
-            agents={agents}
-            hazards={hazards}
-            tool={editable ? tool : 'select'}
-            brushRadius={tool === 'erase' ? eraserRadius : sprayRadius}
-            selectedHazardId={selectedHazardId}
-            selectedExitIds={selectedExitIds}
-            highlightedExitId={highlightedExitId}
-            highlightedAgentId={highlightedAgentId}
-            onSpray={applySpray}
-            onErase={applyErase}
-            onCreateHazard={createHazard}
-            onMoveHazard={moveHazard}
-            onSelectHazard={setSelectedHazardId}
-            onGestureStart={beginGesture}
-            onGestureEnd={endGesture}
+      <section className="simulation-setup-canvas" aria-label="배치 미리보기">
+        <SimulationCanvas
+          drawing={setup.drawing}
+          agents={agents}
+          hazards={hazards}
+          editable={editable}
+          tool={editable ? tool : 'select'}
+          brushRadius={tool === 'erase' ? eraserRadius : sprayRadius}
+          selectedHazardId={selectedHazardId}
+          selectedExitIds={selectedExitIds}
+          highlightedExitId={highlightedExitId}
+          highlightedAgentId={highlightedAgentId}
+          onSpray={applySpray}
+          onErase={applyErase}
+          onCreateHazard={createHazard}
+          onMoveHazard={moveHazard}
+          onResizeHazard={resizeHazard}
+          onSelectHazard={setSelectedHazardId}
+          onGestureStart={beginGesture}
+          onGestureEnd={endGesture}
+        />
+        <div className="simulation-setup-tool-dock" aria-label="배치 도구">
+          {TOOL_LABELS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              disabled={!editable}
+              onClick={() => setTool(item.value)}
+              aria-pressed={tool === item.value}
+              className={`simulation-setup-tool-button ${tool === item.value ? 'is-active' : ''}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        {agentDeletionToast?.state === 'confirm' && (
+          <AgentDeletionConfirmDialog
+            count={agentDeletionToast.count}
+            onCancel={() => setAgentDeletionToast(null)}
+            onConfirm={confirmClearAgents}
           />
-          <div className="absolute left-4 top-4 z-10 flex gap-2 rounded-xl border border-line bg-white p-2 shadow-card">
-            {TOOL_LABELS.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                disabled={!editable}
-                onClick={() => setTool(item.value)}
-                className={`h-9 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 ${
-                  tool === item.value
-                    ? item.value === 'erase'
-                      ? 'scale-105 bg-danger text-white shadow-card'
-                      : 'scale-105 bg-primary text-white shadow-card'
-                    : 'bg-surface text-text-strong hover:bg-primary-soft'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          {agentDeletionToast?.state === 'confirm' && (
-            <AgentDeletionConfirmDialog
-              count={agentDeletionToast.count}
-              onCancel={() => setAgentDeletionToast(null)}
-              onConfirm={confirmClearAgents}
-            />
-          )}
-          {agentDeletionToast?.state === 'success' && (
-            <AgentDeletionSuccessToast
-              count={agentDeletionToast.count}
-              onClose={() => setAgentDeletionToast(null)}
-            />
-          )}
-          {message && (
-            <div
-              role="alert"
-              className="absolute bottom-4 left-1/2 z-10 flex max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-danger/25 bg-danger-soft px-4 py-3 text-sm text-danger-strong shadow-raised"
-            >
-              <span>{message}</span>
-              <button
-                type="button"
-                onClick={() => setMessage(null)}
-                className="shrink-0 rounded p-0.5 outline-none transition hover:opacity-70 focus-visible:ring-2 focus-visible:ring-focus-ring"
-                aria-label="알림 닫기"
-              >
-                <X aria-hidden="true" className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </section>
-
-        <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-line bg-white p-5">
-          <section>
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-xs font-bold text-text-muted">전체 배치 인원</p>
-                <p className="mt-1 text-2xl font-black tabular-nums text-primary">
-                  {agents.length.toLocaleString()}명
-                </p>
-              </div>
-              <p className="text-xs tabular-nums text-text-muted">
-                최대 {MAX_AGENTS.toLocaleString()}명
-              </p>
-            </div>
-          </section>
-
-          <section className="mt-6 border-t border-line pt-5">
-            <div
-              aria-live="polite"
-              className={`flex items-center justify-between rounded-xl border px-3 py-2 transition-all duration-300 ${
-                tool === 'erase'
-                  ? 'scale-[1.02] border-danger/25 bg-danger-soft text-danger'
-                  : tool === 'spray'
-                    ? 'border-primary/25 bg-primary-soft text-primary'
-                    : 'border-line bg-surface text-text-strong'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`flex size-7 items-center justify-center rounded-full transition-all duration-300 ${
-                    tool === 'erase'
-                      ? 'scale-110 bg-white text-danger'
-                      : tool === 'spray'
-                        ? 'bg-white text-primary'
-                        : 'bg-white text-text-muted'
-                  }`}
-                  aria-hidden="true"
-                >
-                  {tool === 'erase' ? (
-                    <Minus aria-hidden="true" className="h-4 w-4" />
-                  ) : tool === 'spray' ? (
-                    <Plus aria-hidden="true" className="h-4 w-4" />
-                  ) : (
-                    <MousePointer2 aria-hidden="true" className="h-4 w-4" />
-                  )}
-                </span>
-                <h2 className="text-sm font-black">
-                  {tool === 'erase' ? '에이전트 지우기' : '에이전트 배치'}
-                </h2>
-              </div>
-              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black">
-                {tool === 'erase' ? '지우개 모드' : tool === 'spray' ? '배치 모드' : '도구 대기'}
-              </span>
-            </div>
-            {(tool === 'spray' || tool === 'erase') && (
-              <label className="mt-4 block text-xs font-bold text-text-muted">
-                {tool === 'erase' ? '지우개' : '스프레이'} 크기 ·{' '}
-                {(tool === 'erase' ? eraserRadius : sprayRadius).toFixed(1)}m
-                <input
-                  type="range"
-                  min={AGENT_RADIUS}
-                  max={5}
-                  step={0.1}
-                  value={tool === 'erase' ? eraserRadius : sprayRadius}
-                  onChange={(event) => {
-                    const radius = Number(event.target.value);
-                    if (tool === 'erase') setEraserRadius(radius);
-                    else setSprayRadius(radius);
-                  }}
-                  disabled={!editable}
-                  className="mt-2 w-full accent-primary"
-                />
-              </label>
-            )}
-            <div className="mt-4 flex gap-2">
-              <label className="min-w-0 flex-1 text-xs font-bold text-text-muted">
-                균등 배치 인원
-                <Input
-                  type="number"
-                  min={0}
-                  max={MAX_AGENTS}
-                  value={uniformCount}
-                  onChange={(event) => setUniformCount(Number(event.target.value))}
-                  disabled={!editable}
-                  className="mt-2 tabular-nums"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={handleUniformPlacement}
-                disabled={!editable}
-                className="mt-6 h-10 rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary outline-none transition hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
-              >
-                균등분포 배치
-              </button>
-            </div>
+        )}
+        {agentDeletionToast?.state === 'success' && (
+          <AgentDeletionSuccessToast
+            count={agentDeletionToast.count}
+            onClose={() => setAgentDeletionToast(null)}
+            className="simulation-setup-agent-toast"
+          />
+        )}
+        {message && (
+          <div role="alert" className="simulation-setup-alert">
+            <span>{message}</span>
             <button
               type="button"
-              onClick={handleClearAgents}
-              disabled={!editable || saveState === 'saving' || agents.length === 0}
-              className="mt-3 h-10 w-full rounded-lg border border-danger/25 bg-white text-xs font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => setMessage(null)}
+              className="shrink-0 rounded p-0.5 outline-none transition hover:opacity-70 focus-visible:ring-2 focus-visible:ring-focus-ring"
+              aria-label="알림 닫기"
             >
-              에이전트 전체 삭제
+              <X aria-hidden="true" className="h-4 w-4" />
             </button>
-          </section>
+          </div>
+        )}
+      </section>
 
-          <section className="mt-6 border-t border-line pt-5">
-            <h2 className="text-sm font-black">시뮬레이션 조건</h2>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="text-xs font-bold text-text-muted">
-                <div className="flex items-center gap-1">
-                  <label htmlFor="walking-speed">희망 이동속도 (m/s)</label>
-                  <InfoTooltip id="walking-speed-help" label="희망 이동속도 안내">
-                    에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표 평균은
-                    약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제 속도는
-                    혼잡도와 상호작용에 따라 달라집니다.
-                    <span className="mt-1 block text-white/70">
-                      출처: Weidmann (1993), ETH Zürich
-                    </span>
-                  </InfoTooltip>
-                </div>
-                <Input
-                  id="walking-speed"
-                  type="number"
-                  min={0.1}
-                  max={3}
-                  step={0.05}
-                  value={walkingSpeed}
-                  onChange={(event) => setWalkingSpeed(Number(event.target.value))}
-                  disabled={!editable}
-                  className="mt-2 tabular-nums"
-                />
+      {settingsPanel.isMinimized ? (
+        <CanvasWorkspacePanelRestore
+          ref={restoreButtonRef}
+          aria-controls="simulation-setup-panel"
+          aria-expanded="false"
+          onClick={() => {
+            panelToggleFocusPendingRef.current = true;
+            settingsPanel.restore();
+          }}
+        >
+          배치 설정 열기
+        </CanvasWorkspacePanelRestore>
+      ) : (
+        <CanvasWorkspacePanel
+          id="simulation-setup-panel"
+          ariaLabel="시뮬레이션 배치 설정"
+          animate
+          className={`simulation-setup-panel ${settingsPanel.isCollapsing ? 'is-collapsing' : ''} ${settingsPanel.isExpanding ? 'is-expanding' : ''}`}
+          onAnimationEnd={(event) => {
+            if (event.currentTarget === event.target) settingsPanel.handleAnimationEnd();
+          }}
+        >
+          <div className="simulation-setup-panel__top">
+            <div className="simulation-setup-panel__heading">
+              <div>
+                <small>SIMULATION SETUP</small>
+                <h2>배치 설정</h2>
               </div>
-              <div className="text-xs font-bold text-text-muted">
-                <div className="flex items-center gap-1">
-                  <label htmlFor="reaction-time">속도 반응시간 (초)</label>
-                  <InfoTooltip id="reaction-time-help" label="속도 반응시간 안내" align="right">
-                    현재 속도가 희망속도와 방향에 적응하는 시간상수 τ입니다. 값이 작을수록 속도가 더
-                    빠르게 변하며, 출발 전 대기시간은 아닙니다.
-                    <span className="my-1 block font-mono text-[10px] text-white">
-                      Fdrv = (희망속도 벡터 - 현재속도 벡터) / τ
-                    </span>
-                    JuPedSim SFM 기본값은 0.5초이고, 시스템 허용 범위는 0.1~2.0초입니다.
-                    <span className="mt-1 block text-white/70">
-                      출처: JuPedSim SFM, Helbing et al. (2000)
-                    </span>
-                  </InfoTooltip>
-                </div>
-                <Input
-                  id="reaction-time"
-                  type="number"
-                  min={0.1}
-                  max={2}
-                  step={0.1}
-                  value={reactionTime}
-                  onChange={(event) => setReactionTime(Number(event.target.value))}
-                  disabled={!editable}
-                  className="mt-2 tabular-nums"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-6 border-t border-line pt-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black">사용 출입구</h2>
               <button
+                ref={collapseButtonRef}
                 type="button"
-                disabled={!editable || setup.drawing.exits.length === 0}
-                onClick={() =>
-                  setSelectedExitIds(
-                    allExitsSelected ? [] : setup.drawing.exits.map((exit) => exit.id),
-                  )
-                }
-                className="rounded-lg border border-primary bg-white px-2.5 py-1 text-xs font-bold text-primary outline-none transition hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
+                aria-controls="simulation-setup-panel"
+                aria-expanded="true"
+                aria-label="배치 설정 최소화"
+                className="simulation-setup-panel__collapse"
+                onClick={() => {
+                  panelToggleFocusPendingRef.current = true;
+                  settingsPanel.collapse();
+                }}
               >
-                {allExitsSelected ? '전체 해제' : '전체 선택'}
+                <Minus aria-hidden="true" />
               </button>
             </div>
-            <p className="mt-1 text-xs leading-5 text-text-muted">
-              DRAFT 저장은 출입구를 선택하지 않아도 가능합니다.
-            </p>
-            <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
-              {setup.drawing.exits.length === 0 ? (
-                <p className="rounded-lg bg-surface px-3 py-3 text-xs text-text-muted">
-                  등록된 출입구가 없습니다.
+            <div className="simulation-setup-panel__actions">
+              <button
+                type="button"
+                className="simulation-setup-panel__save"
+                onClick={() => void handleSave()}
+                disabled={!editable || saveState === 'saving' || executing}
+              >
+                {saveState === 'saving'
+                  ? '저장 중'
+                  : saveState === 'saved'
+                    ? '저장 완료'
+                    : saveState === 'error'
+                      ? '저장 실패'
+                      : '설정 저장'}
+              </button>
+              <button
+                type="button"
+                className="simulation-setup-panel__execute"
+                onClick={() => void handleExecute()}
+                disabled={!editable || executing || saveState === 'saving'}
+                title={
+                  agents.length === 0
+                    ? '에이전트를 1명 이상 배치해 주세요.'
+                    : selectedExitIds.length === 0
+                      ? '출입구를 1개 이상 선택해 주세요.'
+                      : undefined
+                }
+              >
+                {executing ? '실행 요청 중' : '시뮬레이션 실행'}
+              </button>
+            </div>
+          </div>
+          <div className="simulation-setup-panel__content">
+            <section className="simulation-setup-panel__summary">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-xs font-bold text-text-muted">전체 배치 인원</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-primary">
+                    {agents.length.toLocaleString()}명
+                  </p>
+                </div>
+                <p className="text-xs tabular-nums text-text-muted">
+                  최대 {MAX_AGENTS.toLocaleString()}명
                 </p>
-              ) : (
-                setup.drawing.exits.map((exit) => (
-                  <label
-                    key={exit.id}
-                    onMouseEnter={() => setHighlightedExitId(exit.id)}
-                    onMouseLeave={(event) => {
-                      if (!event.currentTarget.contains(document.activeElement)) {
-                        setHighlightedExitId(null);
-                      }
-                    }}
-                    onFocus={() => setHighlightedExitId(exit.id)}
-                    onBlur={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget)) {
-                        setHighlightedExitId(null);
-                      }
-                    }}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-focus-ring ${
-                      highlightedExitId === exit.id
-                        ? 'border-warning-strong bg-warning-soft'
-                        : selectedExitIds.includes(exit.id)
-                          ? 'border-info bg-info-soft text-info-strong'
-                          : 'border-line hover:bg-surface'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedExitIds.includes(exit.id)}
-                      disabled={!editable}
-                      onChange={(event) =>
-                        setSelectedExitIds((ids) =>
-                          event.target.checked
-                            ? [...ids, exit.id]
-                            : ids.filter((id) => id !== exit.id),
-                        )
-                      }
-                      className="accent-info"
-                    />
-                    <span>{exit.name}</span>
-                  </label>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="mt-6 border-t border-line pt-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <h2 className="text-sm font-black">위험구역</h2>
-                <InfoTooltip id="hazard-cost-help" label="위험구역 경로 비용 안내">
-                  에이전트의 대피 경로를 비교할 때 사용하는 상대 비용입니다.
-                  <span className="my-1 block font-mono text-[10px] leading-4 text-white">
-                    depth = clamp(1 - 중심거리 / 반지름, 0, 1)
-                    <br />원 밖: M = 1
-                    <br />원 안: M = 5 × 100^depth
-                    <br />
-                    간선 비용 = 길이 / 6 × (시작점 M + 4 × 중간점 M + 끝점 M)
-                  </span>
-                  경계는 5, 반지름 중간은 50, 중심은 500입니다. 전체 경로는 모든 간선 비용을
-                  합산하고, 위험구역이 겹치면 가장 큰 M만 적용합니다.
-                  <span className="mt-1 block text-white/70">
-                    HAZARD_RADIAL_EXP_V3 · 활로가 정의한 상대 비용이며 공인 위험도나 사망확률이
-                    아닙니다.
-                  </span>
-                </InfoTooltip>
               </div>
-              <span className="text-xs tabular-nums text-text-muted">{hazards.length}개</span>
-            </div>
-            {selectedHazard ? (
-              <div className="mt-3 rounded-xl border border-danger/25 bg-danger-soft p-3">
-                <label className="text-xs font-bold text-danger-strong">
-                  반지름 · {selectedHazard.radius.toFixed(1)}m
+            </section>
+
+            <section className="simulation-setup-panel__section">
+              <div
+                aria-live="polite"
+                className={`simulation-setup-tool-state flex items-center justify-between rounded-xl border px-3 py-2 transition-all duration-300 ${
+                  tool === 'erase'
+                    ? 'scale-[1.02] border-danger/25 bg-danger-soft text-danger'
+                    : tool === 'spray'
+                      ? 'border-primary/25 bg-primary-soft text-primary'
+                      : 'border-line bg-surface text-text-strong'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`simulation-setup-tool-state__icon flex size-7 items-center justify-center rounded-full transition-all duration-300 ${
+                      tool === 'erase'
+                        ? 'scale-110 bg-white text-danger'
+                        : tool === 'spray'
+                          ? 'bg-white text-primary'
+                          : 'bg-white text-text-muted'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {tool === 'erase' ? (
+                      <Minus aria-hidden="true" className="h-4 w-4" />
+                    ) : tool === 'spray' ? (
+                      <Plus aria-hidden="true" className="h-4 w-4" />
+                    ) : (
+                      <MousePointer2 aria-hidden="true" className="h-4 w-4" />
+                    )}
+                  </span>
+                  <h2 className="text-sm font-black">
+                    {tool === 'erase' ? '에이전트 지우기' : '에이전트 배치'}
+                  </h2>
+                </div>
+                <span className="simulation-setup-tool-state__badge rounded-full bg-white px-2.5 py-1 text-[11px] font-black">
+                  {tool === 'erase' ? '지우개 모드' : tool === 'spray' ? '배치 모드' : '도구 대기'}
+                </span>
+              </div>
+              {(tool === 'spray' || tool === 'erase') && (
+                <label className="mt-4 block text-xs font-bold text-text-muted">
+                  {tool === 'erase' ? '지우개' : '스프레이'} 크기 ·{' '}
+                  {(tool === 'erase' ? eraserRadius : sprayRadius).toFixed(1)}m
                   <input
                     type="range"
-                    min={0.3}
-                    max={20}
+                    min={AGENT_RADIUS}
+                    max={5}
                     step={0.1}
-                    value={selectedHazard.radius}
-                    disabled={!editable}
-                    onPointerDown={beginGesture}
-                    onPointerUp={endGesture}
-                    onPointerCancel={endGesture}
-                    onKeyDown={beginGesture}
-                    onKeyUp={endGesture}
-                    onBlur={endGesture}
+                    value={tool === 'erase' ? eraserRadius : sprayRadius}
                     onChange={(event) => {
                       const radius = Number(event.target.value);
-                      const current = placementRef.current;
-                      replacePlacement({
-                        ...current,
-                        hazards: current.hazards.map((hazard) =>
-                          hazard.clientId === selectedHazard.clientId
-                            ? { ...hazard, radius }
-                            : hazard,
-                        ),
-                      });
+                      if (tool === 'erase') setEraserRadius(radius);
+                      else setSprayRadius(radius);
                     }}
-                    className="mt-2 w-full accent-danger"
+                    disabled={!editable}
+                    className="mt-2 w-full accent-primary"
                   />
                 </label>
+              )}
+              <div className="mt-4 flex gap-2">
+                <div className="min-w-0 flex-1 text-xs font-bold text-text-muted">
+                  <label htmlFor="uniform-agent-count">균등 배치 인원</label>
+                  <NumberStepperInput
+                    id="uniform-agent-count"
+                    label="균등 배치 인원"
+                    min={0}
+                    max={MAX_AGENTS}
+                    step={1}
+                    value={uniformCount}
+                    onValueChange={setUniformCount}
+                    disabled={!editable}
+                  />
+                </div>
                 <button
                   type="button"
+                  onClick={handleUniformPlacement}
                   disabled={!editable}
-                  onClick={() => {
-                    commitPlacement({
-                      ...placementRef.current,
-                      hazards: hazards.filter(
-                        (hazard) => hazard.clientId !== selectedHazard.clientId,
-                      ),
-                    });
-                    setSelectedHazardId(null);
-                  }}
-                  className="mt-3 h-9 w-full rounded-lg border border-danger/40 bg-white text-xs font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
+                  className="mt-6 h-10 rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary outline-none transition hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
                 >
-                  선택 위험구역 삭제
+                  균등분포 배치
                 </button>
               </div>
-            ) : (
-              <p className="mt-3 rounded-lg bg-surface px-3 py-3 text-xs leading-5 text-text-muted">
-                위험구역 도구로 원을 추가하거나 선택 도구로 기존 위험구역을 선택하세요.
+              <button
+                type="button"
+                onClick={handleClearAgents}
+                disabled={!editable || saveState === 'saving' || agents.length === 0}
+                className="mt-3 h-10 w-full rounded-lg border border-danger/25 bg-white text-xs font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                에이전트 전체 삭제
+              </button>
+            </section>
+
+            <section className="simulation-setup-panel__section">
+              <h2 className="text-sm font-black">시뮬레이션 조건</h2>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="text-xs font-bold text-text-muted">
+                  <div className="flex items-center gap-1">
+                    <label htmlFor="walking-speed">희망 이동속도 (m/s)</label>
+                    <InfoTooltip id="walking-speed-help" label="희망 이동속도 안내">
+                      에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표
+                      평균은 약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제
+                      속도는 혼잡도와 상호작용에 따라 달라집니다.
+                      <span className="mt-1 block text-white/70">
+                        출처: Weidmann (1993), ETH Zürich
+                      </span>
+                    </InfoTooltip>
+                  </div>
+                  <NumberStepperInput
+                    id="walking-speed"
+                    label="희망 이동속도"
+                    min={0.1}
+                    max={3}
+                    step={0.05}
+                    value={walkingSpeed}
+                    onValueChange={setWalkingSpeed}
+                    disabled={!editable}
+                  />
+                </div>
+                <div className="text-xs font-bold text-text-muted">
+                  <div className="flex items-center gap-1">
+                    <label htmlFor="reaction-time">속도 반응시간 (초)</label>
+                    <InfoTooltip id="reaction-time-help" label="속도 반응시간 안내" align="right">
+                      현재 속도가 희망속도와 방향에 적응하는 시간상수 τ입니다. 값이 작을수록 속도가
+                      더 빠르게 변하며, 출발 전 대기시간은 아닙니다.
+                      <span className="my-1 block font-mono text-[10px] text-white">
+                        Fdrv = (희망속도 벡터 - 현재속도 벡터) / τ
+                      </span>
+                      JuPedSim SFM 기본값은 0.5초이고, 시스템 허용 범위는 0.1~2.0초입니다.
+                      <span className="mt-1 block text-white/70">
+                        출처: JuPedSim SFM, Helbing et al. (2000)
+                      </span>
+                    </InfoTooltip>
+                  </div>
+                  <NumberStepperInput
+                    id="reaction-time"
+                    label="속도 반응시간"
+                    min={0.1}
+                    max={2}
+                    step={0.1}
+                    value={reactionTime}
+                    onValueChange={setReactionTime}
+                    disabled={!editable}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="simulation-setup-panel__section">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-black">사용 출입구</h2>
+                <button
+                  type="button"
+                  disabled={!editable || setup.drawing.exits.length === 0}
+                  onClick={() =>
+                    setSelectedExitIds(
+                      allExitsSelected ? [] : setup.drawing.exits.map((exit) => exit.id),
+                    )
+                  }
+                  className="simulation-setup-panel__bulk-action rounded-lg border border-primary bg-white px-2.5 py-1 text-xs font-bold text-primary outline-none transition hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {allExitsSelected ? '전체 해제' : '전체 선택'}
+                </button>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-text-muted">
+                DRAFT 저장은 출입구를 선택하지 않아도 가능합니다.
               </p>
-            )}
-          </section>
-        </aside>
-      </div>
-    </main>
+              <div className="simulation-setup-exit-list">
+                {setup.drawing.exits.length === 0 ? (
+                  <p className="rounded-lg bg-surface px-3 py-3 text-xs text-text-muted">
+                    등록된 출입구가 없습니다.
+                  </p>
+                ) : (
+                  setup.drawing.exits.map((exit) => (
+                    <label
+                      key={exit.id}
+                      onMouseEnter={() => setHighlightedExitId(exit.id)}
+                      onMouseLeave={(event) => {
+                        if (!event.currentTarget.contains(document.activeElement)) {
+                          setHighlightedExitId(null);
+                        }
+                      }}
+                      onFocus={() => setHighlightedExitId(exit.id)}
+                      onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) {
+                          setHighlightedExitId(null);
+                        }
+                      }}
+                      className={`simulation-setup-exit-option${
+                        selectedExitIds.includes(exit.id) ? ' is-selected' : ''
+                      }${highlightedExitId === exit.id ? ' is-highlighted' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedExitIds.includes(exit.id)}
+                        disabled={!editable}
+                        onChange={(event) =>
+                          setSelectedExitIds((ids) =>
+                            event.target.checked
+                              ? [...ids, exit.id]
+                              : ids.filter((id) => id !== exit.id),
+                          )
+                        }
+                        className="accent-primary"
+                      />
+                      <span>{exit.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="simulation-setup-panel__section">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <h2 className="text-sm font-black">위험구역</h2>
+                  <InfoTooltip id="hazard-cost-help" label="위험구역 경로 비용 안내">
+                    에이전트의 대피 경로를 비교할 때 사용하는 상대 비용입니다.
+                    <span className="my-1 block font-mono text-[10px] leading-4 text-white">
+                      depth = clamp(1 - 중심거리 / 반지름, 0, 1)
+                      <br />원 밖: M = 1
+                      <br />원 안: M = 5 × 100^depth
+                      <br />
+                      간선 비용 = 길이 / 6 × (시작점 M + 4 × 중간점 M + 끝점 M)
+                    </span>
+                    경계는 5, 반지름 중간은 50, 중심은 500입니다. 전체 경로는 모든 간선 비용을
+                    합산하고, 위험구역이 겹치면 가장 큰 M만 적용합니다.
+                    <span className="mt-1 block text-white/70">
+                      HAZARD_RADIAL_EXP_V3 · 활로가 정의한 상대 비용이며 공인 위험도나 사망확률이
+                      아닙니다.
+                    </span>
+                  </InfoTooltip>
+                </div>
+                <span className="text-xs tabular-nums text-text-muted">{hazards.length}개</span>
+              </div>
+              {selectedHazard ? (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2">
+                  <span className="text-xs font-bold tabular-nums text-danger-strong">
+                    선택됨 · {selectedHazard.radius.toFixed(1)}m
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!editable}
+                    onClick={() => deleteHazard(selectedHazard.clientId)}
+                    className="rounded-md border border-danger/35 bg-white px-2.5 py-1 text-[11px] font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
+                  >
+                    삭제
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-3 rounded-lg bg-surface px-3 py-3 text-xs leading-5 text-text-muted">
+                  위험구역을 선택하면 오른쪽 조절점을 드래그해 크기를 변경할 수 있습니다.
+                </p>
+              )}
+            </section>
+          </div>
+        </CanvasWorkspacePanel>
+      )}
+    </CanvasWorkspace>
   );
 }
 

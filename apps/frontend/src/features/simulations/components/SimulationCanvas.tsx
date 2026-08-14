@@ -11,6 +11,7 @@ import {
 } from '../../layout/utils/geometry';
 import { MIN_TEXT_SCREEN_PX, TEXT_FONT_PX } from '../../layout/utils/hitTest';
 import { GridLayer } from '../../layout/components/layers';
+import { CANVAS_COLORS } from '../../layout/utils/colors';
 import type { EditableHazardZone, SimulationDrawing, SimulationPoint } from '../types';
 import { AGENT_RADIUS, pointInPolygon } from '../utils/placement';
 
@@ -20,6 +21,7 @@ interface SimulationCanvasProps {
   drawing: SimulationDrawing;
   agents: SimulationPoint[];
   hazards: EditableHazardZone[];
+  editable: boolean;
   tool: SimulationTool;
   brushRadius: number;
   selectedHazardId: string | null;
@@ -31,6 +33,7 @@ interface SimulationCanvasProps {
   onErase: (point: SimulationPoint) => void;
   onCreateHazard: (point: SimulationPoint) => void;
   onMoveHazard: (clientId: string, point: SimulationPoint) => void;
+  onResizeHazard: (clientId: string, radius: number) => void;
   onSelectHazard: (clientId: string | null) => void;
   onGestureStart: () => void;
   onGestureEnd: () => void;
@@ -45,10 +48,21 @@ interface HazardDragSession {
   clientId: string;
 }
 
+interface HazardResizeSession {
+  clientId: string;
+  centerX: number;
+  centerY: number;
+}
+
+const HAZARD_MIN_RADIUS = 0.3;
+const HAZARD_MAX_RADIUS = 20;
+const HAZARD_RESIZE_HANDLE_PX = 10;
+
 export function SimulationCanvas({
   drawing,
   agents,
   hazards,
+  editable,
   tool,
   brushRadius,
   selectedHazardId,
@@ -60,6 +74,7 @@ export function SimulationCanvas({
   onErase,
   onCreateHazard,
   onMoveHazard,
+  onResizeHazard,
   onSelectHazard,
   onGestureStart,
   onGestureEnd,
@@ -67,11 +82,14 @@ export function SimulationCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanSession | null>(null);
   const hazardDragRef = useRef<HazardDragSession | null>(null);
+  const hazardResizeRef = useRef<HazardResizeSession | null>(null);
   const intervalRef = useRef<number | null>(null);
   const cursorRef = useRef<SimulationPoint | null>(null);
   const gestureRef = useRef(false);
   const spaceDownRef = useRef(false);
   const [spaceDown, setSpaceDown] = useState(false);
+  const [panning, setPanning] = useState(false);
+  const [resizingHazard, setResizingHazard] = useState(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [cursor, setCursor] = useState<SimulationPoint | null>(null);
   const [camera, setCamera] = useState<Camera>({ zoom: 1, panX: 0, panY: 0 });
@@ -134,6 +152,8 @@ export function SimulationCanvas({
       intervalRef.current = null;
     }
     hazardDragRef.current = null;
+    hazardResizeRef.current = null;
+    setResizingHazard(false);
     if (gestureRef.current) {
       gestureRef.current = false;
       onGestureEnd();
@@ -156,6 +176,14 @@ export function SimulationCanvas({
     }, 100);
   };
 
+  const beginPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    panRef.current = {
+      startScreen: { x: event.clientX, y: event.clientY },
+      startCamera: camera,
+    };
+    setPanning(true);
+  };
+
   const hitHazard = (point: SimulationPoint): EditableHazardZone | null => {
     for (let i = hazards.length - 1; i >= 0; i -= 1) {
       const hazard = hazards[i];
@@ -166,6 +194,15 @@ export function SimulationCanvas({
     return null;
   };
 
+  const hitSelectedHazardResizeHandle = (point: SimulationPoint): EditableHazardZone | null => {
+    if (!editable || tool !== 'select' || selectedHazardId === null) return null;
+    const hazard = hazards.find((item) => item.clientId === selectedHazardId);
+    if (!hazard) return null;
+    const handleX = hazard.centerX + hazard.radius;
+    const hitRadius = HAZARD_RESIZE_HANDLE_PX / (camera.zoom * PX_PER_METER);
+    return Math.hypot(point.x - handleX, point.y - hazard.centerY) <= hitRadius ? hazard : null;
+  };
+
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = worldAt(event.clientX, event.clientY);
     if (!point) return;
@@ -173,10 +210,7 @@ export function SimulationCanvas({
     setCursor(point);
 
     if (event.button === 1 || (event.button === 0 && spaceDownRef.current)) {
-      panRef.current = {
-        startScreen: { x: event.clientX, y: event.clientY },
-        startCamera: camera,
-      };
+      beginPan(event);
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
@@ -190,11 +224,24 @@ export function SimulationCanvas({
     } else if (tool === 'hazard') {
       if (pointInPolygon(point, drawing.outsideBoundary)) onCreateHazard(point);
     } else {
+      const resizeHit = hitSelectedHazardResizeHandle(point);
+      if (resizeHit) {
+        beginGesture();
+        hazardResizeRef.current = {
+          clientId: resizeHit.clientId,
+          centerX: resizeHit.centerX,
+          centerY: resizeHit.centerY,
+        };
+        setResizingHazard(true);
+        return;
+      }
       const hit = hitHazard(point);
       onSelectHazard(hit?.clientId ?? null);
       if (hit) {
         beginGesture();
         hazardDragRef.current = { clientId: hit.clientId };
+      } else {
+        beginPan(event);
       }
     }
   };
@@ -204,7 +251,14 @@ export function SimulationCanvas({
     if (!point) return;
     cursorRef.current = point;
     setCursor(point);
-    if (panRef.current) {
+    if (hazardResizeRef.current) {
+      const resize = hazardResizeRef.current;
+      const radius = Math.min(
+        HAZARD_MAX_RADIUS,
+        Math.max(HAZARD_MIN_RADIUS, Math.hypot(point.x - resize.centerX, point.y - resize.centerY)),
+      );
+      onResizeHazard(resize.clientId, Number(radius.toFixed(1)));
+    } else if (panRef.current) {
       const dx = event.clientX - panRef.current.startScreen.x;
       const dy = event.clientY - panRef.current.startScreen.y;
       const start = panRef.current.startCamera;
@@ -228,6 +282,7 @@ export function SimulationCanvas({
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     panRef.current = null;
+    setPanning(false);
     finishGesture();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -262,10 +317,15 @@ export function SimulationCanvas({
   const showBrush = cursor && (tool === 'spray' || tool === 'erase');
   const highlightedAgent =
     highlightedAgentId !== null ? (agents[highlightedAgentId - 1] ?? null) : null;
+  const selectedHazard =
+    selectedHazardId === null
+      ? null
+      : (hazards.find((hazard) => hazard.clientId === selectedHazardId) ?? null);
+  const resizeHandleHovered = cursor !== null && hitSelectedHazardResizeHandle(cursor) !== null;
   const agentShape = useMemo(
     () => (
       <Shape
-        fill="#168f80"
+        fill={CANVAS_COLORS.accent}
         sceneFunc={(context, shape) => {
           context.beginPath();
           for (const agent of agents) {
@@ -278,18 +338,21 @@ export function SimulationCanvas({
     ),
     [agents],
   );
-  const cursorClass = panRef.current
-    ? 'cursor-grabbing'
-    : spaceDown
-      ? 'cursor-grab'
-      : tool === 'select'
-        ? 'cursor-default'
-        : 'cursor-crosshair';
+  const cursorClass =
+    resizingHazard || resizeHandleHovered
+      ? 'cursor-ew-resize'
+      : panning
+        ? 'cursor-grabbing'
+        : spaceDown
+          ? 'cursor-grab'
+          : tool === 'select'
+            ? 'cursor-grab'
+            : 'cursor-crosshair';
 
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 overflow-hidden bg-[#f3f7f6] ${cursorClass}`}
+      className={`absolute inset-0 overflow-hidden bg-background ${cursorClass}`}
       role="application"
       aria-label="시뮬레이션 인원 및 위험구역 배치 캔버스"
       onPointerDown={onPointerDown}
@@ -317,15 +380,15 @@ export function SimulationCanvas({
             <Line
               points={boundaryPoints}
               closed
-              fill="#ffffff"
-              stroke="#355b55"
+              fill={CANVAS_COLORS.canvas}
+              stroke={CANVAS_COLORS.outsideWall}
               strokeWidth={s(2)}
             />
             {drawing.walls.map((wall, index) => (
               <Line
                 key={`${wall.name}-${index}`}
                 points={[wall.startX, wall.startY, wall.endX, wall.endY]}
-                stroke="#506663"
+                stroke={CANVAS_COLORS.ink}
                 strokeWidth={s(2)}
                 lineCap="round"
               />
@@ -345,8 +408,8 @@ export function SimulationCanvas({
                   offsetX={width / 2}
                   offsetY={height / 2}
                   rotation={pillar.rotation}
-                  fill="#dce5e3"
-                  stroke="#839793"
+                  fill={CANVAS_COLORS.pillarFill}
+                  stroke={CANVAS_COLORS.pillarStroke}
                   strokeWidth={s(1)}
                 />
               );
@@ -366,8 +429,8 @@ export function SimulationCanvas({
                   offsetX={width / 2}
                   offsetY={height / 2}
                   rotation={fabric.rotation}
-                  fill="#e8efed"
-                  stroke="#a0afac"
+                  fill={CANVAS_COLORS.fabricFill}
+                  stroke={CANVAS_COLORS.fabricStroke}
                   strokeWidth={s(1)}
                 />
               );
@@ -380,7 +443,7 @@ export function SimulationCanvas({
                   y={text.y}
                   text={text.text}
                   fontSize={TEXT_FONT_PX / PX_PER_METER}
-                  fill="#637773"
+                  fill={CANVAS_COLORS.ink}
                   listening={false}
                 />
               ))}
@@ -391,10 +454,16 @@ export function SimulationCanvas({
                 <Line
                   key={exit.id}
                   points={[exit.startX, exit.startY, exit.endX, exit.endY]}
-                  stroke={highlighted ? '#f59e0b' : selected ? '#2563eb' : '#078f7e'}
+                  stroke={
+                    highlighted
+                      ? '#f59e0b'
+                      : selected
+                        ? CANVAS_COLORS.exitStrong
+                        : CANVAS_COLORS.outsideWall
+                  }
                   strokeWidth={s(highlighted ? 8 : selected ? 7 : 5)}
                   lineCap="round"
-                  shadowColor={highlighted ? '#fbbf24' : '#60a5fa'}
+                  shadowColor={highlighted ? '#fbbf24' : CANVAS_COLORS.exit}
                   shadowBlur={highlighted ? s(18) : selected ? s(10) : 0}
                   shadowOpacity={highlighted ? 0.9 : selected ? 0.6 : 0}
                   shadowEnabled={highlighted || selected}
@@ -429,6 +498,27 @@ export function SimulationCanvas({
                 dash={[s(5), s(4)]}
               />
             ))}
+            {editable && selectedHazard && (
+              <>
+                <Circle
+                  x={selectedHazard.centerX + selectedHazard.radius}
+                  y={selectedHazard.centerY}
+                  radius={s(HAZARD_RESIZE_HANDLE_PX)}
+                  fill="#ffffff"
+                  stroke="#d14343"
+                  strokeWidth={s(2)}
+                  shadowColor="#7f1d1d"
+                  shadowBlur={s(8)}
+                  shadowOpacity={0.28}
+                />
+                <Circle
+                  x={selectedHazard.centerX + selectedHazard.radius}
+                  y={selectedHazard.centerY}
+                  radius={s(3)}
+                  fill="#d14343"
+                />
+              </>
+            )}
             {showBrush && (
               <Circle
                 x={cursor.x}
@@ -511,8 +601,9 @@ export function SimulationCanvas({
             : ''}
         </p>
       )}
-      <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-line bg-white/90 px-3 py-2 text-xs font-bold text-text-muted shadow-sm">
-        {Math.round(camera.zoom * 100)}%
+      <div className="simulation-setup-zoom-status">
+        <span>확대</span>
+        <strong>{Math.round(camera.zoom * 100)}%</strong>
       </div>
     </div>
   );
