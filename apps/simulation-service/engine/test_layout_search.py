@@ -671,3 +671,33 @@ def test_inverted_rectangle_yields_rotate_candidates():
     for candidate in result["candidates"]:
         for op in candidate["ops"]:
             assert layout_search._spans_match(op["before"], op["after"])
+
+
+def test_finding_with_no_overlapping_fabric_falls_back_to_nearest():
+    """A severe bottleneck with nothing inside it must still produce candidates.
+
+    Returning no targets when the region happens to contain no fabric made high-severity
+    findings contribute zero candidates, while the fabric just outside the region - usually
+    the thing funnelling people into it - was never tried.
+    """
+    drawing = room_drawing(
+        fabrics=[
+            {"id": 1, "name": "near", "startX": 4, "startY": 4, "endX": 5, "endY": 5, "rotation": 0},
+            {"id": 2, "name": "far", "startX": 0.5, "startY": 0.5, "endX": 1.5, "endY": 1.5, "rotation": 0},
+        ],
+    )
+    finding = bottleneck_finding(region={"startX": 7.0, "startY": 7.0, "endX": 8.0, "endY": 8.0})
+    targets = layout_search._find_qualifying_targets(drawing, finding)
+    assert [target[0]["id"] for target in targets] == [1]
+
+
+def test_overlapping_fabric_still_wins_over_nearest_fallback():
+    drawing = room_drawing(
+        fabrics=[
+            {"id": 1, "name": "inside", "startX": 7.2, "startY": 7.2, "endX": 7.8, "endY": 7.8, "rotation": 0},
+            {"id": 2, "name": "outside", "startX": 0.5, "startY": 0.5, "endX": 1.5, "endY": 1.5, "rotation": 0},
+        ],
+    )
+    finding = bottleneck_finding(region={"startX": 7.0, "startY": 7.0, "endX": 8.0, "endY": 8.0})
+    targets = layout_search._find_qualifying_targets(drawing, finding)
+    assert [target[0]["id"] for target in targets] == [1]

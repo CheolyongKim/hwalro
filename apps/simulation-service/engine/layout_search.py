@@ -301,7 +301,13 @@ def _find_qualifying_targets(
     region = _region_geometry(finding)
     if region is not None:
         widened = region.buffer(CLEARANCE_METERS)
-        return [(fabric, dict(fabric)) for fabric in fabric_list if widened.intersects(_rect_geometry(fabric))]
+        overlapping = [(fabric, dict(fabric)) for fabric in fabric_list if widened.intersects(_rect_geometry(fabric))]
+        if overlapping:
+            return overlapping
+        # Nothing sits inside the region. That does not make the finding unactionable - the
+        # congestion is usually caused by fabric just outside it funnelling people in - and
+        # returning nothing here means a severe bottleneck contributes zero candidates. Fall
+        # through to the nearest fabric so every finding gets at least one thing to try.
     center = _region_center(finding)
     if center is None or not fabric_list:
         return []
