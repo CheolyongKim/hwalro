@@ -135,10 +135,6 @@
   animation: canvas-workspace-panel-collapse 240ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
-.canvas-workspace-panel--animated.is-expanding {
-  animation: canvas-workspace-panel-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 .canvas-workspace-panel-restore {
   position: absolute;
   right: var(--canvas-workspace-panel-right);
