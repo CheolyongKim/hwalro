@@ -1,6 +1,10 @@
 import { CircleCheck } from 'lucide-react';
+import {
+  CanvasWorkspacePanel,
+  CanvasWorkspacePanelRestore,
+  useCollapsibleWorkspacePanel,
+} from '../../../components/workspace';
 import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
-import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { BOTTLENECK_DISPLAY_BATCH_SIZE } from '../utils/bottleneckDisplay';
 import { getEvacuationProgressDisplay } from '../utils/evacuationProgressDisplay';
 
@@ -39,7 +43,7 @@ export function ResultSummaryPanel({
   onOpenReport,
   onOpenRisk,
 }: Props) {
-  const panel = useCollapsiblePanel();
+  const panel = useCollapsibleWorkspacePanel();
   const selectedBottleneck = bottlenecks.find((item) => item.id === selectedBottleneckId);
   const remainingBottleneckCount = totalBottleneckCount - displayedBottleneckCount;
   const nextBottleneckCount = Math.min(BOTTLENECK_DISPLAY_BATCH_SIZE, remainingBottleneckCount);
@@ -51,14 +55,15 @@ export function ResultSummaryPanel({
 
   if (panel.isMinimized) {
     return (
-      <button type="button" className="summary-restore" onClick={panel.restore}>
+      <CanvasWorkspacePanelRestore className="summary-restore" onClick={panel.restore}>
         결과 요약 열기
-      </button>
+      </CanvasWorkspacePanelRestore>
     );
   }
 
   return (
-    <aside
+    <CanvasWorkspacePanel
+      ariaLabel="시뮬레이션 결과 요약"
       className={`result-summary ${panel.isCollapsing ? 'is-collapsing' : ''} ${reserveImprovementPanelSpace ? 'has-improvement-panel' : ''}`}
       onAnimationEnd={(event) => {
         if (event.currentTarget === event.target) panel.handleAnimationEnd();
@@ -169,6 +174,6 @@ export function ResultSummaryPanel({
           AI 보고서 초안 생성
         </button>
       </div>
-    </aside>
+    </CanvasWorkspacePanel>
   );
 }

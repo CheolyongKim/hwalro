@@ -45,33 +45,25 @@ export function ZoomControl({ state, dispatch, size, className }: ZoomControlPro
   };
 
   return (
-    <div
-      className={`flex items-center gap-0.5 rounded-full border border-zoom-border bg-zoom-soft p-1 shadow-raised ${className ?? ''}`}
-    >
+    <div className={`layout-zoom-control ${className ?? ''}`}>
       <button
         type="button"
         onClick={() => zoomAtCenter(1 / 1.25)}
         aria-label="축소"
-        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="layout-zoom-control__icon"
       >
         −
       </button>
-      <span className="min-w-11 text-center font-mono text-xs font-semibold text-zoom-text">
-        {Math.round(camera.zoom * 100)}%
-      </span>
+      <span className="layout-zoom-control__value">{Math.round(camera.zoom * 100)}%</span>
       <button
         type="button"
         onClick={() => zoomAtCenter(1.25)}
         aria-label="확대"
-        className="flex h-7 w-7 items-center justify-center rounded-full text-zoom-text transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="layout-zoom-control__icon"
       >
         +
       </button>
-      <button
-        type="button"
-        onClick={fit}
-        className="h-7 rounded-full px-2.5 text-sm font-semibold text-zoom-text transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-      >
+      <button type="button" onClick={fit} className="layout-zoom-control__fit">
         맞춤
       </button>
     </div>
