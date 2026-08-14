@@ -1,5 +1,10 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Check, FileText, Loader2, Sparkles, X } from 'lucide-react';
+import { Pagination } from '../../../components/ui';
+import {
+  COMPARABLE_SIMULATION_PAGE_SIZE,
+  useComparableSimulations,
+} from '../hooks/useComparableSimulations';
 import type { SimulationResultViewModel } from '../types';
 
 const MAX_COMPARISON_COUNT = 5;
@@ -26,11 +31,29 @@ export function ReportDraftDialog({
   onGenerate,
 }: Props) {
   const [selectedComparisons, setSelectedComparisons] = useState<number[]>([]);
+  const [comparisonPage, setComparisonPage] = useState(1);
   const dialogRef = useRef<HTMLElement>(null);
+  const comparableQuery = useComparableSimulations(
+    Number(result.simulationId),
+    comparisonPage,
+    open,
+  );
+  const comparisonPageCount = comparableQuery.data
+    ? Math.max(1, Math.ceil(comparableQuery.data.totalCount / COMPARABLE_SIMULATION_PAGE_SIZE))
+    : comparisonPage;
 
   useEffect(() => {
-    if (!open) setSelectedComparisons([]);
-  }, [open]);
+    if (!open) {
+      setSelectedComparisons([]);
+      setComparisonPage(1);
+    }
+  }, [open, result.simulationId]);
+
+  useEffect(() => {
+    if (comparableQuery.data && comparisonPage > comparisonPageCount) {
+      setComparisonPage(comparisonPageCount);
+    }
+  }, [comparableQuery.data, comparisonPage, comparisonPageCount]);
 
   useEffect(() => {
     if (!open) return;
@@ -156,36 +179,69 @@ export function ReportDraftDialog({
               </span>
             </div>
 
-            {result.comparableSimulations.length > 0 ? (
-              <div className="report-comparison-list">
-                {result.comparableSimulations.map((item) => {
-                  const comparisonResultId = item.simulationResultId;
-                  const isSelected = selectedComparisons.includes(comparisonResultId);
-                  return (
-                    <label
-                      key={item.id}
-                      className={`report-comparison-option ${isSelected ? 'is-selected' : ''}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        disabled={
-                          isGenerating ||
-                          (!isSelected && selectedComparisons.length >= MAX_COMPARISON_COUNT)
-                        }
-                        onChange={() => toggleComparison(comparisonResultId)}
-                      />
-                      <span className="report-comparison-check" aria-hidden="true">
-                        <Check />
-                      </span>
-                      <span className="report-comparison-copy">
-                        <strong>{item.name}</strong>
-                        <small>총 대피 시간 {formatDuration(item.totalEvacuationTime)}</small>
-                      </span>
-                    </label>
-                  );
-                })}
+            {comparableQuery.isPending ? (
+              <div className="report-comparison-empty" role="status">
+                <strong>비교 시뮬레이션을 불러오는 중입니다</strong>
+                <span>최신 실행 결과부터 확인하고 있습니다.</span>
               </div>
+            ) : comparableQuery.isError ? (
+              <div className="report-comparison-empty" role="alert">
+                <strong>비교 시뮬레이션을 불러오지 못했습니다</strong>
+                <button
+                  type="button"
+                  className="report-comparison-retry cursor-pointer"
+                  disabled={comparableQuery.isFetching}
+                  onClick={() => void comparableQuery.refetch()}
+                >
+                  {comparableQuery.isFetching && (
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                  )}
+                  다시 시도
+                </button>
+              </div>
+            ) : comparableQuery.data.items.length > 0 ? (
+              <>
+                <div className="report-comparison-list">
+                  {comparableQuery.data.items.map((item) => {
+                    const comparisonResultId = item.simulationResultId;
+                    const isSelected = selectedComparisons.includes(comparisonResultId);
+                    return (
+                      <label
+                        key={item.id}
+                        className={`report-comparison-option ${isSelected ? 'is-selected' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={
+                            isGenerating ||
+                            (!isSelected && selectedComparisons.length >= MAX_COMPARISON_COUNT)
+                          }
+                          onChange={() => toggleComparison(comparisonResultId)}
+                        />
+                        <span className="report-comparison-check" aria-hidden="true">
+                          <Check />
+                        </span>
+                        <span className="report-comparison-copy">
+                          <strong>{item.name}</strong>
+                          <small>총 대피 시간 {formatDuration(item.totalEvacuationTime)}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {comparisonPageCount > 1 && (
+                  <div className="report-comparison-pagination">
+                    <Pagination
+                      page={comparisonPage}
+                      pageCount={comparisonPageCount}
+                      onPageChange={setComparisonPage}
+                      disabled={isGenerating || comparableQuery.isFetching}
+                      ariaLabel="비교 시뮬레이션 페이지"
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="report-comparison-empty">
                 <strong>비교 가능한 시뮬레이션이 없습니다</strong>

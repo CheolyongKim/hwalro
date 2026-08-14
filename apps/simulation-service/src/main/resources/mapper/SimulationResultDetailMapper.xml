@@ -81,7 +81,18 @@
         ORDER BY bottleneck_order
     </select>
 
-    <select id="findComparableSimulations" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$ComparableRow">
+    <select id="countComparableSimulations" resultType="long">
+        SELECT COUNT(*)
+        FROM simulations candidate
+        JOIN simulation_results candidate_result ON candidate_result.simulation_id = candidate.id
+        JOIN simulation_metrics metric
+          ON metric.simulation_result_id = candidate_result.id
+         AND metric.metric_type = 'TOTAL_EVACUATION_TIME_SECONDS'
+        WHERE candidate.created_by = #{createdBy}
+          AND candidate.id != #{simulationId}
+    </select>
+
+    <select id="findComparableSimulationPage" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$ComparableRow">
         SELECT candidate.id AS simulationId,
                candidate_result.id AS simulationResultId,
                COALESCE(proposal.title, CONCAT('비교 시뮬레이션 #', candidate.id)) AS name,
@@ -97,6 +108,7 @@
           AND candidate.id != #{simulationId}
         ORDER BY candidate.created_at DESC,
                  candidate.id DESC
+        LIMIT #{offset}, #{size}
     </select>
 
 </mapper>
