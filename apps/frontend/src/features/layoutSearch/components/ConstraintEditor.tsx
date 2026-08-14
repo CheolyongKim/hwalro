@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
+import { Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 import { GridLayer } from '../../layout/components/layers';
 import type { Camera, Vec2 } from '../../layout/types';
 import {
@@ -18,7 +18,6 @@ import type { ForbiddenZone, SearchConstraints } from '../api/layoutSearchApi';
 export type ConstraintEditorTool = 'select' | 'zone';
 
 const MIN_ZONE_SIZE_METERS = 0.2;
-const BADGE_MIN_ZOOM = 0.35;
 
 interface ConstraintEditorProps {
   drawing: SimulationDrawing;
@@ -379,22 +378,34 @@ export function ConstraintEditor({
               const moveRadius = constraints.moveRadii[fabric.id];
               const rotationAllowed = constraints.rotationAllowed[fabric.id] ?? true;
               const wallAnchored = constraints.wallAnchored[fabric.id] === true;
-              const badges: string[] = [];
-              if (moveRadius === 0) badges.push('고정');
-              if (rotationAllowed === false) badges.push('회전');
-              if (wallAnchored) badges.push('벽면');
+              let constraintStroke = '#a0afac';
+              let constraintDash: number[] | undefined;
+              if (moveRadius === 0) {
+                constraintStroke = '#8a5a2b';
+              } else if (rotationAllowed === false) {
+                constraintStroke = '#e6664e';
+                constraintDash = [s(6), s(4)];
+              } else if (wallAnchored) {
+                constraintStroke = '#148b7c';
+                constraintDash = [s(2), s(3)];
+              }
               const label = fabric.name || `구조물 ${fabric.id}`;
               return (
                 <Group key={fabric.id}>
                   {typeof moveRadius === 'number' && moveRadius > 0 && (
-                    <Circle
-                      x={centerX}
-                      y={centerY}
-                      radius={moveRadius}
-                      stroke="#148b7c"
-                      strokeWidth={s(1)}
-                      dash={[s(5), s(4)]}
-                    />
+                    <Group x={centerX} y={centerY} rotation={fabric.rotation}>
+                      <Rect
+                        x={-(width / 2 + moveRadius)}
+                        y={-(height / 2 + moveRadius)}
+                        width={width + moveRadius * 2}
+                        height={height + moveRadius * 2}
+                        cornerRadius={moveRadius}
+                        stroke="#148b7c"
+                        strokeWidth={s(1)}
+                        dash={[s(5), s(4)]}
+                        fill="rgba(20,139,124,0.06)"
+                      />
+                    </Group>
                   )}
                   <Rect
                     x={centerX}
@@ -405,8 +416,9 @@ export function ConstraintEditor({
                     offsetY={height / 2}
                     rotation={fabric.rotation}
                     fill={selected ? '#d5efe8' : '#e8efed'}
-                    stroke={selected ? '#148b7c' : '#a0afac'}
-                    strokeWidth={s(selected ? 2.5 : 1)}
+                    stroke={selected ? '#148b7c' : constraintStroke}
+                    strokeWidth={s(selected ? 2.5 : 1.5)}
+                    dash={constraintDash}
                   />
                   {selected && (
                     <KonvaText
@@ -419,33 +431,6 @@ export function ConstraintEditor({
                       fill="#17352d"
                     />
                   )}
-                  {camera.zoom >= BADGE_MIN_ZOOM &&
-                    badges.map((badge, index) => {
-                      const badgeFont = s(10);
-                      const badgeWidth = estimateTextWidthPx(badge, badgeFont) + s(8);
-                      const badgeHeight = badgeFont + s(4);
-                      return (
-                        <Group
-                          key={badge}
-                          x={x}
-                          y={y - badgeHeight * (index + 1) - s(3) * (index + 1)}
-                        >
-                          <Rect
-                            width={badgeWidth}
-                            height={badgeHeight}
-                            cornerRadius={badgeHeight / 2}
-                            fill="rgba(23,53,45,0.72)"
-                          />
-                          <KonvaText
-                            x={s(4)}
-                            y={s(2)}
-                            text={badge}
-                            fontSize={badgeFont}
-                            fill="#ffffff"
-                          />
-                        </Group>
-                      );
-                    })}
                 </Group>
               );
             })}
