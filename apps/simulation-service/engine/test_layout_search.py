@@ -640,3 +640,34 @@ def test_rotation_pivots_to_wall_contact_mid_rotation():
     nearest = layout_search._nearest_wall_projection(geometry, layout_search._wall_segments(drawing))
     assert nearest is not None and nearest[1] <= 0.05
     assert nearest[1] > 0.0
+
+
+def test_rotation_preserves_inverted_rectangle_span():
+    """A fabric drawn bottom-to-top is stored with startY > endY.
+
+    Shapely hands back a normalized box, so re-deriving both corners from it flipped the
+    sign of the stored height and `_spans_match` rejected every rotation candidate as
+    INVALID_GEOMETRY - with no overlap involved.
+    """
+    drawing = room_drawing(
+        fabrics=[{"id": 1, "name": "f", "startX": 5, "startY": 6, "endX": 7, "endY": 3, "rotation": 0}],
+        walls=[{"id": 1, "startX": 5, "startY": 0, "endX": 5, "endY": 10}],
+    )
+    before = {"startX": 5, "startY": 6, "endX": 7, "endY": 3, "rotation": 0}
+    rotated = layout_search._rotated_around_wall_contact(before, 90.0, drawing)
+    assert layout_search._spans_match(before, rotated)
+    assert Decimal(str(rotated["endY"])) - Decimal(str(rotated["startY"])) == Decimal("-3")
+    assert math.isclose(layout_search._rect_area(rotated), layout_search._rect_area(before))
+
+
+def test_inverted_rectangle_yields_rotate_candidates():
+    drawing = room_drawing(
+        fabrics=[{"id": 1, "name": "f", "startX": 5, "startY": 6, "endX": 7, "endY": 3, "rotation": 0}],
+        walls=[{"id": 1, "startX": 5, "startY": 0, "endX": 5, "endY": 4}],
+    )
+    finding = bottleneck_finding(region={"startX": 5, "startY": 3, "endX": 7, "endY": 6})
+    result = layout_search.generate(base_input(drawing, findings=[finding], max_candidates=6))
+    assert "INVALID_GEOMETRY" not in result["rejectedCounts"]
+    for candidate in result["candidates"]:
+        for op in candidate["ops"]:
+            assert layout_search._spans_match(op["before"], op["after"])

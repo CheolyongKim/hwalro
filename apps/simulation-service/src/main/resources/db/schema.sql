@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS pillars (
     end_y DECIMAL(12, 4) NOT NULL,
     rotation DECIMAL(12, 4) NOT NULL DEFAULT 0,
     CONSTRAINT pk_pillars PRIMARY KEY (id),
+    CONSTRAINT ck_pillars_extent CHECK (start_x < end_x AND start_y < end_y),
     CONSTRAINT fk_pillars_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
@@ -116,6 +117,10 @@ CREATE TABLE IF NOT EXISTS fabrics (
     end_y DECIMAL(12, 4) NOT NULL,
     rotation DECIMAL(12, 4) NOT NULL DEFAULT 0,
     CONSTRAINT pk_fabrics PRIMARY KEY (id),
+    -- 아래→위로 그린 구조물이 start > end로 저장되면 배치 개선안 탐색이 조용히 후보를 버린다
+    -- (Java는 좌표 검증 실패, 엔진은 INVALID_GEOMETRY). DrawingService가 저장 시 정규화하며,
+    -- 여기서 한 번 더 막아 회귀 시 즉시 실패하게 한다.
+    CONSTRAINT ck_fabrics_extent CHECK (start_x < end_x AND start_y < end_y),
     CONSTRAINT fk_fabrics_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE

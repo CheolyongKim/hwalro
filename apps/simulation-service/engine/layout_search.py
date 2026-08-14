@@ -524,11 +524,20 @@ def _rotated_around_wall_contact(before: dict[str, Any], angle: float, drawing: 
     final_rotation = (_numeric(before["rotation"]) + angle) % 360.0
     unrotated = rotate(current, -final_rotation, origin=current.centroid, use_radians=False)
     min_x, min_y, max_x, max_y = unrotated.bounds
+    # Shapely returns a normalized, float-rounded box. Re-deriving both corners from it would
+    # change the stored width/height by a quantization step - and drop the sign when the source
+    # rectangle was drawn end-before-start - either of which trips `_spans_match`. So only the
+    # anchor corner is taken from the rotated bounds; the far corner comes from the exact
+    # decimal span of `before`, the same way `_translated_after` does it.
+    width = _decimal(before["endX"]) - _decimal(before["startX"])
+    height = _decimal(before["endY"]) - _decimal(before["startY"])
+    start_x = _quantized(_decimal(max_x if width < 0 else min_x))
+    start_y = _quantized(_decimal(max_y if height < 0 else min_y))
     return {
-        "startX": float(_quantized(_decimal(min_x))),
-        "startY": float(_quantized(_decimal(min_y))),
-        "endX": float(_quantized(_decimal(max_x))),
-        "endY": float(_quantized(_decimal(max_y))),
+        "startX": float(start_x),
+        "startY": float(start_y),
+        "endX": float(start_x + width),
+        "endY": float(start_y + height),
         "rotation": final_rotation,
     }
 
