@@ -36,5 +36,6 @@ jobs:
           provider: opencode-go
           model: opencode-go/deepseek-v4-flash
           model-options: '{"reasoningEffort":"high"}'
+          review-shards: '0'
           opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
