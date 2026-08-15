@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -9,7 +10,7 @@ import {
   Pagination,
   Skeleton,
 } from '../components/ui';
-import { useRiskList } from '../features/risks/hooks/useRiskList';
+import { useRiskDetail, useRiskList } from '../features/risks/hooks/useRiskList';
 import { getRiskErrorMessage } from '../features/risks/utils/getRiskErrorMessage';
 import RiskCreateDialog from './riskManagement/RiskCreateDialog';
 import RiskDetailPanel from './riskManagement/RiskDetailPanel';
@@ -17,15 +18,38 @@ import RiskItemTable from './riskManagement/RiskItemTable';
 
 const PAGE_SIZE = 5;
 
+function parseRiskId(value: string | null): number | null {
+  if (value === null) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 function RiskManagementPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const { items, totalCount, isPending, isError, error } = useRiskList(page, PAGE_SIZE);
+  const linkedRiskId = parseRiskId(searchParams.get('riskId'));
+  const linkedRiskInCurrentPage = items.find((item) => item.id === linkedRiskId) ?? null;
+  const linkedRiskQuery = useRiskDetail(linkedRiskId, linkedRiskInCurrentPage === null);
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  const clearLinkedRisk = () => {
+    if (!searchParams.has('riskId')) return;
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete('riskId');
+    setSearchParams(nextSearchParams, { replace: true });
+  };
+
+  const handleSelect = (id: number) => {
+    clearLinkedRisk();
+    setSelectedId(id);
+  };
+
   const handlePageChange = (nextPage: number) => {
+    clearLinkedRisk();
     setSelectedId(null);
     setPage(nextPage);
   };
@@ -37,7 +61,16 @@ function RiskManagementPage() {
     }
   }, [isPending, isError, page, pageCount]);
 
-  const selectedItem = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+  const selectedItem =
+    linkedRiskId !== null
+      ? (linkedRiskInCurrentPage ?? linkedRiskQuery.data ?? null)
+      : (items.find((item) => item.id === selectedId) ?? items[0] ?? null);
+  const isLinkedRiskPending =
+    linkedRiskId !== null && linkedRiskInCurrentPage === null && linkedRiskQuery.isPending;
+  const linkedRiskError =
+    linkedRiskId !== null && linkedRiskInCurrentPage === null && linkedRiskQuery.isError
+      ? linkedRiskQuery.error
+      : null;
 
   return (
     <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
@@ -83,7 +116,7 @@ function RiskManagementPage() {
                 <RiskItemTable
                   items={items}
                   selectedId={selectedItem?.id ?? null}
-                  onSelect={setSelectedId}
+                  onSelect={handleSelect}
                 />
                 {items.length > 0 && (
                   <div className="mt-auto flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
@@ -106,7 +139,15 @@ function RiskManagementPage() {
         <Card padded={false} className="flex min-h-[500px] flex-col p-6">
           <h2 className="text-xl font-black text-ink">위험 상세</h2>
           <div className="mt-5">
-            {selectedItem ? (
+            {isLinkedRiskPending ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : linkedRiskError ? (
+              <ErrorState message={getRiskErrorMessage(linkedRiskError)} />
+            ) : selectedItem ? (
               <RiskDetailPanel key={selectedItem.id} risk={selectedItem} />
             ) : (
               <EmptyState icon={ShieldAlert} title="선택된 위험 항목이 없습니다." />

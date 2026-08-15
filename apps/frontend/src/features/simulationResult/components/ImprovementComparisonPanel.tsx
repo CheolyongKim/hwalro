@@ -1,7 +1,7 @@
-import type { CollapsiblePanelController } from '../hooks/useCollapsiblePanel';
+import type { CollapsibleWorkspacePanelController } from '../../../components/workspace';
 
 interface Props {
-  panel: CollapsiblePanelController;
+  panel: CollapsibleWorkspacePanelController;
   onCompare: () => void;
 }
 

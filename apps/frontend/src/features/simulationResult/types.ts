@@ -86,6 +86,14 @@ export interface ComparableSimulation {
   totalEvacuationTime: number;
 }
 
+export interface ComparableSimulationPage {
+  totalCount: number;
+  page: number;
+  size: number;
+  hasNext: boolean;
+  items: ComparableSimulation[];
+}
+
 export interface RiskZone extends Bounds {
   id: string;
   name: string;
@@ -110,7 +118,6 @@ export interface SimulationResultSummaryViewModel {
   drawing: SimulationDrawing;
   hazardZones: HazardZone[];
   bottlenecks: DetectedBottleneck[];
-  comparableSimulations: ComparableSimulation[];
 }
 
 export interface SimulationResultViewModel extends SimulationResultSummaryViewModel {
@@ -128,6 +135,11 @@ export interface SimulationPlaybackChunkData {
 
 export interface SimulationResultProvider {
   getSummary(simulationId: string): Promise<SimulationResultSummaryViewModel | null>;
+  getComparableSimulations(
+    simulationId: number,
+    page: number,
+    size: number,
+  ): Promise<ComparableSimulationPage>;
   getPlaybackChunk(
     simulationId: number,
     sequence: number,

@@ -22,8 +22,13 @@ public interface SimulationResultDetailMapper {
 
     List<BottleneckRow> findBottlenecks(@Param("simulationResultId") Long simulationResultId);
 
-    List<ComparableRow> findComparableSimulations(
-            @Param("simulationId") Long simulationId, @Param("createdBy") Long createdBy);
+    long countComparableSimulations(@Param("simulationId") Long simulationId, @Param("createdBy") Long createdBy);
+
+    List<ComparableRow> findComparableSimulationPage(
+            @Param("simulationId") Long simulationId,
+            @Param("createdBy") Long createdBy,
+            @Param("offset") int offset,
+            @Param("size") int size);
 
     record SummaryRow(
             Long simulationResultId,
