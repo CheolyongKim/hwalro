@@ -23,9 +23,7 @@ const TOOLS: Array<{ id: Tool; label: string }> = [
 
 export function ToolToolbar({ state, dispatch, className, disabled = false }: ToolToolbarProps) {
   return (
-    <div
-      className={`flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border border-panel-divider bg-panel p-1.5 shadow-overlay ${className ?? ''}`}
-    >
+    <div className={`layout-tool-toolbar ${className ?? ''}`}>
       {TOOLS.map((tool) => {
         const active = state.tool === tool.id;
         return (
@@ -35,11 +33,7 @@ export function ToolToolbar({ state, dispatch, className, disabled = false }: To
             aria-pressed={active}
             disabled={disabled}
             onClick={() => dispatch({ type: 'setTool', tool: tool.id })}
-            className={`h-9 min-w-14 rounded-lg px-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40 ${
-              active
-                ? 'bg-panel-accent font-bold text-ink'
-                : 'bg-panel-soft font-semibold text-panel-text hover:bg-panel-border'
-            }`}
+            className={`layout-tool-button ${active ? 'is-active' : ''}`}
           >
             {tool.label}
           </button>

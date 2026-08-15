@@ -133,18 +133,12 @@ function Sidebar() {
   return (
     <aside className="sticky top-0 flex h-[100dvh] w-20 shrink-0 flex-col rounded-r-3xl bg-linear-to-br from-ink via-ink to-ink-deep px-5 py-7 text-white shadow-xl shadow-ink/15 lg:w-60">
       <div className="flex items-center gap-3 px-1">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lime text-ink">
-          <svg
-            aria-hidden="true"
-            className="h-5 w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          >
-            <path d="M5 12h14M12 5v14" />
-          </svg>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center lg:w-15">
+          <img
+            src="/hyundai-department-group-ci.png"
+            alt="현대백화점그룹"
+            className="h-auto w-full"
+          />
         </div>
         <div className="hidden min-w-0 lg:block">
           <p className="text-lg font-black tracking-[0.16em]">활로</p>

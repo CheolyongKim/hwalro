@@ -7,10 +7,11 @@ import com.hwalro.simulation.analysis.service.DensityThresholdProvider;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.result.dto.ComparableSimulationPageResponse;
+import com.hwalro.simulation.result.dto.ComparableSimulationPageResponse.ComparableSimulation;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Bottleneck;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Bounds;
-import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.ComparableSimulation;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.Drawing;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.HazardZone;
 import com.hwalro.simulation.result.dto.SimulationResultDetailResponse.LayoutText;
@@ -31,6 +32,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class SimulationResultDetailService {
     private static final String SUBTITLE = "시뮬레이션 결과 분석";
+    private static final int MAX_PAGE = 10_000;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final SimulationResultDetailMapper mapper;
     private final DrawingMapper drawingMapper;
@@ -67,12 +70,6 @@ public class SimulationResultDetailService {
         List<Bottleneck> bottlenecks = findBottlenecks(summary.simulationResultId());
         double threshold = densityThresholdProvider.getCurrent().value().doubleValue();
         Drawing drawing = assembleDrawing(summary);
-        List<ComparableSimulation> comparableSimulations =
-                mapper.findComparableSimulations(simulationId, summary.createdBy()).stream()
-                        .map(row -> new ComparableSimulation(
-                                row.simulationId(), row.simulationResultId(), row.name(), row.totalEvacuationTime()))
-                        .toList();
-
         return new SimulationResultDetailResponse(
                 summary.simulationId(),
                 summary.simulationResultId(),
@@ -86,8 +83,33 @@ public class SimulationResultDetailService {
                 mapper.findHazardZones(simulationId).stream()
                         .map(row -> new HazardZone(row.id(), row.centerX(), row.centerY(), row.radius()))
                         .toList(),
-                bottlenecks,
-                comparableSimulations);
+                bottlenecks);
+    }
+
+    public ComparableSimulationPageResponse findComparableSimulations(
+            Long simulationId, int page, int size, JwtUser user) {
+        if (simulationId == null || simulationId <= 0) {
+            throw new IllegalArgumentException("시뮬레이션 ID는 양수여야 합니다.");
+        }
+        if (page < 1 || page > MAX_PAGE || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("page는 1 이상, size는 1~100이어야 합니다.");
+        }
+
+        SummaryRow summary = mapper.findSummary(simulationId);
+        if (summary == null) {
+            throw new SimulationNotFoundException("시뮬레이션을 찾을 수 없습니다: " + simulationId);
+        }
+        requireAccessible(summary, user);
+
+        long totalCount = mapper.countComparableSimulations(simulationId, summary.createdBy());
+        List<ComparableSimulation> items =
+                mapper.findComparableSimulationPage(simulationId, summary.createdBy(), (page - 1) * size, size).stream()
+                        .map(row -> new ComparableSimulation(
+                                row.simulationId(), row.simulationResultId(), row.name(), row.totalEvacuationTime()))
+                        .toList();
+
+        return new ComparableSimulationPageResponse(
+                Math.toIntExact(totalCount), page, size, page * size < totalCount, items);
     }
 
     public SimulationResultDetailResponse.Drawing findDrawing(Long simulationId) {

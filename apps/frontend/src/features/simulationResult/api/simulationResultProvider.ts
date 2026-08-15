@@ -1,7 +1,11 @@
 import axios from 'axios';
 import { apiClient } from '../../../api/client';
 import { simulationApi } from '../../simulations/api/simulationApi';
-import type { SimulationResultProvider, SimulationResultSummaryViewModel } from '../types';
+import type {
+  ComparableSimulationPage,
+  SimulationResultProvider,
+  SimulationResultSummaryViewModel,
+} from '../types';
 import { convertPlaybackChunks } from '../utils/resultChunks';
 
 interface SegmentResponse {
@@ -49,12 +53,6 @@ interface SimulationResultSummaryResponse {
     thresholdValue: number;
     geometry: { x: number; y: number; width: number; height: number };
   }>;
-  comparableSimulations: Array<{
-    id: number;
-    simulationResultId: number;
-    name: string;
-    totalEvacuationTime: number;
-  }>;
 }
 
 function toSummaryViewModel(
@@ -78,6 +76,14 @@ export const simulationResultProvider: SimulationResultProvider = {
       if (axios.isAxiosError(error) && error.response?.status === 404) return null;
       throw error;
     }
+  },
+
+  async getComparableSimulations(simulationId, page, size) {
+    const response = await apiClient.get<ComparableSimulationPage>(
+      `/api/simulations/${simulationId}/result/comparable-simulations`,
+      { params: { page, size } },
+    );
+    return response.data;
   },
 
   async getPlaybackChunk(simulationId, sequence, totalPeople, maxDensity) {

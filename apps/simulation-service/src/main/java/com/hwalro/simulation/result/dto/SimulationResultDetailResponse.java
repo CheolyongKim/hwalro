@@ -13,8 +13,7 @@ public record SimulationResultDetailResponse(
         double densityThreshold,
         Drawing drawing,
         List<HazardZone> hazardZones,
-        List<Bottleneck> bottlenecks,
-        List<ComparableSimulation> comparableSimulations) {
+        List<Bottleneck> bottlenecks) {
 
     public record Drawing(
             String name,
@@ -48,6 +47,4 @@ public record SimulationResultDetailResponse(
             Bounds geometry) {}
 
     public record Bounds(double x, double y, double width, double height) {}
-
-    public record ComparableSimulation(Long id, Long simulationResultId, String name, double totalEvacuationTime) {}
 }

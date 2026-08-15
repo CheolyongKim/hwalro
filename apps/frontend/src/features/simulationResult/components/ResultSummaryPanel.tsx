@@ -1,6 +1,10 @@
 import { CircleCheck } from 'lucide-react';
+import {
+  CanvasWorkspacePanel,
+  CanvasWorkspacePanelRestore,
+  useCollapsibleWorkspacePanel,
+} from '../../../components/workspace';
 import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
-import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { BOTTLENECK_DISPLAY_BATCH_SIZE } from '../utils/bottleneckDisplay';
 import { getEvacuationProgressDisplay } from '../utils/evacuationProgressDisplay';
 
@@ -19,6 +23,7 @@ interface Props {
   onSelectBottleneck: (id: number) => void;
   onShowMoreBottlenecks: () => void;
   onOpenReport: () => void;
+  onOpenRisk: (id: number) => void;
 }
 
 export function ResultSummaryPanel({
@@ -36,8 +41,9 @@ export function ResultSummaryPanel({
   onSelectBottleneck,
   onShowMoreBottlenecks,
   onOpenReport,
+  onOpenRisk,
 }: Props) {
-  const panel = useCollapsiblePanel();
+  const panel = useCollapsibleWorkspacePanel();
   const selectedBottleneck = bottlenecks.find((item) => item.id === selectedBottleneckId);
   const remainingBottleneckCount = totalBottleneckCount - displayedBottleneckCount;
   const nextBottleneckCount = Math.min(BOTTLENECK_DISPLAY_BATCH_SIZE, remainingBottleneckCount);
@@ -49,14 +55,15 @@ export function ResultSummaryPanel({
 
   if (panel.isMinimized) {
     return (
-      <button type="button" className="summary-restore" onClick={panel.restore}>
+      <CanvasWorkspacePanelRestore className="summary-restore" onClick={panel.restore}>
         결과 요약 열기
-      </button>
+      </CanvasWorkspacePanelRestore>
     );
   }
 
   return (
-    <aside
+    <CanvasWorkspacePanel
+      ariaLabel="시뮬레이션 결과 요약"
       className={`result-summary ${panel.isCollapsing ? 'is-collapsing' : ''} ${reserveImprovementPanelSpace ? 'has-improvement-panel' : ''}`}
       onAnimationEnd={(event) => {
         if (event.currentTarget === event.target) panel.handleAnimationEnd();
@@ -149,10 +156,16 @@ export function ResultSummaryPanel({
             <h2 id="risk-zone-summary-title">위험 예상 항목</h2>
             <div className="risk-zone-list">
               {riskZones.map((zone) => (
-                <div className="risk-zone-summary-card" key={zone.id}>
+                <button
+                  type="button"
+                  className="risk-zone-summary-card cursor-pointer"
+                  key={zone.id}
+                  aria-label={`${zone.name} 위험 예상 항목 관리로 이동`}
+                  onClick={() => onOpenRisk(Number(zone.id))}
+                >
                   <strong>{zone.name}</strong>
                   <span>사용자 지정 위험 예상 항목</span>
-                </div>
+                </button>
               ))}
             </div>
           </section>
@@ -161,6 +174,6 @@ export function ResultSummaryPanel({
           AI 보고서 초안 생성
         </button>
       </div>
-    </aside>
+    </CanvasWorkspacePanel>
   );
 }

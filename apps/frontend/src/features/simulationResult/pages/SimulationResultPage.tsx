@@ -1,8 +1,14 @@
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { Button } from '../../../components/ui';
+import {
+  CanvasWorkspace,
+  CanvasWorkspaceBackButton,
+  CanvasWorkspaceHeader,
+  CanvasWorkspaceState,
+  useCollapsibleWorkspacePanel,
+} from '../../../components/workspace';
 import { reportApi } from '../../reports/api/reportApi';
 import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
@@ -18,7 +24,6 @@ import { ResultSummaryPanel } from '../components/ResultSummaryPanel';
 import { RiskZoneEditorDialog } from '../components/RiskZoneEditorDialog';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
-import { useCollapsiblePanel } from '../hooks/useCollapsiblePanel';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
 import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
 import type {
@@ -104,10 +109,10 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         : null,
     [chunks.agentFrames, chunks.evacuationProgress, chunks.heatmap, summary],
   );
-  const evacuationChart = useCollapsiblePanel(() =>
+  const evacuationChart = useCollapsibleWorkspacePanel(() =>
     matchesMediaQuery(NARROW_RESULT_VIEWPORT_QUERY),
   );
-  const improvementPanel = useCollapsiblePanel(() =>
+  const improvementPanel = useCollapsibleWorkspacePanel(() =>
     matchesMediaQuery(COMPACT_SUPPORT_PANEL_QUERY),
   );
   const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(
@@ -228,36 +233,37 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
 
   if (chunks.error || !result || !currentFrame) {
     return (
-      <div className="result-state">
-        <p>
-          {chunks.error ??
-            (chunks.loading
-              ? '시뮬레이션 재생 데이터를 불러오는 중입니다.'
-              : '시뮬레이션 재생 데이터가 없습니다.')}
-        </p>
-        <div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="cursor-pointer"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
-            뒤로
-          </Button>
-          {chunks.error && (
-            <button type="button" onClick={chunks.retry}>
-              다시 시도
-            </button>
-          )}
-        </div>
-      </div>
+      <CanvasWorkspaceState
+        message={
+          chunks.error ??
+          (chunks.loading
+            ? '시뮬레이션 재생 데이터를 불러오는 중입니다.'
+            : '시뮬레이션 재생 데이터가 없습니다.')
+        }
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="cursor-pointer"
+              onClick={() => navigate(-1)}
+            >
+              뒤로
+            </Button>
+            {chunks.error && (
+              <Button type="button" size="sm" onClick={chunks.retry}>
+                다시 시도
+              </Button>
+            )}
+          </>
+        }
+      />
     );
   }
 
   return (
-    <main className="simulation-result-page">
+    <CanvasWorkspace className="simulation-result-page">
       <SimulationPlaybackStage
         result={result}
         bottlenecks={displayedBottlenecks}
@@ -270,24 +276,13 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         onViewportPan={handleViewportPan}
       />
 
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={() => navigate(-1)}
-        className="absolute left-[22px] top-[22px] z-10 cursor-pointer shadow-raised"
-      >
-        <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
-        뒤로
-      </Button>
-      <header className="simulation-meta">
-        <span className="status-dot" />
-        <div>
-          <strong>{result.title}</strong>
-          <small>{result.subtitle}</small>
-        </div>
-        <span className="complete-badge">완료</span>
-      </header>
+      <CanvasWorkspaceBackButton onClick={() => navigate(-1)} />
+      <CanvasWorkspaceHeader
+        title={result.title}
+        subtitle={result.subtitle}
+        status="완료"
+        statusTone="complete"
+      />
 
       <div className="risk-zone-control">
         <button
@@ -316,6 +311,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         onSelectBottleneck={setSelectedBottleneckId}
         onShowMoreBottlenecks={handleShowMoreBottlenecks}
         onOpenReport={handleOpenReport}
+        onOpenRisk={(riskId) => navigate(`/risk-management?riskId=${riskId}`)}
       />
 
       {evacuationChart.isMinimized ? (
@@ -384,7 +380,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         }}
         onGenerate={handleGenerateReport}
       />
-    </main>
+    </CanvasWorkspace>
   );
 }
 
@@ -450,35 +446,38 @@ export default function SimulationResultPage() {
   if (status === 'loading') {
     const participantLabel = loadingTotalPeople?.toLocaleString('ko-KR');
     return (
-      <div className="result-state">
-        {participantLabel
-          ? `${participantLabel}명 시뮬레이션 결과를 준비하고 있습니다.`
-          : '시뮬레이션 결과를 준비하고 있습니다.'}
-      </div>
+      <CanvasWorkspaceState
+        message={
+          participantLabel
+            ? `${participantLabel}명 시뮬레이션 결과를 준비하고 있습니다.`
+            : '시뮬레이션 결과를 준비하고 있습니다.'
+        }
+      />
     );
   }
   if (status !== 'ready' || !summary || !executionResult) {
     return (
-      <div className="result-state">
-        <p>{status === 'missing' ? '완료된 결과가 없습니다.' : '결과를 불러오지 못했습니다.'}</p>
-        <div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="cursor-pointer"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
-            뒤로
-          </Button>
-          {status === 'error' && (
-            <button type="button" onClick={() => setRetry((value) => value + 1)}>
-              다시 시도
-            </button>
-          )}
-        </div>
-      </div>
+      <CanvasWorkspaceState
+        message={status === 'missing' ? '완료된 결과가 없습니다.' : '결과를 불러오지 못했습니다.'}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="cursor-pointer"
+              onClick={() => navigate(-1)}
+            >
+              뒤로
+            </Button>
+            {status === 'error' && (
+              <Button type="button" size="sm" onClick={() => setRetry((value) => value + 1)}>
+                다시 시도
+              </Button>
+            )}
+          </>
+        }
+      />
     );
   }
   return <ResultView summary={summary} executionResult={executionResult} />;
