@@ -47,6 +47,7 @@ function InspectionMobilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -76,7 +77,7 @@ function InspectionMobilePage() {
     return () => {
       active = false;
     };
-  }, [areaId]);
+  }, [areaId, loadAttempt]);
 
   const counts = useMemo(
     () => ({
@@ -102,6 +103,7 @@ function InspectionMobilePage() {
     setItems((current) =>
       current.map((entry) => (entry.id === item.id ? { ...entry, comment: value } : entry)),
     );
+    setNotice(null);
   }
 
   async function save(status: InspectionStatus) {
@@ -149,8 +151,20 @@ function InspectionMobilePage() {
         <ErrorState message={error ?? '점검 정보를 찾을 수 없습니다.'} className="w-full" />
         <Button
           type="button"
-          variant="secondary"
-          className="mt-6"
+          size="lg"
+          className="mt-6 w-full"
+          onClick={() => {
+            setError(null);
+            setIsLoading(true);
+            setLoadAttempt((value) => value + 1);
+          }}
+        >
+          다시 시도
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mt-3"
           onClick={() => navigate('/safety-checklists')}
         >
           점검 구역 목록으로
@@ -234,7 +248,11 @@ function InspectionMobilePage() {
                   type="button"
                   onClick={() => canEdit && cycleResult(item)}
                   disabled={!canEdit || isSaving}
-                  aria-label={`${item.title} 판정: ${RESULT_LABELS[item.result]} (누르면 다음 판정으로)`}
+                  aria-label={
+                    canEdit && !isSaving
+                      ? `${item.title} 판정: ${RESULT_LABELS[item.result]} (누르면 다음 판정으로)`
+                      : `${item.title} 판정: ${RESULT_LABELS[item.result]}`
+                  }
                   className={`flex h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-black outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-70 ${RESULT_CHIP_STYLES[item.result]}`}
                 >
                   {getResultIcon(item.result)}
