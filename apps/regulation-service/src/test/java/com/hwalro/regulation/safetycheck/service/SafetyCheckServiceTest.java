@@ -40,7 +40,7 @@ class SafetyCheckServiceTest {
     @Test
     void createsAreaWithNormalizedFields() {
         SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
-        InspectionAreaResponse created = new InspectionAreaResponse(41L, "Lobby", null, true, 0, null);
+        InspectionAreaResponse created = new InspectionAreaResponse(41L, "Lobby", null, true, 0, null, true);
         doAnswer(invocation -> {
                     invocation.<InspectionArea>getArgument(0).setId(41L);
                     return 1;
@@ -60,7 +60,7 @@ class SafetyCheckServiceTest {
     void getsInactiveAreaById() {
         SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
         JwtUser operator = new JwtUser(3L, Set.of("OPERATOR"));
-        InspectionAreaResponse inactive = new InspectionAreaResponse(41L, "Lobby", null, false, 2, null);
+        InspectionAreaResponse inactive = new InspectionAreaResponse(41L, "Lobby", null, false, 2, null, true);
         when(safetyCheckMapper.findArea(41L, 3L)).thenReturn(inactive);
 
         assertThat(service.getArea(41L, operator)).isSameAs(inactive);
@@ -70,7 +70,7 @@ class SafetyCheckServiceTest {
     void readsHistoryAndTemplateForInactiveArea() {
         SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
         JwtUser reviewer = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
-        InspectionAreaResponse inactive = new InspectionAreaResponse(41L, "Lobby", null, false, 2, null);
+        InspectionAreaResponse inactive = new InspectionAreaResponse(41L, "Lobby", null, false, 2, null, true);
         when(safetyCheckMapper.findArea(41L, null)).thenReturn(inactive);
         when(safetyCheckMapper.findInspectionHistory(41L, null)).thenReturn(List.of());
         when(safetyCheckMapper.findActiveTemplateId(41L)).thenReturn(null);
@@ -82,7 +82,7 @@ class SafetyCheckServiceTest {
     @Test
     void updatesOnlyActiveArea() {
         SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
-        InspectionAreaResponse updated = new InspectionAreaResponse(41L, "Hall", "North", true, 0, null);
+        InspectionAreaResponse updated = new InspectionAreaResponse(41L, "Hall", "North", true, 0, null, true);
         when(safetyCheckMapper.updateArea(any())).thenReturn(1);
         when(safetyCheckMapper.findArea(41L, null)).thenReturn(updated);
 
@@ -226,7 +226,7 @@ class SafetyCheckServiceTest {
     void updatesChecklistAsANewTemplateVersion() {
         SafetyCheckService service = new SafetyCheckService(safetyCheckMapper);
         when(safetyCheckMapper.findArea(2L, null))
-                .thenReturn(new InspectionAreaResponse(2L, "B2", null, true, 0, null));
+                .thenReturn(new InspectionAreaResponse(2L, "B2", null, true, 0, null, true));
         when(safetyCheckMapper.lockInspectionArea(2L)).thenReturn(2L);
         when(safetyCheckMapper.findNextTemplateVersion(2L)).thenReturn(3);
         doAnswer(invocation -> {

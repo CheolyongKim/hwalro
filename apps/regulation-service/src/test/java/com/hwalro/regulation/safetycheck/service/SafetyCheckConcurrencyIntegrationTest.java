@@ -2,11 +2,13 @@ package com.hwalro.regulation.safetycheck.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateResponse;
 import com.hwalro.regulation.safetycheck.dto.ChecklistTemplateUpdateRequest;
 import com.hwalro.regulation.safetycheck.mapper.SafetyCheckMapper;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -151,6 +153,47 @@ class SafetyCheckConcurrencyIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT result FROM safety_inspection_items WHERE id = 940", String.class))
                 .isEqualTo("PASS");
+    }
+
+    @Test
+    void concurrentGetOrCreateCreatesSingleOpenDraft() throws Exception {
+        insertArea();
+        jdbcTemplate.update("INSERT INTO checklist_templates "
+                + "(id, inspection_area_id, version, status) VALUES (910, 900, 1, 'ACTIVE')");
+        JwtUser inspector = new JwtUser(3L, Set.of("SAFETY_REVIEWER"));
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        List<Long> createdIds;
+        try {
+            Future<Long> first = executor.submit(() -> {
+                ready.countDown();
+                await(start);
+                return safetyCheckService
+                        .getOrCreateOpenInspection(900L, inspector)
+                        .id();
+            });
+            Future<Long> second = executor.submit(() -> {
+                ready.countDown();
+                await(start);
+                return safetyCheckService
+                        .getOrCreateOpenInspection(900L, inspector)
+                        .id();
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            createdIds = List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(createdIds.get(0)).isEqualTo(createdIds.get(1));
+        assertThat(jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM safety_inspections WHERE inspection_area_id = 900", Integer.class))
+                .isEqualTo(1);
     }
 
     private void insertArea() {

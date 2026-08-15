@@ -271,7 +271,13 @@ function SafetyCheckAreasPage() {
                     <button
                       type="button"
                       onClick={() => setQrArea(area)}
-                      className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold text-text-strong outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      disabled={!area.hasActiveTemplate}
+                      title={
+                        area.hasActiveTemplate
+                          ? '체크리스트 QR 배포'
+                          : '체크리스트 항목을 먼저 등록해야 QR을 배포할 수 있습니다.'
+                      }
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold text-text-strong outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <QrCode aria-hidden="true" className="h-4 w-4" />
                       QR 배포

@@ -10,7 +10,13 @@
                area.description,
                area.active,
                COUNT(inspection.id) AS inspection_count,
-               MAX(inspection.created_at) AS last_inspected_at
+               MAX(inspection.created_at) AS last_inspected_at,
+               EXISTS (
+                   SELECT 1
+                   FROM checklist_templates template
+                   WHERE template.inspection_area_id = area.id
+                     AND template.status = 'ACTIVE'
+               ) AS has_active_template
         FROM inspection_areas area
         LEFT JOIN safety_inspections inspection
                ON inspection.inspection_area_id = area.id
@@ -33,7 +39,13 @@
                area.description,
                area.active,
                COUNT(inspection.id) AS inspection_count,
-               MAX(inspection.created_at) AS last_inspected_at
+               MAX(inspection.created_at) AS last_inspected_at,
+               EXISTS (
+                   SELECT 1
+                   FROM checklist_templates template
+                   WHERE template.inspection_area_id = area.id
+                     AND template.status = 'ACTIVE'
+               ) AS has_active_template
         FROM inspection_areas area
         LEFT JOIN safety_inspections inspection
                ON inspection.inspection_area_id = area.id
@@ -151,7 +163,7 @@
         WHERE inspection_area_id = #{areaId}
           AND inspector_id = #{inspectorId}
           AND status = 'DRAFT'
-        ORDER BY id
+        ORDER BY id DESC
         LIMIT 1
     </select>
 
