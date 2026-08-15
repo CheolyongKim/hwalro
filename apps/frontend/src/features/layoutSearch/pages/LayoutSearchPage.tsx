@@ -4,19 +4,14 @@ import { ArrowLeft } from 'lucide-react';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import type { SimulationDrawing, SimulationSetup } from '../../simulations/types';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
-import type { SearchStatus } from '../api/layoutSearchApi';
 import { CandidateDetailPanel } from '../components/CandidateDetailPanel';
-import { CandidateList } from '../components/CandidateList';
 import { CandidateTabs } from '../components/NoImprovementPanel';
 import { ConstraintInspector } from '../components/ConstraintInspector';
-import { DiagnosisPanel } from '../components/DiagnosisPanel';
 import { HoldToCompare } from '../components/HoldToCompare';
 import { SearchProgressHeader } from '../components/SearchProgressHeader';
 import { useLayoutSearch } from '../hooks/useLayoutSearch';
 import { applyChangeSet } from '../utils/applyChangeSet';
 import '../layoutSearch.css';
-
-const DIAGNOSIS_LOADING_STATUSES: SearchStatus[] = ['PENDING', 'DIAGNOSING', 'GENERATING'];
 
 export function changedFabricIds(baseline: SimulationDrawing, after: SimulationDrawing) {
   const afterById = new Map(after.fabrics.map((fabric) => [fabric.id, fabric]));
@@ -192,8 +187,6 @@ export default function LayoutSearchPage() {
     );
   }
 
-  const diagnosisLoading = DIAGNOSIS_LOADING_STATUSES.includes(search.status);
-
   return (
     <main className="improvement-page">
       <SearchProgressHeader
@@ -213,27 +206,23 @@ export default function LayoutSearchPage() {
         </div>
       )}
       <div className="improvement-workspace">
-        <div className="search-side">
-          <DiagnosisPanel diagnosis={search.diagnosis} loading={diagnosisLoading} />
-          <CandidateList
-            candidates={search.improvedCandidates}
-            selectedCandidateId={selectedCandidate?.candidateId ?? null}
-            onSelect={(candidateId) => setSelectedTabKey(`i-${candidateId}`)}
-          />
-        </div>
-
         <section className="comparison-canvas" aria-labelledby="comparison-title">
           <div className="canvas-heading">
             <div>
-              <span>배치 도면 비교</span>
+              <span>배치 개선안 검증</span>
               <h2 id="comparison-title">
                 {selectedCandidate
-                  ? '기존 배치와 개선 배치'
+                  ? '기존 배치와 개선 배치 비교'
                   : search.status === 'NO_IMPROVEMENT'
                     ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
                     : '검증 중인 배치'}
               </h2>
             </div>
+            {selectedCandidate && (
+              <p>
+                상단 탭으로 개선안을 전환하고, 도면을 길게 누르거나 버튼으로 전후 배치를 비교할 수 있습니다.
+              </p>
+            )}
           </div>
           <CandidateTabs
             improved={search.improvedCandidates}
@@ -243,14 +232,10 @@ export default function LayoutSearchPage() {
           <div className="comparison-plans">
             <div className="comparison-plan">
               <div className="comparison-plan__heading">
-                <div>
-                  <span>배치 도면 비교</span>
-                  <strong>{selectedCandidate ? '기존 배치와 개선 배치' : '시도 배치'}</strong>
-                </div>
+                <strong>{selectedCandidate ? '배치 도면 인터랙션' : '시도 배치'}</strong>
                 {selectedCandidate && (
                   <p>
-                    기본으로 개선 배치를 표시합니다. 캔버스를 누르는 동안 반대 배치를 볼 수
-                    있습니다.
+                    기본으로 개선 배치를 표시합니다. 캔버스를 누르는 동안 기존 배치를 볼 수 있습니다.
                   </p>
                 )}
               </div>
