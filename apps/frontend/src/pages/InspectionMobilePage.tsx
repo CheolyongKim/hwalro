@@ -146,7 +146,9 @@ function InspectionMobilePage() {
       return false;
     }
     if (requestError.response.status === 404) {
-      setError('이 점검은 다른 곳에서 삭제되어 저장할 수 없습니다. 다시 시도하면 새 점검이 시작됩니다.');
+      setError(
+        '이 점검은 다른 곳에서 삭제되어 저장할 수 없습니다. 다시 시도하면 새 점검이 시작됩니다.',
+      );
       return true;
     }
     if (requestError.response.status === 400) {
