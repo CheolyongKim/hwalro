@@ -35,24 +35,6 @@ function getResultIcon(result: InspectionResult) {
   return null;
 }
 
-function mergeItems(
-  local: InspectionItem[],
-  sent: InspectionItem[],
-  server: InspectionItem[],
-): InspectionItem[] {
-  return local.map((item) => {
-    const sentItem = sent.find((entry) => entry.id === item.id);
-    if (
-      sentItem &&
-      (item.result !== sentItem.result || (item.comment ?? '') !== (sentItem.comment ?? ''))
-    ) {
-      return item;
-    }
-    const serverItem = server.find((entry) => entry.id === item.id);
-    return serverItem ?? item;
-  });
-}
-
 function InspectionMobilePage() {
   const { areaId: areaIdParam } = useParams();
   const areaId = Number(areaIdParam);
@@ -124,29 +106,22 @@ function InspectionMobilePage() {
 
   async function save(status: InspectionStatus) {
     if (!inspection) return;
-    const sentItems = items;
-    const sentComment = comment;
     setIsSaving(true);
     setError(null);
     setNotice(null);
     try {
       const updated = await safetyCheckApi.updateInspection(inspection.id, {
         status,
-        comment: sentComment.trim() || null,
-        items: sentItems.map((item) => ({
+        comment: comment.trim() || null,
+        items: items.map((item) => ({
           id: item.id,
           result: item.result,
           comment: item.comment?.trim() || null,
         })),
       });
       setInspection(updated);
-      if (status === 'DRAFT') {
-        setItems((current) => mergeItems(current, sentItems, updated.items));
-        setComment((current) => (current !== sentComment ? current : (updated.comment ?? '')));
-      } else {
-        setItems(updated.items);
-        setComment(updated.comment ?? '');
-      }
+      setItems(updated.items);
+      setComment(updated.comment ?? '');
       setNotice(status === 'COMPLETED' ? '점검을 완료했습니다.' : '임시 저장했습니다.');
     } catch (requestError) {
       setError(getSafetyCheckError(requestError));
@@ -195,8 +170,16 @@ function InspectionMobilePage() {
             </p>
           </div>
         </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
+        <div
+          role="progressbar"
+          aria-label="점검 진행률"
+          aria-valuemin={0}
+          aria-valuemax={items.length}
+          aria-valuenow={counts.completed}
+          className="mt-3 h-2 overflow-hidden rounded-full bg-surface"
+        >
           <div
+            aria-hidden="true"
             className="h-full rounded-full bg-primary transition-all"
             style={{
               width: `${items.length === 0 ? 0 : (counts.completed / items.length) * 100}%`,
@@ -250,7 +233,7 @@ function InspectionMobilePage() {
                 <button
                   type="button"
                   onClick={() => canEdit && cycleResult(item)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || isSaving}
                   aria-label={`${item.title} 판정: ${RESULT_LABELS[item.result]} (누르면 다음 판정으로)`}
                   className={`flex h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-black outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-70 ${RESULT_CHIP_STYLES[item.result]}`}
                 >
@@ -262,7 +245,7 @@ function InspectionMobilePage() {
                 type="text"
                 value={item.comment ?? ''}
                 onChange={(event) => updateComment(item, event.target.value)}
-                readOnly={!canEdit}
+                readOnly={!canEdit || isSaving}
                 aria-label={`${item.title} 확인 내용`}
                 placeholder="확인 내용 또는 필요한 조치"
                 className="mt-3 w-full rounded-lg border border-line bg-surface/60 px-3 py-2 text-xs text-text-strong outline-none placeholder:text-text-muted focus:border-primary focus:ring-1 focus:ring-primary read-only:bg-surface/40"
