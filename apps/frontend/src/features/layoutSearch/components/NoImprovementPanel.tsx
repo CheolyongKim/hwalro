@@ -9,6 +9,24 @@ interface CandidateTabsProps {
   onSelect: (key: string) => void;
 }
 
+export function getCandidateTabColorClass(operatorType: string): string {
+  switch (operatorType) {
+    case 'CLEAR_CORRIDOR':
+    case 'OPEN_DUAL_GAP':
+      return 'is-corridor';
+    case 'RELIEVE_HOTSPOT':
+    case 'RELIEVE_DIAGONAL':
+      return 'is-hotspot';
+    case 'REBALANCE_EXIT':
+    case 'EXIT_OPENING':
+      return 'is-exit';
+    case 'ROTATE_TO_OPEN':
+      return 'is-rotate';
+    default:
+      return 'is-improved';
+  }
+}
+
 /**
  * 실측으로 개선이 확인된 후보만 탭으로 올린다.
  *
@@ -21,15 +39,17 @@ export function CandidateTabs({ improved, activeKey, onSelect }: CandidateTabsPr
     <div className="no-improvement-tabs" role="tablist" aria-label="개선 후보">
       {visibleTabs.map((candidate) => {
         const key = `i-${candidate.candidateId}`;
+        const colorClass = getCandidateTabColorClass(candidate.operatorType);
+        const isSelected = key === activeKey;
         return (
           <button
             key={key}
             type="button"
             role="tab"
             id={`candidate-tab-${key}`}
-            aria-selected={key === activeKey}
+            aria-selected={isSelected}
             aria-controls="candidate-tabpanel"
-            className={`no-improvement-tab is-improved${key === activeKey ? ' is-active' : ''}`}
+            className={`no-improvement-tab ${colorClass}${isSelected ? ' is-active' : ''}`}
             onClick={() => onSelect(key)}
             title="개선 확인"
           >
