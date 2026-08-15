@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2 } from 'lucide-react';
+import { Building2, QrCode } from 'lucide-react';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type { InspectionArea } from '../features/safetyChecks/types';
@@ -19,6 +19,8 @@ import {
   Skeleton,
 } from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
+
+const AreaQrDialog = lazy(() => import('../features/safetyChecks/components/AreaQrDialog'));
 
 const PAGE_SIZE = 6;
 
@@ -38,6 +40,7 @@ function SafetyCheckAreasPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [areaToDelete, setAreaToDelete] = useState<InspectionArea | null>(null);
+  const [qrArea, setQrArea] = useState<InspectionArea | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const canManage = user?.roles.includes('ADMIN') || user?.roles.includes('SAFETY_REVIEWER');
@@ -264,25 +267,41 @@ function SafetyCheckAreasPage() {
                       </span>
                     </div>
                   </button>
-                  {canManage && (
-                    <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-                      <button
-                        type="button"
-                        onClick={() => openEditEditor(area)}
-                        className="rounded-lg px-3 py-2 text-sm font-bold text-text-strong outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
-                      >
-                        수정
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openDeleteConfirm(area)}
-                        disabled={deletingId === area.id}
-                        className="rounded-lg px-3 py-2 text-sm font-bold text-danger outline-none transition-colors hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50"
-                      >
-                        {deletingId === area.id ? '삭제 중...' : '삭제'}
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between border-t border-line px-5 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setQrArea(area)}
+                      disabled={!area.hasActiveTemplate}
+                      title={
+                        area.hasActiveTemplate
+                          ? '체크리스트 QR 배포'
+                          : '체크리스트 항목을 먼저 등록해야 QR을 배포할 수 있습니다.'
+                      }
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold text-text-strong outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <QrCode aria-hidden="true" className="h-4 w-4" />
+                      QR 배포
+                    </button>
+                    {canManage && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditEditor(area)}
+                          className="rounded-lg px-3 py-2 text-sm font-bold text-text-strong outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        >
+                          수정
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDeleteConfirm(area)}
+                          disabled={deletingId === area.id}
+                          className="rounded-lg px-3 py-2 text-sm font-bold text-danger outline-none transition-colors hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50"
+                        >
+                          {deletingId === area.id ? '삭제 중...' : '삭제'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </Card>
               ))}
             </div>
@@ -312,6 +331,12 @@ function SafetyCheckAreasPage() {
         >
           <p className="text-sm text-text-muted">삭제한 점검 구역은 복구할 수 없습니다.</p>
         </ConfirmDialog>
+      )}
+
+      {qrArea && (
+        <Suspense fallback={null}>
+          <AreaQrDialog area={qrArea} onClose={() => setQrArea(null)} />
+        </Suspense>
       )}
     </div>
   );
