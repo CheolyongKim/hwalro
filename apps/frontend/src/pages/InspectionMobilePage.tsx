@@ -142,7 +142,7 @@ function InspectionMobilePage() {
       setInspection(updated);
       if (status === 'DRAFT') {
         setItems((current) => mergeItems(current, sentItems, updated.items));
-        setComment((current) => (current !== sentComment ? current : updated.comment ?? ''));
+        setComment((current) => (current !== sentComment ? current : (updated.comment ?? '')));
       } else {
         setItems(updated.items);
         setComment(updated.comment ?? '');

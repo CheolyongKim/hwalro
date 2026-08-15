@@ -135,7 +135,10 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
             </Button>
           </div>
           {copyError && (
-            <p role="alert" className="mt-3 w-full text-center text-xs font-bold text-danger-strong">
+            <p
+              role="alert"
+              className="mt-3 w-full text-center text-xs font-bold text-danger-strong"
+            >
               {copyError}
             </p>
           )}
