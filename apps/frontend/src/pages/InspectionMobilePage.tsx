@@ -35,6 +35,24 @@ function getResultIcon(result: InspectionResult) {
   return null;
 }
 
+function mergeItems(
+  local: InspectionItem[],
+  sent: InspectionItem[],
+  server: InspectionItem[],
+): InspectionItem[] {
+  return local.map((item) => {
+    const sentItem = sent.find((entry) => entry.id === item.id);
+    if (
+      sentItem &&
+      (item.result !== sentItem.result || (item.comment ?? '') !== (sentItem.comment ?? ''))
+    ) {
+      return item;
+    }
+    const serverItem = server.find((entry) => entry.id === item.id);
+    return serverItem ?? item;
+  });
+}
+
 function InspectionMobilePage() {
   const { areaId: areaIdParam } = useParams();
   const areaId = Number(areaIdParam);
@@ -106,22 +124,29 @@ function InspectionMobilePage() {
 
   async function save(status: InspectionStatus) {
     if (!inspection) return;
+    const sentItems = items;
+    const sentComment = comment;
     setIsSaving(true);
     setError(null);
     setNotice(null);
     try {
       const updated = await safetyCheckApi.updateInspection(inspection.id, {
         status,
-        comment: comment.trim() || null,
-        items: items.map((item) => ({
+        comment: sentComment.trim() || null,
+        items: sentItems.map((item) => ({
           id: item.id,
           result: item.result,
           comment: item.comment?.trim() || null,
         })),
       });
       setInspection(updated);
-      setItems(updated.items);
-      setComment(updated.comment ?? '');
+      if (status === 'DRAFT') {
+        setItems((current) => mergeItems(current, sentItems, updated.items));
+        setComment((current) => (current !== sentComment ? current : updated.comment ?? ''));
+      } else {
+        setItems(updated.items);
+        setComment(updated.comment ?? '');
+      }
       setNotice(status === 'COMPLETED' ? '점검을 완료했습니다.' : '임시 저장했습니다.');
     } catch (requestError) {
       setError(getSafetyCheckError(requestError));

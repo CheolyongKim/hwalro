@@ -18,6 +18,7 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -26,6 +27,7 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
     setDataUrl(null);
     setQrError(null);
     setCopyNotice(false);
+    setCopyError(null);
     void QRCode.toDataURL(buildInspectUrl(area.id), { width: 640, margin: 2 })
       .then((url) => {
         if (active) setDataUrl(url);
@@ -47,9 +49,11 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
     try {
       await navigator.clipboard.writeText(inspectUrl);
       setCopyNotice(true);
+      setCopyError(null);
       window.setTimeout(() => setCopyNotice(false), 2000);
     } catch {
       setCopyNotice(false);
+      setCopyError('링크를 복사하지 못했습니다. 아래 주소를 직접 입력해 주세요.');
     }
   }
 
@@ -95,7 +99,7 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
             </div>
           )}
           <p className="mt-4 text-sm font-black text-ink">{area.name}</p>
-          <p className="mt-1 text-xs text-text-muted">점검 링크: /inspect/{area.id}</p>
+          <p className="mt-1 w-full break-all text-center text-xs text-text-muted">{inspectUrl}</p>
           <div className="mt-4 flex w-full gap-2">
             <Button
               type="button"
@@ -130,6 +134,11 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
               인쇄
             </Button>
           </div>
+          {copyError && (
+            <p role="alert" className="mt-3 w-full text-center text-xs font-bold text-danger-strong">
+              {copyError}
+            </p>
+          )}
         </div>
       </Modal>
       <div className="checklist-print-area hidden print:block">
