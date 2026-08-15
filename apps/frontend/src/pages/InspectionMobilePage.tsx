@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import { Check, ClipboardList, X } from 'lucide-react';
 import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
 import type {
@@ -128,6 +129,7 @@ function InspectionMobilePage() {
       setComment(updated.comment ?? '');
       setNotice(status === 'COMPLETED' ? '점검을 완료했습니다.' : '임시 저장했습니다.');
     } catch (requestError) {
+      if (await handleSaveConflict(requestError)) return;
       setSaveError(
         getSafetyCheckError(
           requestError,
@@ -137,6 +139,31 @@ function InspectionMobilePage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function handleSaveConflict(requestError: unknown): Promise<boolean> {
+    if (!inspection || !(requestError instanceof AxiosError) || !requestError.response) {
+      return false;
+    }
+    if (requestError.response.status === 404) {
+      setError('이 점검은 다른 곳에서 삭제되어 저장할 수 없습니다. 다시 시도하면 새 점검이 시작됩니다.');
+      return true;
+    }
+    if (requestError.response.status === 400) {
+      try {
+        const current = await safetyCheckApi.getInspection(inspection.id);
+        if (current.status === 'COMPLETED') {
+          setInspection(current);
+          setItems(current.items);
+          setComment(current.comment ?? '');
+          setNotice('이 점검은 다른 세션에서 완료되어 더 이상 수정할 수 없습니다.');
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 
   if (isLoading) {
