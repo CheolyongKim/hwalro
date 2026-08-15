@@ -62,7 +62,9 @@ function AreaQrDialog({ area, onClose }: AreaQrDialogProps) {
     const anchor = document.createElement('a');
     anchor.href = dataUrl;
     anchor.download = `safety-checklist-${areaId}.png`;
+    document.body.appendChild(anchor);
     anchor.click();
+    anchor.remove();
   }
 
   return (

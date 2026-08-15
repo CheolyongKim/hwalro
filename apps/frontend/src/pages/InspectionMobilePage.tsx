@@ -46,6 +46,7 @@ function InspectionMobilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
 
@@ -110,6 +111,7 @@ function InspectionMobilePage() {
     if (!inspection) return;
     setIsSaving(true);
     setError(null);
+    setSaveError(null);
     setNotice(null);
     try {
       const updated = await safetyCheckApi.updateInspection(inspection.id, {
@@ -126,7 +128,7 @@ function InspectionMobilePage() {
       setComment(updated.comment ?? '');
       setNotice(status === 'COMPLETED' ? '점검을 완료했습니다.' : '임시 저장했습니다.');
     } catch (requestError) {
-      setError(
+      setSaveError(
         getSafetyCheckError(
           requestError,
           '저장하지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.',
@@ -207,12 +209,12 @@ function InspectionMobilePage() {
         </div>
       </header>
 
-      {(error || notice) && (
+      {(notice || saveError) && (
         <div
-          role={error ? 'alert' : 'status'}
-          className={`mx-4 mt-3 rounded-lg border border-line px-4 py-3 text-sm font-medium ${error ? 'bg-danger-soft text-danger-strong' : 'bg-success-soft text-success-strong'}`}
+          role={saveError ? 'alert' : 'status'}
+          className={`mx-4 mt-3 rounded-lg border border-line px-4 py-3 text-sm font-medium ${saveError ? 'bg-danger-soft text-danger-strong' : 'bg-success-soft text-success-strong'}`}
         >
-          {error ?? notice}
+          {saveError ?? notice}
         </div>
       )}
 
