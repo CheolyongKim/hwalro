@@ -63,14 +63,11 @@ export function InlineTextInput({
   const width = Math.max(MIN_INPUT_WIDTH, estimateTextWidthPx(longestLine, TEXT_FONT_PX * zoom));
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.nativeEvent.isComposing) {
-      return;
-    }
     if (event.key === 'Escape') {
       onCancel();
       return;
     }
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       const value = event.currentTarget.value;
       onCommit(value);
