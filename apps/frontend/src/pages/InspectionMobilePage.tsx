@@ -126,7 +126,7 @@ function InspectionMobilePage() {
       setComment(updated.comment ?? '');
       setNotice(status === 'COMPLETED' ? '점검을 완료했습니다.' : '임시 저장했습니다.');
     } catch (requestError) {
-      setError(getSafetyCheckError(requestError));
+      setError(getSafetyCheckError(requestError, '저장하지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.'));
     } finally {
       setIsSaving(false);
     }

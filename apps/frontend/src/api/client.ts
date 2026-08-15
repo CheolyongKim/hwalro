@@ -28,6 +28,7 @@ export function setSessionExpiredHandler(handler: (() => void) | null): void {
 export const apiClient = axios.create({
   baseURL: '',
   withCredentials: true,
+  timeout: 30000,
 });
 
 apiClient.interceptors.request.use((config) => {
