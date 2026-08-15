@@ -1,4 +1,4 @@
-﻿// @vitest-environment happy-dom
+// @vitest-environment happy-dom
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -107,7 +107,10 @@ function candidate(candidateId = 11): SearchCandidate {
   };
 }
 
-function search(status: LayoutSearch['status'] = 'COMPLETED'): LayoutSearch {
+function search(
+  status: LayoutSearch['status'] = 'COMPLETED',
+  improvedCandidates: SearchCandidate[] = [candidate(11), candidate(12)],
+): LayoutSearch {
   return {
     searchId: 1,
     baselineSimulationId: 42,
@@ -137,7 +140,7 @@ function search(status: LayoutSearch['status'] = 'COMPLETED'): LayoutSearch {
               },
             ],
           },
-    improvedCandidates: [candidate(11), candidate(12)],
+    improvedCandidates,
     rejectedCandidates: [],
     failureCode: null,
     failureMessage: null,
@@ -370,7 +373,7 @@ describe('배치 개선안 페이지 interaction', () => {
   it('active 상태에서만 poll하고 unmount 뒤 timer를 정리한다', async () => {
     vi.useFakeTimers();
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
-    const latest = vi.spyOn(layoutSearchApi, 'latest').mockResolvedValue(search('GENERATING'));
+    const latest = vi.spyOn(layoutSearchApi, 'latest').mockResolvedValue(search('GENERATING', []));
 
     await renderPage();
     expect(container.textContent).toContain('검증 중인 배치');
@@ -401,6 +404,6 @@ describe('종료 상태 렌더', () => {
         />,
       ),
     );
-    expect(container.textContent).toContain('다시 탐색');
+    expect(container.textContent).toContain('제약 설정 다시 열기');
   });
 });
