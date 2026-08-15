@@ -456,13 +456,15 @@ public class DrawingService {
         }
         return pillars.stream()
                 .map(pillar -> {
+                    validateExtent(pillar.startX(), pillar.endX(), "기둥 가로");
+                    validateExtent(pillar.startY(), pillar.endY(), "기둥 세로");
                     Pillar domainPillar = new Pillar();
                     domainPillar.setLayoutVersionId(layoutVersionId);
                     domainPillar.setName(pillar.name());
-                    domainPillar.setStartX(pillar.startX());
-                    domainPillar.setStartY(pillar.startY());
-                    domainPillar.setEndX(pillar.endX());
-                    domainPillar.setEndY(pillar.endY());
+                    domainPillar.setStartX(smaller(pillar.startX(), pillar.endX()));
+                    domainPillar.setStartY(smaller(pillar.startY(), pillar.endY()));
+                    domainPillar.setEndX(larger(pillar.startX(), pillar.endX()));
+                    domainPillar.setEndY(larger(pillar.startY(), pillar.endY()));
                     domainPillar.setRotation(pillar.rotation());
                     return domainPillar;
                 })
@@ -472,13 +474,15 @@ public class DrawingService {
     private List<Fabric> toFabricsFromDefault(List<DefaultDrawingData.DefaultFabric> fabrics, Long layoutVersionId) {
         return fabrics.stream()
                 .map(fabric -> {
+                    validateExtent(fabric.startX(), fabric.endX(), "구조물 가로");
+                    validateExtent(fabric.startY(), fabric.endY(), "구조물 세로");
                     Fabric domainFabric = new Fabric();
                     domainFabric.setLayoutVersionId(layoutVersionId);
                     domainFabric.setName(fabric.name());
-                    domainFabric.setStartX(fabric.startX());
-                    domainFabric.setStartY(fabric.startY());
-                    domainFabric.setEndX(fabric.endX());
-                    domainFabric.setEndY(fabric.endY());
+                    domainFabric.setStartX(smaller(fabric.startX(), fabric.endX()));
+                    domainFabric.setStartY(smaller(fabric.startY(), fabric.endY()));
+                    domainFabric.setEndX(larger(fabric.startX(), fabric.endX()));
+                    domainFabric.setEndY(larger(fabric.startY(), fabric.endY()));
                     domainFabric.setRotation(fabric.rotation());
                     return domainFabric;
                 })
