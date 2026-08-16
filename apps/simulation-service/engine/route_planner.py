@@ -119,6 +119,41 @@ def hazard_multiplier(point: Point, hazards: Iterable[Hazard]) -> float:
     return value
 
 
+def hazard_multipliers(x: np.ndarray, y: np.ndarray, hazards: Sequence[Hazard]) -> np.ndarray:
+    """`hazard_multiplier` over whole coordinate arrays, term for term."""
+    values = np.ones(x.shape, dtype=float)
+    for hazard in hazards:
+        distance = np.hypot(x - hazard.center_x, y - hazard.center_y)
+        depth = np.minimum(1.0, np.maximum(0.0, 1.0 - distance / hazard.radius))
+        inside = HAZARD_BOUNDARY_MULTIPLIER * (
+            HAZARD_CENTER_MULTIPLIER / HAZARD_BOUNDARY_MULTIPLIER
+        ) ** depth
+        values = np.maximum(values, np.where(distance > hazard.radius, 1.0, inside))
+    return values
+
+
+def edge_costs(
+    start_x: np.ndarray,
+    start_y: np.ndarray,
+    end_x: np.ndarray,
+    end_y: np.ndarray,
+    hazards: Sequence[Hazard],
+) -> np.ndarray:
+    """`edge_cost` over whole coordinate arrays, term for term.
+
+    The Simpson terms keep the scalar function's grouping so both agree to the
+    last bit; `test_route_planner` pins that down.
+    """
+    length = np.hypot(end_x - start_x, end_y - start_y)
+    if not hazards:
+        return length
+    return length / 6.0 * (
+        hazard_multipliers(start_x, start_y, hazards)
+        + 4.0 * hazard_multipliers((start_x + end_x) / 2.0, (start_y + end_y) / 2.0, hazards)
+        + hazard_multipliers(end_x, end_y, hazards)
+    )
+
+
 def edge_cost(start: Point, end: Point, hazards: Iterable[Hazard]) -> float:
     """Integrate the radial cost over one short grid edge with Simpson's rule."""
     hazards = tuple(hazards)
@@ -392,6 +427,7 @@ class GridRouter:
         self.approach_x = np.full(self.width * self.height, np.nan, dtype=float)
         self.approach_y = np.full(self.width * self.height, np.nan, dtype=float)
         self._plan_cache: dict[Point, tuple[Any, ...]] = {}
+        self._edge_costs = self._build_edge_costs()
         self._grid_edges = self._build_grid_edges()
         self._neighbor_nodes = self._build_neighbor_nodes()
         self._build_cost_field()
@@ -993,64 +1029,8 @@ class GridRouter:
         self._propagate_cost_field(heap)
 
     def _propagate_cost_field(self, heap: list[tuple[float, int, int]]) -> None:
-        if not self.hazards:
-            self._propagate_uniform_cost_field(heap)
-            return
-
-        while heap:
-            current_cost, label, node = heapq.heappop(heap)
-            if current_cost > self.distance[node] + _EPSILON or label != self.exit_label[node]:
-                continue
-            row, column = divmod(node, self.width)
-            for dx, dy in _MOVES:
-                next_column, next_row = column + dx, row + dy
-                if not (0 <= next_column < self.width and 0 <= next_row < self.height):
-                    continue
-                neighbor = next_row * self.width + next_column
-                if not self.valid[neighbor]:
-                    continue
-                if dx and dy:
-                    horizontal = row * self.width + next_column
-                    vertical = next_row * self.width + column
-                    if not self.valid[horizontal] or not self.valid[vertical]:
-                        continue
-                if not self._grid_edge_is_walkable(node, neighbor, dx, dy):
-                    continue
-                step_cost = self._move_costs[(dx, dy)]
-                if self.hazards:
-                    step_cost = self._edge_cost(self._point(neighbor), self._point(node))
-                next_cost = current_cost + step_cost
-                old_cost = float(self.distance[neighbor])
-                old_label = int(self.exit_label[neighbor])
-                old_next = int(self.next_node[neighbor])
-                improves = next_cost + _EPSILON < old_cost
-                ties_better = abs(next_cost - old_cost) <= _EPSILON and (
-                    old_label < 0 or label < old_label or (label == old_label and node < old_next)
-                )
-                same_path_metadata_changed = (
-                    abs(next_cost - old_cost) <= _EPSILON
-                    and label == old_label
-                    and node == old_next
-                    and (
-                        self.terminal_x[neighbor] != self.terminal_x[node]
-                        or self.terminal_y[neighbor] != self.terminal_y[node]
-                        or self.approach_x[neighbor] != self.approach_x[node]
-                        or self.approach_y[neighbor] != self.approach_y[node]
-                    )
-                )
-                if improves or ties_better or same_path_metadata_changed:
-                    self.distance[neighbor] = next_cost
-                    self.exit_label[neighbor] = label
-                    self.next_node[neighbor] = node
-                    self.terminal_x[neighbor] = self.terminal_x[node]
-                    self.terminal_y[neighbor] = self.terminal_y[node]
-                    self.approach_x[neighbor] = self.approach_x[node]
-                    self.approach_y[neighbor] = self.approach_y[node]
-                    heapq.heappush(heap, (next_cost, label, neighbor))
-
-    def _propagate_uniform_cost_field(self, heap: list[tuple[float, int, int]]) -> None:
         neighbor_nodes = self._neighbor_nodes
-        move_costs = tuple(self._move_costs[move] for move in _MOVES)
+        edge_costs = self._edge_costs
         distance = self.distance
         next_node = self.next_node
         exit_label = self.exit_label
@@ -1065,7 +1045,7 @@ class GridRouter:
             current_cost, label, node = heappop(heap)
             if current_cost > distance[node] + _EPSILON or label != exit_label[node]:
                 continue
-            for move_index, step_cost in enumerate(move_costs):
+            for move_index, step_cost in enumerate(edge_costs[node]):
                 neighbor = int(neighbor_nodes[node, move_index])
                 if neighbor < 0:
                     continue
@@ -1330,6 +1310,43 @@ class GridRouter:
                 clear[source] = np.asarray(covers(self.walkable, linestrings(coordinates)), dtype=bool)
             result[(dx, dy)] = clear
         return result
+
+    def _build_edge_costs(self) -> list[list[float]]:
+        """Cost of every grid move, for the whole grid, once.
+
+        Hazards and grid coordinates are fixed for the lifetime of a router, so
+        each move costs the same however many times the propagation relaxes it.
+        Every in-grid move is priced, walkable or not, because `derive` opens
+        edges that were closed when this ran - and it shares this table, which
+        stays right precisely because nothing it depends on can change.
+        """
+        costs = np.empty((self.valid.size, len(_MOVES)), dtype=float)
+        for index, move in enumerate(_MOVES):
+            costs[:, index] = self._move_costs[move]
+        if not self.hazards:
+            return costs.tolist()
+
+        nodes = np.arange(self.valid.size)
+        rows, columns = np.divmod(nodes, self.width)
+        for index, (dx, dy) in enumerate(_MOVES):
+            eligible = np.flatnonzero(
+                (columns + dx >= 0)
+                & (columns + dx < self.width)
+                & (rows + dy >= 0)
+                & (rows + dy < self.height)
+            )
+            targets = eligible + dy * self.width + dx
+            # The scalar propagation charged `edge_cost(neighbour, node)`, so the
+            # neighbour stays the start point and the Simpson terms keep their
+            # grouping. `test_route_planner` holds both forms to the same bits.
+            costs[eligible, index] = edge_costs(
+                self._x[targets],
+                self._y[targets],
+                self._x[eligible],
+                self._y[eligible],
+                self.hazards,
+            )
+        return costs.tolist()
 
     def _build_neighbor_nodes(self) -> np.ndarray:
         result = np.full((self.valid.size, len(_MOVES)), -1, dtype=np.int32)

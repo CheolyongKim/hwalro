@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 from shapely.geometry import LineString, Point, Polygon, box
 
+import route_planner
 from route_planner import (
     AgentRouteUnreachableError,
     Exit,
@@ -44,6 +45,45 @@ class HazardCostTest(unittest.TestCase):
 
         self.assertAlmostEqual(edge_cost(start, end, [hazard]), expected)
         self.assertAlmostEqual(edge_cost((0.0, 0.0), (0.25, 0.0), []), 0.25)
+
+
+class VectorCostTest(unittest.TestCase):
+    """The array forms feed the cost field, so they must agree to the last bit."""
+
+    HAZARDS = (Hazard(1.0, 1.0, 2.0), Hazard(3.5, 0.5, 1.25))
+
+    def _points(self):
+        values = np.arange(0.0, 4.0, 0.25)
+        x, y = np.meshgrid(values, values)
+        return x.ravel(), y.ravel()
+
+    def test_hazard_multipliers_match_the_scalar_function(self):
+        x, y = self._points()
+        for hazards in ((), self.HAZARDS[:1], self.HAZARDS):
+            with self.subTest(count=len(hazards)):
+                expected = np.array(
+                    [hazard_multiplier((px, py), hazards) for px, py in zip(x, y)]
+                )
+
+                np.testing.assert_array_equal(
+                    route_planner.hazard_multipliers(x, y, hazards), expected
+                )
+
+    def test_edge_costs_match_the_scalar_function(self):
+        x, y = self._points()
+        for dx, dy in ((0.25, 0.0), (0.0, 0.25), (0.25, 0.25), (-0.25, 0.25)):
+            for hazards in ((), self.HAZARDS):
+                with self.subTest(move=(dx, dy), count=len(hazards)):
+                    expected = np.array(
+                        [
+                            edge_cost((px, py), (px + dx, py + dy), hazards)
+                            for px, py in zip(x, y)
+                        ]
+                    )
+
+                    np.testing.assert_array_equal(
+                        route_planner.edge_costs(x, y, x + dx, y + dy, hazards), expected
+                    )
 
 
 class GeometryTest(unittest.TestCase):
