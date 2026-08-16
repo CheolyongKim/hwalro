@@ -177,18 +177,90 @@ def test_rebalance_targets_follow_passed_drawing():
     def make_drawing(fabrics):
         return room_drawing(fabrics=fabrics, exits=exits)
 
-    corridor_fabric = {"id": 1, "name": "blocker", "startX": 9.4, "startY": 4, "endX": 10.0, "endY": 6, "rotation": 0}
-    moved = {"id": 1, "name": "blocker", "startX": 7, "startY": 4, "endX": 8.5, "endY": 6, "rotation": 0}
+    on_corridor = {"id": 1, "name": "blocker", "startX": 9.4, "startY": 4, "endX": 10.0, "endY": 6, "rotation": 0}
+    off_corridor = {"id": 1, "name": "blocker", "startX": 5.5, "startY": 1.5, "endX": 6.5, "endY": 2.5, "rotation": 0}
+    other = {"id": 2, "name": "other", "startX": 9.4, "startY": 4.5, "endX": 10.0, "endY": 5.5, "rotation": 0}
     agents = [(1.0, 1.0), (1.0, 9.0), (2.0, 1.0), (2.0, 9.0), (3.0, 8.0)]
 
-    before = make_drawing([corridor_fabric])
-    after = make_drawing([moved])
-    targets_before = layout_search._find_rebalance_targets(
+    before = make_drawing([on_corridor])
+    after = make_drawing([off_corridor, other])
+    targets_before, _ = layout_search._find_rebalance_targets(
         before, agents, (), layout_search.parse_exits(before, [1, 2]))
-    targets_after = layout_search._find_rebalance_targets(
+    targets_after, _ = layout_search._find_rebalance_targets(
         after, agents, (), layout_search.parse_exits(after, [1, 2]))
-    assert any(layout_search._fabric_key(fabric) == "1" for fabric, _ in targets_before)
-    assert not any(layout_search._fabric_key(fabric) == "1" for fabric, _ in targets_after)
+    assert {layout_search._fabric_key(fabric) for fabric, _ in targets_before} == {"1"}
+    # Fabric 1 has left the corridor and fabric 2 now sits on it, so the target
+    # set has to follow the drawing that was passed in rather than a stale one.
+    assert {layout_search._fabric_key(fabric) for fabric, _ in targets_after} == {"2"}
+
+
+def test_rebalance_falls_back_to_the_nearest_fabric_when_none_sit_on_the_corridor():
+    """An empty target list used to cost the finding every candidate it could produce.
+
+    On the real floor plan the ribbon between two exit centroids hit no fabric in
+    any of the 16 measured cells, so this is the common case, not the edge case.
+    """
+    exits = [
+        {"id": 1, "name": "top", "startX": 10, "startY": 0, "endX": 10, "endY": 2},
+        {"id": 2, "name": "bottom", "startX": 10, "startY": 8, "endX": 10, "endY": 10},
+    ]
+    far = {"id": 1, "name": "far", "startX": 5.5, "startY": 1.5, "endX": 6.5, "endY": 2.5, "rotation": 0}
+    nearer = {"id": 2, "name": "nearer", "startX": 8.0, "startY": 4.5, "endX": 8.6, "endY": 5.5, "rotation": 0}
+    drawing = room_drawing(fabrics=[far, nearer], exits=exits)
+    agents = [(1.0, 1.0), (1.0, 9.0), (2.0, 1.0), (2.0, 9.0), (3.0, 8.0)]
+
+    targets, direction = layout_search._find_rebalance_targets(
+        drawing, agents, (), layout_search.parse_exits(drawing, [1, 2]))
+    assert {layout_search._fabric_key(fabric) for fabric, _ in targets} == {"2"}
+    assert direction is not None
+
+
+def test_rebalance_moves_along_the_line_between_the_two_exits():
+    """The operator translated along +-X only, so a quiet exit to the north was unreachable."""
+    fabric = {"id": 1, "name": "blocker", "startX": 4, "startY": 4, "endX": 6, "endY": 6, "rotation": 0}
+    before = layout_search._coords_only(fabric)
+    finding = {"type": "EXIT_IMBALANCE", "region": None}
+
+    northward = layout_search._mutation_variants(
+        "REBALANCE_EXIT", finding, (fabric, before), None, None, (0.0, 1.0))
+    assert northward, "방향이 주어지면 후보가 나와야 한다"
+    for after, _, distance in northward:
+        assert after["startX"] == before["startX"]
+        assert abs(abs(after["startY"] - before["startY"]) - distance) < 1e-9
+
+    # Without a direction it still falls back to the old horizontal nudge rather
+    # than producing nothing.
+    horizontal = layout_search._mutation_variants("REBALANCE_EXIT", finding, (fabric, before))
+    assert all(after["startY"] == before["startY"] for after, _, _ in horizontal)
+
+
+def test_exit_imbalance_without_a_region_still_produces_candidates():
+    """The production contract: EXIT_IMBALANCE never carries a region.
+
+    Requiring one made `EXIT_OPENING` unreachable, and an empty rebalance target
+    list skipped the finding outright, so this finding type contributed nothing.
+    """
+    exits = [
+        {"id": 1, "name": "left", "startX": 0, "startY": 4, "endX": 0, "endY": 6},
+        {"id": 2, "name": "right", "startX": 10, "startY": 4, "endX": 10, "endY": 6},
+    ]
+    fabrics = [
+        {"id": 1, "name": "a", "startX": 2.0, "startY": 4.8, "endX": 2.6, "endY": 5.2, "rotation": 0},
+        {"id": 2, "name": "b", "startX": 5.0, "startY": 4.8, "endX": 5.6, "endY": 5.2, "rotation": 0},
+    ]
+    drawing = room_drawing(fabrics=fabrics, exits=exits)
+    finding = {"type": "EXIT_IMBALANCE", "severity": 0.6, "region": None,
+               "evidence": {"metric": "EXIT_DEMAND", "value": 2.0, "unit": "RATIO", "source": "TIMELINE"},
+               "description": "imbalance"}
+    search_input = base_input(drawing, findings=[finding], max_candidates=6)
+    search_input["selectedExitIds"] = [1, 2]
+    search_input["agents"] = [{"x": 1.0, "y": 5.0}, {"x": 1.5, "y": 6.5}, {"x": 9.0, "y": 5.0}]
+    search_input["exhaustive"] = True
+
+    result = layout_search.generate(search_input)
+    assert result["rawCandidateCount"] > 0
+    operators = {candidate["operatorType"] for candidate in result["candidates"]}
+    assert "EXIT_OPENING" in operators
 
 
 def test_selection_takes_the_global_top_scorers_not_one_per_finding():
@@ -226,7 +298,11 @@ def multi_finding_input(max_candidates: int = 3) -> dict:
         bottleneck_finding(region={"startX": 4.0, "startY": 4.0, "endX": 6.0, "endY": 6.0}),
         {"type": "CONGESTION_HOTSPOT", "severity": 0.7, "region": {"startX": 4.0, "startY": 0.5, "endX": 6.0, "endY": 2.0},
          "evidence": {"metric": "PEAK_DENSITY", "value": 4.0, "unit": "PERSON_PER_M2", "source": "HEATMAP"}, "description": "hotspot"},
-        {"type": "EXIT_IMBALANCE", "severity": 0.6, "region": {"startX": 8.0, "startY": 4.0, "endX": 9.5, "endY": 6.0},
+        # No region, matching what the service actually sends: EXIT_IMBALANCE is
+        # the one finding type built without one (ExitBalanceFindingExtractor.java:68).
+        # Handing the engine a region here hid the fact that the operators behind
+        # this finding could not run in production.
+        {"type": "EXIT_IMBALANCE", "severity": 0.6, "region": None,
          "evidence": {"metric": "EXIT_DEMAND", "value": 2.0, "unit": "RATIO", "source": "TIMELINE"}, "description": "imbalance"},
     ]
     search_input = base_input(drawing, findings=findings, max_candidates=max_candidates)
@@ -360,14 +436,20 @@ def test_exhaustive_covers_every_single_target_and_unordered_dual_pair():
     assert dual_pairs == {frozenset((1, 2)), frozenset((1, 3)), frozenset((2, 3))}
 
 
-def test_exhaustive_covers_every_hotspot_and_exit_opening_target(monkeypatch):
+def test_exhaustive_covers_every_hotspot_and_exit_opening_target():
+    """No stubbed target finders here.
+
+    This used to monkeypatch both `_find_rebalance_targets` and
+    `_find_exit_opening_targets`, which proved the operators work once targets
+    exist while leaving the part that actually failed in production - finding
+    any targets at all - untested.
+    """
     fabrics = [
         {"id": 1, "name": "a", "startX": 1.5, "startY": 4.0, "endX": 2.0, "endY": 4.5, "rotation": 0},
         {"id": 2, "name": "b", "startX": 4.5, "startY": 4.0, "endX": 5.0, "endY": 4.5, "rotation": 0},
         {"id": 3, "name": "c", "startX": 7.5, "startY": 4.0, "endX": 8.0, "endY": 4.5, "rotation": 0},
     ]
     drawing = room_drawing(fabrics=fabrics)
-    targets = [(fabric, dict(fabric)) for fabric in fabrics]
     hotspot = {
         **bottleneck_finding(region={"startX": 1.0, "startY": 3.5, "endX": 8.5, "endY": 5.0}),
         "type": "CONGESTION_HOTSPOT",
@@ -382,10 +464,19 @@ def test_exhaustive_covers_every_hotspot_and_exit_opening_target(monkeypatch):
     }
     assert diagonal_ids == {1, 2, 3}
 
-    imbalance = {**hotspot, "type": "EXIT_IMBALANCE"}
-    monkeypatch.setattr(layout_search, "_find_rebalance_targets", lambda *args: targets)
-    monkeypatch.setattr(layout_search, "_find_exit_opening_targets", lambda *args: (targets, (10.0, 5.0)))
-    imbalance_input = base_input(drawing, findings=[imbalance], max_candidates=1)
+    # Two exits at opposite ends with the crowd split between them, and the three
+    # fabrics lined up on the corridor that joins them.
+    exits = [
+        {"id": 1, "name": "left", "startX": 0, "startY": 4, "endX": 0, "endY": 5},
+        {"id": 2, "name": "right", "startX": 10, "startY": 4, "endX": 10, "endY": 5},
+    ]
+    imbalance = {"type": "EXIT_IMBALANCE", "severity": 0.6, "region": None,
+                 "evidence": {"metric": "EXIT_DEMAND", "value": 2.0, "unit": "RATIO", "source": "TIMELINE"},
+                 "description": "imbalance"}
+    imbalance_input = base_input(room_drawing(fabrics=fabrics, exits=exits),
+                                 findings=[imbalance], max_candidates=1)
+    imbalance_input["selectedExitIds"] = [1, 2]
+    imbalance_input["agents"] = [{"x": 1.0, "y": 4.5}, {"x": 1.0, "y": 6.0}, {"x": 9.0, "y": 4.5}]
     imbalance_input["exhaustive"] = True
     imbalance_result = layout_search.generate(imbalance_input)
     opening_ids = {

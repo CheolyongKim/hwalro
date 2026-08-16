@@ -20,7 +20,7 @@ import math
 import sys
 from decimal import ROUND_HALF_UP, Decimal
 from itertools import combinations
-from typing import Any, Sequence
+from typing import Any, NamedTuple, Sequence
 
 from shapely.affinity import rotate
 from shapely.geometry import LineString, Point, Polygon, box
@@ -322,76 +322,125 @@ def _find_qualifying_targets(
     return [(target, dict(target))]
 
 
-def _find_rebalance_targets(
-    drawing: dict[str, Any], agents, hazards, exits, constraints: SearchConstraints | None = None
-) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+class ExitDemand(NamedTuple):
+    """Who is heading where, and which exit is carrying the most and the least.
+
+    Both exit-imbalance target finders need exactly this, and each used to route
+    every agent itself - two full routing passes over the whole crowd for one
+    finding. Computing it once and handing it to both halves that cost.
+    """
+
+    counts: dict[Any, int]
+    positions: dict[Any, tuple[float, float]]
+    busiest: Any
+    quietest: Any
+
+
+def _exit_rank(exit_id: Any) -> float:
+    return -_numeric(exit_id) if isinstance(exit_id, (int, float)) and not isinstance(exit_id, bool) else 0.0
+
+
+def _exit_demand(drawing: dict[str, Any], agents, hazards, exits) -> ExitDemand | None:
+    """Only exits agents actually route to appear here; an exit nobody uses is absent."""
     try:
         snapshot = _baseline(drawing, agents, hazards, exits)
     except (AgentRouteUnreachableError, ValueError):
-        return []
-    router = snapshot.router
+        return None
     counts: dict[Any, int] = {}
-    exit_positions: dict[Any, tuple[float, float]] = {}
-    for position in agents:
-        route = router.plan(position)
-        counts[route.exit_id] = counts.get(route.exit_id, 0) + 1
-        exit_positions.setdefault(
-            route.exit_id,
-            ((route.exit_start[0] + route.exit_end[0]) / 2.0, (route.exit_start[1] + route.exit_end[1]) / 2.0),
-        )
-    if len(counts) < 2:
-        return []
-
-    def exit_rank(exit_id: Any) -> float:
-        return -_numeric(exit_id) if isinstance(exit_id, (int, float)) and not isinstance(exit_id, bool) else 0.0
-
-    busiest = max(counts, key=lambda exit_id: (counts[exit_id], exit_rank(exit_id)))
-    quietest = min(counts, key=lambda exit_id: (counts[exit_id], exit_rank(exit_id)))
-    corridor = LineString((exit_positions[busiest], exit_positions[quietest])).buffer(CLEARANCE_METERS)
-    return [
-        (fabric, dict(fabric))
-        for fabric in drawing.get("fabrics", [])
-        if constraints is None or constraints.move_radius_of(fabric.get("id")) != 0.0
-        if corridor.intersects(_rect_geometry(fabric))
-    ]
-
-
-def _find_exit_opening_targets(
-    drawing: dict[str, Any], agents, hazards, exits, finding: dict[str, Any]
-) -> tuple[list[tuple[dict[str, Any], dict[str, Any]]], tuple[float, float] | None]:
-    try:
-        snapshot = _baseline(drawing, agents, hazards, exits)
-    except (AgentRouteUnreachableError, ValueError):
-        return [], None
-    counts: dict[Any, int] = {}
-    exit_positions: dict[Any, tuple[float, float]] = {}
+    positions: dict[Any, tuple[float, float]] = {}
     for position in agents:
         route = snapshot.router.plan(position)
         counts[route.exit_id] = counts.get(route.exit_id, 0) + 1
-        exit_positions.setdefault(
+        positions.setdefault(
             route.exit_id,
             ((route.exit_start[0] + route.exit_end[0]) / 2.0, (route.exit_start[1] + route.exit_end[1]) / 2.0),
         )
     if not counts:
+        return None
+    busiest = max(counts, key=lambda exit_id: (counts[exit_id], _exit_rank(exit_id)))
+    quietest = min(counts, key=lambda exit_id: (counts[exit_id], _exit_rank(exit_id)))
+    return ExitDemand(counts, positions, busiest, quietest)
+
+
+def _find_rebalance_targets(
+    drawing: dict[str, Any],
+    agents,
+    hazards,
+    exits,
+    constraints: SearchConstraints | None = None,
+    demand: ExitDemand | None = None,
+) -> tuple[list[tuple[dict[str, Any], dict[str, Any]]], tuple[float, float] | None]:
+    """Fabric worth moving to spread load off the busiest exit, plus which way to push it.
+
+    Returns the unit vector pointing from the busy exit toward the quiet one so
+    the mutation step can move along it instead of guessing an axis.
+    """
+    if demand is None:
+        demand = _exit_demand(drawing, agents, hazards, exits)
+    if demand is None or len(demand.counts) < 2:
         return [], None
-    quietest = min(
-        counts,
-        key=lambda exit_id: (
-            counts[exit_id],
-            -_numeric(exit_id) if isinstance(exit_id, (int, float)) and not isinstance(exit_id, bool) else 0.0,
-        ),
-    )
-    exit_pos = exit_positions[quietest]
+
+    busy_pos, quiet_pos = demand.positions[demand.busiest], demand.positions[demand.quietest]
+    direction = _unit_vector(busy_pos, quiet_pos)
+    movable = [
+        fabric
+        for fabric in drawing.get("fabrics", [])
+        if constraints is None or constraints.move_radius_of(fabric.get("id")) != 0.0
+    ]
+    corridor = LineString((busy_pos, quiet_pos)).buffer(CLEARANCE_METERS)
+    on_corridor = [(fabric, dict(fabric)) for fabric in movable if corridor.intersects(_rect_geometry(fabric))]
+    if on_corridor:
+        return on_corridor, direction
+    # A straight ribbon between two exit centroids is a thin object. On the real
+    # floor plan - 58 fabrics, agents heading for 14 different exits - it hit
+    # nothing in all 16 measured cells, which silently cost the finding every
+    # candidate it could have produced. Same reasoning as `_find_qualifying_targets`:
+    # fall through to the nearest fabric rather than give up on the finding.
+    if not movable:
+        return [], direction
+    target = min(movable, key=lambda fabric: corridor.distance(_rect_geometry(fabric)))
+    return [(target, dict(target))], direction
+
+
+def _find_exit_opening_targets(
+    drawing: dict[str, Any], agents, hazards, exits, finding: dict[str, Any],
+    demand: ExitDemand | None = None,
+) -> tuple[list[tuple[dict[str, Any], dict[str, Any]]], tuple[float, float] | None, tuple[float, float] | None]:
+    """Fabric between the quiet exit and the congestion, plus both ends of that line.
+
+    The centre is returned rather than left to the caller because it is not
+    always the finding's region - see below.
+    """
+    if demand is None:
+        demand = _exit_demand(drawing, agents, hazards, exits)
+    if demand is None:
+        return [], None, None
+    exit_pos = demand.positions[demand.quietest]
     center = _region_center(finding)
     if center is None:
-        return [], None
+        # EXIT_IMBALANCE findings are built with no region at all
+        # (ExitBalanceFindingExtractor.java:68), so demanding one here made this
+        # operator unreachable in production from the day it was written. The
+        # finding means "demand piles onto this exit", so the busiest exit is the
+        # congested end of the corridor we want to open toward the quiet one.
+        center = demand.positions[demand.busiest]
+    if _unit_vector(exit_pos, center) is None:
+        return [], None, None
     corridor = LineString((exit_pos, center)).buffer(CLEARANCE_METERS)
     targets = [
         (fabric, dict(fabric))
         for fabric in drawing.get("fabrics", [])
         if corridor.intersects(_rect_geometry(fabric))
     ]
-    return targets, exit_pos
+    return targets, exit_pos, center
+
+
+def _unit_vector(origin: tuple[float, float], target: tuple[float, float]) -> tuple[float, float] | None:
+    dx, dy = target[0] - origin[0], target[1] - origin[1]
+    length = math.hypot(dx, dy)
+    if length <= EPSILON:
+        return None
+    return (dx / length, dy / length)
 
 
 def _exit_opening_variants(
@@ -565,6 +614,7 @@ def _mutation_variants(
     target: tuple[dict[str, Any], dict[str, Any]],
     constraints: Any | None = None,
     drawing: dict[str, Any] | None = None,
+    move_direction: tuple[float, float] | None = None,
 ) -> list[tuple[dict[str, Any], str, float]]:
     fabric, _ = target
     before = _coords_only(fabric)
@@ -638,10 +688,16 @@ def _mutation_variants(
                 variants.append((_translated_after(before, rx * distance, ry * distance), direction, distance))
         return variants
     if operator == "REBALANCE_EXIT":
+        # Push along the line from the overloaded exit to the quiet one. Without
+        # a vector this used to translate along +-X only, so a quiet exit sitting
+        # north of the busy one could never be opened up. Wall-anchored fabric
+        # still slides horizontally, same as CLEAR_CORRIDOR.
+        dx, dy = (1.0, 0.0) if wall_anchored or move_direction is None else move_direction
         variants = []
         for distance in allowed_distances:
             for sign, direction in ((1.0, "NORMAL_POSITIVE"), (-1.0, "NORMAL_NEGATIVE")):
-                variants.append((_translated_after(before, sign * distance, 0.0), direction, distance))
+                delta = sign * distance
+                variants.append((_translated_after(before, dx * delta, dy * delta), direction, distance))
         return variants
     if operator == "ROTATE_TO_OPEN":
         if constraints is not None and not constraints.rotation_allowed_of(fabric.get("id")):
@@ -1126,9 +1182,12 @@ def _generate_from_findings(
         finding_type = str(finding.get("type", ""))
         primary = _PRIMARY_OPERATOR[finding_type]
         region = _region_geometry(finding)
+        demand = None
+        move_direction = None
         if primary == "REBALANCE_EXIT":
-            targets = _find_rebalance_targets(
-                drawing, generation.agents, generation.hazards, generation.exits, generation.constraints
+            demand = _exit_demand(drawing, generation.agents, generation.hazards, generation.exits)
+            targets, move_direction = _find_rebalance_targets(
+                drawing, generation.agents, generation.hazards, generation.exits, generation.constraints, demand
             )
         else:
             targets = _find_qualifying_targets(drawing, finding, generation.constraints)
@@ -1141,10 +1200,15 @@ def _generate_from_findings(
                 finding_type,
                 primary,
                 fabric,
-                _mutation_variants(primary, finding, (fabric, _coords_only(fabric)), generation.constraints, drawing),
+                _mutation_variants(
+                    primary, finding, (fabric, _coords_only(fabric)),
+                    generation.constraints, drawing, move_direction,
+                ),
             )
-        if not targets:
-            continue
+        # No early exit on an empty `targets`. Everything below either iterates
+        # over it - and so no-ops on its own - or, in EXIT_OPENING's case, picks
+        # its own targets entirely. Skipping the whole finding here threw away
+        # the one operator that did not depend on this list.
         extra_targets = targets if generation.exhaustive else targets[:1]
         for target in extra_targets:
             fabric = target[0]
@@ -1179,10 +1243,9 @@ def _generate_from_findings(
                     _mutation_variants("RELIEVE_DIAGONAL", finding, target, generation.constraints, drawing),
                 )
         if primary == "REBALANCE_EXIT":
-            opening_targets, exit_pos = _find_exit_opening_targets(
-                drawing, generation.agents, generation.hazards, generation.exits, finding
+            opening_targets, exit_pos, center = _find_exit_opening_targets(
+                drawing, generation.agents, generation.hazards, generation.exits, finding, demand
             )
-            center = _region_center(finding)
             if opening_targets and exit_pos is not None and center is not None:
                 selected_targets = opening_targets if generation.exhaustive else opening_targets[:1]
                 for opening_target in selected_targets:
@@ -1218,8 +1281,9 @@ def _generate_from_parents(
             continue
         primary = _PRIMARY_OPERATOR.get(origin_type, "CLEAR_CORRIDOR")
         region = _region_geometry(finding)
+        move_direction = None
         if primary == "REBALANCE_EXIT":
-            targets = _find_rebalance_targets(
+            targets, move_direction = _find_rebalance_targets(
                 working_drawing, generation.agents, generation.hazards, generation.exits, constraints
             )
         else:
@@ -1232,7 +1296,7 @@ def _generate_from_parents(
             fabric_id = _fabric_key(fabric)
             before = _coords_only(fabric)
             for after, direction, distance in _mutation_variants(
-                primary, finding, target, constraints, working_drawing
+                primary, finding, target, constraints, working_drawing, move_direction
             ):
                 reason, snapshot = _assess(
                     working_drawing, generation.agents, generation.hazards, generation.exits, fabric_id, before, after
