@@ -729,12 +729,37 @@ def _same_rectangle(before: dict[str, Any], after: dict[str, Any]) -> bool:
     )
 
 
+def _changed_bounds(
+    moves: Sequence[tuple[str, dict[str, Any], dict[str, Any]]]
+) -> tuple[float, float, float, float]:
+    """Window containing every point where the moved layout differs.
+
+    The routing area is the layout grown by the corridor clearance, so a
+    rectangle changes routing that far beyond its own outline. One grid step of
+    extra slack keeps the window safe against boundary rounding - a window that
+    is too wide only costs time, one that is too narrow hides a difference.
+    """
+    pad = CORRIDOR_CLEARANCE_METERS + GRID_STEP_METERS
+    corners = [
+        _rect_geometry(rectangle).bounds
+        for _, before, after in moves
+        for rectangle in (before, after)
+    ]
+    return (
+        min(corner[0] for corner in corners) - pad,
+        min(corner[1] for corner in corners) - pad,
+        max(corner[2] for corner in corners) + pad,
+        max(corner[3] for corner in corners) + pad,
+    )
+
+
 def _assess_moves(
     drawing: dict[str, Any],
     agents,
     hazards,
     exits,
     moves: Sequence[tuple[str, dict[str, Any], dict[str, Any]]],
+    base_router: GridRouter | None = None,
 ) -> tuple[str | None, RouterSnapshot | None]:
     if not moves:
         return None, _baseline(drawing, agents, hazards, exits)
@@ -769,14 +794,25 @@ def _assess_moves(
     except ValueError:
         return "CORRIDOR_BLOCKED", None
     try:
-        router = GridRouter(
-            routing_area,
-            hazards,
-            exits,
-            step=GRID_STEP_METERS,
-            physical_walkable=walkable,
-            exit_clearance=0.3,
-        )
+        if base_router is None:
+            router = GridRouter(
+                routing_area,
+                hazards,
+                exits,
+                step=GRID_STEP_METERS,
+                physical_walkable=walkable,
+                exit_clearance=0.3,
+            )
+        else:
+            # Same exits, hazards and grid extent as the layout `base_router` was
+            # built for, so only the moved rectangles differ. `derive` repairs
+            # that window and falls back to a full build whenever the change is
+            # not one it can repair exactly.
+            router = base_router.derive(
+                routing_area,
+                physical_walkable=walkable,
+                changed_bounds=_changed_bounds(moves),
+            )
         relocated, _ = relocate_agents(routing_area, agents)
         route_costs, exit_counts = _plan_all(router, relocated)
     except (AgentRouteUnreachableError, ValueError):
@@ -792,8 +828,11 @@ def _assess(
     fabric_id: str,
     before: dict[str, Any],
     after: dict[str, Any],
+    base_router: GridRouter | None = None,
 ) -> tuple[str | None, RouterSnapshot | None]:
-    return _assess_moves(drawing, agents, hazards, exits, [(fabric_id, before, after)])
+    return _assess_moves(
+        drawing, agents, hazards, exits, [(fabric_id, before, after)], base_router
+    )
 
 def _intersects_obstacles(drawing: dict[str, Any], fabrics: Sequence[dict[str, Any]], moved_ids: set[str]) -> bool:
     walls = []
@@ -988,6 +1027,15 @@ class _Generation:
     def exhaustive(self) -> bool:
         return self.per_finding_limit is None
 
+    def _base_router(self, drawing: dict[str, Any]) -> GridRouter | None:
+        """The baseline router, but only for the layout it was actually built on.
+
+        Deriving is exact only when everything outside the moved rectangles is
+        unchanged, so a caller working on an already-mutated drawing gets None
+        and pays for a full build.
+        """
+        return self.baseline.router if drawing is self.drawing else None
+
     def _full(self, finding_index: int) -> bool:
         return self.per_finding_limit is not None and self._per_finding.get(finding_index, 0) >= self.per_finding_limit
 
@@ -1047,7 +1095,9 @@ class _Generation:
                 return
             if self._violates_place_constraints(fabric, before, after):
                 continue
-            reason, snapshot = _assess(drawing, self.agents, self.hazards, self.exits, fabric_id, before, after)
+            reason, snapshot = _assess(
+                drawing, self.agents, self.hazards, self.exits, fabric_id, before, after, self._base_router(drawing)
+            )
             if reason is not None:
                 self.rejections.add(operator, _raw_fabric_id(fabric), reason, before, after)
                 continue
@@ -1112,6 +1162,7 @@ class _Generation:
                 self.hazards,
                 self.exits,
                 [(id_a, before_a, after_a), (id_b, before_b, after_b)],
+                self._base_router(drawing),
             )
             if reason is not None:
                 self.rejections.add("OPEN_DUAL_GAP", _raw_fabric_id(fabric_a), reason, before_a, after_a)
