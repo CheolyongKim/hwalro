@@ -116,11 +116,14 @@ export default function LayoutSearchPage() {
     return changedFabricIds(sourceSetup.drawing, preview.drawing);
   }, [sourceSetup, preview.drawing]);
 
-  const runSearch = useCallback(async () => {
-    if (await start()) {
-      setSelectedTabKey(null);
-    }
-  }, [start]);
+  const runSearch = useCallback(
+    async (verify: boolean) => {
+      if (await start(undefined, verify)) {
+        setSelectedTabKey(null);
+      }
+    },
+    [start],
+  );
 
   const retry = useCallback(() => {
     void Promise.all([loadSourceSetup(), initialize()]);
@@ -178,7 +181,7 @@ export default function LayoutSearchPage() {
               drawing={sourceSetup.drawing}
               constraints={constraints}
               onChange={updateConstraints}
-              onStart={() => void runSearch()}
+              onStart={(verify) => void runSearch(verify)}
               starting={starting}
             />
           </div>

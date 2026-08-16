@@ -330,7 +330,7 @@ describe('배치 개선안 페이지 interaction', () => {
     await act(async () => button('제약 설정 다시 열기').click());
     await act(async () => button('배치 개선안 탐색 시작').click());
 
-    expect(start).toHaveBeenCalledWith(42, expect.anything());
+    expect(start).toHaveBeenCalledWith(42, expect.anything(), false);
   });
 
   it('제약 설정 화면에서 배치 개선안 탐색을 시작한다', async () => {
@@ -348,7 +348,31 @@ describe('배치 개선안 페이지 interaction', () => {
       button('배치 개선안 탐색 시작').click();
       await Promise.resolve();
     });
-    expect(start).toHaveBeenCalledWith(42, expect.anything());
+    expect(start).toHaveBeenCalledWith(42, expect.anything(), false);
+  });
+
+  it('확인 옵션을 켜고 시작하면 실측 검증을 요청한다', async () => {
+    vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
+    vi.spyOn(layoutSearchApi, 'latest').mockRejectedValue(
+      new AxiosError('not found', undefined, undefined, undefined, { status: 404 } as never),
+    );
+    const start = vi
+      .spyOn(layoutSearchApi, 'start')
+      .mockResolvedValue({ searchId: 2, status: 'PENDING' });
+
+    await renderPage();
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const toggle = checkboxes[checkboxes.length - 1] as HTMLInputElement;
+    await act(async () => {
+      toggle.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      button('배치 개선안 탐색 시작').click();
+      await Promise.resolve();
+    });
+
+    expect(start).toHaveBeenCalledWith(42, expect.anything(), true);
   });
 
   it('원본 setup 오류에서 다시 시도하면 실제 setup을 재요청한다', async () => {

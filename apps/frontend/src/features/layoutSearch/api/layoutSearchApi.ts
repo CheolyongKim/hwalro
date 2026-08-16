@@ -156,10 +156,11 @@ export function emptyConstraints(): SearchConstraints {
 }
 
 export const layoutSearchApi = {
-  start: (simulationId: number, constraints?: SearchConstraints) =>
+  start: (simulationId: number, constraints?: SearchConstraints, verify = false) =>
     apiClient
       .post<StartSearchResult>(`/api/simulations/${simulationId}/layout-searches`, {
         constraints: constraints ?? null,
+        verify,
       })
       .then((response) => response.data),
 

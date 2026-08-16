@@ -113,11 +113,12 @@ interface Props {
   drawing: SimulationDrawing;
   constraints: SearchConstraints;
   onChange: (updater: (current: SearchConstraints) => SearchConstraints) => void;
-  onStart: () => void;
+  onStart: (verify: boolean) => void;
   starting: boolean;
 }
 
 export function ConstraintInspector({ drawing, constraints, onChange, onStart, starting }: Props) {
+  const [verify, setVerify] = useState(false);
   const [selectedFabricId, setSelectedFabricId] = useState<number | null>(null);
   const [tool, setTool] = useState<ConstraintEditorTool>('select');
   const [selectedZoneIndex, setSelectedZoneIndex] = useState<number | null>(null);
@@ -372,6 +373,19 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
             </ul>
           )}
         </div>
+        <label className={`constraint-inspector__check${starting ? ' is-disabled' : ''}`}>
+          <input
+            type="checkbox"
+            checked={verify}
+            disabled={starting}
+            onChange={(event) => setVerify(event.target.checked)}
+          />
+          <span>개선안마다 시뮬레이션으로 확인</span>
+        </label>
+        <p className="constraint-inspector__check-hint">
+          개선 폭을 실측으로 확인하지만 탐색이 훨씬 오래 걸립니다. 끄면 후보만 제안하고, 원하는
+          개선안을 골라 직접 실행할 수 있습니다.
+        </p>
         <p className="constraint-inspector__note">
           화면을 떠나도 서버에서 탐색이 계속되며 나중에 돌아와 진행 상태를 확인할 수 있습니다.
         </p>
@@ -379,7 +393,7 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
           type="button"
           className="search-start-button"
           disabled={starting}
-          onClick={onStart}
+          onClick={() => onStart(verify)}
         >
           {starting ? '탐색 준비 중' : '배치 개선안 탐색 시작'}
         </button>

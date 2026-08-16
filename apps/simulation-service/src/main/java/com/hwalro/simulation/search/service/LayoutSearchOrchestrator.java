@@ -111,7 +111,8 @@ public class LayoutSearchOrchestrator {
         this.evacuationTailExtractor = new EvacuationTailFindingExtractor(objectMapper);
     }
 
-    public LayoutSearchEntity start(long simulationId, JwtUser user, String budgetPreset, SearchConstraints constraints) {
+    public LayoutSearchEntity start(
+            long simulationId, JwtUser user, String budgetPreset, SearchConstraints constraints, boolean verify) {
         SimulationSetupResponse setup = simulationService.getSetup(simulationId, user);
         if (!COMPLETED_STATUS.equals(setup.status())) {
             throw new SimulationConflictException("완료된 시뮬레이션에서만 배치 개선안을 탐색할 수 있습니다.");
@@ -126,7 +127,7 @@ public class LayoutSearchOrchestrator {
         search.setPlannerVersion(PLANNER_VERSION);
         search.setStatus(SearchStatus.PENDING.name());
         search.setBaselineMetrics(writeJson(baselineMetrics));
-        search.setBudget(writeJson(new SearchBudget(budgetPreset, budget.trials(), budget.rounds(), trialCap)));
+        search.setBudget(writeJson(new SearchBudget(budgetPreset, budget.trials(), budget.rounds(), trialCap, verify)));
         search.setConstraints(constraints == null ? null : constraints.toJson(objectMapper));
         search.setRequestedBy(user.userId());
         transactionTemplate.executeWithoutResult(status -> {
@@ -207,7 +208,10 @@ public class LayoutSearchOrchestrator {
             }
             double trialCap = TrialBudgetCalculator.trialCapSeconds(baselineMetrics, properties.getAbortMargin());
             int beamWidth = properties.getBeamWidth();
-            int rounds = budget.maxRounds();
+            boolean verify = budget.verifies();
+            // 2라운드는 실측으로 개선된 부모를 확장하는 단계다. 확인하지 않는 탐색에는 그 부모가 없으므로
+            // 1라운드만 돈다.
+            int rounds = verify ? budget.maxRounds() : 1;
             boolean exhaustive = "THOROUGH".equals(budget.preset());
             if (existing.isEmpty()) {
                 int round1Cap = exhaustive
@@ -218,6 +222,7 @@ public class LayoutSearchOrchestrator {
                         1,
                         round1Cap,
                         exhaustive,
+                        verify,
                         source,
                         diagnosis,
                         baselineSetup,
@@ -227,7 +232,7 @@ public class LayoutSearchOrchestrator {
                         constraints)) {
                     return;
                 }
-            } else {
+            } else if (verify) {
                 if (!verifyCandidates(
                         searchId,
                         existing.stream()
@@ -265,6 +270,7 @@ public class LayoutSearchOrchestrator {
                             1,
                             budget.maxTrials(),
                             exhaustive,
+                            verify,
                             source,
                             diagnosis,
                             baselineSetup,
@@ -274,7 +280,7 @@ public class LayoutSearchOrchestrator {
                             constraints)) {
                         return;
                     }
-                    finish(searchId, hasImproved(searchId));
+                    finish(searchId, hasUsableCandidate(searchId, verify));
                     return;
                 }
                 List<LayoutSearchCandidateEntity> parents = exhaustive
@@ -287,6 +293,7 @@ public class LayoutSearchOrchestrator {
                         2,
                         exhaustive ? 0 : beamWidth * 2,
                         exhaustive,
+                        verify,
                         source,
                         diagnosis,
                         baselineSetup,
@@ -300,7 +307,7 @@ public class LayoutSearchOrchestrator {
                     return;
                 }
             }
-            finish(searchId, hasImproved(searchId));
+            finish(searchId, hasUsableCandidate(searchId, verify));
         } catch (RuntimeException exception) {
             log.error("Layout search {} failed", searchId, exception);
             failSearch(searchId, "STUDY_FAILED: " + safeMessage(exception.getMessage()));
@@ -328,6 +335,7 @@ public class LayoutSearchOrchestrator {
             int round,
             int maxCandidates,
             boolean exhaustive,
+            boolean verify,
             SearchSource source,
             Diagnosis diagnosis,
             SimulationSetupResponse baselineSetup,
@@ -358,7 +366,8 @@ public class LayoutSearchOrchestrator {
             layoutSearchMapper.updatePlannerVersion(searchId, search.plannerVersion());
             persistCandidates(searchId, round, search, queued, constraints);
         });
-        if (queued.isEmpty()) {
+        if (queued.isEmpty() || !verify) {
+            // 확인하지 않는 탐색에서는 후보가 QUEUED로 남는다. 어떤 후보를 실제로 돌려볼지는 사용자가 고른다.
             return true;
         }
         transactionTemplate.executeWithoutResult(
@@ -488,9 +497,14 @@ public class LayoutSearchOrchestrator {
         return rankedIds.stream().map(byId::get).toList();
     }
 
-    private boolean hasImproved(Long searchId) {
+    /**
+     * 확인한 탐색은 실측 개선이 있어야 결과가 있는 것이고, 확인하지 않은 탐색은 제안할 후보가 하나라도
+     * 남았으면 결과가 있는 것이다 - 후보를 뽑아 놓고 NO_IMPROVEMENT로 끝내면 화면에 아무것도 남지 않는다.
+     */
+    private boolean hasUsableCandidate(Long searchId, boolean verify) {
+        String expected = verify ? CandidateStatus.EVALUATED.name() : CandidateStatus.QUEUED.name();
         return layoutSearchMapper.findCandidatesBySearchId(searchId).stream()
-                .anyMatch(candidate -> CandidateStatus.EVALUATED.name().equals(candidate.getStatus()));
+                .anyMatch(candidate -> expected.equals(candidate.getStatus()));
     }
 
     private Map<String, Object> toParentInput(LayoutSearchCandidateEntity candidate) {

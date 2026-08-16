@@ -87,12 +87,18 @@ public class LayoutSearchQueryService {
         SearchBudget budget = readBudget(search.getBudget());
         long baselineRunSeconds = baselineRunSeconds(search.getBaselineSimulationId());
 
+        // 확인한 탐색은 실측 개선이 확인된 후보만 제안하고, 실측 델타로 순위를 매긴다. 확인하지 않은
+        // 탐색은 아직 QUEUED인 후보를 그대로 제안하고, 엔진이 이미 매겨 둔 순서(candidate_order)를 쓴다 -
+        // 잴 것이 없으니 다시 매길 것도 없다.
+        boolean verified = budget.verifies();
+        String proposedStatus =
+                verified ? CandidateStatus.EVALUATED.name() : CandidateStatus.QUEUED.name();
         List<CandidateDto> improved = new ArrayList<>();
         List<CandidateDto> rejected = new ArrayList<>();
         List<CandidateSelector.RankableCandidate> rankable = new ArrayList<>();
         for (LayoutSearchCandidateEntity candidate : candidates) {
             CandidateDto dto = toCandidate(candidate, trials.get(candidate.getId()), baselineMetrics);
-            if (CandidateStatus.EVALUATED.name().equals(candidate.getStatus())) {
+            if (proposedStatus.equals(candidate.getStatus())) {
                 improved.add(dto);
                 rankable.add(new CandidateSelector.RankableCandidate(
                         candidate.getId(), List.of(), readDeltas(candidate.getMetricDelta()), opsCount(candidate)));
@@ -100,13 +106,15 @@ public class LayoutSearchQueryService {
                 rejected.add(dto);
             }
         }
-        List<Long> rankedIds = rankable.stream()
-                .sorted(CandidateSelector.rankingComparator(baselineMetrics))
-                .map(CandidateSelector.RankableCandidate::candidateId)
-                .toList();
-        Map<Long, CandidateDto> improvedById =
-                improved.stream().collect(Collectors.toMap(CandidateDto::candidateId, dto -> dto));
-        improved = rankedIds.stream().map(improvedById::get).toList();
+        if (verified) {
+            List<Long> rankedIds = rankable.stream()
+                    .sorted(CandidateSelector.rankingComparator(baselineMetrics))
+                    .map(CandidateSelector.RankableCandidate::candidateId)
+                    .toList();
+            Map<Long, CandidateDto> improvedById =
+                    improved.stream().collect(Collectors.toMap(CandidateDto::candidateId, dto -> dto));
+            improved = rankedIds.stream().map(improvedById::get).toList();
+        }
 
         boolean terminal = TERMINAL_STATUSES.contains(search.getStatus());
         int verifiedCount = (int) candidates.stream()
@@ -116,7 +124,9 @@ public class LayoutSearchQueryService {
         int generatedCount = (int) candidates.stream()
                 .filter(candidate -> !CandidateStatus.REJECTED_CONSTRAINT.name().equals(candidate.getStatus()))
                 .count();
-        Integer plannedCount = plannedCount(budget, terminal, candidates, generatedCount);
+        // 확인하지 않는 탐색은 시행을 돌리지 않으므로 남은 시행도 없다. 시행 예산을 그대로 두면 진행률이
+        // 영원히 0/N으로 멈춰 있는 것처럼 보인다.
+        Integer plannedCount = verified ? plannedCount(budget, terminal, candidates, generatedCount) : 0;
         int remaining = plannedCount == null ? 0 : Math.max(0, plannedCount - verifiedCount);
         Long estimatedRemaining = terminal
                 ? 0L

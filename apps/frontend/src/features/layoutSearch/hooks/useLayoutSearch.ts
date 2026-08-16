@@ -98,12 +98,12 @@ export function useLayoutSearch(simulationId: number) {
   }, [active, refresh]);
 
   const start = useCallback(
-    async (nextConstraints?: SearchConstraints): Promise<boolean> => {
+    async (nextConstraints?: SearchConstraints, verify = false): Promise<boolean> => {
       setStarting(true);
       setErrorMessage(null);
       try {
         const applied = nextConstraints ?? constraints;
-        await layoutSearchApi.start(simulationId, applied);
+        await layoutSearchApi.start(simulationId, applied, verify);
         await refresh();
         return true;
       } catch (error) {

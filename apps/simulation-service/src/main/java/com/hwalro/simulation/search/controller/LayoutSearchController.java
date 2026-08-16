@@ -49,7 +49,11 @@ public class LayoutSearchController {
             @RequestBody(required = false) StartStudyRequest request,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         LayoutSearchEntity search = layoutSearchOrchestrator.start(
-                simulationId, user, DEFAULT_BUDGET, request == null ? null : request.constraints());
+                simulationId,
+                user,
+                DEFAULT_BUDGET,
+                request == null ? null : request.constraints(),
+                request != null && request.verify());
         return new StartStudyResponse(search.getId(), search.getStatus());
     }
 

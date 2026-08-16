@@ -49,7 +49,8 @@ export function SearchProgressHeader({
       <div className="search-progress__meta">
         {active && progress.plannedCount === null ? (
           <span>진행 {formatNumber(progress.verifiedCount)}건 검증 · 전체 후보 계산 중</span>
-        ) : active ? (
+        ) : active && progress.plannedCount !== 0 ? (
+          // 확인하지 않는 탐색은 시행 예산이 0이다. 그대로 두면 "진행 0/0 검증"이 떠 있는다.
           <span>
             진행 {formatNumber(progress.verifiedCount)}/{formatNumber(progress.plannedCount ?? 0)}
           </span>

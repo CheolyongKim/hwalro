@@ -7,7 +7,11 @@ import java.util.List;
 public final class LayoutSearchDtos {
     private LayoutSearchDtos() {}
 
-    public record StartStudyRequest(SearchConstraints constraints) {
+    /**
+     * {@code verify}가 참이면 후보마다 실제 엔진으로 시행해 실측 개선을 확인한다. 생략하면 확인하지 않고 후보만
+     * 생성한다 - 어떤 후보를 실제로 돌려볼지는 사용자가 고른다.
+     */
+    public record StartStudyRequest(SearchConstraints constraints, boolean verify) {
         public StartStudyRequest {
             if (constraints == null) {
                 constraints = SearchConstraints.empty();

@@ -7,6 +7,7 @@ import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.domain.LayoutExit;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.search.domain.CandidateStatus;
 import com.hwalro.simulation.search.domain.ChangeOp;
 import com.hwalro.simulation.search.domain.ChangeSet;
 import com.hwalro.simulation.search.domain.LayoutSearchCandidateEntity;
@@ -34,6 +35,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class CandidateAdoptionService {
     private static final String LOCKED_LAYOUT_STATUS = "잠금";
     private static final String MOVE_FABRIC = "MOVE_FABRIC";
+    private static final Set<String> PREPARABLE_STATUSES = Set.of(
+            CandidateStatus.EVALUATED.name(), CandidateStatus.QUEUED.name());
 
     private final LayoutSearchMapper layoutStudyMapper;
     private final DrawingMapper drawingMapper;
@@ -69,8 +72,10 @@ public class CandidateAdoptionService {
             if (candidate.getPreparedSimulationId() != null) {
                 return preparedSimulation(candidate.getPreparedSimulationId());
             }
-            if (!"EVALUATED".equals(candidate.getStatus())) {
-                throw new SimulationConflictException("실측 개선이 확인된 후보만 시뮬레이션으로 준비할 수 있습니다.");
+            // QUEUED는 확인하지 않는 탐색이 내놓은 후보다. 그런 탐색에서는 사용자가 직접 고른 후보를
+            // 돌려보는 것이 흐름 자체이므로, 실측을 준비의 전제로 둘 수 없다.
+            if (!PREPARABLE_STATUSES.contains(candidate.getStatus())) {
+                throw new SimulationConflictException("탐색이 제안한 후보만 시뮬레이션으로 준비할 수 있습니다.");
             }
             Long targetVersionId = candidate.getAdoptedLayoutVersionId() == null
                     ? createAdoptedLayout(study.getBaselineLayoutVersionId(), candidate)

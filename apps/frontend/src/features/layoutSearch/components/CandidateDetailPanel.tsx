@@ -1,15 +1,6 @@
 import { Info, Lock } from 'lucide-react';
-import type { MetricDelta, SearchCandidate } from '../api/layoutSearchApi';
+import type { SearchCandidate } from '../api/layoutSearchApi';
 import { formatDelta, formatNumber, findingLabel, metricLabel, operatorLabel } from '../utils/searchLabels';
-
-export function primaryDelta(candidate: SearchCandidate): MetricDelta | null {
-  return (
-    candidate.delta.find((item) => item.metricType === 'TOTAL_EVACUATION_TIME_SECONDS') ??
-    candidate.delta.find((item) => item.metricType === 'REMAINING_PEOPLE') ??
-    candidate.delta[0] ??
-    null
-  );
-}
 
 interface Props {
   candidate: SearchCandidate;
@@ -30,7 +21,9 @@ export function CandidateDetailPanel({
   onReject,
   rejecting,
 }: Props) {
-  const delta = primaryDelta(candidate);
+  // 검증 없이 돌린 탐색은 실측 지표가 없다. 그때 개선 폭을 알 수 있는 유일한 방법이 이 후보로
+  // 시뮬레이션을 실제로 돌려보는 것이므로, 수치가 없다는 이유로 준비를 막으면 안 된다.
+  const measured = candidate.measuredMetrics ?? [];
   const preparedSimulation = candidate.preparedSimulation;
 
   return (
@@ -65,10 +58,10 @@ export function CandidateDetailPanel({
         </div>
       </div>
 
-      {candidate.measuredMetrics && candidate.measuredMetrics.length > 0 && (
+      {measured.length > 0 && (
         <div className="comparison-metrics">
           <span className="comparison-metrics__title">실측 검증 지표</span>
-          {candidate.measuredMetrics.map((metric) => {
+          {measured.map((metric) => {
             const metricDelta = candidate.delta.find(
               (item) => item.metricType === metric.metricType,
             );
@@ -90,7 +83,9 @@ export function CandidateDetailPanel({
       <div className="metric-source">
         <Info className="metric-source__icon" aria-hidden="true" />
         <span>
-          표시된 수치는 엔진이 실제로 검증한 공식 지표입니다. 준비 시 원본을 유지하고 별도의 시뮬레이션 설정(초안)이 생성됩니다.
+          {measured.length > 0
+            ? '표시된 수치는 엔진이 실제로 검증한 공식 지표입니다. 준비 시 원본을 유지하고 별도의 시뮬레이션 설정(초안)이 생성됩니다.'
+            : '이 개선안은 아직 시뮬레이션으로 확인하지 않았습니다. 준비 시 원본을 유지하고 별도의 시뮬레이션 설정(초안)이 생성되며, 실행하면 개선 폭을 확인할 수 있습니다.'}
         </span>
       </div>
 
@@ -126,7 +121,7 @@ export function CandidateDetailPanel({
             <button
               type="button"
               className="run-simulation-button"
-              disabled={preparing || delta === null || !previewAvailable}
+              disabled={preparing || !previewAvailable}
               onClick={onPrepareSimulation}
             >
               {preparing ? '시뮬레이션 준비 중...' : '이 개선안으로 시뮬레이션 준비'}
