@@ -86,6 +86,26 @@ class VectorCostTest(unittest.TestCase):
                     )
 
 
+class PlanCostTest(unittest.TestCase):
+    def test_plan_cost_matches_the_full_route(self):
+        walkable = box(0, 0, 6, 4).difference(box(2, 1, 3, 3))
+        router = GridRouter(walkable, [Hazard(4.0, 3.0, 1.0)], [Exit(1, (6, 1.5), (6, 2.5))])
+
+        for start in ((0.4, 0.4), (1.0, 2.0), (4.5, 3.5), (5.5, 0.5)):
+            with self.subTest(start=start):
+                route = router.plan(start)
+
+                self.assertEqual(router.plan_cost(start), (route.total_cost, route.exit_id))
+
+    def test_plan_cost_rejects_what_plan_rejects(self):
+        router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])
+
+        with self.assertRaises(ValueError):
+            router.plan_cost((9.0, 9.0))
+        with self.assertRaises(ValueError):
+            router.plan_cost((float("nan"), 1.0))
+
+
 class GeometryTest(unittest.TestCase):
     def test_routing_geometry_reserves_agent_radius_without_changing_physical_geometry(self):
         drawing = {

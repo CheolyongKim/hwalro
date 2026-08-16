@@ -203,9 +203,9 @@ def _plan_all(router: GridRouter, agents) -> tuple[list[float], dict[Any, int]]:
     costs = []
     counts: dict[Any, int] = {}
     for position in agents:
-        route = router.plan(position)
-        costs.append(float(route.total_cost))
-        counts[route.exit_id] = counts.get(route.exit_id, 0) + 1
+        total_cost, exit_id = router.plan_cost(position)
+        costs.append(float(total_cost))
+        counts[exit_id] = counts.get(exit_id, 0) + 1
     return costs, counts
 
 

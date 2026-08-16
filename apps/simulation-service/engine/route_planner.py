@@ -785,7 +785,8 @@ class GridRouter:
         derived._propagate_cost_field(heap)
         return derived
 
-    def plan(self, start: Point, *, include_grid_trace: bool = False) -> Route:
+    def _entry(self, start: Point) -> tuple[Point, float, int, int]:
+        """Where an agent joins the grid, and what the rest of its route costs."""
         point = (float(start[0]), float(start[1]))
         if not all(math.isfinite(value) for value in point):
             raise ValueError("agent coordinates must be finite")
@@ -812,6 +813,20 @@ class GridRouter:
             raise AgentRouteUnreachableError("agent cannot connect to the routing grid")
 
         total_cost, exit_label, route_node = best
+        return point, total_cost, exit_label, route_node
+
+    def plan_cost(self, start: Point) -> tuple[float, Any]:
+        """What a route costs and where it leaves, without walking the path.
+
+        A layout search compares thousands of layouts and reads only these two
+        numbers per agent. Building the waypoints costs far more than finding
+        them: every kept point is re-checked with a shapely visibility test.
+        """
+        _, total_cost, exit_label, _ = self._entry(start)
+        return total_cost, self.exits[exit_label].id
+
+    def plan(self, start: Point, *, include_grid_trace: bool = False) -> Route:
+        point, total_cost, exit_label, route_node = self._entry(start)
         node = route_node
         chain = []
         visited = set()
