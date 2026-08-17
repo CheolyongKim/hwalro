@@ -354,7 +354,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
 
       <ImprovementComparisonPanel
         panel={improvementPanel}
-        onCompare={() => window.alert('개선안 비교 페이지는 다음 단계에서 연결됩니다.')}
+        onCompare={() => navigate(`/simulations/${result.simulationId}/layout-search`)}
       />
 
       {pendingBounds && (

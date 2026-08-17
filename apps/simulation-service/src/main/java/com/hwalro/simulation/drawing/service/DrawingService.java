@@ -390,10 +390,10 @@ public class DrawingService {
                     Pillar domainPillar = new Pillar();
                     domainPillar.setLayoutVersionId(layoutVersionId);
                     domainPillar.setName(pillar.name() == null ? "" : pillar.name());
-                    domainPillar.setStartX(pillar.startX());
-                    domainPillar.setStartY(pillar.startY());
-                    domainPillar.setEndX(pillar.endX());
-                    domainPillar.setEndY(pillar.endY());
+                    domainPillar.setStartX(smaller(pillar.startX(), pillar.endX()));
+                    domainPillar.setStartY(smaller(pillar.startY(), pillar.endY()));
+                    domainPillar.setEndX(larger(pillar.startX(), pillar.endX()));
+                    domainPillar.setEndY(larger(pillar.startY(), pillar.endY()));
                     domainPillar.setRotation(pillar.rotation());
                     return domainPillar;
                 })
@@ -406,10 +406,10 @@ public class DrawingService {
                     Fabric domainFabric = new Fabric();
                     domainFabric.setLayoutVersionId(layoutVersionId);
                     domainFabric.setName(fabric.name() == null ? "" : fabric.name());
-                    domainFabric.setStartX(fabric.startX());
-                    domainFabric.setStartY(fabric.startY());
-                    domainFabric.setEndX(fabric.endX());
-                    domainFabric.setEndY(fabric.endY());
+                    domainFabric.setStartX(smaller(fabric.startX(), fabric.endX()));
+                    domainFabric.setStartY(smaller(fabric.startY(), fabric.endY()));
+                    domainFabric.setEndX(larger(fabric.startX(), fabric.endX()));
+                    domainFabric.setEndY(larger(fabric.startY(), fabric.endY()));
                     domainFabric.setRotation(fabric.rotation());
                     return domainFabric;
                 })
@@ -456,13 +456,15 @@ public class DrawingService {
         }
         return pillars.stream()
                 .map(pillar -> {
+                    validateExtent(pillar.startX(), pillar.endX(), "기둥 가로");
+                    validateExtent(pillar.startY(), pillar.endY(), "기둥 세로");
                     Pillar domainPillar = new Pillar();
                     domainPillar.setLayoutVersionId(layoutVersionId);
                     domainPillar.setName(pillar.name());
-                    domainPillar.setStartX(pillar.startX());
-                    domainPillar.setStartY(pillar.startY());
-                    domainPillar.setEndX(pillar.endX());
-                    domainPillar.setEndY(pillar.endY());
+                    domainPillar.setStartX(smaller(pillar.startX(), pillar.endX()));
+                    domainPillar.setStartY(smaller(pillar.startY(), pillar.endY()));
+                    domainPillar.setEndX(larger(pillar.startX(), pillar.endX()));
+                    domainPillar.setEndY(larger(pillar.startY(), pillar.endY()));
                     domainPillar.setRotation(pillar.rotation());
                     return domainPillar;
                 })
@@ -472,13 +474,15 @@ public class DrawingService {
     private List<Fabric> toFabricsFromDefault(List<DefaultDrawingData.DefaultFabric> fabrics, Long layoutVersionId) {
         return fabrics.stream()
                 .map(fabric -> {
+                    validateExtent(fabric.startX(), fabric.endX(), "구조물 가로");
+                    validateExtent(fabric.startY(), fabric.endY(), "구조물 세로");
                     Fabric domainFabric = new Fabric();
                     domainFabric.setLayoutVersionId(layoutVersionId);
                     domainFabric.setName(fabric.name());
-                    domainFabric.setStartX(fabric.startX());
-                    domainFabric.setStartY(fabric.startY());
-                    domainFabric.setEndX(fabric.endX());
-                    domainFabric.setEndY(fabric.endY());
+                    domainFabric.setStartX(smaller(fabric.startX(), fabric.endX()));
+                    domainFabric.setStartY(smaller(fabric.startY(), fabric.endY()));
+                    domainFabric.setEndX(larger(fabric.startX(), fabric.endX()));
+                    domainFabric.setEndY(larger(fabric.startY(), fabric.endY()));
                     domainFabric.setRotation(fabric.rotation());
                     return domainFabric;
                 })
@@ -755,6 +759,8 @@ public class DrawingService {
             validateCoordinate(pillar.startY(), "기둥 시작 Y");
             validateCoordinate(pillar.endX(), "기둥 끝 X");
             validateCoordinate(pillar.endY(), "기둥 끝 Y");
+            validateExtent(pillar.startX(), pillar.endX(), "기둥 가로");
+            validateExtent(pillar.startY(), pillar.endY(), "기둥 세로");
             if (pillar.rotation() == null) {
                 throw new IllegalArgumentException("기둥 회전 각도가 누락되었습니다.");
             }
@@ -773,6 +779,8 @@ public class DrawingService {
             validateCoordinate(fabric.startY(), "구조물 시작 Y");
             validateCoordinate(fabric.endX(), "구조물 끝 X");
             validateCoordinate(fabric.endY(), "구조물 끝 Y");
+            validateExtent(fabric.startX(), fabric.endX(), "구조물 가로");
+            validateExtent(fabric.startY(), fabric.endY(), "구조물 세로");
             if (fabric.rotation() == null) {
                 throw new IllegalArgumentException("구조물 회전 각도가 누락되었습니다.");
             }
@@ -801,6 +809,26 @@ public class DrawingService {
             validateCoordinate(exit.startY(), "비상구 시작 Y");
             validateCoordinate(exit.endX(), "비상구 끝 X");
             validateCoordinate(exit.endY(), "비상구 끝 Y");
+        }
+    }
+
+    /**
+     * 사용자가 아래→위 또는 오른쪽→왼쪽으로 드래그해 그리면 start가 end보다 큰 채로 들어온다.
+     * 기하 계산은 대부분 좌표를 정렬해서 쓰지만 배치 개선안 탐색은 start &lt; end를 요구하므로
+     * (ChangeSetApplier.validateTransform), 저장 시점에 한 번 정규화해 계약을 통일한다.
+     * 회전각은 중심 기준이라 스왑해도 실제 도형이 바뀌지 않는다.
+     */
+    private static BigDecimal smaller(BigDecimal left, BigDecimal right) {
+        return left.compareTo(right) <= 0 ? left : right;
+    }
+
+    private static BigDecimal larger(BigDecimal left, BigDecimal right) {
+        return left.compareTo(right) >= 0 ? left : right;
+    }
+
+    private void validateExtent(BigDecimal start, BigDecimal end, String label) {
+        if (start.compareTo(end) == 0) {
+            throw new IllegalArgumentException(label + " 길이는 0보다 커야 합니다.");
         }
     }
 

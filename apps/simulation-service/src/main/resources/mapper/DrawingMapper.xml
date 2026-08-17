@@ -15,6 +15,19 @@
         WHERE id = #{id}
     </select>
 
+    <select id="lockLayout" resultType="long">
+        SELECT id
+        FROM layouts
+        WHERE id = #{layoutId}
+        FOR UPDATE
+    </select>
+
+    <select id="findNextLayoutVersionNumber" resultType="int">
+        SELECT COALESCE(MAX(version), 0) + 1
+        FROM layout_versions
+        WHERE layout_id = #{layoutId}
+    </select>
+
     <select id="findLayoutPage" resultType="com.hwalro.simulation.drawing.domain.Layout">
         SELECT id,
                floor_plan_id,
@@ -226,6 +239,43 @@
              #{layoutExit.endX},
              #{layoutExit.endY})
         </foreach>
+    </insert>
+
+    <insert id="insertLayoutExit" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO layout_exits (layout_version_id, name, start_x, start_y, end_x, end_y)
+        VALUES (#{layoutVersionId}, #{name}, #{startX}, #{startY}, #{endX}, #{endY})
+    </insert>
+
+    <insert id="copyWalls">
+        INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y)
+        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y
+        FROM walls
+        WHERE layout_version_id = #{sourceVersionId}
+        ORDER BY id
+    </insert>
+
+    <insert id="copyPillars">
+        INSERT INTO pillars (layout_version_id, name, start_x, start_y, end_x, end_y, rotation)
+        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y, rotation
+        FROM pillars
+        WHERE layout_version_id = #{sourceVersionId}
+        ORDER BY id
+    </insert>
+
+    <insert id="copyOutsideWalls">
+        INSERT INTO outside_walls (layout_version_id, name, start_x, start_y, end_x, end_y)
+        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y
+        FROM outside_walls
+        WHERE layout_version_id = #{sourceVersionId}
+        ORDER BY id
+    </insert>
+
+    <insert id="copyLayoutTexts">
+        INSERT INTO layout_texts (layout_version_id, text, x, y)
+        SELECT #{targetVersionId}, text, x, y
+        FROM layout_texts
+        WHERE layout_version_id = #{sourceVersionId}
+        ORDER BY id
     </insert>
 
     <update id="updateLayout">

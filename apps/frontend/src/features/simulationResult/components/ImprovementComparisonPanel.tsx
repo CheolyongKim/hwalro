@@ -9,7 +9,7 @@ export function ImprovementComparisonPanel({ panel, onCompare }: Props) {
   if (panel.isMinimized) {
     return (
       <button type="button" className="improvement-action-restore" onClick={panel.restore}>
-        배치 개선안 비교 열기
+        배치 개선안 찾기
       </button>
     );
   }
@@ -23,21 +23,21 @@ export function ImprovementComparisonPanel({ panel, onCompare }: Props) {
     >
       <div className="improvement-action-header">
         <div>
-          <small>LAYOUT IMPROVEMENT</small>
-          <strong>배치 개선안 비교</strong>
+          <small>LAYOUT SEARCH</small>
+          <strong>배치 개선안 찾기</strong>
         </div>
         <button
           type="button"
           className="improvement-collapse"
-          aria-label="배치 개선안 비교 최소화"
+          aria-label="배치 개선안 찾기 최소화"
           onClick={panel.collapse}
         >
           −
         </button>
       </div>
-      <p>현재 결과를 기준으로 개선 시뮬레이션 3개를 비교합니다.</p>
+      <p>병목·혼잡·출구 편중을 진단하고, 그 원인을 겨냥한 배치 변경 후보를 제시합니다.</p>
       <button type="button" onClick={onCompare}>
-        개선안 3개 비교하기
+        배치 개선안 찾기
       </button>
     </section>
   );

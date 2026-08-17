@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import heapq
 import math
 from typing import Any, Callable, Iterable, Sequence
 
 import numpy as np
 from shapely import (
+    clip_by_rect,
     contains_xy,
     covers,
     distance as geometry_distance,
@@ -28,6 +29,7 @@ WALL_TOTAL_WIDTH_METERS = 0.02
 EXIT_SEED_MAX_DISTANCE_METERS = GRID_STEP_METERS * math.sqrt(2.0)
 HAZARD_BOUNDARY_MULTIPLIER = 5.0
 HAZARD_CENTER_MULTIPLIER = 500.0
+RELOCATION_MARGIN_METERS = 1e-6
 _CONNECTOR_VISIBILITY_BATCH_SIZE = 4096
 _EPSILON = 1e-9
 _MOVES = (
@@ -52,10 +54,28 @@ class Hazard:
 
 
 @dataclass(frozen=True)
+class AgentRelocation:
+    index: int
+    origin: Point
+    destination: Point
+
+
+@dataclass(frozen=True)
 class Exit:
     id: Any
     start: Point
     end: Point
+
+
+@dataclass(frozen=True)
+class RouteGridTrace:
+    """Exact grid geometry needed to certify that an existing route stays open."""
+
+    entry_connection: tuple[Point, Point]
+    chain: tuple[Point, ...]
+    diagonal_support_nodes: tuple[Point, ...]
+    seed_to_approach: tuple[Point, Point]
+    seed_to_exit: tuple[Point, Point]
 
 
 @dataclass(frozen=True)
@@ -66,6 +86,9 @@ class Route:
     exit_start: Point
     exit_end: Point
     total_cost: float
+    grid_trace: RouteGridTrace | None = field(
+        default=None, compare=False, repr=False
+    )
 
 
 class AgentRouteUnreachableError(ValueError):
@@ -94,6 +117,41 @@ def hazard_multiplier(point: Point, hazards: Iterable[Hazard]) -> float:
             * (HAZARD_CENTER_MULTIPLIER / HAZARD_BOUNDARY_MULTIPLIER) ** depth,
         )
     return value
+
+
+def hazard_multipliers(x: np.ndarray, y: np.ndarray, hazards: Sequence[Hazard]) -> np.ndarray:
+    """`hazard_multiplier` over whole coordinate arrays, term for term."""
+    values = np.ones(x.shape, dtype=float)
+    for hazard in hazards:
+        distance = np.hypot(x - hazard.center_x, y - hazard.center_y)
+        depth = np.minimum(1.0, np.maximum(0.0, 1.0 - distance / hazard.radius))
+        inside = HAZARD_BOUNDARY_MULTIPLIER * (
+            HAZARD_CENTER_MULTIPLIER / HAZARD_BOUNDARY_MULTIPLIER
+        ) ** depth
+        values = np.maximum(values, np.where(distance > hazard.radius, 1.0, inside))
+    return values
+
+
+def edge_costs(
+    start_x: np.ndarray,
+    start_y: np.ndarray,
+    end_x: np.ndarray,
+    end_y: np.ndarray,
+    hazards: Sequence[Hazard],
+) -> np.ndarray:
+    """`edge_cost` over whole coordinate arrays, term for term.
+
+    The Simpson terms keep the scalar function's grouping so both agree to the
+    last bit; `test_route_planner` pins that down.
+    """
+    length = np.hypot(end_x - start_x, end_y - start_y)
+    if not hazards:
+        return length
+    return length / 6.0 * (
+        hazard_multipliers(start_x, start_y, hazards)
+        + 4.0 * hazard_multipliers((start_x + end_x) / 2.0, (start_y + end_y) / 2.0, hazards)
+        + hazard_multipliers(end_x, end_y, hazards)
+    )
 
 
 def edge_cost(start: Point, end: Point, hazards: Iterable[Hazard]) -> float:
@@ -210,6 +268,45 @@ def split_agent_components(area, agents: Sequence[Point]):
             raise ValueError(f"agent {index} is outside the walkable area")
         grouped.setdefault(matches[0], []).append((index, position))
     return tuple((components[index], tuple(grouped[index])) for index in sorted(grouped))
+
+
+def relocate_agents(
+    routing_area,
+    agents: Sequence[Point],
+    margin: float = RELOCATION_MARGIN_METERS,
+) -> tuple[tuple[Point, ...], tuple[AgentRelocation, ...]]:
+    """Move agents that overlap an obstacle to the nearest point inside *routing_area*.
+
+    *routing_area* must come from ``build_routing_geometry``, so every point in it
+    already clears each obstacle by the agent radius. Agents already inside keep
+    their exact coordinates, which makes this a no-op for an original layout.
+    """
+    if not agents:
+        return (), ()
+    x_values = np.fromiter((point[0] for point in agents), float, len(agents))
+    y_values = np.fromiter((point[1] for point in agents), float, len(agents))
+    inside = np.asarray(covers(routing_area, points(x_values, y_values)), dtype=bool)
+    positions = [(float(x), float(y)) for x, y in zip(x_values, y_values)]
+    relocations = []
+    for index in np.flatnonzero(~inside).tolist():
+        origin = positions[index]
+        boundary = nearest_points(routing_area, ShapelyPoint(origin))[0]
+        destination = (boundary.x, boundary.y)
+        # Step just past the boundary so later covers() calls are never boundary calls.
+        length = math.dist(origin, destination)
+        if length > _EPSILON:
+            scale = (length + margin) / length
+            nudged = (
+                origin[0] + (destination[0] - origin[0]) * scale,
+                origin[1] + (destination[1] - origin[1]) * scale,
+            )
+            if routing_area.covers(ShapelyPoint(nudged)):
+                destination = nudged
+        if not routing_area.covers(ShapelyPoint(destination)):
+            raise ValueError(f"agent {index} cannot be relocated into the walkable area")
+        positions[index] = destination
+        relocations.append(AgentRelocation(index, origin, destination))
+    return tuple(positions), tuple(relocations)
 
 
 def containing_component(area, contained):
@@ -329,12 +426,367 @@ class GridRouter:
         self.terminal_y = np.full(self.width * self.height, np.nan, dtype=float)
         self.approach_x = np.full(self.width * self.height, np.nan, dtype=float)
         self.approach_y = np.full(self.width * self.height, np.nan, dtype=float)
+        self._plan_cache: dict[Point, tuple[Any, ...]] = {}
+        self._edge_costs = self._build_edge_costs()
         self._grid_edges = self._build_grid_edges()
+        self._neighbor_nodes = self._build_neighbor_nodes()
         self._build_cost_field()
         self._reachable = self.valid & np.isfinite(self.distance)
         self._has_reachable = bool(self._reachable.any())
 
-    def plan(self, start: Point) -> Route:
+    def derive(self, walkable, *, physical_walkable=None, changed_bounds=None) -> GridRouter:
+        """Reuse this routing field after obstacles are removed or added.
+
+        The incremental path is exact for a pure expansion or contraction that
+        keeps the same grid extent. Unsupported geometry changes use the normal
+        constructor so callers never need two paths.
+
+        *changed_bounds* is an optional ``(min_x, min_y, max_x, max_y)`` window
+        that must contain every point where the new areas differ from the
+        current ones. Comparing only that window gives the same answer as
+        comparing the whole layout, at a fraction of the cost when the layout
+        holds many obstacles and only one of them moved.
+        """
+        physical_walkable = (
+            self.physical_walkable if physical_walkable is None else physical_walkable
+        )
+
+        min_x, min_y, max_x, max_y = walkable.bounds
+        origin_x = math.floor(min_x / self.step) * self.step
+        origin_y = math.floor(min_y / self.step) * self.step
+        width = int(math.ceil((max_x - origin_x) / self.step)) + 1
+        height = int(math.ceil((max_y - origin_y) / self.step)) + 1
+
+        def cold() -> GridRouter:
+            return GridRouter(
+                walkable,
+                self.hazards,
+                self.exits,
+                step=self.step,
+                physical_walkable=physical_walkable,
+                exit_clearance=self.exit_clearance,
+            )
+
+        if (
+            origin_x != self.origin_x
+            or origin_y != self.origin_y
+            or width != self.width
+            or height != self.height
+        ):
+            return cold()
+
+        # Outside changed_bounds the areas are identical, so clipping every
+        # comparison to that window leaves each result below unchanged.
+        if changed_bounds is None:
+            old_area, new_area = self.walkable, walkable
+            old_physical, new_physical = self.physical_walkable, physical_walkable
+        else:
+            old_area = clip_by_rect(self.walkable, *changed_bounds)
+            new_area = clip_by_rect(walkable, *changed_bounds)
+            old_physical = clip_by_rect(self.physical_walkable, *changed_bounds)
+            new_physical = clip_by_rect(physical_walkable, *changed_bounds)
+
+        expands = (
+            old_area.difference(new_area).area <= _EPSILON
+            and old_physical.difference(new_physical).area <= _EPSILON
+        )
+        contracts = (
+            new_area.difference(old_area).area <= _EPSILON
+            and new_physical.difference(old_physical).area <= _EPSILON
+        )
+        mixed = not expands and not contracts
+        changed = new_area.symmetric_difference(old_area)
+        physical_changed = new_physical.symmetric_difference(old_physical)
+        derived = object.__new__(GridRouter)
+        derived.__dict__ = self.__dict__.copy()
+        derived._plan_cache = self._plan_cache.copy()
+        derived.walkable = walkable
+        derived._prepared_walkable = prep(walkable)
+        derived.physical_walkable = physical_walkable
+        derived._prepared_physical_walkable = prep(physical_walkable)
+        derived.valid = self.valid.copy()
+        derived._grid_edges = {
+            direction: values.copy() for direction, values in self._grid_edges.items()
+        }
+        derived._neighbor_nodes = self._neighbor_nodes.copy()
+        for name in (
+            "distance",
+            "next_node",
+            "exit_label",
+            "terminal_x",
+            "terminal_y",
+            "approach_x",
+            "approach_y",
+        ):
+            setattr(derived, name, getattr(self, name).copy())
+
+        opened_edges: list[tuple[int, int]] = []
+        closed_edges: list[tuple[int, int]] = []
+        gained_nodes = np.empty(0, dtype=np.int64)
+        lost_nodes = np.empty(0, dtype=np.int64)
+        if not changed.is_empty:
+            changed_min_x, changed_min_y, changed_max_x, changed_max_y = changed.bounds
+            local = np.flatnonzero(
+                (self._x >= changed_min_x - self.step - _EPSILON)
+                & (self._x <= changed_max_x + self.step + _EPSILON)
+                & (self._y >= changed_min_y - self.step - _EPSILON)
+                & (self._y <= changed_max_y + self.step + _EPSILON)
+            )
+            new_valid = np.asarray(
+                contains_xy(walkable, self._x[local], self._y[local]), dtype=bool
+            )
+            previous_valid = derived.valid[local]
+            gained_nodes = local[new_valid & ~previous_valid]
+            lost_nodes = local[previous_valid & ~new_valid]
+            derived.valid[local] = new_valid
+
+            move_indexes = {move: index for index, move in enumerate(_MOVES)}
+            for (dx, dy), old_values in self._grid_edges.items():
+                rows, columns = np.divmod(local, self.width)
+                eligible = (
+                    (columns + dx >= 0)
+                    & (columns + dx < self.width)
+                    & (rows + dy >= 0)
+                    & (rows + dy < self.height)
+                )
+                sources = local[eligible]
+                destinations = sources + dy * self.width + dx
+                candidates = derived.valid[sources] & derived.valid[destinations]
+                if dx and dy:
+                    candidates &= derived.valid[sources + dx]
+                    candidates &= derived.valid[sources + dy * self.width]
+
+                clear = np.zeros(sources.size, dtype=bool)
+                candidate_offsets = np.flatnonzero(candidates)
+                if candidate_offsets.size:
+                    candidate_sources = sources[candidate_offsets]
+                    candidate_destinations = destinations[candidate_offsets]
+                    coordinates = np.empty((candidate_offsets.size, 2, 2), dtype=float)
+                    coordinates[:, 0, 0] = self._x[candidate_sources]
+                    coordinates[:, 0, 1] = self._y[candidate_sources]
+                    coordinates[:, 1, 0] = self._x[candidate_destinations]
+                    coordinates[:, 1, 1] = self._y[candidate_destinations]
+                    clear[candidate_offsets] = np.asarray(
+                        covers(walkable, linestrings(coordinates)), dtype=bool
+                    )
+
+                previous = old_values[sources]
+                derived._grid_edges[(dx, dy)][sources] = clear
+                derived._neighbor_nodes[sources, move_indexes[(dx, dy)]] = np.where(
+                    clear, destinations, -1
+                )
+                derived._neighbor_nodes[
+                    destinations, move_indexes[(-dx, -dy)]
+                ] = np.where(clear, sources, -1)
+                for source, destination in zip(
+                    sources[clear & ~previous], destinations[clear & ~previous]
+                ):
+                    opened_edges.append((int(source), int(destination)))
+                for source, destination in zip(
+                    sources[previous & ~clear], destinations[previous & ~clear]
+                ):
+                    closed_edges.append((int(source), int(destination)))
+
+        if not derived.valid.any():
+            return cold()
+        if expands and (lost_nodes.size or closed_edges):
+            return cold()
+        if contracts and (gained_nodes.size or opened_edges):
+            return cold()
+        if mixed and derived.hazards:
+            # ponytail: rebuilding only the hazard-weighted cost field preserves
+            # byte-level determinism; specialize it if mixed hazard moves become hot.
+            derived.distance.fill(np.inf)
+            derived.next_node.fill(-1)
+            derived.exit_label.fill(-1)
+            derived.terminal_x.fill(np.nan)
+            derived.terminal_y.fill(np.nan)
+            derived.approach_x.fill(np.nan)
+            derived.approach_y.fill(np.nan)
+            derived._build_cost_field()
+            return derived
+
+        seeds: list[tuple[int, int, Point, Point, float]] = []
+        seeds_by_label = []
+        seeded_exit_ids = set()
+        for label, exit_ in enumerate(derived.exits):
+            start, end = usable_exit_segment(exit_, derived.exit_clearance)
+            seed_region = LineString((start, end)).buffer(
+                derived.exit_clearance
+                + EXIT_SEED_MAX_DISTANCE_METERS
+                + _EPSILON
+            )
+            if changed.disjoint(seed_region) and physical_changed.disjoint(seed_region):
+                exit_seeds = self._exit_seed_records[label]
+            else:
+                exit_seeds = tuple(derived._exit_seeds(exit_))
+            seeds_by_label.append(exit_seeds)
+            if exit_seeds:
+                seeded_exit_ids.add(_id_key(exit_.id))
+            for node, target, approach in exit_seeds:
+                seeds.append(
+                    (
+                        label,
+                        node,
+                        target,
+                        approach,
+                        derived._edge_cost(derived._point(node), target),
+                    )
+                )
+        if not seeds:
+            return cold()
+
+        heap: list[tuple[float, int, int]] = []
+        if expands:
+            frontier = {
+                node
+                for edge in opened_edges
+                for node in edge
+                if math.isfinite(float(derived.distance[node]))
+            }
+            for node in frontier:
+                heapq.heappush(
+                    heap,
+                    (float(derived.distance[node]), int(derived.exit_label[node]), node),
+                )
+
+            for label, node, target, approach, seed_cost in seeds:
+                old_cost = float(derived.distance[node])
+                old_label = int(derived.exit_label[node])
+                improves = seed_cost + _EPSILON < old_cost
+                ties_better = abs(seed_cost - old_cost) <= _EPSILON and (
+                    old_label < 0
+                    or label < old_label
+                    or (label == old_label and int(derived.next_node[node]) >= 0)
+                )
+                same_seed = (
+                    abs(seed_cost - old_cost) <= _EPSILON
+                    and label == old_label
+                    and int(derived.next_node[node]) == -1
+                )
+                if same_seed and (
+                    target
+                    != (
+                        float(derived.terminal_x[node]),
+                        float(derived.terminal_y[node]),
+                    )
+                    or approach
+                    != (
+                        float(derived.approach_x[node]),
+                        float(derived.approach_y[node]),
+                    )
+                ):
+                    return cold()
+                if improves or ties_better:
+                    derived.distance[node] = seed_cost
+                    derived.exit_label[node] = label
+                    derived.next_node[node] = -1
+                    derived.terminal_x[node] = target[0]
+                    derived.terminal_y[node] = target[1]
+                    derived.approach_x[node] = approach[0]
+                    derived.approach_y[node] = approach[1]
+                    heapq.heappush(heap, (seed_cost, label, node))
+            if not self.seeded_exit_ids.issubset(seeded_exit_ids):
+                return cold()
+        else:
+            affected = np.zeros(self.valid.size, dtype=bool)
+            affected[lost_nodes] = True
+            for source, destination in closed_edges:
+                if int(self.next_node[source]) == destination:
+                    affected[source] = True
+                if int(self.next_node[destination]) == source:
+                    affected[destination] = True
+
+            seed_by_node_and_label = {
+                (node, label): (target, approach, seed_cost)
+                for label, node, target, approach, seed_cost in seeds
+            }
+            old_seed_nodes = np.flatnonzero(
+                np.isfinite(self.distance)
+                & (self.next_node == -1)
+                & (self.exit_label >= 0)
+            )
+            for node in old_seed_nodes:
+                label = int(self.exit_label[node])
+                candidate = seed_by_node_and_label.get((int(node), label))
+                if candidate is None or candidate != (
+                    (
+                        float(self.terminal_x[node]),
+                        float(self.terminal_y[node]),
+                    ),
+                    (
+                        float(self.approach_x[node]),
+                        float(self.approach_y[node]),
+                    ),
+                    float(self.distance[node]),
+                ):
+                    affected[node] = True
+
+            while True:
+                depends_on_affected = np.zeros(self.next_node.size, dtype=bool)
+                has_next = self.next_node >= 0
+                depends_on_affected[has_next] = affected[self.next_node[has_next]]
+                newly_affected = depends_on_affected & ~affected
+                if not newly_affected.any():
+                    break
+                affected |= newly_affected
+
+            derived.distance[affected] = np.inf
+            derived.next_node[affected] = -1
+            derived.exit_label[affected] = -1
+            derived.terminal_x[affected] = np.nan
+            derived.terminal_y[affected] = np.nan
+            derived.approach_x[affected] = np.nan
+            derived.approach_y[affected] = np.nan
+
+            for label, node, target, approach, seed_cost in seeds:
+                current_cost = float(derived.distance[node])
+                current_label = int(derived.exit_label[node])
+                current_next = int(derived.next_node[node])
+                if seed_cost + _EPSILON < current_cost or (
+                    abs(seed_cost - current_cost) <= _EPSILON
+                    and (
+                        current_label < 0
+                        or label < current_label
+                        or (label == current_label and current_next >= 0)
+                    )
+                ):
+                    derived.distance[node] = seed_cost
+                    derived.exit_label[node] = label
+                    derived.next_node[node] = -1
+                    derived.terminal_x[node] = target[0]
+                    derived.terminal_y[node] = target[1]
+                    derived.approach_x[node] = approach[0]
+                    derived.approach_y[node] = approach[1]
+                    heapq.heappush(heap, (seed_cost, label, node))
+
+            frontier = set()
+            for (dx, dy), clear in derived._grid_edges.items():
+                sources = np.flatnonzero(clear)
+                destinations = sources + dy * self.width + dx
+                crossing = affected[sources] ^ affected[destinations]
+                for source, destination in zip(sources[crossing], destinations[crossing]):
+                    node = int(destination if affected[source] else source)
+                    if math.isfinite(float(derived.distance[node])):
+                        frontier.add(node)
+            for source, destination in opened_edges:
+                if math.isfinite(float(derived.distance[source])):
+                    frontier.add(source)
+                if math.isfinite(float(derived.distance[destination])):
+                    frontier.add(destination)
+            for node in frontier:
+                heapq.heappush(
+                    heap,
+                    (float(derived.distance[node]), int(derived.exit_label[node]), node),
+                )
+
+        derived._exit_seed_records = tuple(seeds_by_label)
+        derived.seeded_exit_ids = frozenset(seeded_exit_ids)
+        derived._propagate_cost_field(heap)
+        return derived
+
+    def _entry(self, start: Point) -> tuple[Point, float, int, int]:
+        """Where an agent joins the grid, and what the rest of its route costs."""
         point = (float(start[0]), float(start[1]))
         if not all(math.isfinite(value) for value in point):
             raise ValueError("agent coordinates must be finite")
@@ -345,65 +797,105 @@ class GridRouter:
         if not self._has_reachable:
             raise ValueError("no selected exit is reachable")
         local = self._local_nodes(point, reachable)
-        best: tuple[float, int, int] | None = None
-        checked: set[int] = set()
-        candidates: np.ndarray | None = None
-        squared: np.ndarray | None = None
-        while best is None:
-            for node in sorted(local):
-                if node in checked:
-                    continue
-                checked.add(node)
-                node_point = self._point(node)
-                if not self.can_connect(point, node_point):
-                    continue
-                total = self._edge_cost(point, node_point) + float(self.distance[node])
-                candidate = (total, int(self.exit_label[node]), node)
-                if best is None or candidate < best:
-                    best = candidate
-            if best is not None:
-                break
-            if candidates is None:
-                candidates = np.flatnonzero(reachable)
-                squared = (self._x[candidates] - point[0]) ** 2 + (
-                    self._y[candidates] - point[1]
-                ) ** 2
-                count = min(64, candidates.size)
-                local = candidates[np.argpartition(squared, count - 1)[:count]].tolist()
-                continue
-            # A safe corridor can be narrower than one grid cell. Search farther
-            # connectors in bounded-memory batches only after the old 64-node path fails.
-            best = self._expanded_connector(point, candidates, squared)
-            break
+        best = self._best_connector(point, local)
+        if best is None:
+            candidates = np.flatnonzero(reachable)
+            squared = (self._x[candidates] - point[0]) ** 2 + (self._y[candidates] - point[1]) ** 2
+            count = min(64, candidates.size)
+            best = self._best_connector(
+                point, candidates[np.argpartition(squared, count - 1)[:count]].tolist()
+            )
+            if best is None:
+                # A safe corridor can be narrower than one grid cell. Search farther
+                # connectors in bounded-memory batches only after the 64-node path fails.
+                best = self._expanded_connector(point, candidates, squared)
         if best is None:
             raise AgentRouteUnreachableError("agent cannot connect to the routing grid")
 
-        total_cost, exit_label, node = best
-        route_node = node
-        path = [point]
+        total_cost, exit_label, route_node = best
+        return point, total_cost, exit_label, route_node
+
+    def plan_cost(self, start: Point) -> tuple[float, Any]:
+        """What a route costs and where it leaves, without walking the path.
+
+        A layout search compares thousands of layouts and reads only these two
+        numbers per agent. Building the waypoints costs far more than finding
+        them: every kept point is re-checked with a shapely visibility test.
+        """
+        _, total_cost, exit_label, _ = self._entry(start)
+        return total_cost, self.exits[exit_label].id
+
+    def plan(self, start: Point, *, include_grid_trace: bool = False) -> Route:
+        point, total_cost, exit_label, route_node = self._entry(start)
+        node = route_node
+        chain = []
         visited = set()
         while node >= 0:
             if node in visited:
                 raise RuntimeError("routing field contains a cycle")
             visited.add(node)
+            chain.append(node)
+            node = int(self.next_node[node])
+        chain_key = tuple(chain)
+        approach = (float(self.approach_x[route_node]), float(self.approach_y[route_node]))
+        terminal = (float(self.terminal_x[route_node]), float(self.terminal_y[route_node]))
+        cached = self._plan_cache.get(point)
+        cache_key = (
+            route_node,
+            float(self.distance[route_node]),
+            exit_label,
+            chain_key,
+            terminal,
+            approach,
+            total_cost,
+        )
+        if cached is not None and cached[:-1] == cache_key:
+            cached_route = cached[-1]
+            if not include_grid_trace or cached_route.grid_trace is not None:
+                return cached_route
+
+        path = [point]
+        for node in chain:
             node_point = self._point(node)
             if math.dist(path[-1], node_point) > _EPSILON:
                 path.append(node_point)
-            node = int(self.next_node[node])
-        approach = (float(self.approach_x[route_node]), float(self.approach_y[route_node]))
         if math.dist(path[-1], approach) > _EPSILON:
             path.append(approach)
         exit_start, exit_end = usable_exit_segment(
             self.exits[exit_label], self.exit_clearance
         )
-        return Route(
+        grid_trace = None
+        if include_grid_trace:
+            chain_points = tuple(self._point(node) for node in chain)
+            diagonal_support_nodes = []
+            for start_node, end_node in zip(chain, chain[1:]):
+                start_row, start_column = divmod(start_node, self.width)
+                end_row, end_column = divmod(end_node, self.width)
+                if start_row != end_row and start_column != end_column:
+                    diagonal_support_nodes.extend(
+                        (
+                            self._point(start_row * self.width + end_column),
+                            self._point(end_row * self.width + start_column),
+                        )
+                    )
+            grid_trace = RouteGridTrace(
+                entry_connection=(point, chain_points[0]),
+                chain=chain_points,
+                diagonal_support_nodes=tuple(diagonal_support_nodes),
+                seed_to_approach=(chain_points[-1], approach),
+                seed_to_exit=(chain_points[-1], terminal),
+            )
+        route = Route(
             exit_id=self.exits[exit_label].id,
             waypoints=tuple(_simplify_collinear(path, self.can_connect)),
-            terminal_point=(float(self.terminal_x[route_node]), float(self.terminal_y[route_node])),
+            terminal_point=terminal,
             exit_start=exit_start,
             exit_end=exit_end,
             total_cost=total_cost,
+            grid_trace=grid_trace,
         )
+        self._plan_cache[point] = (*cache_key, route)
+        return route
 
     def recommended_position(
         self,
@@ -521,8 +1013,14 @@ class GridRouter:
     def _build_cost_field(self) -> None:
         heap: list[tuple[float, int, int]] = []
         seed_count = 0
+        seeds_by_label = []
+        seeded_exit_ids = set()
         for label, exit_ in enumerate(self.exits):
-            for node, target, approach in self._exit_seeds(exit_):
+            exit_seeds = tuple(self._exit_seeds(exit_))
+            seeds_by_label.append(exit_seeds)
+            if exit_seeds:
+                seeded_exit_ids.add(_id_key(exit_.id))
+            for node, target, approach in exit_seeds:
                 seed_count += 1
                 seed_cost = self._edge_cost(self._point(node), target)
                 current = (float(self.distance[node]), int(self.exit_label[node]))
@@ -538,48 +1036,64 @@ class GridRouter:
                     self.approach_y[node] = approach[1]
                     heapq.heappush(heap, (seed_cost, label, node))
 
+        self._exit_seed_records = tuple(seeds_by_label)
+        self.seeded_exit_ids = frozenset(seeded_exit_ids)
         if seed_count == 0:
             raise ValueError("no selected exit is reachable from this walkable component")
 
+        self._propagate_cost_field(heap)
+
+    def _propagate_cost_field(self, heap: list[tuple[float, int, int]]) -> None:
+        neighbor_nodes = self._neighbor_nodes
+        edge_costs = self._edge_costs
+        distance = self.distance
+        next_node = self.next_node
+        exit_label = self.exit_label
+        terminal_x = self.terminal_x
+        terminal_y = self.terminal_y
+        approach_x = self.approach_x
+        approach_y = self.approach_y
+        heappop = heapq.heappop
+        heappush = heapq.heappush
+
         while heap:
-            current_cost, label, node = heapq.heappop(heap)
-            if current_cost > self.distance[node] + _EPSILON or label != self.exit_label[node]:
+            current_cost, label, node = heappop(heap)
+            if current_cost > distance[node] + _EPSILON or label != exit_label[node]:
                 continue
-            row, column = divmod(node, self.width)
-            for dx, dy in _MOVES:
-                next_column, next_row = column + dx, row + dy
-                if not (0 <= next_column < self.width and 0 <= next_row < self.height):
+            for move_index, step_cost in enumerate(edge_costs[node]):
+                neighbor = int(neighbor_nodes[node, move_index])
+                if neighbor < 0:
                     continue
-                neighbor = next_row * self.width + next_column
-                if not self.valid[neighbor]:
-                    continue
-                if dx and dy:
-                    horizontal = row * self.width + next_column
-                    vertical = next_row * self.width + column
-                    if not self.valid[horizontal] or not self.valid[vertical]:
-                        continue
-                if not self._grid_edge_is_walkable(node, neighbor, dx, dy):
-                    continue
-                step_cost = self._move_costs[(dx, dy)]
-                if self.hazards:
-                    step_cost = self._edge_cost(self._point(neighbor), self._point(node))
                 next_cost = current_cost + step_cost
-                old_cost = float(self.distance[neighbor])
-                old_label = int(self.exit_label[neighbor])
-                old_next = int(self.next_node[neighbor])
-                improves = next_cost + _EPSILON < old_cost
-                ties_better = abs(next_cost - old_cost) <= _EPSILON and (
-                    old_label < 0 or label < old_label or (label == old_label and node < old_next)
-                )
-                if improves or ties_better:
-                    self.distance[neighbor] = next_cost
-                    self.exit_label[neighbor] = label
-                    self.next_node[neighbor] = node
-                    self.terminal_x[neighbor] = self.terminal_x[node]
-                    self.terminal_y[neighbor] = self.terminal_y[node]
-                    self.approach_x[neighbor] = self.approach_x[node]
-                    self.approach_y[neighbor] = self.approach_y[node]
-                    heapq.heappush(heap, (next_cost, label, neighbor))
+                old_cost = float(distance[neighbor])
+                update = next_cost + _EPSILON < old_cost
+                if not update and abs(next_cost - old_cost) <= _EPSILON:
+                    old_label = int(exit_label[neighbor])
+                    old_next = int(next_node[neighbor])
+                    update = (
+                        old_label < 0
+                        or label < old_label
+                        or (label == old_label and node < old_next)
+                        or (
+                            label == old_label
+                            and node == old_next
+                            and (
+                                terminal_x[neighbor] != terminal_x[node]
+                                or terminal_y[neighbor] != terminal_y[node]
+                                or approach_x[neighbor] != approach_x[node]
+                                or approach_y[neighbor] != approach_y[node]
+                            )
+                        )
+                    )
+                if update:
+                    distance[neighbor] = next_cost
+                    exit_label[neighbor] = label
+                    next_node[neighbor] = node
+                    terminal_x[neighbor] = terminal_x[node]
+                    terminal_y[neighbor] = terminal_y[node]
+                    approach_x[neighbor] = approach_x[node]
+                    approach_y[neighbor] = approach_y[node]
+                    heappush(heap, (next_cost, label, neighbor))
 
     def _exit_seeds(self, exit_: Exit) -> list[tuple[int, Point, Point]]:
         candidates = np.flatnonzero(self.valid)
@@ -812,6 +1326,53 @@ class GridRouter:
             result[(dx, dy)] = clear
         return result
 
+    def _build_edge_costs(self) -> list[list[float]]:
+        """Cost of every grid move, for the whole grid, once.
+
+        Hazards and grid coordinates are fixed for the lifetime of a router, so
+        each move costs the same however many times the propagation relaxes it.
+        Every in-grid move is priced, walkable or not, because `derive` opens
+        edges that were closed when this ran - and it shares this table, which
+        stays right precisely because nothing it depends on can change.
+        """
+        costs = np.empty((self.valid.size, len(_MOVES)), dtype=float)
+        for index, move in enumerate(_MOVES):
+            costs[:, index] = self._move_costs[move]
+        if not self.hazards:
+            return costs.tolist()
+
+        nodes = np.arange(self.valid.size)
+        rows, columns = np.divmod(nodes, self.width)
+        for index, (dx, dy) in enumerate(_MOVES):
+            eligible = np.flatnonzero(
+                (columns + dx >= 0)
+                & (columns + dx < self.width)
+                & (rows + dy >= 0)
+                & (rows + dy < self.height)
+            )
+            targets = eligible + dy * self.width + dx
+            # The scalar propagation charged `edge_cost(neighbour, node)`, so the
+            # neighbour stays the start point and the Simpson terms keep their
+            # grouping. `test_route_planner` holds both forms to the same bits.
+            costs[eligible, index] = edge_costs(
+                self._x[targets],
+                self._y[targets],
+                self._x[eligible],
+                self._y[eligible],
+                self.hazards,
+            )
+        return costs.tolist()
+
+    def _build_neighbor_nodes(self) -> np.ndarray:
+        result = np.full((self.valid.size, len(_MOVES)), -1, dtype=np.int32)
+        move_indexes = {move: index for index, move in enumerate(_MOVES)}
+        for (dx, dy), clear in self._grid_edges.items():
+            sources = np.flatnonzero(clear)
+            destinations = sources + dy * self.width + dx
+            result[sources, move_indexes[(dx, dy)]] = destinations
+            result[destinations, move_indexes[(-dx, -dy)]] = sources
+        return result
+
     def _grid_edge_is_walkable(
         self, start: int, end: int, dx: int, dy: int
     ) -> bool:
@@ -835,6 +1396,27 @@ class GridRouter:
                 ):
                     nodes.append(node)
         return nodes
+
+    def _best_connector(
+        self, point: Point, nodes: Iterable[int]
+    ) -> tuple[float, int, int] | None:
+        # Ranking before the geometry check keeps the same winner while normally
+        # costing one can_connect call instead of one per nearby node.
+        return next(
+            (
+                candidate
+                for candidate in sorted(
+                    (
+                        self._edge_cost(point, self._point(node)) + float(self.distance[node]),
+                        int(self.exit_label[node]),
+                        int(node),
+                    )
+                    for node in nodes
+                )
+                if self.can_connect(point, self._point(candidate[2]))
+            ),
+            None,
+        )
 
     def _expanded_connector(
         self, point: Point, candidates: np.ndarray, squared: np.ndarray

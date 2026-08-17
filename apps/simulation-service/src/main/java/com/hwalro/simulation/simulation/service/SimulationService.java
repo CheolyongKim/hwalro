@@ -19,6 +19,7 @@ import com.hwalro.simulation.simulation.domain.SimulationOption;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.FabricRectDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.HazardZoneDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.PlacementAdjustmentDraftRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
@@ -382,6 +383,10 @@ public class SimulationService {
     private SimulationSetupResponse getSetupInternal(Long id, JwtUser user) {
         Simulation simulation = findSimulation(id);
         requireAccessible(simulation.getCreatedBy(), user);
+        return buildSetup(id, simulation);
+    }
+
+    private SimulationSetupResponse buildSetup(Long id, Simulation simulation) {
         LayoutSimulationContext context = findLayoutContext(simulation.getLayoutVersionId());
         DrawingSnapshot snapshot = loadDrawing(context);
         List<PointDto> boundary =
@@ -399,7 +404,7 @@ public class SimulationService {
                 boundary,
                 snapshot.walls().stream().map(SimulationService::toSegment).toList(),
                 snapshot.pillars().stream().map(SimulationService::toRect).toList(),
-                snapshot.fabrics().stream().map(SimulationService::toRect).toList(),
+                snapshot.fabrics().stream().map(SimulationService::toFabricRect).toList(),
                 snapshot.layoutTexts().stream().map(SimulationService::toText).toList(),
                 snapshot.exits().stream().map(SimulationService::toExit).toList());
 
@@ -582,8 +587,9 @@ public class SimulationService {
                 pillar.getRotation());
     }
 
-    private static RectDto toRect(Fabric fabric) {
-        return new RectDto(
+    private static FabricRectDto toFabricRect(Fabric fabric) {
+        return new FabricRectDto(
+                fabric.getId(),
                 fabric.getName(),
                 fabric.getStartX(),
                 fabric.getStartY(),

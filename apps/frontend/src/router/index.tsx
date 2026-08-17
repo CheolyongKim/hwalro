@@ -25,6 +25,7 @@ const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
 const SimulationAnalysisResultPage = lazy(
   () => import('../features/simulationResult/pages/SimulationResultPage'),
 );
+const LayoutSearchPage = lazy(() => import('../features/layoutSearch/pages/LayoutSearchPage'));
 const InspectionMobilePage = lazy(() => import('../pages/InspectionMobilePage'));
 
 function FullscreenRouteFallback() {
@@ -96,6 +97,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={<FullscreenRouteFallback />}>
                 <SimulationAnalysisResultPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'simulations/:simulationId/layout-search',
+            element: (
+              <Suspense fallback={<FullscreenRouteFallback />}>
+                <LayoutSearchPage />
               </Suspense>
             ),
           },
