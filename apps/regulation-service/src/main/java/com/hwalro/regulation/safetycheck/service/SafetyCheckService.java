@@ -138,6 +138,18 @@ public class SafetyCheckService {
     }
 
     @Transactional
+    public InspectionDetailResponse getOrCreateOpenInspection(Long areaId, JwtUser user) {
+        if (safetyCheckMapper.lockInspectionArea(areaId) == null) {
+            throw new InspectionAreaNotFoundException(areaId);
+        }
+        Long draftId = safetyCheckMapper.findOpenDraftId(areaId, user.userId());
+        if (draftId != null) {
+            return getInspection(draftId, user);
+        }
+        return createInspection(areaId, null, user);
+    }
+
+    @Transactional
     public InspectionDetailResponse updateInspection(Long inspectionId, InspectionUpdateRequest request, JwtUser user) {
         InspectionDetailHeader header = findHeader(inspectionId);
         requireArea(header.inspectionAreaId());

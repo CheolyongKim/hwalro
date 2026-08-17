@@ -35,12 +35,12 @@ export function getInspectionSummary(inspection: InspectionHistory): string {
   return '전체 적합';
 }
 
-export function getSafetyCheckError(error: unknown): string {
+export function getSafetyCheckError(
+  error: unknown,
+  fallback = '안전 점검 정보를 불러오지 못했습니다.',
+): string {
   if (error instanceof AxiosError) {
-    return (
-      (error.response?.data as { message?: string } | undefined)?.message ??
-      '안전 점검 정보를 불러오지 못했습니다.'
-    );
+    return (error.response?.data as { message?: string } | undefined)?.message ?? fallback;
   }
-  return '안전 점검 정보를 불러오지 못했습니다.';
+  return fallback;
 }

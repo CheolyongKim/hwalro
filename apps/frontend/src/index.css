@@ -158,4 +158,18 @@
     border: 0 !important;
     box-shadow: none !important;
   }
+
+  .checklist-print-area,
+  .checklist-print-area * {
+    visibility: visible;
+  }
+
+  .checklist-print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
 }
