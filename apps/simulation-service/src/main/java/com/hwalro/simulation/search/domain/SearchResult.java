@@ -17,6 +17,5 @@ public record SearchResult(String plannerVersion, List<SearchCandidate> candidat
             JsonNode rationale) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record RejectedCandidate(
-            String operatorType, Long fabricId, String reason, List<ChangeOp> ops) {}
+    public record RejectedCandidate(String operatorType, Long fabricId, String reason, List<ChangeOp> ops) {}
 }

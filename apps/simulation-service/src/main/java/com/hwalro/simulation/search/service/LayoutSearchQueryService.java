@@ -91,8 +91,7 @@ public class LayoutSearchQueryService {
         // 탐색은 아직 QUEUED인 후보를 그대로 제안하고, 엔진이 이미 매겨 둔 순서(candidate_order)를 쓴다 -
         // 잴 것이 없으니 다시 매길 것도 없다.
         boolean verified = budget.verifies();
-        String proposedStatus =
-                verified ? CandidateStatus.EVALUATED.name() : CandidateStatus.QUEUED.name();
+        String proposedStatus = verified ? CandidateStatus.EVALUATED.name() : CandidateStatus.QUEUED.name();
         List<CandidateDto> improved = new ArrayList<>();
         List<CandidateDto> rejected = new ArrayList<>();
         List<CandidateSelector.RankableCandidate> rankable = new ArrayList<>();

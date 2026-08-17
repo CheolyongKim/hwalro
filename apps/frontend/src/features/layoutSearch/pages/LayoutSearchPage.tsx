@@ -223,7 +223,8 @@ export default function LayoutSearchPage() {
             </div>
             {selectedCandidate && (
               <p>
-                상단 탭으로 개선안을 전환하고, 도면을 길게 누르거나 버튼으로 전후 배치를 비교할 수 있습니다.
+                상단 탭으로 개선안을 전환하고, 도면을 길게 누르거나 버튼으로 전후 배치를 비교할 수
+                있습니다.
               </p>
             )}
           </div>
@@ -238,7 +239,8 @@ export default function LayoutSearchPage() {
                 <strong>{selectedCandidate ? '배치 도면 인터랙션' : '시도 배치'}</strong>
                 {selectedCandidate && (
                   <p>
-                    기본으로 개선 배치를 표시합니다. 캔버스를 누르는 동안 기존 배치를 볼 수 있습니다.
+                    기본으로 개선 배치를 표시합니다. 캔버스를 누르는 동안 기존 배치를 볼 수
+                    있습니다.
                   </p>
                 )}
               </div>

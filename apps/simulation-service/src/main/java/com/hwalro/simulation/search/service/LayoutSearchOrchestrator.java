@@ -638,4 +638,3 @@ public class LayoutSearchOrchestrator {
         return message.substring(0, Math.min(message.length(), MAX_FAILURE_MESSAGE_LENGTH));
     }
 }
-

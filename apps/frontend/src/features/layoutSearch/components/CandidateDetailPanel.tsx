@@ -1,6 +1,12 @@
 import { Info, Lock } from 'lucide-react';
 import type { SearchCandidate } from '../api/layoutSearchApi';
-import { formatDelta, formatNumber, findingLabel, metricLabel, operatorLabel } from '../utils/searchLabels';
+import {
+  formatDelta,
+  formatNumber,
+  findingLabel,
+  metricLabel,
+  operatorLabel,
+} from '../utils/searchLabels';
 
 interface Props {
   candidate: SearchCandidate;
@@ -44,14 +50,17 @@ export function CandidateDetailPanel({
       <div className="candidate-operations">
         <div className="candidate-operations__header">
           <strong>구조물 변경</strong>
-          <span className="candidate-operations__count">{candidate.changeSet.ops.length}개 위치 조정</span>
+          <span className="candidate-operations__count">
+            {candidate.changeSet.ops.length}개 위치 조정
+          </span>
         </div>
         <div className="candidate-operations__list">
           {candidate.changeSet.ops.map((op, index) => (
             <div className="candidate-operations__item" key={`${op.fabricId}-${index}`}>
               <span className="candidate-operations__name">구조물 #{op.fabricId}</span>
               <span className="candidate-operations__coords">
-                ({formatNumber(op.before.startX)}, {formatNumber(op.before.startY)}) → ({formatNumber(op.after.startX)}, {formatNumber(op.after.startY)})
+                ({formatNumber(op.before.startX)}, {formatNumber(op.before.startY)}) → (
+                {formatNumber(op.after.startX)}, {formatNumber(op.after.startY)})
               </span>
             </div>
           ))}

@@ -120,8 +120,10 @@ public class CandidateTrialService {
             ChangeSet changeSet = objectMapper.readValue(candidate.getChangeSet(), ChangeSet.class);
             double total = 0.0;
             for (ChangeOp op : changeSet.ops()) {
-                double dx = Math.abs(op.after().startX().doubleValue() - op.before().startX().doubleValue());
-                double dy = Math.abs(op.after().startY().doubleValue() - op.before().startY().doubleValue());
+                double dx = Math.abs(
+                        op.after().startX().doubleValue() - op.before().startX().doubleValue());
+                double dy = Math.abs(
+                        op.after().startY().doubleValue() - op.before().startY().doubleValue());
                 total += Math.hypot(dx, dy);
             }
             return total;

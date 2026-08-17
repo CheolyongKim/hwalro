@@ -39,7 +39,8 @@ export function CandidateList({ candidates, selectedCandidateId, onSelect }: Pro
           >
             <button type="button" onClick={() => onSelect(candidate.candidateId)}>
               <strong>
-                {operatorLabel(candidate.operatorType)} · {candidate.round === 1 ? '1차' : `${candidate.round}차`}
+                {operatorLabel(candidate.operatorType)} ·{' '}
+                {candidate.round === 1 ? '1차' : `${candidate.round}차`}
               </strong>
               <small>
                 {candidate.preparedSimulation !== null

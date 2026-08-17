@@ -65,7 +65,10 @@ function hitZoneIndex(zones: readonly ForbiddenZone[], point: SimulationPoint): 
   return null;
 }
 
-function hitFabric(fabrics: readonly SimulationRect[], point: SimulationPoint): SimulationRect | null {
+function hitFabric(
+  fabrics: readonly SimulationRect[],
+  point: SimulationPoint,
+): SimulationRect | null {
   for (let i = fabrics.length - 1; i >= 0; i -= 1) {
     const fabric = fabrics[i];
     const centerX = (fabric.startX + fabric.endX) / 2;
@@ -311,7 +314,9 @@ export function ConstraintEditor({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-    >      {size.w > 0 && size.h > 0 && (
+    >
+      {' '}
+      {size.w > 0 && size.h > 0 && (
         <Stage width={size.w} height={size.h} listening={false}>
           <Layer x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             <GridLayer

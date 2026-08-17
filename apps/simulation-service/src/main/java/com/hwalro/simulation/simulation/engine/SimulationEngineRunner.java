@@ -104,8 +104,7 @@ public class SimulationEngineRunner {
 
     public EngineRun run(Long simulationId, SimulationSetupResponse setup, double simulationTimeCapOverride)
             throws EngineRunException {
-        double simulationTimeCap =
-                simulationTimeCapOverride > 0 ? simulationTimeCapOverride : maxSimulationTimeSeconds;
+        double simulationTimeCap = simulationTimeCapOverride > 0 ? simulationTimeCapOverride : maxSimulationTimeSeconds;
         long totalStarted = System.nanoTime();
         long inputWriteMs = 0;
         long pythonProcessMs = 0;

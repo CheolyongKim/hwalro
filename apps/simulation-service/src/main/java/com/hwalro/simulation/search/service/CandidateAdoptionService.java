@@ -35,8 +35,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class CandidateAdoptionService {
     private static final String LOCKED_LAYOUT_STATUS = "잠금";
     private static final String MOVE_FABRIC = "MOVE_FABRIC";
-    private static final Set<String> PREPARABLE_STATUSES = Set.of(
-            CandidateStatus.EVALUATED.name(), CandidateStatus.QUEUED.name());
+    private static final Set<String> PREPARABLE_STATUSES =
+            Set.of(CandidateStatus.EVALUATED.name(), CandidateStatus.QUEUED.name());
 
     private final LayoutSearchMapper layoutStudyMapper;
     private final DrawingMapper drawingMapper;

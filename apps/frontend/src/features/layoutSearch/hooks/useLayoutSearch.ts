@@ -116,9 +116,12 @@ export function useLayoutSearch(simulationId: number) {
     [simulationId, constraints, refresh],
   );
 
-  const updateConstraints = useCallback((updater: (current: SearchConstraints) => SearchConstraints) => {
-    setConstraints((current) => updater(current));
-  }, []);
+  const updateConstraints = useCallback(
+    (updater: (current: SearchConstraints) => SearchConstraints) => {
+      setConstraints((current) => updater(current));
+    },
+    [],
+  );
 
   const resetToSetup = useCallback(() => {
     setSearch(null);
@@ -132,7 +135,9 @@ export function useLayoutSearch(simulationId: number) {
       if (!search) {
         return false;
       }
-      const candidate = search.improvedCandidates.find((entry) => entry.candidateId === candidateId);
+      const candidate = search.improvedCandidates.find(
+        (entry) => entry.candidateId === candidateId,
+      );
       if (!candidate) {
         return false;
       }

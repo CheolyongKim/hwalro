@@ -5,11 +5,19 @@ import { ConstraintEditor, type ConstraintEditorTool } from './ConstraintEditor'
 
 const WALL_CONTACT_EPSILON = 0.05;
 
-function pointToSegmentDistance(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+function pointToSegmentDistance(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
   const dx = bx - ax;
   const dy = by - ay;
   const lengthSq = dx * dx + dy * dy;
-  const t = lengthSq === 0 ? 0 : Math.min(Math.max(((px - ax) * dx + (py - ay) * dy) / lengthSq, 0), 1);
+  const t =
+    lengthSq === 0 ? 0 : Math.min(Math.max(((px - ax) * dx + (py - ay) * dy) / lengthSq, 0), 1);
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
@@ -126,10 +134,9 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
   const selectedFabric =
     selectedFabricId === null
       ? null
-      : drawing.fabrics.find((fabric) => fabric.id === selectedFabricId) ?? null;
+      : (drawing.fabrics.find((fabric) => fabric.id === selectedFabricId) ?? null);
 
-  const selectedTouchesWall =
-    selectedFabric !== null && touchesWall(selectedFabric, drawing);
+  const selectedTouchesWall = selectedFabric !== null && touchesWall(selectedFabric, drawing);
 
   const setRadius = (fabricId: number, sliderValue: number) => {
     onChange((current) => {
