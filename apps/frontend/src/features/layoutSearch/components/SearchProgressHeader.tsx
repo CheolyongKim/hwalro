@@ -54,8 +54,7 @@ export function SearchProgressHeader({
             <span>진행 {formatNumber(progress.verifiedCount)}건 검증 · 전체 후보 계산 중</span>
           ) : active && progress.plannedCount !== 0 ? (
             <span>
-              진행 {formatNumber(progress.verifiedCount)}/
-              {formatNumber(progress.plannedCount ?? 0)}
+              진행 {formatNumber(progress.verifiedCount)}/{formatNumber(progress.plannedCount ?? 0)}
             </span>
           ) : (
             <span>{PHASE_MESSAGES[search.status]}</span>
@@ -97,4 +96,3 @@ export function SearchProgressHeader({
     </aside>
   );
 }
-

@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { MousePointer, SquarePlus } from 'lucide-react';
 
-import {
-  CanvasWorkspacePanel,
-  useCollapsibleWorkspacePanel,
-} from '../../../components/workspace';
+import { CanvasWorkspacePanel, useCollapsibleWorkspacePanel } from '../../../components/workspace';
 import type { SimulationDrawing, SimulationRect } from '../../simulations/types';
 import type { ForbiddenZone, SearchConstraints } from '../api/layoutSearchApi';
 import { ConstraintEditor, type ConstraintEditorTool } from './ConstraintEditor';
@@ -268,11 +265,7 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
       </div>
 
       {panel.isMinimized ? (
-        <button
-          type="button"
-          className="canvas-workspace-panel-restore"
-          onClick={panel.restore}
-        >
+        <button type="button" className="canvas-workspace-panel-restore" onClick={panel.restore}>
           제약 설정 열기
         </button>
       ) : (
@@ -291,7 +284,6 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
             >
               −
             </button>
-
           </div>
 
           <div className="constraint-inspector__panel-scroll">
@@ -349,7 +341,9 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
                         step={RADIUS_SLIDER_STEP}
                         value={radiusToSlider(constraints.moveRadii[selectedFabric.id])}
                         aria-label={`${selectedFabric.name ?? `구조물 ${selectedFabric.id}`} 이동 반경`}
-                        onChange={(event) => setRadius(selectedFabric.id, Number(event.target.value))}
+                        onChange={(event) =>
+                          setRadius(selectedFabric.id, Number(event.target.value))
+                        }
                       />
                       <span className="constraint-inspector__slider-value">
                         {radiusLabel(constraints.moveRadii[selectedFabric.id])}

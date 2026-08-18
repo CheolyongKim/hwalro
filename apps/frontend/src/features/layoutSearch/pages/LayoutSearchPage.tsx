@@ -144,12 +144,7 @@ export default function LayoutSearchPage() {
   }, []);
 
   if (loading || sourceLoading) {
-    return (
-      <CanvasWorkspaceState
-        message="배치 개선안 탐색을 준비하고 있습니다."
-        role="status"
-      />
-    );
+    return <CanvasWorkspaceState message="배치 개선안 탐색을 준비하고 있습니다." role="status" />;
   }
 
   if (sourceError || (!hasSearch && errorMessage)) {
@@ -158,11 +153,7 @@ export default function LayoutSearchPage() {
         message={sourceError ?? errorMessage}
         actions={
           <>
-            <button
-              type="button"
-              className="canvas-workspace-state__btn"
-              onClick={retry}
-            >
+            <button type="button" className="canvas-workspace-state__btn" onClick={retry}>
               다시 시도
             </button>
             <button
@@ -206,7 +197,6 @@ export default function LayoutSearchPage() {
 
   return (
     <CanvasWorkspace className="layout-search-workspace">
-
       <CanvasWorkspaceBackButton
         label="시뮬레이션 결과"
         onClick={() => navigate(`/simulations/${id}/results`)}
@@ -220,7 +210,6 @@ export default function LayoutSearchPage() {
           </button>
         </div>
       )}
-
 
       {/* 상단 플로팅 탭 바 */}
       {improvedCandidates.length > 0 && (

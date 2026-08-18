@@ -62,7 +62,6 @@ export function CandidateDetailPanel({
         <p>{candidate.rationale?.description ?? '변경 근거가 없습니다.'}</p>
       </div>
 
-
       <div className="candidate-operations">
         <div className="candidate-operations__header">
           <strong>구조물 변경</strong>
@@ -170,4 +169,3 @@ export function CandidateDetailPanel({
     </div>
   );
 }
-

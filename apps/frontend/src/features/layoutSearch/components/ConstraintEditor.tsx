@@ -87,7 +87,6 @@ function hitFabric(
   return null;
 }
 
-
 export function ConstraintEditor({
   drawing,
   constraints,
@@ -245,7 +244,6 @@ export function ConstraintEditor({
     onSelectZone(null);
     onSelectFabric(null);
   };
-
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = worldAt(event.clientX, event.clientY);

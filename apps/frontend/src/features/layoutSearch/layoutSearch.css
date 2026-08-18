@@ -78,7 +78,6 @@
   vector-effect: non-scaling-stroke;
 }
 
-
 .plan-preview__fabric {
   fill: #dce7e3;
   stroke: #5f7971;
@@ -212,7 +211,6 @@
   transform: translateX(-50%);
   animation: layout-search-fade-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-
 
 .layout-search-floating-tabs .no-improvement-tabs {
   display: flex;
@@ -541,7 +539,6 @@
 .candidate-panel-close-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-
 
 .constraint-inspector__panel-scroll {
   flex: 1;
