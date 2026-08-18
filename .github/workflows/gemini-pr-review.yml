@@ -3,6 +3,14 @@ name: Gemini PR Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR Number to review'
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -10,7 +18,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: gemini-review-${{ github.event.pull_request.number }}
+  group: gemini-review-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
@@ -20,15 +28,88 @@ jobs:
     if: github.event.sender.login != 'github-actions[bot]'
 
     steps:
+      - name: Resolve PR Context
+        id: pr_ctx
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let prNumber = null;
+            let triggered = false;
+
+            if (context.eventName === 'pull_request') {
+              prNumber = context.payload.pull_request.number;
+              triggered = true;
+            } else if (context.eventName === 'issue_comment') {
+              if (context.payload.issue.pull_request) {
+                const comment = (context.payload.comment.body || '').trim().toLowerCase();
+                if (
+                  comment === '/review' ||
+                  comment === '/gemini-review' ||
+                  comment.startsWith('/review ') ||
+                  comment.startsWith('/gemini-review ') ||
+                  comment.startsWith('@gemini review')
+                ) {
+                  prNumber = context.payload.issue.number;
+                  triggered = true;
+
+                  try {
+                    await github.rest.reactions.createForIssueComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      comment_id: context.payload.comment.id,
+                      content: 'eyes'
+                    });
+                  } catch (e) {
+                    core.warning(`Failed to add reaction: ${e.message}`);
+                  }
+                }
+              }
+            } else if (context.eventName === 'workflow_dispatch') {
+              prNumber = context.payload.inputs.pr_number;
+              triggered = true;
+            }
+
+            if (!triggered || !prNumber) {
+              core.setOutput('should_run', 'false');
+              return;
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number(prNumber)
+            });
+
+            core.setOutput('should_run', 'true');
+            core.setOutput('pr_number', String(pr.number));
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('title', pr.title || '');
+            core.setOutput('body', pr.body || '');
+
       - name: Checkout PR branch
+        if: steps.pr_ctx.outputs.should_run == 'true'
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.pr_ctx.outputs.head_sha }}
           fetch-depth: 0
 
+      - name: Fetch base branch
+        if: steps.pr_ctx.outputs.should_run == 'true'
+        run: |
+          git fetch origin ${{ steps.pr_ctx.outputs.base_ref }}:${{ steps.pr_ctx.outputs.base_ref }} || true
+
       - name: Generate and Post Gemini Inline Review
+        if: steps.pr_ctx.outputs.should_run == 'true'
         uses: actions/github-script@v7
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_NUMBER: ${{ steps.pr_ctx.outputs.pr_number }}
+          PR_TITLE: ${{ steps.pr_ctx.outputs.title }}
+          PR_BODY: ${{ steps.pr_ctx.outputs.body }}
+          HEAD_SHA: ${{ steps.pr_ctx.outputs.head_sha }}
+          BASE_REF: ${{ steps.pr_ctx.outputs.base_ref }}
         with:
           script: |
             const { execSync } = require('child_process');
@@ -39,26 +120,34 @@ jobs:
               return;
             }
 
-            const pullRequest = context.payload.pull_request;
-            const prTitle = pullRequest.title || '';
-            const prBody = pullRequest.body || '';
-            const headSha = pullRequest.head.sha;
+            const prNumber = Number(process.env.PR_NUMBER);
+            const prTitle = process.env.PR_TITLE || '';
+            const prBody = process.env.PR_BODY || '';
+            const headSha = process.env.HEAD_SHA;
+            const baseRef = process.env.BASE_REF || 'main';
 
             let diff = '';
             try {
               diff = execSync(
-                `git diff origin/${pullRequest.base.ref}...HEAD -- . ':!pnpm-lock.yaml' ':!package-lock.json' ':!*.lock' ':!*.svg' ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.webp' ':!*.ico' ':!*.pdf'`,
+                `git diff origin/${baseRef}...HEAD -- . ':!pnpm-lock.yaml' ':!package-lock.json' ':!*.lock' ':!*.svg' ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.webp' ':!*.ico' ':!*.pdf'`,
                 { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
               );
             } catch (err) {
               try {
                 diff = execSync(
-                  `git diff HEAD~1 HEAD -- . ':!pnpm-lock.yaml' ':!package-lock.json' ':!*.lock'`,
+                  `git diff ${baseRef}...HEAD -- . ':!pnpm-lock.yaml' ':!package-lock.json' ':!*.lock'`,
                   { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
                 );
               } catch (innerErr) {
-                core.setFailed(`Failed to obtain git diff: ${innerErr.message}`);
-                return;
+                try {
+                  diff = execSync(
+                    `git diff HEAD~1 HEAD -- . ':!pnpm-lock.yaml' ':!package-lock.json' ':!*.lock'`,
+                    { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
+                  );
+                } catch (lastDiffErr) {
+                  core.setFailed(`Failed to obtain git diff: ${lastDiffErr.message}`);
+                  return;
+                }
               }
             }
 
@@ -211,14 +300,15 @@ jobs:
                 '현재 Gemini API의 일시적인 사용량 급증(Rate Limit) 또는 서비스 부하로 인해 AI 자동 코드 리뷰 생성이 완료되지 못했습니다.',
                 '',
                 `- **상태**: 일시적 API 지연/제한 발생`,
-                `- **안내**: 담당 리뷰어 및 팀원 분들께서는 수동으로 코드 검토를 진행해 주시기 바랍니다.`
+                `- **재요청 방법**: 이 PR 댓글로 \`/review\` 를 입력하면 즉시 코드 리뷰가 재실행됩니다.`,
+                `- **안내**: 담당 리뷰어 및 팀원 분들께서는 수동으로 코드 검토를 진행해 주셔도 됩니다.`
               ].join('\n');
 
               try {
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: pullRequest.number,
+                  issue_number: prNumber,
                   body: noticeBody
                 });
               } catch (commentErr) {
@@ -247,7 +337,7 @@ jobs:
                 await github.rest.pulls.createReview({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  pull_number: pullRequest.number,
+                  pull_number: prNumber,
                   commit_id: headSha,
                   body: fullBody,
                   event: 'COMMENT',
@@ -258,7 +348,7 @@ jobs:
                 await github.rest.pulls.createReview({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  pull_number: pullRequest.number,
+                  pull_number: prNumber,
                   commit_id: headSha,
                   body: fullBody,
                   event: 'COMMENT'
@@ -276,7 +366,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: pullRequest.number,
+                issue_number: prNumber,
                 body: fallbackBody
               });
             }
