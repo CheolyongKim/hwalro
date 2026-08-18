@@ -23,14 +23,14 @@
 
 ### 검증 결과
 
-| 검증 | 결과 |
-|---|---|
-| `pnpm --filter @hwalro/frontend lint` | ✅ 통과 |
-| `pnpm --filter @hwalro/frontend build` | ✅ 통과 (청크 크기 경고만) |
-| `pnpm --filter @hwalro/frontend test` | ✅ 108개 통과 (happy-dom unhandled error는 사전 존재) |
-| `simulation-service gradlew compileJava` | ✅ 통과 |
-| `engine pytest` (전체) | ✅ 187 passed, 4 skipped |
-| `engine test_constraints_edgecases.py` | ✅ 35 passed |
+| 검증                                     | 결과                                                  |
+| ---------------------------------------- | ----------------------------------------------------- |
+| `pnpm --filter @hwalro/frontend lint`    | ✅ 통과                                               |
+| `pnpm --filter @hwalro/frontend build`   | ✅ 통과 (청크 크기 경고만)                            |
+| `pnpm --filter @hwalro/frontend test`    | ✅ 108개 통과 (happy-dom unhandled error는 사전 존재) |
+| `simulation-service gradlew compileJava` | ✅ 통과                                               |
+| `engine pytest` (전체)                   | ✅ 187 passed, 4 skipped                              |
+| `engine test_constraints_edgecases.py`   | ✅ 35 passed                                          |
 
 ## 재개 시 할 일
 

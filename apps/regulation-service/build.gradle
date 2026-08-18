@@ -26,7 +26,7 @@ repositories {
 
 def readDotEnv = { File envFile ->
     def values = [:]
-    if (!envFile.exists()) {
+    if (!envFile.exists() || envFile.isDirectory()) {
         return values
     }
 
