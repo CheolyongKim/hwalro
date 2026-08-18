@@ -94,9 +94,9 @@
                lv.version AS layout_version_number,
                sr.termination_reason
         FROM simulations s
-        JOIN simulation_options so ON so.simulation_id = s.id
-        JOIN layout_versions lv ON lv.id = s.layout_version_id
-        JOIN layouts l ON l.id = lv.layout_id
+        LEFT JOIN simulation_options so ON so.simulation_id = s.id
+        LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
+        LEFT JOIN layouts l ON l.id = lv.layout_id
         LEFT JOIN simulation_results sr ON sr.simulation_id = s.id
         <where>
             <if test="createdBy != null">
@@ -114,8 +114,8 @@
         SELECT COUNT(*)
         FROM simulations s
         <if test="query != null and query != ''">
-            JOIN layout_versions lv ON lv.id = s.layout_version_id
-            JOIN layouts l ON l.id = lv.layout_id
+            LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
+            LEFT JOIN layouts l ON l.id = lv.layout_id
         </if>
         <where>
             <if test="createdBy != null">
