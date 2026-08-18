@@ -37,7 +37,10 @@ describe('에이전트 배치', () => {
 
   it('벽과 겹치는 스프레이 후보는 버린다', () => {
     expect(addSprayedAgents({ x: 5, y: 2 }, 0.3, drawing(), [], () => 0)).toHaveLength(0);
-    expect(isValidAgentPosition({ x: 0.3, y: 2 }, drawing())).toBe(true);
+    expect(isValidAgentPosition({ x: 0.3, y: 2 }, drawing())).toBe(false);
+    expect(isValidAgentPosition({ x: 0.301, y: 2 }, drawing())).toBe(true);
+    expect(isValidAgentPosition({ x: 4.7, y: 2 }, drawing())).toBe(false);
+    expect(isValidAgentPosition({ x: 4.699, y: 2 }, drawing())).toBe(true);
   });
 
   it('균등 배치는 요청 인원만큼 새 좌표 집합을 만들고 수용량을 넘지 않는다', () => {
@@ -45,6 +48,7 @@ describe('에이전트 배치', () => {
     expect(result.positions).toHaveLength(20);
     expect(result.capacity).toBeGreaterThanOrEqual(20);
     expect(new Set(result.positions.map(({ x, y }) => `${x}:${y}`)).size).toBe(20);
+    expect(result.positions.every(({ x, y }) => x >= 0.301 && y >= 0.301)).toBe(true);
 
     const limited = createUniformPlacement(5000, drawing(1.2, 1.2), 17);
     expect(limited.positions).toHaveLength(limited.capacity);

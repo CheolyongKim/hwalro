@@ -22,6 +22,7 @@ import java.util.Set;
 public final class SimulationGeometry {
     public static final double AGENT_RADIUS = 0.3;
     public static final double AGENT_SPACING = 0.6;
+    public static final double MIN_GEOMETRY_CLEARANCE = AGENT_RADIUS + 0.001;
     public static final int MAX_AGENTS = 5_000;
     private static final double EPSILON = 1.0e-7;
     private static final BigDecimal MAX_VALUE = BigDecimal.valueOf(1_000_000);
@@ -97,13 +98,17 @@ public final class SimulationGeometry {
         Map<Cell, List<PointDto>> occupied = new HashMap<>();
         for (PointDto agent : agents) {
             validatePoint(agent, "에이전트");
-            if (!insidePolygon(agent, boundary) || distanceToBoundary(agent, boundary) + EPSILON < AGENT_RADIUS) {
-                throw invalid("에이전트는 외곽선에서 0.3m 이상 안쪽에 있어야 합니다.");
+            if (!insidePolygon(agent, boundary)
+                    || distanceToBoundary(agent, boundary) + EPSILON < MIN_GEOMETRY_CLEARANCE) {
+                throw invalid("에이전트는 외곽선에서 0.301m 이상 안쪽에 있어야 합니다.");
             }
-            if (walls.stream().anyMatch(wall -> distanceToSegment(agent, wall) + EPSILON < AGENT_RADIUS)
-                    || exits.stream().anyMatch(exit -> distanceToSegment(agent, exit) + EPSILON < AGENT_RADIUS)
-                    || pillars.stream().anyMatch(pillar -> distanceToRect(agent, pillar) + EPSILON < AGENT_RADIUS)
-                    || fabrics.stream().anyMatch(fabric -> distanceToRect(agent, fabric) + EPSILON < AGENT_RADIUS)) {
+            if (walls.stream().anyMatch(wall -> distanceToSegment(agent, wall) + EPSILON < MIN_GEOMETRY_CLEARANCE)
+                    || exits.stream()
+                            .anyMatch(exit -> distanceToSegment(agent, exit) + EPSILON < MIN_GEOMETRY_CLEARANCE)
+                    || pillars.stream()
+                            .anyMatch(pillar -> distanceToRect(agent, pillar) + EPSILON < MIN_GEOMETRY_CLEARANCE)
+                    || fabrics.stream()
+                            .anyMatch(fabric -> distanceToRect(agent, fabric) + EPSILON < MIN_GEOMETRY_CLEARANCE)) {
                 throw invalid("에이전트가 벽, 기둥, 구조물 또는 출입구와 겹칩니다.");
             }
 

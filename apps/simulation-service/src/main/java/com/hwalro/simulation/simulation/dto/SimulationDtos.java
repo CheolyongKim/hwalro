@@ -21,14 +21,23 @@ public final class SimulationDtos {
             List<HazardZoneDto> hazardZones,
             List<Long> selectedExitIds,
             BigDecimal walkingSpeed,
-            BigDecimal reactionTime) {
+            BigDecimal initialResponseTimeMean,
+            BigDecimal initialResponseTimeStdDev) {
         public SetupUpdateRequest(
                 List<PointDto> agentPositions,
                 List<HazardZoneDto> hazardZones,
                 List<Long> selectedExitIds,
                 BigDecimal walkingSpeed,
-                BigDecimal reactionTime) {
-            this(null, agentPositions, hazardZones, selectedExitIds, walkingSpeed, reactionTime);
+                BigDecimal initialResponseTimeMean,
+                BigDecimal initialResponseTimeStdDev) {
+            this(
+                    null,
+                    agentPositions,
+                    hazardZones,
+                    selectedExitIds,
+                    walkingSpeed,
+                    initialResponseTimeMean,
+                    initialResponseTimeStdDev);
         }
     }
 
@@ -109,7 +118,8 @@ public final class SimulationDtos {
             String routingProfile,
             Integer totalPeople,
             BigDecimal walkingSpeed,
-            BigDecimal reactionTime,
+            BigDecimal initialResponseTimeMean,
+            BigDecimal initialResponseTimeStdDev,
             List<PointDto> agentPositions,
             List<HazardZoneDto> hazardZones,
             List<Long> selectedExitIds,
@@ -126,10 +136,18 @@ public final class SimulationDtos {
             Integer timelineChunkCount,
             BigDecimal timelineChunkDurationSeconds,
             Integer heatmapChunkCount,
+            String terminationDetail,
             List<SimulationMetricResponse> metrics) {}
 
     public record SimulationFailureDetailResponse(
-            String code, Long agentId, PointDto currentPosition, PointDto recommendedPosition) {}
+            String code,
+            Long agentId,
+            PointDto currentPosition,
+            PointDto recommendedPosition,
+            Long affectedAgentCount,
+            List<Long> representativeAgentIds,
+            List<Long> selectedExitIds,
+            String reason) {}
 
     public record SimulationExecutionResponse(
             Long simulationId,
