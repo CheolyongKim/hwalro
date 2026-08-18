@@ -8,9 +8,11 @@ import type {
 } from '../types/risks';
 
 export const riskApi = {
-  list: (page: number, size: number) =>
+  list: (page: number, size: number, query?: string) =>
     apiClient
-      .get<RiskListResponse>('/api/risks', { params: { page, size } })
+      .get<RiskListResponse>('/api/risks', {
+        params: { page, size, query: query?.trim() || undefined },
+      })
       .then((res) => res.data),
   listBySimulationResult: (simulationResultId: number) =>
     apiClient.get<Risk[]>(`/api/risks/by-result/${simulationResultId}`).then((res) => res.data),

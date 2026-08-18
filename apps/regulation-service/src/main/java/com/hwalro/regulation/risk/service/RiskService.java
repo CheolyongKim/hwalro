@@ -58,10 +58,15 @@ public class RiskService {
     }
 
     public RiskListResponse list(int page, int size, JwtUser user, String authorization) {
+        return list(page, size, null, user, authorization);
+    }
+
+    public RiskListResponse list(int page, int size, String query, JwtUser user, String authorization) {
         validatePage(page, size);
+        String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
         Long assigneeFilter = resolveAssigneeFilter(user);
-        long totalCount = riskMapper.count(assigneeFilter);
-        List<Risk> risks = riskMapper.findPage((page - 1) * size, size, assigneeFilter);
+        long totalCount = riskMapper.count(assigneeFilter, normalizedQuery);
+        List<Risk> risks = riskMapper.findPage((page - 1) * size, size, assigneeFilter, normalizedQuery);
         Map<Long, List<AttachedLawRef>> attachedLawsByRiskId =
                 fetchAttachedLawsByRiskIds(risks.stream().map(Risk::getId).toList());
         Map<Long, String> assigneeNames = findAssigneeNames(risks, authorization);

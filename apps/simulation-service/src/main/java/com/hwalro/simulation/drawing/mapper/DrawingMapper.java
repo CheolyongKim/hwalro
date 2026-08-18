@@ -55,9 +55,12 @@ public interface DrawingMapper {
     Layout findLayoutById(@Param("id") Long id);
 
     List<Layout> findLayoutPage(
-            @Param("offset") int offset, @Param("size") int size, @Param("createdBy") Long createdBy);
+            @Param("offset") int offset,
+            @Param("size") int size,
+            @Param("createdBy") Long createdBy,
+            @Param("query") String query);
 
-    long countLayouts(@Param("createdBy") Long createdBy);
+    long countLayouts(@Param("createdBy") Long createdBy, @Param("query") String query);
 
     LayoutVersion findLayoutVersionById(@Param("id") Long id);
 

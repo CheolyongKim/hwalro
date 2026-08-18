@@ -35,7 +35,12 @@
                created_at
         FROM risks
         <where>
-            <if test="assigneeId != null">assignee_id = #{assigneeId}</if>
+            <if test="assigneeId != null">
+                AND assignee_id = #{assigneeId}
+            </if>
+            <if test="query != null and query != ''">
+                AND (title LIKE CONCAT('%', #{query}, '%') OR description LIKE CONCAT('%', #{query}, '%'))
+            </if>
         </where>
         ORDER BY id DESC
         LIMIT #{offset}, #{size}
@@ -45,7 +50,12 @@
         SELECT COUNT(*)
         FROM risks
         <where>
-            <if test="assigneeId != null">assignee_id = #{assigneeId}</if>
+            <if test="assigneeId != null">
+                AND assignee_id = #{assigneeId}
+            </if>
+            <if test="query != null and query != ''">
+                AND (title LIKE CONCAT('%', #{query}, '%') OR description LIKE CONCAT('%', #{query}, '%'))
+            </if>
         </where>
     </select>
 

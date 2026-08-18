@@ -11,9 +11,13 @@ import org.apache.ibatis.annotations.Param;
 public interface RiskMapper {
     Risk findById(@Param("id") Long id);
 
-    List<Risk> findPage(@Param("offset") int offset, @Param("size") int size, @Param("assigneeId") Long assigneeId);
+    List<Risk> findPage(
+            @Param("offset") int offset,
+            @Param("size") int size,
+            @Param("assigneeId") Long assigneeId,
+            @Param("query") String query);
 
-    long count(@Param("assigneeId") Long assigneeId);
+    long count(@Param("assigneeId") Long assigneeId, @Param("query") String query);
 
     List<Risk> findBySimulationResultId(
             @Param("simulationResultId") Long simulationResultId, @Param("assigneeId") Long assigneeId);

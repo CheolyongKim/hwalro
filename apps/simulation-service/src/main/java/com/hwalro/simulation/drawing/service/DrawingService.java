@@ -74,10 +74,15 @@ public class DrawingService {
     }
 
     public DrawingListResponse list(int page, int size, JwtUser user) {
+        return list(page, size, null, user);
+    }
+
+    public DrawingListResponse list(int page, int size, String query, JwtUser user) {
         validatePage(page, size);
+        String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
         Long createdByFilter = resolveCreatedByFilter(user);
-        long totalCount = drawingMapper.countLayouts(createdByFilter);
-        List<Layout> layouts = drawingMapper.findLayoutPage((page - 1) * size, size, createdByFilter);
+        long totalCount = drawingMapper.countLayouts(createdByFilter, normalizedQuery);
+        List<Layout> layouts = drawingMapper.findLayoutPage((page - 1) * size, size, createdByFilter, normalizedQuery);
         Map<Long, Integer> simulationCounts = countSimulationsByLayout(layouts);
         List<DrawingSummary> items = layouts.stream()
                 .map(layout -> new DrawingSummary(

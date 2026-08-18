@@ -94,13 +94,16 @@
                lv.version AS layout_version_number,
                sr.termination_reason
         FROM simulations s
-        JOIN simulation_options so ON so.simulation_id = s.id
-        JOIN layout_versions lv ON lv.id = s.layout_version_id
-        JOIN layouts l ON l.id = lv.layout_id
+        LEFT JOIN simulation_options so ON so.simulation_id = s.id
+        LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
+        LEFT JOIN layouts l ON l.id = lv.layout_id
         LEFT JOIN simulation_results sr ON sr.simulation_id = s.id
         <where>
             <if test="createdBy != null">
-                s.created_by = #{createdBy}
+                AND s.created_by = #{createdBy}
+            </if>
+            <if test="query != null and query != ''">
+                AND l.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
         ORDER BY s.created_at DESC, s.id DESC
@@ -110,9 +113,16 @@
     <select id="countSimulationOverview" resultType="long">
         SELECT COUNT(*)
         FROM simulations s
+        <if test="query != null and query != ''">
+            LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
+            LEFT JOIN layouts l ON l.id = lv.layout_id
+        </if>
         <where>
             <if test="createdBy != null">
-                s.created_by = #{createdBy}
+                AND s.created_by = #{createdBy}
+            </if>
+            <if test="query != null and query != ''">
+                AND l.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
     </select>

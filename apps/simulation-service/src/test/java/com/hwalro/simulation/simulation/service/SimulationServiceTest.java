@@ -334,8 +334,8 @@ class SimulationServiceTest {
         item.setLayoutTitle("test");
         item.setLayoutVersionNumber(1);
         item.setTotalPeople(12);
-        when(simulationMapper.countSimulationOverview(7L)).thenReturn(1L);
-        when(simulationMapper.findSimulationOverviewPage(0, 20, 7L)).thenReturn(List.of(item));
+        when(simulationMapper.countSimulationOverview(7L, null)).thenReturn(1L);
+        when(simulationMapper.findSimulationOverviewPage(0, 20, 7L, null)).thenReturn(List.of(item));
 
         var response = service.listOverview(1, 20, user);
 

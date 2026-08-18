@@ -18,15 +18,19 @@ function RiskItemTable({
   items,
   selectedId,
   onSelect,
+  emptyTitle = '등록된 위험 항목이 없습니다.',
+  emptyDescription,
 }: {
   items: Risk[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) {
   if (items.length === 0) {
     return (
       <div className="p-5 sm:p-7">
-        <EmptyState icon={ShieldAlert} title="등록된 위험 항목이 없습니다." />
+        <EmptyState icon={ShieldAlert} title={emptyTitle} description={emptyDescription} />
       </div>
     );
   }
