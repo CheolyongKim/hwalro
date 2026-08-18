@@ -213,7 +213,6 @@ export function ConstraintEditor({
 
     const tolerance = Math.max(0.2, 8 / ((camera.zoom || 1) * PX_PER_METER));
 
-
     if (tool === 'zone') {
       const existing = hitZoneIndex(constraints.forbiddenZones, point);
       if (existing !== null) {
