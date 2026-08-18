@@ -26,6 +26,8 @@ public interface ReportMapper {
 
     List<Long> findSimulationResultIds(@Param("reportId") Long reportId);
 
+    int countBySimulationResultId(@Param("simulationResultId") Long simulationResultId);
+
     String findAiGenerationRequest(@Param("reportId") Long reportId);
 
     int updateReport(

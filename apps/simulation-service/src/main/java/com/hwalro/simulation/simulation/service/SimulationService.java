@@ -12,10 +12,12 @@ import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.domain.Pillar;
 import com.hwalro.simulation.drawing.domain.Wall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.simulation.client.RegulationUsageClient;
 import com.hwalro.simulation.simulation.domain.HazardZone;
 import com.hwalro.simulation.simulation.domain.LayoutSimulationContext;
 import com.hwalro.simulation.simulation.domain.Simulation;
 import com.hwalro.simulation.simulation.domain.SimulationOption;
+import com.hwalro.simulation.simulation.domain.SimulationResult;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DraftCreateRequest;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
@@ -51,6 +53,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class SimulationService {
@@ -76,12 +79,20 @@ public class SimulationService {
     private final SimulationMapper simulationMapper;
     private final DrawingMapper drawingMapper;
     private final ObjectMapper objectMapper;
+    private final RegulationUsageClient regulationUsageClient;
+    private final TransactionTemplate transactionTemplate;
 
     public SimulationService(
-            SimulationMapper simulationMapper, DrawingMapper drawingMapper, ObjectMapper objectMapper) {
+            SimulationMapper simulationMapper,
+            DrawingMapper drawingMapper,
+            ObjectMapper objectMapper,
+            RegulationUsageClient regulationUsageClient,
+            TransactionTemplate transactionTemplate) {
         this.simulationMapper = simulationMapper;
         this.drawingMapper = drawingMapper;
         this.objectMapper = objectMapper;
+        this.regulationUsageClient = regulationUsageClient;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public List<SimulationSummaryResponse> list(Long layoutVersionId, JwtUser user) {
@@ -138,6 +149,45 @@ public class SimulationService {
         return new SimulationWorkSummaryResponse(
                 Math.toIntExact(simulationMapper.countInProgress(user.userId())),
                 Math.toIntExact(simulationMapper.countCompletedThisWeek(user.userId(), weekStartUtc)));
+    }
+
+    public void delete(Long id, JwtUser user, String authorization) {
+        Simulation simulation = findSimulation(id);
+        requireAccessible(simulation.getCreatedBy(), user);
+
+        if ("REQUESTED".equals(simulation.getStatus()) || "RUNNING".equals(simulation.getStatus())) {
+            throw new SimulationConflictException("진행 중인 시뮬레이션은 삭제할 수 없습니다.");
+        }
+
+        SimulationResult result = simulationMapper.findSimulationResult(id);
+        if (result != null) {
+            RegulationUsageClient.RegulationUsageResponse usage =
+                    regulationUsageClient.checkUsage(result.getId(), authorization);
+            if (usage.usedInRisks()) {
+                throw new SimulationConflictException("위험 예상 항목에 연결된 시뮬레이션은 삭제할 수 없습니다.");
+            }
+            if (usage.usedInReports()) {
+                throw new SimulationConflictException("보고서에 연결된 시뮬레이션은 삭제할 수 없습니다.");
+            }
+        }
+
+        transactionTemplate.executeWithoutResult(status -> {
+            Simulation lockedSimulation = findSimulationForUpdate(id);
+            if ("REQUESTED".equals(lockedSimulation.getStatus()) || "RUNNING".equals(lockedSimulation.getStatus())) {
+                throw new SimulationConflictException("진행 중인 시뮬레이션은 삭제할 수 없습니다.");
+            }
+
+            if (simulationMapper.countImprovementReferences(id) > 0) {
+                throw new SimulationConflictException("개선안에 연결된 시뮬레이션은 삭제할 수 없습니다.");
+            }
+
+            if (simulationMapper.countChildSimulations(id) > 0) {
+                throw new SimulationConflictException("파생된 시뮬레이션이 있어 삭제할 수 없습니다.");
+            }
+
+            simulationMapper.deleteSimulation(id);
+            simulationMapper.unlockLayoutVersionIfNoSimulations(lockedSimulation.getLayoutVersionId());
+        });
     }
 
     @Transactional

@@ -66,6 +66,12 @@
         ORDER BY simulation_result_id
     </select>
 
+    <select id="countBySimulationResultId" resultType="int">
+        SELECT COUNT(*)
+        FROM report_simulations
+        WHERE simulation_result_id = #{simulationResultId}
+    </select>
+
     <select id="findAiGenerationRequest" resultType="string">
         SELECT generation_request
         FROM reports
