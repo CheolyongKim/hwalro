@@ -54,8 +54,8 @@ interface HazardResizeSession {
   centerY: number;
 }
 
-const HAZARD_MIN_RADIUS = 0.3;
-const HAZARD_MAX_RADIUS = 20;
+export const HAZARD_MIN_RADIUS = 0.3;
+export const HAZARD_MAX_RADIUS = 20;
 const HAZARD_RESIZE_HANDLE_PX = 10;
 
 export function SimulationCanvas({

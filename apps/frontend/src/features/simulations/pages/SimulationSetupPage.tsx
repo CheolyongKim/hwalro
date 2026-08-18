@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Info, Minus, MousePointer2, Plus, X } from 'lucide-react';
-import { SimulationCanvas } from '../components/SimulationCanvas';
-import type { SimulationTool } from '../components/SimulationCanvas';
+import {
+  HAZARD_MAX_RADIUS,
+  HAZARD_MIN_RADIUS,
+  SimulationCanvas,
+  type SimulationTool,
+} from '../components/SimulationCanvas';
 import {
   AgentDeletionConfirmDialog,
   AgentDeletionSuccessToast,
@@ -157,7 +161,7 @@ function SimulationSetupPage() {
   );
 
   const loadSetup = useCallback(
-    (data: SimulationSetup, highlightAgent: string | null = null) => {
+    (data: SimulationSetup, highlightAgent: string | null = null, resetTool = false) => {
       const loadedHazards = data.hazardZones.map((hazard, index) => ({
         ...hazard,
         clientId: `hazard-${hazard.id ?? index}-${hazardSequenceRef.current++}`,
@@ -167,7 +171,7 @@ function SimulationSetupPage() {
       setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
       setReactionTime(data.reactionTime);
-      setTool('select');
+      if (resetTool) setTool('select');
       setSelectedHazardId(null);
       setAgentDeletionToast(null);
       pastRef.current = [];
@@ -193,7 +197,7 @@ function SimulationSetupPage() {
       .getSetup(id)
       .then((data) => {
         if (!cancelled) {
-          loadSetup(data, requestedHighlightRef.current.value);
+          loadSetup(data, requestedHighlightRef.current.value, true);
           setLoadState('ready');
         }
       })
@@ -347,6 +351,23 @@ function SimulationSetupPage() {
       ...current,
       hazards: current.hazards.map((hazard) =>
         hazard.clientId === clientId ? { ...hazard, radius } : hazard,
+      ),
+    });
+  };
+
+  const commitHazardRadius = (clientId: string, radius: number) => {
+    if (!editable) return;
+    const nextRadius = Math.min(
+      HAZARD_MAX_RADIUS,
+      Math.max(HAZARD_MIN_RADIUS, Number(radius.toFixed(1))),
+    );
+    const current = placementRef.current;
+    const currentHazard = current.hazards.find((hazard) => hazard.clientId === clientId);
+    if (!currentHazard || currentHazard.radius === nextRadius) return;
+    commitPlacement({
+      ...current,
+      hazards: current.hazards.map((hazard) =>
+        hazard.clientId === clientId ? { ...hazard, radius: nextRadius } : hazard,
       ),
     });
   };
@@ -792,7 +813,7 @@ function SimulationSetupPage() {
                       allExitsSelected ? [] : setup.drawing.exits.map((exit) => exit.id),
                     )
                   }
-                  className="simulation-setup-panel__bulk-action rounded-lg border border-primary bg-white px-2.5 py-1 text-xs font-bold text-primary outline-none transition hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
+                  className="simulation-setup-panel__bulk-action rounded-lg border border-primary/40 bg-white px-2.5 py-1 text-xs font-bold text-primary outline-none transition hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {allExitsSelected ? '전체 해제' : '전체 선택'}
                 </button>
@@ -869,18 +890,33 @@ function SimulationSetupPage() {
                 <span className="text-xs tabular-nums text-text-muted">{hazards.length}개</span>
               </div>
               {selectedHazard ? (
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2">
-                  <span className="text-xs font-bold tabular-nums text-danger-strong">
-                    선택됨 · {selectedHazard.radius.toFixed(1)}m
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!editable}
-                    onClick={() => deleteHazard(selectedHazard.clientId)}
-                    className="rounded-md border border-danger/35 bg-white px-2.5 py-1 text-[11px] font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
-                  >
-                    삭제
-                  </button>
+                <div className="mt-3 rounded-lg border border-danger/25 bg-danger-soft p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold text-danger-strong">선택 위험구역</span>
+                    <button
+                      type="button"
+                      disabled={!editable}
+                      onClick={() => deleteHazard(selectedHazard.clientId)}
+                      className="rounded-md border border-danger/35 bg-white px-2.5 py-1 text-[11px] font-bold text-danger-strong outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs font-bold text-danger-strong">
+                    <label htmlFor="selected-hazard-radius">반지름 (m)</label>
+                    <NumberStepperInput
+                      id="selected-hazard-radius"
+                      label="위험구역 반지름"
+                      min={HAZARD_MIN_RADIUS}
+                      max={HAZARD_MAX_RADIUS}
+                      step={0.1}
+                      value={selectedHazard.radius}
+                      onValueChange={(radius) =>
+                        commitHazardRadius(selectedHazard.clientId, radius)
+                      }
+                      disabled={!editable}
+                    />
+                  </div>
                 </div>
               ) : (
                 <p className="mt-3 rounded-lg bg-surface px-3 py-3 text-xs leading-5 text-text-muted">
