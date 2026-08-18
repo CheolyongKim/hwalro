@@ -1,0 +1,223 @@
+name: Gemini PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: gemini-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Gemini Code Review
+    runs-on: ubuntu-latest
+    if: github.event.sender.login != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate and Post Gemini Inline Review
+        uses: actions/github-script@v7
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const apiKey = process.env.GEMINI_API_KEY;
+
+            if (!apiKey) {
+              core.warning('GEMINI_API_KEY secret is not set. Skipping Gemini code review.');
+              return;
+            }
+
+            const pullRequest = context.payload.pull_request;
+            const prTitle = pullRequest.title || '';
+            const prBody = pullRequest.body || '';
+            const headSha = pullRequest.head.sha;
+
+            let diff = '';
+            try {
+              diff = execSync(
+                `git diff origin/${pullRequest.base.ref}...HEAD -- . ':!pnpm-lock.yaml' ':!package-lock.json' ':!*.lock' ':!*.svg' ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.webp' ':!*.ico' ':!*.pdf'`,
+                { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
+              );
+            } catch (err) {
+              try {
+                diff = execSync(
+                  `git diff HEAD~1 HEAD -- . ':!pnpm-lock.yaml' ':!package-lock.json' ':!*.lock'`,
+                  { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
+                );
+              } catch (innerErr) {
+                core.setFailed(`Failed to obtain git diff: ${innerErr.message}`);
+                return;
+              }
+            }
+
+            if (!diff.trim()) {
+              core.info('No relevant diff found to review.');
+              return;
+            }
+
+            const maxDiffLength = 40000;
+            const trimmedDiff = diff.length > maxDiffLength
+              ? diff.slice(0, maxDiffLength) + '\n\n...[Diff truncated due to size limits]...'
+              : diff;
+
+            const systemInstruction = [
+              '당신은 숙련된 시니어 소프트웨어 엔지니어이자 코드 리뷰어입니다.',
+              '제공된 PR 제목, 본문 설명, Git Diff를 검토하고 건설적이고 구체적인 인라인 리뷰와 전체 요약을 한국어로 작성하세요.',
+              '인라인 코멘트 작성 규칙:',
+              '1. 반드시 변경된 파일의 새로 추가/수정된 줄 번호(신규 파일 기준 RIGHT side line)를 정확히 지정하세요.',
+              '2. 버그 가능성, 보안 취약점, 성능 문제, 예외 처리 누락, 클린 코드 개선점 등 실제 가치 있는 피드백에만 인라인 코멘트를 작성하세요.',
+              '3. 문제가 없거나 사소한 변경점에 대해서는 무리하게 인라인 코멘트를 작성하지 말고 빈 배열로 남기세요.',
+              '4. summary 필드에는 전체 변경 요약, 주요 리스크, 종합 의견을 Markdown 형식으로 작성하세요.'
+            ].join('\n');
+
+            const promptContent = `PR Title: ${prTitle}\nPR Description:\n${prBody}\n\nGit Diff:\n\`\`\`diff\n${trimmedDiff}\n\`\`\``;
+
+            const requestPayload = {
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    {
+                      text: `${systemInstruction}\n\n${promptContent}`
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 4096,
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: 'OBJECT',
+                  properties: {
+                    summary: {
+                      type: 'STRING',
+                      description: '전체 변경 요약 및 종합 총평 (Markdown 형식)'
+                    },
+                    reviews: {
+                      type: 'ARRAY',
+                      description: '파일의 특정 라인에 남길 인라인 리뷰 목록',
+                      items: {
+                        type: 'OBJECT',
+                        properties: {
+                          path: {
+                            type: 'STRING',
+                            description: '저장소 루트 기준 파일 상대 경로'
+                          },
+                          line: {
+                            type: 'INTEGER',
+                            description: '새로운 파일 기준 라인 번호 (diff의 + 라인)'
+                          },
+                          side: {
+                            type: 'STRING',
+                            enum: ['RIGHT']
+                          },
+                          comment: {
+                            type: 'STRING',
+                            description: '해당 라인에 대한 구체적인 리뷰 코멘트 (Markdown 형식)'
+                          }
+                        },
+                        required: ['path', 'line', 'side', 'comment']
+                      }
+                    }
+                  },
+                  required: ['summary', 'reviews']
+                }
+              }
+            };
+
+            let reviewData;
+            try {
+              const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestPayload)
+              });
+
+              if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Gemini API error (${res.status}): ${errText}`);
+              }
+
+              const response = await res.json();
+              const candidate = response.candidates?.[0];
+              const responseText = candidate?.content?.parts?.[0]?.text;
+
+              if (!responseText) {
+                throw new Error('Empty response from Gemini API');
+              }
+
+              reviewData = JSON.parse(responseText);
+            } catch (err) {
+              core.setFailed(`Failed to generate review from Gemini: ${err.message}`);
+              return;
+            }
+
+            const summaryText = reviewData.summary || '코드 검토가 완료되었습니다.';
+            const inlineComments = Array.isArray(reviewData.reviews) ? reviewData.reviews : [];
+
+            const formattedComments = inlineComments
+              .filter((item) => item.path && item.line && item.comment)
+              .map((item) => ({
+                path: item.path.trim(),
+                line: Number(item.line),
+                side: item.side || 'RIGHT',
+                body: item.comment.trim()
+              }));
+
+            const reviewHeader = '## 🤖 Gemini AI Code Review\n\n';
+            const fullBody = `${reviewHeader}${summaryText}`;
+
+            try {
+              if (formattedComments.length > 0) {
+                await github.rest.pulls.createReview({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullRequest.number,
+                  commit_id: headSha,
+                  body: fullBody,
+                  event: 'COMMENT',
+                  comments: formattedComments
+                });
+                core.info(`Successfully posted review with ${formattedComments.length} inline comment(s).`);
+              } else {
+                await github.rest.pulls.createReview({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullRequest.number,
+                  commit_id: headSha,
+                  body: fullBody,
+                  event: 'COMMENT'
+                });
+                core.info('Successfully posted review summary (no inline comments needed).');
+              }
+            } catch (reviewErr) {
+              core.warning(`Bulk review creation failed (${reviewErr.message}). Fallback to summary comment.`);
+
+              let fallbackBody = `${fullBody}\n\n### 💬 Line-by-line Notes\n`;
+              for (const c of formattedComments) {
+                fallbackBody += `\n- **\`${c.path}:${c.line}\`**: ${c.body}`;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullRequest.number,
+                body: fallbackBody
+              });
+            }
