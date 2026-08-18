@@ -321,7 +321,10 @@ function SimulationListPage() {
                   </thead>
                   <tbody className="divide-y divide-line">
                     {items.map((simulation) => (
-                      <tr key={simulation.id} className="transition-colors hover:bg-primary-soft/30">
+                      <tr
+                        key={simulation.id}
+                        className="transition-colors hover:bg-primary-soft/30"
+                      >
                         <td className="px-6 py-4">{renderSimulationLink(simulation)}</td>
                         <td className="px-4 py-4 text-sm font-bold tabular-nums text-text-strong">
                           #{simulation.id}
