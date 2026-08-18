@@ -68,23 +68,25 @@ function hitZoneIndex(zones: readonly ForbiddenZone[], point: SimulationPoint): 
 function hitFabric(
   fabrics: readonly SimulationRect[],
   point: SimulationPoint,
+  tolerance = 0.2,
 ): SimulationRect | null {
   for (let i = fabrics.length - 1; i >= 0; i -= 1) {
     const fabric = fabrics[i];
     const centerX = (fabric.startX + fabric.endX) / 2;
     const centerY = (fabric.startY + fabric.endY) / 2;
-    const local = rotatePoint(point, { x: centerX, y: centerY }, -fabric.rotation);
-    if (
-      local.x >= Math.min(fabric.startX, fabric.endX) &&
-      local.x <= Math.max(fabric.startX, fabric.endX) &&
-      local.y >= Math.min(fabric.startY, fabric.endY) &&
-      local.y <= Math.max(fabric.startY, fabric.endY)
-    ) {
+    const rotation = typeof fabric.rotation === 'number' ? fabric.rotation : 0;
+    const local = rotatePoint(point, { x: centerX, y: centerY }, -rotation);
+    const minX = Math.min(fabric.startX, fabric.endX) - tolerance;
+    const maxX = Math.max(fabric.startX, fabric.endX) + tolerance;
+    const minY = Math.min(fabric.startY, fabric.endY) - tolerance;
+    const maxY = Math.max(fabric.startY, fabric.endY) + tolerance;
+    if (local.x >= minX && local.x <= maxX && local.y >= minY && local.y <= maxY) {
       return fabric;
     }
   }
   return null;
 }
+
 
 export function ConstraintEditor({
   drawing,
@@ -210,6 +212,8 @@ export function ConstraintEditor({
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
 
+    const tolerance = Math.max(0.2, 8 / (camera.zoom * PX_PER_METER));
+
     if (tool === 'zone') {
       const existing = hitZoneIndex(constraints.forbiddenZones, point);
       if (existing !== null) {
@@ -223,6 +227,13 @@ export function ConstraintEditor({
       return;
     }
 
+    const hit = hitFabric(drawing.fabrics, point, tolerance);
+    if (hit !== null) {
+      onSelectFabric(hit.id);
+      onSelectZone(null);
+      return;
+    }
+
     const zoneIndex = hitZoneIndex(constraints.forbiddenZones, point);
     if (zoneIndex !== null) {
       onSelectZone(zoneIndex);
@@ -230,10 +241,11 @@ export function ConstraintEditor({
       zoneMoveRef.current = { index: zoneIndex, last: point };
       return;
     }
+
     onSelectZone(null);
-    const hit = hitFabric(drawing.fabrics, point);
-    onSelectFabric(hit?.id ?? null);
+    onSelectFabric(null);
   };
+
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = worldAt(event.clientX, event.clientY);
@@ -357,9 +369,9 @@ export function ConstraintEditor({
                   offsetX={width / 2}
                   offsetY={height / 2}
                   rotation={pillar.rotation}
-                  fill="#dce5e3"
-                  stroke="#839793"
-                  strokeWidth={s(1)}
+                  fill="#203b38"
+                  stroke="#142724"
+                  strokeWidth={s(1.2)}
                 />
               );
             })}
