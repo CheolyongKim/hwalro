@@ -89,6 +89,12 @@
         ORDER BY simulation_result_id, id
     </select>
 
+    <select id="countBySimulationResultId" resultType="int">
+        SELECT COUNT(*)
+        FROM risks
+        WHERE simulation_result_id = #{simulationResultId}
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO risks (simulation_result_id, assignee_id, title, description, start_x, start_y, end_x, end_y, severity, status)
         VALUES (#{simulationResultId}, #{assigneeId}, #{title}, #{description}, #{startX}, #{startY}, #{endX}, #{endY}, #{severity}, #{status})

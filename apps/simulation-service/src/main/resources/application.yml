@@ -31,6 +31,11 @@ jwt:
   secret: ${JWT_SECRET:}
   issuer: ${JWT_ISSUER:hwalro-auth-service}
 
+regulation-service:
+  base-url: ${REGULATION_SERVICE_URL:http://localhost:8082}
+  connect-timeout: ${REGULATION_SERVICE_CONNECT_TIMEOUT:2s}
+  read-timeout: ${REGULATION_SERVICE_READ_TIMEOUT:5s}
+
 simulation:
   engine:
     python: ${SIMULATION_ENGINE_PYTHON:python}

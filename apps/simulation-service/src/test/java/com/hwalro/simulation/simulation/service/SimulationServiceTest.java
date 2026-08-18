@@ -14,6 +14,7 @@ import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.simulation.client.RegulationUsageClient;
 import com.hwalro.simulation.simulation.domain.HazardZone;
 import com.hwalro.simulation.simulation.domain.LayoutSimulationContext;
 import com.hwalro.simulation.simulation.domain.Simulation;
@@ -44,12 +45,15 @@ class SimulationServiceTest {
     @Mock
     private DrawingMapper drawingMapper;
 
+    @Mock
+    private RegulationUsageClient regulationUsageClient;
+
     private SimulationService service;
     private JwtUser user;
 
     @BeforeEach
     void setUp() {
-        service = new SimulationService(simulationMapper, drawingMapper, new ObjectMapper());
+        service = new SimulationService(simulationMapper, drawingMapper, new ObjectMapper(), regulationUsageClient);
         user = new JwtUser(7L, Set.of("OPERATOR"));
     }
 
