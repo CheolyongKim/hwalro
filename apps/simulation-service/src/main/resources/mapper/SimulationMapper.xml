@@ -358,6 +358,14 @@
           AND status = '초안'
     </update>
 
+    <update id="unlockLayoutVersionIfNoSimulations">
+        UPDATE layout_versions
+        SET status = '초안'
+        WHERE id = #{layoutVersionId}
+          AND status = '잠금'
+          AND (SELECT COUNT(*) FROM simulations WHERE layout_version_id = #{layoutVersionId}) = 0
+    </update>
+
     <update id="requestExecution">
         UPDATE simulations
         SET status = 'REQUESTED',
@@ -461,5 +469,24 @@
              #{bottleneck.analysisVersion})
         </foreach>
     </insert>
+
+    <select id="countImprovementReferences" resultType="int">
+        SELECT
+            (SELECT COUNT(*) FROM improvement_proposals WHERE source_simulation_id = #{simulationId}) +
+            (SELECT COUNT(*) FROM proposal_simulations WHERE simulation_id = #{simulationId} OR source_simulation_id = #{simulationId}) +
+            (SELECT COUNT(*) FROM layout_searches WHERE baseline_simulation_id = #{simulationId}) +
+            (SELECT COUNT(*) FROM layout_search_candidates WHERE prepared_simulation_id = #{simulationId})
+    </select>
+
+    <select id="countChildSimulations" resultType="int">
+        SELECT COUNT(*)
+        FROM simulations
+        WHERE parent_simulation_id = #{simulationId}
+    </select>
+
+    <delete id="deleteSimulation">
+        DELETE FROM simulations
+        WHERE id = #{simulationId}
+    </delete>
 
 </mapper>

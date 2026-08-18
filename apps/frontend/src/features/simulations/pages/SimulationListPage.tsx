@@ -50,6 +50,9 @@ function SimulationListPage() {
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<SimulationOverview | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDeletion, setPendingDeletion] = useState<SimulationOverview | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSimulation, setSelectedSimulation] = useState<SimulationOverview | null>(null);
   const [selectedExecution, setSelectedExecution] = useState<SimulationExecution | null>(null);
@@ -87,6 +90,25 @@ function SimulationListPage() {
       setCancelError(getSimulationErrorMessage(error));
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const deleteSimulation = async () => {
+    if (!pendingDeletion) return;
+    const simulationId = pendingDeletion.id;
+    setDeletingId(simulationId);
+    setDeleteError(null);
+    try {
+      await simulationApi.delete(simulationId);
+      setPendingDeletion(null);
+      if (items.length === 1 && page > 1) {
+        setPage((p) => Math.max(1, p - 1));
+      }
+      await query.refetch();
+    } catch (error) {
+      setDeleteError(getSimulationErrorMessage(error));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -310,18 +332,29 @@ function SimulationListPage() {
                           {formatDateTime(simulation.startedAt ?? simulation.createdAt)}
                         </td>
                         <td className="px-4 py-4">
-                          {(simulation.status === 'REQUESTED' ||
-                            simulation.status === 'RUNNING') && (
+                          {simulation.status === 'REQUESTED' || simulation.status === 'RUNNING' ? (
                             <button
                               type="button"
                               onClick={() => {
                                 setPendingCancellation(simulation);
                                 setCancelError(null);
                               }}
-                              disabled={cancellingId !== null}
+                              disabled={cancellingId !== null || deletingId !== null}
                               className="h-8 rounded-lg border border-danger/25 px-3 text-xs font-bold text-danger-strong transition hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {cancellingId === simulation.id ? '취소 중…' : '실행 취소'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingDeletion(simulation);
+                                setDeleteError(null);
+                              }}
+                              disabled={cancellingId !== null || deletingId !== null}
+                              className="h-8 rounded-lg border border-line px-3 text-xs font-bold text-text-muted transition hover:border-danger/40 hover:bg-danger-soft hover:text-danger-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingId === simulation.id ? '삭제 중…' : '삭제'}
                             </button>
                           )}
                         </td>
@@ -408,6 +441,38 @@ function SimulationListPage() {
             className="mt-4 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-strong"
           >
             {cancelError}
+          </p>
+        )}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={pendingDeletion !== null}
+        title="시뮬레이션 삭제"
+        description={
+          pendingDeletion
+            ? `${pendingDeletion.layoutTitle} · 시뮬레이션 #${pendingDeletion.id}`
+            : undefined
+        }
+        confirmLabel="삭제"
+        cancelLabel="돌아가기"
+        isLoading={deletingId !== null}
+        onCancel={() => {
+          setPendingDeletion(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void deleteSimulation()}
+      >
+        <div className="space-y-2 text-sm leading-6">
+          <p className="font-bold text-text-strong">시뮬레이션을 삭제하시겠습니까?</p>
+          <p className="text-text-muted">
+            개선안, 위험 예상 항목, 보고서에 연결된 시뮬레이션은 삭제할 수 없으며, 삭제된 시뮬레이션은 복구할 수 없습니다.
+          </p>
+        </div>
+        {deleteError && (
+          <p
+            role="alert"
+            className="mt-4 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger-strong"
+          >
+            {deleteError}
           </p>
         )}
       </ConfirmDialog>

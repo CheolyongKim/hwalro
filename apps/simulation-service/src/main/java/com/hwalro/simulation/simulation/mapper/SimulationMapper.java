@@ -90,6 +90,8 @@ public interface SimulationMapper {
 
     int lockLayoutVersion(@Param("layoutVersionId") Long layoutVersionId);
 
+    int unlockLayoutVersionIfNoSimulations(@Param("layoutVersionId") Long layoutVersionId);
+
     int requestExecution(@Param("simulationId") Long simulationId);
 
     int markExecutionRunning(@Param("simulationId") Long simulationId);
@@ -120,4 +122,10 @@ public interface SimulationMapper {
     int insertDetectedBottlenecks(
             @Param("simulationResultId") Long simulationResultId,
             @Param("bottlenecks") List<DetectedBottleneck> bottlenecks);
+
+    int countImprovementReferences(@Param("simulationId") Long simulationId);
+
+    int countChildSimulations(@Param("simulationId") Long simulationId);
+
+    int deleteSimulation(@Param("simulationId") Long simulationId);
 }

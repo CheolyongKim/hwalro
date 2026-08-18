@@ -59,6 +59,9 @@ export const simulationApi = {
       .post<SimulationExecution>(`/api/simulations/${simulationId}/cancel`)
       .then((response) => response.data),
 
+  delete: (simulationId: number) =>
+    apiClient.delete<void>(`/api/simulations/${simulationId}`).then((response) => response.data),
+
   getExecution: (simulationId: number) =>
     apiClient
       .get<SimulationExecution>(`/api/simulations/${simulationId}/execution`)
