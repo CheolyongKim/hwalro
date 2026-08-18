@@ -11,16 +11,10 @@ services:
       REGULATION_DB_PASSWORD: ${REGULATION_DB_PASSWORD}
       TZ: Asia/Seoul
     ports:
-      - '${MYSQL_PORT:-3306}:3306'
+      - '127.0.0.1:${MYSQL_PORT:-3306}:3306'
     volumes:
       - mysql-data:/var/lib/mysql
-      - ../apps/auth-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-auth-schema.sql:ro
-      - ../apps/simulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/02-simulation-schema.sql:ro
-      - ../apps/regulation-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/03-regulation-schema.sql:ro
-      - ../db/grants.sh:/docker-entrypoint-initdb.d/04-grants.sh:ro
-      - ../apps/auth-service/src/main/resources/db/dml.sql:/docker-entrypoint-initdb.d/05-auth-dml.sql:ro
-      - ../apps/regulation-service/src/main/resources/db/safety-check-dml.sql:/docker-entrypoint-initdb.d/06-safety-check-dml.sql:ro
-      - ../apps/simulation-service/src/main/resources/db/density-threshold-dml.sql:/docker-entrypoint-initdb.d/07-density-threshold-dml.sql:ro
+      - ./init-db:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:
         [

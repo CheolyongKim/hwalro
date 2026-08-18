@@ -100,7 +100,8 @@ pipeline {
             }
             steps {
                 script {
-                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${REGISTRY_URL} || true"
+                    def registryDomain = env.REGISTRY_URL.tokenize('/')[0]
+                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${registryDomain} || true"
                 }
                 parallel(
                     'Build & Push Frontend': {
@@ -149,7 +150,8 @@ pipeline {
                             sh """
                                 ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'EOF'
                                     cd /opt/hwalro || exit 1
-                                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${REGISTRY_URL} || true
+                                    REGISTRY_DOMAIN=\$(echo "${REGISTRY_URL}" | cut -d'/' -f1)
+                                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin \${REGISTRY_DOMAIN} || true
                                     export FRONTEND_TAG=${IMAGE_TAG}
                                     export AUTH_TAG=${IMAGE_TAG}
                                     export SIMULATION_TAG=${IMAGE_TAG}
