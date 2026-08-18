@@ -73,7 +73,7 @@ function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) 
       <span
         id={id}
         role="tooltip"
-        className={`pointer-events-none absolute top-full z-30 mt-2 hidden w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white shadow-raised group-hover:block group-focus-within:block ${align === 'right' ? 'right-0' : 'left-0'}`}
+        className={`simulation-setup-info-tooltip pointer-events-none absolute top-full z-30 mt-2 hidden w-48 rounded-lg px-3 py-2 text-[11px] font-medium leading-5 shadow-raised group-hover:block group-focus-within:block ${align === 'right' ? 'right-0' : 'left-0'}`}
       >
         {children}
       </span>
@@ -760,15 +760,15 @@ function SimulationSetupPage() {
 
             <section className="simulation-setup-panel__section">
               <h2 className="text-sm font-black">시뮬레이션 조건</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="text-xs font-bold text-text-muted">
-                  <div className="flex items-center gap-1">
+              <div className="simulation-setup-condition-grid mt-4 grid grid-cols-2 gap-x-3 gap-y-4">
+                <div className="simulation-setup-condition-field text-xs font-bold text-text-muted">
+                  <div className="simulation-setup-condition-label flex gap-1">
                     <label htmlFor="walking-speed">희망 이동속도 (m/s)</label>
                     <InfoTooltip id="walking-speed-help" label="희망 이동속도 안내">
                       에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표
                       평균은 약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제
                       속도는 혼잡도와 상호작용에 따라 달라집니다.
-                      <span className="mt-1 block text-white/70">
+                      <span className="simulation-setup-info-tooltip__source mt-1 block">
                         출처: Weidmann (1993), ETH Zürich
                       </span>
                     </InfoTooltip>
@@ -784,8 +784,8 @@ function SimulationSetupPage() {
                     disabled={!editable}
                   />
                 </div>
-                <div className="text-xs font-bold text-text-muted">
-                  <div className="flex items-center gap-1">
+                <div className="simulation-setup-condition-field text-xs font-bold text-text-muted">
+                  <div className="simulation-setup-condition-label flex gap-1">
                     <label htmlFor="initial-response-time-mean">평균 초기 반응시간 (초)</label>
                     <InfoTooltip
                       id="initial-response-time-mean-help"
@@ -809,8 +809,10 @@ function SimulationSetupPage() {
                     disabled={!editable}
                   />
                 </div>
-                <div className="text-xs font-bold text-text-muted">
-                  <label htmlFor="initial-response-time-std-dev">반응시간 표준편차 (초)</label>
+                <div className="simulation-setup-condition-field text-xs font-bold text-text-muted">
+                  <div className="simulation-setup-condition-label flex gap-1">
+                    <label htmlFor="initial-response-time-std-dev">반응시간 표준편차 (초)</label>
+                  </div>
                   <NumberStepperInput
                     id="initial-response-time-std-dev"
                     label="반응시간 표준편차"
