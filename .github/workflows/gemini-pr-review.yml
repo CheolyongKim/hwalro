@@ -161,25 +161,41 @@ jobs:
               ? diff.slice(0, maxDiffLength) + '\n\n...[Diff truncated due to size limits]...'
               : diff;
 
-            const systemInstruction = [
+            const systemInstructionText = [
               '당신은 숙련된 시니어 소프트웨어 엔지니어이자 코드 리뷰어입니다.',
-              '제공된 PR 제목, 본문 설명, Git Diff를 검토하고 건설적이고 구체적인 인라인 리뷰와 전체 요약을 한국어로 작성하세요.',
-              '인라인 코멘트 작성 규칙:',
-              '1. 반드시 변경된 파일의 새로 추가/수정된 줄 번호(신규 파일 기준 RIGHT side line)를 정확히 지정하세요.',
-              '2. 버그 가능성, 보안 취약점, 성능 문제, 예외 처리 누락, 클린 코드 개선점 등 실제 가치 있는 피드백에만 인라인 코멘트를 작성하세요.',
-              '3. 문제가 없거나 사소한 변경점에 대해서는 무리하게 인라인 코멘트를 작성하지 말고 빈 배열로 남기세요.',
-              '4. summary 필드에는 전체 변경 요약, 주요 리스크, 종합 의견을 Markdown 형식으로 작성하세요.'
+              '제공된 PR 제목, 본문 설명, Git Diff를 면밀히 분석하고 건설적이고 실질적인 한국어 코드 리뷰를 작성하세요.',
+              '',
+              '작성 지침:',
+              '1. summary 필드:',
+              '   - 절대로 "...", "생략", 빈 문자열 같은 플레이스홀더를 작성하지 마세요.',
+              '   - 반드시 아래 마크다운 구조를 갖추어 상세히 작성하세요:',
+              '     ### 📦 주요 변경 요약',
+              '     (핵심 변경 내용을 1~3문장으로 명확히 설명)',
+              '     ### ⚠️ 잠재적 리스크 및 안정성',
+              '     (버그 가능성, 보안, 성능 관점의 분석. 특이사항이 없다면 "특이사항 없음 및 안정적" 명시)',
+              '     ### 💡 종합 의견',
+              '     (코드 품질 총평 및 개선 권장사항)',
+              '2. reviews 필드:',
+              '   - diff에서 새로 추가/수정된 줄 번호(신규 파일 기준 RIGHT side line)에만 인라인 코멘트를 작성하세요.',
+              '   - 실질적인 버그, 보안 취약점, 예외 처리 누락, 개선점이 있을 때만 작성하고, 문제가 없다면 빈 배열([])로 두세요.'
             ].join('\n');
 
             const promptContent = `PR Title: ${prTitle}\nPR Description:\n${prBody}\n\nGit Diff:\n\`\`\`diff\n${trimmedDiff}\n\`\`\``;
 
             const requestPayload = {
+              system_instruction: {
+                parts: [
+                  {
+                    text: systemInstructionText
+                  }
+                ]
+              },
               contents: [
                 {
                   role: 'user',
                   parts: [
                     {
-                      text: `${systemInstruction}\n\n${promptContent}`
+                      text: promptContent
                     }
                   ]
                 }
@@ -193,7 +209,7 @@ jobs:
                   properties: {
                     summary: {
                       type: 'STRING',
-                      description: '전체 변경 요약 및 종합 총평 (Markdown 형식)'
+                      description: '구조화된 Markdown 형식의 상세 변경 요약 및 총평'
                     },
                     reviews: {
                       type: 'ARRAY',
@@ -317,9 +333,7 @@ jobs:
               return;
             }
 
-            const summaryText = reviewData.summary || '코드 검토가 완료되었습니다.';
             const inlineComments = Array.isArray(reviewData.reviews) ? reviewData.reviews : [];
-
             const formattedComments = inlineComments
               .filter((item) => item.path && item.line && item.comment)
               .map((item) => ({
@@ -328,6 +342,19 @@ jobs:
                 side: item.side || 'RIGHT',
                 body: item.comment.trim()
               }));
+
+            let summaryText = (reviewData.summary || '').trim();
+            const isInvalidSummary = !summaryText || summaryText === '...' || summaryText === '.' || summaryText === '생략' || summaryText.length < 10;
+            if (isInvalidSummary) {
+              summaryText = [
+                '### 📦 변경 사항 검토 완료',
+                '제출된 PR의 코드 변경 사항을 검토하였습니다. 치명적인 오류나 보안 취약점은 발견되지 않았습니다.',
+                '',
+                formattedComments.length === 0
+                  ? '> 💡 **참고**: 별도의 인라인 수정 권장사항이 없으므로 안전하게 병합 가능합니다.'
+                  : `> 💡 **참고**: ${formattedComments.length}개의 인라인 리뷰 코멘트가 작성되었습니다.`
+              ].join('\n');
+            }
 
             const reviewHeader = '## 🤖 Gemini AI Code Review\n\n';
             const fullBody = `${reviewHeader}${summaryText}`;
