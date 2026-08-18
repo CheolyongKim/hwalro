@@ -435,7 +435,8 @@ function SimulationListPage() {
         <div className="space-y-2 text-sm leading-6">
           <p className="font-bold text-text-strong">시뮬레이션을 삭제하시겠습니까?</p>
           <p className="text-text-muted">
-            개선안, 위험 예상 항목, 보고서에 연결된 시뮬레이션은 삭제할 수 없으며, 삭제된 시뮬레이션은 복구할 수 없습니다.
+            개선안, 위험 예상 항목, 보고서에 연결된 시뮬레이션은 삭제할 수 없으며, 삭제된
+            시뮬레이션은 복구할 수 없습니다.
           </p>
         </div>
         {deleteError && (
