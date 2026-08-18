@@ -12,8 +12,10 @@ import {
   screenToWorld,
   zoomAtPoint,
 } from '../../layout/utils/geometry';
+import { CANVAS_COLORS } from '../../layout/utils/colors';
 import type { SimulationDrawing, SimulationPoint, SimulationRect } from '../../simulations/types';
 import type { ForbiddenZone, SearchConstraints } from '../api/layoutSearchApi';
+
 
 export type ConstraintEditorTool = 'select' | 'zone';
 
@@ -368,12 +370,13 @@ export function ConstraintEditor({
                   offsetX={width / 2}
                   offsetY={height / 2}
                   rotation={pillar.rotation}
-                  fill="#203b38"
-                  stroke="#142724"
+                  fill={CANVAS_COLORS.pillarFill}
+                  stroke={CANVAS_COLORS.pillarStroke}
                   strokeWidth={s(1.2)}
                 />
               );
             })}
+
             {drawing.exits.map((exit) => (
               <Line
                 key={exit.id}
