@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import {
+  CanvasWorkspace,
+  CanvasWorkspaceBackButton,
+  CanvasWorkspaceHeader,
+  CanvasWorkspacePanel,
+  CanvasWorkspaceState,
+  useCollapsibleWorkspacePanel,
+} from '../../../components/workspace';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import type { SimulationDrawing, SimulationSetup } from '../../simulations/types';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
+
 import { CandidateDetailPanel } from '../components/CandidateDetailPanel';
 import { CandidateTabs } from '../components/NoImprovementPanel';
 import { ConstraintInspector } from '../components/ConstraintInspector';
@@ -40,6 +48,8 @@ export default function LayoutSearchPage() {
   const [sourceLoading, setSourceLoading] = useState(true);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [selectedTabKey, setSelectedTabKey] = useState<string | null>(null);
+  const detailPanel = useCollapsibleWorkspacePanel();
+
   const {
     search,
     hasSearch,
@@ -134,160 +144,163 @@ export default function LayoutSearchPage() {
   }, []);
 
   if (loading || sourceLoading) {
-    return (
-      <div className="improvement-page-state" role="status">
-        배치 개선안 탐색을 준비하고 있습니다.
-      </div>
-    );
+    return <CanvasWorkspaceState message="배치 개선안 탐색을 준비하고 있습니다." role="status" />;
   }
 
   if (sourceError || (!hasSearch && errorMessage)) {
     return (
-      <div className="improvement-page-state">
-        <p role="alert">{sourceError ?? errorMessage}</p>
-        <div className="improvement-page-state__actions">
-          <button type="button" onClick={retry}>
-            다시 시도
-          </button>
-          <button type="button" onClick={() => navigate(`/simulations/${id}/results`)}>
-            결과 화면
-          </button>
-        </div>
-      </div>
+      <CanvasWorkspaceState
+        message={sourceError ?? errorMessage}
+        actions={
+          <>
+            <button type="button" className="canvas-workspace-state__btn" onClick={retry}>
+              다시 시도
+            </button>
+            <button
+              type="button"
+              className="canvas-workspace-state__btn"
+              onClick={() => navigate(`/simulations/${id}/results`)}
+            >
+              결과 화면
+            </button>
+          </>
+        }
+      />
     );
   }
 
   if (!hasSearch || !search) {
     return (
-      <main className="constraint-page">
-        <header className="constraint-page__header">
-          <button
-            type="button"
-            aria-label="시뮬레이션 결과 화면으로 돌아가기"
-            className="constraint-page__back"
-            onClick={() => navigate(`/simulations/${id}/results`)}
-          >
-            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          </button>
-          <div className="constraint-page__heading">
-            <span>배치 개선안 탐색</span>
-            <h1>구조물 제약 설정</h1>
-            <p>{sourceSetup?.drawing.title ?? ''}</p>
-          </div>
-        </header>
+      <CanvasWorkspace className="layout-search-workspace">
+        <CanvasWorkspaceBackButton
+          label="시뮬레이션 결과"
+          onClick={() => navigate(`/simulations/${id}/results`)}
+        />
+        <CanvasWorkspaceHeader
+          title={sourceSetup?.drawing.title || '도면'}
+          subtitle="구조물 제약 설정"
+          status="제약 설정"
+          statusTone="editing"
+        />
         {sourceSetup && (
-          <div className="constraint-page__body">
-            <ConstraintInspector
-              drawing={sourceSetup.drawing}
-              constraints={constraints}
-              onChange={updateConstraints}
-              onStart={(verify) => void runSearch(verify)}
-              starting={starting}
-            />
-          </div>
+          <ConstraintInspector
+            drawing={sourceSetup.drawing}
+            constraints={constraints}
+            onChange={updateConstraints}
+            onStart={(verify) => void runSearch(verify)}
+            starting={starting}
+          />
         )}
-      </main>
+      </CanvasWorkspace>
     );
   }
 
   return (
-    <main className="improvement-page">
-      <SearchProgressHeader
-        search={search}
-        onCancel={() => void cancel()}
-        cancelling={cancelling}
-        onBackToResult={() => navigate(`/simulations/${id}/results`)}
-        onRerun={resetToSetup}
-        rerunning={false}
+    <CanvasWorkspace className="layout-search-workspace">
+      <CanvasWorkspaceBackButton
+        label="시뮬레이션 결과"
+        onClick={() => navigate(`/simulations/${id}/results`)}
       />
+
       {errorMessage && (
-        <div className="search-action-error" role="alert">
+        <div className="search-action-error-floating" role="alert">
           <span>{errorMessage}</span>
           <button type="button" onClick={() => void initialize()}>
             새로고침
           </button>
         </div>
       )}
-      <div className="improvement-workspace">
-        <section className="comparison-canvas" aria-labelledby="comparison-title">
-          <div className="canvas-heading">
-            <div>
-              <span>배치 개선안 검증</span>
-              <h2 id="comparison-title">
-                {selectedCandidate
-                  ? '기존 배치와 개선 배치 비교'
-                  : search.status === 'NO_IMPROVEMENT'
-                    ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
-                    : '검증 중인 배치'}
-              </h2>
-            </div>
-            {selectedCandidate && (
-              <p>
-                상단 탭으로 개선안을 전환하고, 도면을 길게 누르거나 버튼으로 전후 배치를 비교할 수
-                있습니다.
-              </p>
-            )}
-          </div>
+
+      {/* 상단 플로팅 탭 바 */}
+      {improvedCandidates.length > 0 && (
+        <div className="layout-search-floating-tabs">
           <CandidateTabs
             improved={search.improvedCandidates}
             activeKey={activeTabKey ?? ''}
             onSelect={setSelectedTabKey}
           />
-          <div className="comparison-plans">
-            <div className="comparison-plan">
-              <div className="comparison-plan__heading">
-                <strong>{selectedCandidate ? '배치 도면 인터랙션' : '시도 배치'}</strong>
-                {selectedCandidate && (
-                  <p>
-                    기본으로 개선 배치를 표시합니다. 캔버스를 누르는 동안 기존 배치를 볼 수
-                    있습니다.
-                  </p>
-                )}
-              </div>
-              {selectedCandidate && sourceSetup && preview.drawing ? (
-                <HoldToCompare
-                  before={sourceSetup.drawing}
-                  after={preview.drawing}
-                  changedFabricIds={changedIds}
-                />
-              ) : preview.error ? (
-                <div className="proposal-layout-error" role="alert">
-                  <p>{preview.error}</p>
-                  <button type="button" onClick={() => void loadSourceSetup()}>
-                    원본 배치 다시 불러오기
-                  </button>
-                </div>
-              ) : (
-                <div className="proposal-layout-loading" role="status">
-                  {active
-                    ? '개선안이 검증되면 배치를 표시합니다.'
-                    : '현재 탐색 범위에서 개선안을 찾지 못했습니다.'}
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
+        </div>
+      )}
 
-        {selectedCandidate ? (
-          <CandidateDetailPanel
-            candidate={selectedCandidate}
-            onPrepareSimulation={() => void prepareSimulation(selectedCandidate.candidateId)}
-            preparing={preparingCandidateIds.has(selectedCandidate.candidateId)}
-            onContinueComparing={focusComparison}
-            previewAvailable={preview.drawing !== null}
-            onReject={() => void rejectCandidate(selectedCandidate.candidateId)}
-            rejecting={starting}
+      {/* 전체 화면 도면 비교 뷰포트 */}
+      <div className="layout-search-stage">
+        {selectedCandidate && sourceSetup && preview.drawing ? (
+          <HoldToCompare
+            before={sourceSetup.drawing}
+            after={preview.drawing}
+            changedFabricIds={changedIds}
           />
+        ) : preview.error ? (
+          <div className="proposal-layout-error" role="alert">
+            <p>{preview.error}</p>
+            <button type="button" onClick={() => void loadSourceSetup()}>
+              원본 배치 다시 불러오기
+            </button>
+          </div>
         ) : (
-          <aside className="search-insight">
-            <p>
-              {search.status === 'NO_IMPROVEMENT'
-                ? '구조물 제약을 조정한 뒤 다시 탐색하면 다른 배치안을 찾을 수 있습니다.'
-                : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
-            </p>
-          </aside>
+          <div className="proposal-layout-loading" role="status">
+            {active
+              ? '개선안이 검증되면 배치를 표시합니다.'
+              : search.status === 'NO_IMPROVEMENT'
+                ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
+                : '검증 중인 배치'}
+          </div>
         )}
       </div>
-    </main>
+
+      {/* 우측 플로팅 패널 (후보 상세 정보) */}
+      {detailPanel.isMinimized ? (
+        <button
+          type="button"
+          className="canvas-workspace-panel-restore"
+          onClick={detailPanel.restore}
+        >
+          개선안 상세 보기
+        </button>
+      ) : (
+        <CanvasWorkspacePanel
+          ariaLabel="개선안 상세"
+          animate
+          className={`candidate-detail-panel-container ${detailPanel.isCollapsing ? 'is-collapsing' : ''}`}
+        >
+          {selectedCandidate ? (
+            <CandidateDetailPanel
+              candidate={selectedCandidate}
+              onPrepareSimulation={() => void prepareSimulation(selectedCandidate.candidateId)}
+              preparing={preparingCandidateIds.has(selectedCandidate.candidateId)}
+              onContinueComparing={focusComparison}
+              previewAvailable={preview.drawing !== null}
+              onReject={() => void rejectCandidate(selectedCandidate.candidateId)}
+              rejecting={starting}
+              onMinimize={detailPanel.minimize}
+            />
+          ) : (
+            <div className="search-insight-empty">
+              <div className="search-insight__header">
+                <h2>
+                  {search.status === 'NO_IMPROVEMENT'
+                    ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
+                    : '검증 중인 배치'}
+                </h2>
+                <p>
+                  {search.status === 'NO_IMPROVEMENT'
+                    ? '구조물 제약을 조정한 뒤 다시 탐색하면 다른 배치안을 찾을 수 있습니다.'
+                    : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
+                </p>
+              </div>
+            </div>
+          )}
+        </CanvasWorkspacePanel>
+      )}
+
+      {/* 하단 플로팅 진행/제어 바 */}
+      <SearchProgressHeader
+        search={search}
+        onCancel={() => void cancel()}
+        cancelling={cancelling}
+        onRerun={resetToSetup}
+        rerunning={false}
+      />
+    </CanvasWorkspace>
   );
 }

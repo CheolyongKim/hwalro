@@ -2,22 +2,22 @@ import type { LayoutSearch } from '../api/layoutSearchApi';
 import { isActiveSearchStatus } from '../hooks/useLayoutSearch';
 import { formatDuration, formatNumber, SEARCH_STATUS_LABELS } from '../utils/searchLabels';
 
-const PHASE_MESSAGES: Record<LayoutSearch['status'], string> = {
+export const PHASE_MESSAGES: Record<LayoutSearch['status'], string> = {
   PENDING: '탐색 작업을 준비하고 있습니다',
   DIAGNOSING: '시뮬레이션 결과를 진단하고 있습니다',
   GENERATING: '검증할 배치 후보를 생성하고 있습니다',
   VERIFYING: '실제 엔진으로 후보를 검증하고 있습니다',
-  COMPLETED: '배치 개선안 탐색',
-  NO_IMPROVEMENT: '배치 개선안 탐색',
-  FAILED: '배치 개선안 탐색',
-  CANCELLED: '배치 개선안 탐색',
+  COMPLETED: '배치 개선안 탐색 완료',
+  NO_IMPROVEMENT: '개선안 탐색 종료',
+  FAILED: '배치 개선안 탐색 실패',
+  CANCELLED: '배치 개선안 탐색 취소됨',
 };
 
 interface Props {
   search: LayoutSearch;
   onCancel: () => void;
   cancelling: boolean;
-  onBackToResult: () => void;
+  onBackToResult?: () => void;
   onRerun: () => void;
   rerunning: boolean;
 }
@@ -33,37 +33,46 @@ export function SearchProgressHeader({
   const { progress } = search;
   const active = isActiveSearchStatus(search.status);
   return (
-    <header className="search-progress">
-      <div className="search-progress__status">
-        <button type="button" className="search-back-button" onClick={onBackToResult}>
-          ← 결과 화면
-        </button>
-        <span className={`search-status-badge is-${search.status.toLowerCase()}`}>
+    <aside className="search-progress-floating-bar" aria-label="탐색 진행 상태">
+      <div className="search-progress-floating__info">
+        {onBackToResult && (
+          <button
+            type="button"
+            className="search-progress-floating__btn search-back-button"
+            onClick={onBackToResult}
+          >
+            ← 결과 화면
+          </button>
+        )}
+        <span
+          className={`search-progress-floating__status search-status-badge is-${search.status.toLowerCase()}`}
+        >
           {SEARCH_STATUS_LABELS[search.status]}
         </span>
-        <strong>{PHASE_MESSAGES[search.status]}</strong>
-        {active && progress.round > 0 && (
-          <small>{progress.round === 1 ? '1차 개선' : `${progress.round}차 개선`}</small>
-        )}
-      </div>
-      <div className="search-progress__meta">
-        {active && progress.plannedCount === null ? (
-          <span>진행 {formatNumber(progress.verifiedCount)}건 검증 · 전체 후보 계산 중</span>
-        ) : active && progress.plannedCount !== 0 ? (
-          // 확인하지 않는 탐색은 시행 예산이 0이다. 그대로 두면 "진행 0/0 검증"이 떠 있는다.
-          <span>
-            진행 {formatNumber(progress.verifiedCount)}/{formatNumber(progress.plannedCount ?? 0)}
-          </span>
-        ) : null}
-        {active &&
-          progress.estimatedRemainingSeconds !== null &&
-          progress.estimatedRemainingSeconds > 0 && (
-            <span>남은 시간 {formatDuration(progress.estimatedRemainingSeconds)}</span>
+        <span className="search-progress-floating__meta">
+          {search.failureMessage ? (
+            <span className="search-progress-floating__failure-text">{search.failureMessage}</span>
+          ) : active && progress.plannedCount === null ? (
+            <span>진행 {formatNumber(progress.verifiedCount)}건 검증 · 전체 후보 계산 중</span>
+          ) : active && progress.plannedCount !== 0 ? (
+            <span>
+              진행 {formatNumber(progress.verifiedCount)}/{formatNumber(progress.plannedCount ?? 0)}
+            </span>
+          ) : (
+            <span>{PHASE_MESSAGES[search.status]}</span>
           )}
+          {active &&
+            progress.estimatedRemainingSeconds !== null &&
+            progress.estimatedRemainingSeconds > 0 && (
+              <span> · 남은 시간 {formatDuration(progress.estimatedRemainingSeconds)}</span>
+            )}
+        </span>
+      </div>
+      <div className="search-progress-floating__actions">
         {active && (
           <button
             type="button"
-            className="search-cancel-button"
+            className="search-progress-floating__btn search-progress-floating__btn--cancel search-cancel-button"
             disabled={cancelling}
             onClick={onCancel}
           >
@@ -73,7 +82,7 @@ export function SearchProgressHeader({
         {!active && (
           <button
             type="button"
-            className="search-rerun-button"
+            className="search-progress-floating__btn search-rerun-button"
             disabled={rerunning}
             onClick={onRerun}
           >
@@ -81,16 +90,6 @@ export function SearchProgressHeader({
           </button>
         )}
       </div>
-      {active && (
-        <p className="search-progress__note" role="status">
-          취소해도 그때까지 검증된 후보는 결과로 남습니다.
-        </p>
-      )}
-      {search.failureMessage && (
-        <p className="search-progress__failure" role="alert">
-          {search.failureMessage}
-        </p>
-      )}
-    </header>
+    </aside>
   );
 }
