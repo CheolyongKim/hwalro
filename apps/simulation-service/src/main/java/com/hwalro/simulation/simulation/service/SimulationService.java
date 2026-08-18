@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class SimulationService {
@@ -100,13 +101,20 @@ public class SimulationService {
     }
 
     public SimulationOverviewPageResponse listOverview(int page, int size, JwtUser user) {
+        return listOverview(page, size, null, user);
+    }
+
+    public SimulationOverviewPageResponse listOverview(int page, int size, String query, JwtUser user) {
         if (page < 1 || page > MAX_PAGE || size < 1 || size > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException("page는 1 이상, size는 1~100이어야 합니다.");
         }
+        String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
         Long createdBy = canSeeAll(user.roles()) ? null : user.userId();
-        long totalCount = simulationMapper.countSimulationOverview(createdBy);
+        long totalCount = simulationMapper.countSimulationOverview(createdBy, normalizedQuery);
         List<SimulationOverviewResponse> items =
-                simulationMapper.findSimulationOverviewPage((page - 1) * size, size, createdBy).stream()
+                simulationMapper
+                        .findSimulationOverviewPage((page - 1) * size, size, createdBy, normalizedQuery)
+                        .stream()
                         .map(SimulationService::toOverviewResponse)
                         .toList();
         return new SimulationOverviewPageResponse(

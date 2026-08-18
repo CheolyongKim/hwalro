@@ -17,6 +17,7 @@ import {
   ConfirmDialog,
   EmptyState,
   ErrorState,
+  Input,
   PageHeader,
   Pagination,
 } from '../../../components/ui';
@@ -45,6 +46,7 @@ function SimulationListPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<SimulationOverview | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -57,8 +59,8 @@ function SimulationListPage() {
   const detailRequestSequenceRef = useRef(0);
   const statusDialogSimulationId = readStatusDialogSimulationId(location.state);
   const query = useQuery({
-    queryKey: ['simulations', 'overview', page],
-    queryFn: () => simulationApi.listOverview(page, PAGE_SIZE),
+    queryKey: ['simulations', 'overview', page, searchQuery],
+    queryFn: () => simulationApi.listOverview(page, PAGE_SIZE, searchQuery),
   });
   const items = query.data?.items ?? [];
   const totalPages = Math.max(1, Math.ceil((query.data?.totalCount ?? 0) / PAGE_SIZE));
@@ -214,6 +216,25 @@ function SimulationListPage() {
           />
         </div>
 
+        <Card className="mt-5" aria-label="시뮬레이션 검색">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <label htmlFor="simulation-search" className="sr-only">
+              도면 제목 검색
+            </label>
+            <Input
+              id="simulation-search"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setPage(1);
+              }}
+              placeholder="도면 제목 검색"
+              className="min-w-0 flex-1"
+            />
+          </div>
+        </Card>
+
         <Card className="mt-5 overflow-hidden" padded={false} aria-label="시뮬레이션 목록">
           {query.isPending ? (
             <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
@@ -228,19 +249,27 @@ function SimulationListPage() {
               />
             </div>
           ) : items.length === 0 ? (
-            <EmptyState
-              icon={LayoutGrid}
-              title="생성된 시뮬레이션이 없습니다."
-              description="도면 목록에서 배치를 작성한 뒤 시뮬레이션을 시작할 수 있습니다."
-              action={
-                <Link
-                  to="/drawings"
-                  className={buttonClassName({ variant: 'primary', size: 'md' })}
-                >
-                  도면 목록으로 이동
-                </Link>
-              }
-            />
+            searchQuery.trim() ? (
+              <EmptyState
+                icon={LayoutGrid}
+                title="검색 결과가 없습니다."
+                description="다른 검색어로 시뮬레이션을 검색해 보세요."
+              />
+            ) : (
+              <EmptyState
+                icon={LayoutGrid}
+                title="생성된 시뮬레이션이 없습니다."
+                description="도면 목록에서 배치를 작성한 뒤 시뮬레이션을 시작할 수 있습니다."
+                action={
+                  <Link
+                    to="/drawings"
+                    className={buttonClassName({ variant: 'primary', size: 'md' })}
+                  >
+                    도면 목록으로 이동
+                  </Link>
+                }
+              />
+            )
           ) : (
             <>
               <div className="overflow-x-auto">

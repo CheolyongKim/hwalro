@@ -58,8 +58,9 @@ public class SimulationController {
     public SimulationOverviewPageResponse overview(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String query,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return simulationService.listOverview(page, size, user);
+        return simulationService.listOverview(page, size, query, user);
     }
 
     @GetMapping("/monitor")

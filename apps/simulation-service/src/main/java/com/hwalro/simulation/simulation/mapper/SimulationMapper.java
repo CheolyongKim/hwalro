@@ -27,13 +27,16 @@ public interface SimulationMapper {
             @Param("layoutVersionId") Long layoutVersionId, @Param("createdBy") Long createdBy);
 
     List<Simulation> findSimulationOverviewPage(
-            @Param("offset") int offset, @Param("size") int size, @Param("createdBy") Long createdBy);
+            @Param("offset") int offset,
+            @Param("size") int size,
+            @Param("createdBy") Long createdBy,
+            @Param("query") String query);
 
     List<Simulation> findSimulationMonitor(@Param("createdBy") Long createdBy);
 
     Simulation findSimulationOverviewById(@Param("id") Long id);
 
-    long countSimulationOverview(@Param("createdBy") Long createdBy);
+    long countSimulationOverview(@Param("createdBy") Long createdBy, @Param("query") String query);
 
     long countInProgress(@Param("createdBy") Long createdBy);
 

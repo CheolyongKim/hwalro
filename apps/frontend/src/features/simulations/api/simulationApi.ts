@@ -17,9 +17,11 @@ export const simulationApi = {
       .get<SimulationOverview[]>('/api/simulations/monitor')
       .then((response) => response.data),
 
-  listOverview: (page: number, size: number) =>
+  listOverview: (page: number, size: number, query?: string) =>
     apiClient
-      .get<SimulationOverviewPage>('/api/simulations/overview', { params: { page, size } })
+      .get<SimulationOverviewPage>('/api/simulations/overview', {
+        params: { page, size, query: query?.trim() || undefined },
+      })
       .then((response) => response.data),
 
   getOverview: (simulationId: number) =>
