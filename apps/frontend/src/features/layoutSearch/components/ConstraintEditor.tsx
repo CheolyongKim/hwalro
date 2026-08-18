@@ -211,7 +211,8 @@ export function ConstraintEditor({
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
 
-    const tolerance = Math.max(0.2, 8 / (camera.zoom * PX_PER_METER));
+    const tolerance = Math.max(0.2, 8 / ((camera.zoom || 1) * PX_PER_METER));
+
 
     if (tool === 'zone') {
       const existing = hitZoneIndex(constraints.forbiddenZones, point);
