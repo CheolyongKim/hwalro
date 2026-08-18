@@ -278,7 +278,7 @@ function SimulationListPage() {
                           {resultLabel(simulation)}
                         </td>
                         <td className="px-4 py-4 text-sm tabular-nums text-text-muted">
-                          {formatDateTime(simulation.createdAt)}
+                          {formatDateTime(simulation.startedAt ?? simulation.createdAt)}
                         </td>
                         <td className="px-4 py-4">
                           {(simulation.status === 'REQUESTED' ||
