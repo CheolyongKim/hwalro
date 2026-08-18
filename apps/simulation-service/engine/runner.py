@@ -51,6 +51,16 @@ RECOVERY_INVALID_QUIET_ITERATIONS = 500
 RECOVERY_GROUP_SIZE = 3
 RECOVERY_TARGET_ROUNDING_DIGITS = 6
 SFM_REACTION_TIME_SECONDS = 0.5
+SFM_AGENT_SCALE_NEWTONS = 2000.0
+SFM_FORCE_DISTANCE_METERS = 0.08
+SFM_BODY_FORCE = 120000.0
+SFM_FRICTION = 240000.0
+MAX_AGENT_SPEED_METERS_PER_SECOND = 10.0
+SFM_AGENT_SCALE_ENVIRONMENT_VARIABLE = "HWALRO_SFM_AGENT_SCALE"
+SFM_FORCE_DISTANCE_ENVIRONMENT_VARIABLE = "HWALRO_SFM_FORCE_DISTANCE"
+SFM_BODY_FORCE_ENVIRONMENT_VARIABLE = "HWALRO_SFM_BODY_FORCE"
+SFM_FRICTION_ENVIRONMENT_VARIABLE = "HWALRO_SFM_FRICTION"
+MAX_AGENT_SPEED_ENVIRONMENT_VARIABLE = "HWALRO_MAX_AGENT_SPEED_MPS"
 RELOCATION_LOG_LIMIT = 20
 
 
@@ -145,6 +155,7 @@ class SimulationContext:
     waiting: Any = field(init=False, repr=False)
     waiting_count: int = field(init=False)
     walking_speed: float = field(init=False)
+    max_agent_speed: float = field(init=False)
 
     def __post_init__(self) -> None:
         np = self.numpy
@@ -205,6 +216,7 @@ class SimulationContext:
         self.waiting = np.zeros(count, dtype=bool)
         self.waiting_count = 0
         self.walking_speed = 0.0
+        self.max_agent_speed = float("inf")
 
 
 class TimelineWriter:
@@ -353,6 +365,19 @@ def _phase_profile_from_environment() -> PhaseProfile | None:
     return PhaseProfile(Path(value).expanduser().resolve()) if value else None
 
 
+def _positive_float_from_environment(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise RunnerError(f"environment variable {name} must be a number") from exc
+    if parsed <= 0.0:
+        raise RunnerError(f"environment variable {name} must be positive")
+    return parsed
+
+
 def _load_dependencies():
     if sys.version_info < (3, 12):
         raise RunnerError("Python 3.12 or newer is required")
@@ -441,6 +466,21 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         or initial_response_time_std_dev > MAX_INITIAL_RESPONSE_TIME_SECONDS
     ):
         raise RunnerError("initial response time parameters must not exceed 600 seconds")
+    sfm_agent_scale = _positive_float_from_environment(
+        SFM_AGENT_SCALE_ENVIRONMENT_VARIABLE, SFM_AGENT_SCALE_NEWTONS
+    )
+    sfm_force_distance = _positive_float_from_environment(
+        SFM_FORCE_DISTANCE_ENVIRONMENT_VARIABLE, SFM_FORCE_DISTANCE_METERS
+    )
+    sfm_body_force = _positive_float_from_environment(
+        SFM_BODY_FORCE_ENVIRONMENT_VARIABLE, SFM_BODY_FORCE
+    )
+    sfm_friction = _positive_float_from_environment(
+        SFM_FRICTION_ENVIRONMENT_VARIABLE, SFM_FRICTION
+    )
+    max_agent_speed = _positive_float_from_environment(
+        MAX_AGENT_SPEED_ENVIRONMENT_VARIABLE, MAX_AGENT_SPEED_METERS_PER_SECOND
+    )
     random_seed = _integer_number(payload.get("randomSeed", 0), "randomSeed")
     max_time = _positive_number(
         payload.get("maxSimulationTimeSeconds"), "maxSimulationTimeSeconds"
@@ -610,6 +650,11 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 [routes_by_index[index] for index, _position in indexed_agents],
                 walking_speed,
                 [initial_response_times[index] for index, _position in indexed_agents],
+                sfm_agent_scale,
+                sfm_force_distance,
+                sfm_body_force,
+                sfm_friction,
+                max_agent_speed,
                 phase_profile,
                 len(contexts),
             )
@@ -817,6 +862,8 @@ def _add_agent_with_spacing(
     target,
     walking_speed: float,
     reaction_time: float,
+    agent_scale: float,
+    force_distance: float,
 ) -> int:
     min_spacing = AGENT_RADIUS_METERS * 2.0
     candidates = [position]
@@ -843,6 +890,8 @@ def _add_agent_with_spacing(
                     stage_id=stage_id,
                     desired_speed=walking_speed,
                     reaction_time=reaction_time,
+                    agent_scale=agent_scale,
+                    force_distance=force_distance,
                     radius=AGENT_RADIUS_METERS,
                 )
             )
@@ -864,11 +913,18 @@ def _create_context(
     routes,
     walking_speed: float,
     initial_response_times,
+    sfm_agent_scale: float,
+    sfm_force_distance: float,
+    sfm_body_force: float,
+    sfm_friction: float,
+    max_agent_speed: float,
     phase_profile: PhaseProfile | None = None,
     context_index: int = 0,
 ) -> SimulationContext:
     simulation = jps.Simulation(
-        model=jps.SocialForceModel(), geometry=physical_component, dt=DT_SECONDS
+        model=jps.SocialForceModel(body_force=sfm_body_force, friction=sfm_friction),
+        geometry=physical_component,
+        dt=DT_SECONDS,
     )
     stage_id = simulation.add_direct_steering_stage()
     journey_id = simulation.add_journey(jps.JourneyDescription([stage_id]))
@@ -895,6 +951,8 @@ def _create_context(
                 target,
                 walking_speed if start_iteration == 1 else 0.0,
                 SFM_REACTION_TIME_SECONDS,
+                sfm_agent_scale,
+                sfm_force_distance,
             )
         except RunnerError as exc:
             raise RunnerError(f"could not add agent {index}: {exc}") from exc
@@ -924,6 +982,7 @@ def _create_context(
     context.waiting = context.start_iterations > 1
     context.waiting_count = int(np.count_nonzero(context.waiting))
     context.walking_speed = walking_speed
+    context.max_agent_speed = max_agent_speed
     return context
 
 
@@ -994,6 +1053,7 @@ def _advance_context(context: SimulationContext, iteration: int) -> list[int]:
         profile.add("agentStateCapture", capture_started)
         movement_started = time.perf_counter_ns()
     crossed = _detect_exit_crossings(context, previous, current)
+    _clamp_overspeed_moves(context, previous, agents, current, crossed)
     _rollback_invalid_moves(context, previous, agents, current, crossed, iteration)
     if profile is not None:
         profile.add("moveValidation", movement_started)
@@ -1019,6 +1079,33 @@ def _detect_exit_crossings(context: SimulationContext, previous, current):
             context.exit_ends[final_slots],
         )
     return crossed
+
+
+def _clamp_overspeed_moves(
+    context: SimulationContext, previous, agents, current, crossed
+) -> None:
+    np = context.numpy
+    max_step = context.max_agent_speed * DT_SECONDS
+    slots = np.flatnonzero(context.active & ~crossed)
+    if not slots.size:
+        return
+    delta = current[slots] - previous[slots]
+    step = np.hypot(delta[:, 0], delta[:, 1])
+    overspeed = step > max_step
+    overspeed_slots = slots[overspeed]
+    if not overspeed_slots.size:
+        return
+    overspeed_delta = delta[overspeed]
+    scale = max_step / step[overspeed]
+    corrected = previous[overspeed_slots] + overspeed_delta * scale[:, None]
+    current[overspeed_slots] = corrected
+    for offset, slot in enumerate(overspeed_slots.tolist()):
+        agent = agents[int(context.agent_ids[slot])]
+        agent.position = (float(corrected[offset, 0]), float(corrected[offset, 1]))
+        agent.model.velocity = (
+            float(overspeed_delta[offset, 0] * scale[offset] / DT_SECONDS),
+            float(overspeed_delta[offset, 1] * scale[offset] / DT_SECONDS),
+        )
 
 
 def _rollback_invalid_moves(

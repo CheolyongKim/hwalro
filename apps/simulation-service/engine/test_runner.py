@@ -1,8 +1,10 @@
 from contextlib import redirect_stderr
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -10,6 +12,8 @@ import numpy as np
 from shapely.geometry import LineString, box
 
 from runner import (
+    AGENT_RADIUS_METERS,
+    DT_SECONDS,
     WAYPOINT_REACHED_DISTANCE_METERS,
     AgentRouteState,
     HeatmapWriter,
@@ -19,9 +23,13 @@ from runner import (
     SimulationContext,
     TimelineWriter,
     _activate_due_agents,
+    _add_agent_with_spacing,
     _advance_context,
     _build_recovery_summary,
+    _clamp_overspeed_moves,
+    _create_context,
     _initialize_targets,
+    _positive_float_from_environment,
     _rollback_invalid_moves,
     _sample_initial_response_times,
     _snapshot,
@@ -532,6 +540,191 @@ class ProgressTrackerTest(unittest.TestCase):
 
         self.assertEqual(context.last_progress_iterations.tolist(), [50, 0])
         np.testing.assert_array_equal(context.progress_anchors[1], [0.0, 0.0])
+
+
+class OverspeedClampTest(unittest.TestCase):
+    @staticmethod
+    def _agent():
+        class Model:
+            velocity = (0.0, 0.0)
+
+        class Agent:
+            def __init__(self):
+                self.position = (0.0, 0.0)
+                self.model = Model()
+
+        return Agent()
+
+    @staticmethod
+    def _context(count, max_agent_speed):
+        context = type("ClampContext", (), {})()
+        context.numpy = np
+        context.max_agent_speed = max_agent_speed
+        context.active = np.ones(count, dtype=bool)
+        context.agent_ids = np.arange(count, dtype=np.int64)
+        return context
+
+    def test_overspeed_move_is_scaled_to_max_step(self):
+        agent = self._agent()
+        context = self._context(1, max_agent_speed=10.0)
+        previous = np.asarray([[0.0, 0.0]])
+        current = np.asarray([[1.0, 0.0]])
+        crossed = np.asarray([False])
+        max_step = 10.0 * DT_SECONDS
+
+        _clamp_overspeed_moves(context, previous, {0: agent}, current, crossed)
+
+        self.assertAlmostEqual(float(current[0, 0]), max_step, places=9)
+        self.assertAlmostEqual(float(current[0, 1]), 0.0, places=9)
+        self.assertAlmostEqual(agent.position[0], max_step, places=9)
+        self.assertAlmostEqual(agent.model.velocity[0], 10.0, places=9)
+        self.assertAlmostEqual(agent.model.velocity[1], 0.0, places=9)
+
+    def test_within_limit_move_is_untouched(self):
+        agent = self._agent()
+        context = self._context(1, max_agent_speed=10.0)
+        previous = np.asarray([[0.0, 0.0]])
+        current = np.asarray([[0.05, 0.0]])
+        crossed = np.asarray([False])
+
+        _clamp_overspeed_moves(context, previous, {0: agent}, current, crossed)
+
+        self.assertAlmostEqual(float(current[0, 0]), 0.05, places=9)
+        self.assertEqual(agent.position, (0.0, 0.0))
+
+    def test_crossed_agents_are_excluded(self):
+        agent = self._agent()
+        context = self._context(1, max_agent_speed=10.0)
+        previous = np.asarray([[0.0, 0.0]])
+        current = np.asarray([[1.0, 0.0]])
+        crossed = np.asarray([True])
+
+        _clamp_overspeed_moves(context, previous, {0: agent}, current, crossed)
+
+        self.assertAlmostEqual(float(current[0, 0]), 1.0, places=9)
+        self.assertEqual(agent.position, (0.0, 0.0))
+
+    def test_inactive_agents_are_excluded(self):
+        agent = self._agent()
+        context = self._context(1, max_agent_speed=10.0)
+        context.active[0] = False
+        previous = np.asarray([[0.0, 0.0]])
+        current = np.asarray([[1.0, 0.0]])
+        crossed = np.asarray([False])
+
+        _clamp_overspeed_moves(context, previous, {0: agent}, current, crossed)
+
+        self.assertAlmostEqual(float(current[0, 0]), 1.0, places=9)
+        self.assertEqual(agent.position, (0.0, 0.0))
+
+
+class SfmParameterForwardingTest(unittest.TestCase):
+    class FakeJps:
+        def __init__(self):
+            self.sfm_kwargs = None
+            self.agent_params = []
+
+        def SocialForceModel(self, **kwargs):
+            self.sfm_kwargs = kwargs
+            return object()
+
+        def SocialForceModelAgentParameters(self, **kwargs):
+            self.agent_params.append(kwargs)
+            return object()
+
+        def JourneyDescription(self, _stages):
+            return object()
+
+        def Simulation(self, **kwargs):
+            return SfmParameterForwardingTest.FakeSimulation()
+
+    class FakeSimulation:
+        def add_direct_steering_stage(self):
+            return 0
+
+        def add_journey(self, _description):
+            return 0
+
+    def test_add_agent_with_spacing_forwards_softened_parameters(self):
+        jps = self.FakeJps()
+        simulation = SimpleNamespace(add_agent=lambda _params: 42)
+        physical_component = SimpleNamespace(covers=lambda _point: True)
+        shapely = SimpleNamespace(Point=lambda candidate: candidate)
+
+        agent_id = _add_agent_with_spacing(
+            simulation,
+            jps,
+            np,
+            shapely,
+            physical_component,
+            [],
+            0,
+            0,
+            (0.0, 0.0),
+            (1.0, 0.0),
+            3.0,
+            0.5,
+            agent_scale=1000.0,
+            force_distance=0.2,
+        )
+
+        self.assertEqual(agent_id, 42)
+        (params,) = jps.agent_params
+        self.assertEqual(params["agent_scale"], 1000.0)
+        self.assertEqual(params["force_distance"], 0.2)
+        self.assertEqual(params["radius"], AGENT_RADIUS_METERS)
+
+    def test_create_context_forwards_body_force_friction_and_max_speed(self):
+        jps = self.FakeJps()
+        route = SimpleNamespace(
+            exit_id=501,
+            waypoints=((0.0, 0.0), (1.0, 0.0)),
+            terminal_point=(1.0, 0.0),
+            exit_start=(1.0, -0.5),
+            exit_end=(1.0, 0.5),
+        )
+        indexed_agents = [(0, (0.0, 0.0))]
+        with patch("runner._add_agent_with_spacing", return_value=100) as add_spacing:
+            context = _create_context(
+                jps,
+                np,
+                None,
+                object(),
+                object(),
+                indexed_agents,
+                [route],
+                walking_speed=3.0,
+                initial_response_times=[0.0],
+                sfm_agent_scale=800.0,
+                sfm_force_distance=0.25,
+                sfm_body_force=50000.0,
+                sfm_friction=90000.0,
+                max_agent_speed=9.5,
+            )
+
+        self.assertEqual(jps.sfm_kwargs, {"body_force": 50000.0, "friction": 90000.0})
+        self.assertEqual(context.max_agent_speed, 9.5)
+        self.assertEqual(add_spacing.call_args.args[-2:], (800.0, 0.25))
+
+
+class PositiveFloatEnvironmentTest(unittest.TestCase):
+    def test_default_when_unset(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(_positive_float_from_environment("HWALRO_X", 7.5), 7.5)
+
+    def test_parses_numeric_value(self):
+        with patch.dict(os.environ, {"HWALRO_X": "3.25"}, clear=True):
+            self.assertEqual(_positive_float_from_environment("HWALRO_X", 7.5), 3.25)
+
+    def test_non_numeric_value_raises(self):
+        with patch.dict(os.environ, {"HWALRO_X": "abc"}, clear=True):
+            with self.assertRaises(RunnerError):
+                _positive_float_from_environment("HWALRO_X", 7.5)
+
+    def test_non_positive_value_raises(self):
+        with patch.dict(os.environ, {"HWALRO_X": "0"}, clear=True):
+            with self.assertRaises(RunnerError):
+                _positive_float_from_environment("HWALRO_X", 7.5)
 
 
 class WaypointProgressTest(unittest.TestCase):
