@@ -147,14 +147,10 @@ function RiskManagementPage() {
                   selectedId={selectedItem?.id ?? null}
                   onSelect={handleSelect}
                   emptyTitle={
-                    debouncedQuery.trim()
-                      ? '검색 결과가 없습니다.'
-                      : '등록된 위험 항목이 없습니다.'
+                    debouncedQuery.trim() ? '검색 결과가 없습니다.' : '등록된 위험 항목이 없습니다.'
                   }
                   emptyDescription={
-                    debouncedQuery.trim()
-                      ? '다른 검색어로 위험 항목을 검색해 보세요.'
-                      : undefined
+                    debouncedQuery.trim() ? '다른 검색어로 위험 항목을 검색해 보세요.' : undefined
                   }
                 />
                 {items.length > 0 && (
