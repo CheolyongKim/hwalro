@@ -16,7 +16,6 @@ import { CANVAS_COLORS } from '../../layout/utils/colors';
 import type { SimulationDrawing, SimulationPoint, SimulationRect } from '../../simulations/types';
 import type { ForbiddenZone, SearchConstraints } from '../api/layoutSearchApi';
 
-
 export type ConstraintEditorTool = 'select' | 'zone';
 
 const MIN_ZONE_SIZE_METERS = 0.2;
