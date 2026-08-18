@@ -247,7 +247,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
               variant="secondary"
               size="sm"
               className="cursor-pointer"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/simulations')}
             >
               뒤로
             </Button>
@@ -276,7 +276,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         onViewportPan={handleViewportPan}
       />
 
-      <CanvasWorkspaceBackButton onClick={() => navigate(-1)} />
+      <CanvasWorkspaceBackButton onClick={() => navigate('/simulations')} />
       <CanvasWorkspaceHeader
         title={result.title}
         subtitle={result.subtitle}
@@ -466,7 +466,7 @@ export default function SimulationResultPage() {
               variant="secondary"
               size="sm"
               className="cursor-pointer"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/simulations')}
             >
               뒤로
             </Button>
