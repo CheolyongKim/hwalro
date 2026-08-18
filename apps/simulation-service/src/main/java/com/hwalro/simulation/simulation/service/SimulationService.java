@@ -1,6 +1,5 @@
 package com.hwalro.simulation.simulation.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
@@ -584,14 +583,7 @@ public class SimulationService {
     }
 
     private String writeAgentPositions(List<PointDto> positions) {
-        try {
-            List<List<BigDecimal>> compact = positions.stream()
-                    .map(point -> List.of(point.x(), point.y()))
-                    .toList();
-            return objectMapper.writeValueAsString(compact);
-        } catch (IOException exception) {
-            throw new IllegalStateException("에이전트 좌표를 저장 형식으로 변환하지 못했습니다.", exception);
-        }
+        return AgentPositions.write(objectMapper, positions);
     }
 
     private List<PointDto> readAgentPositions(Long simulationId) {
@@ -599,19 +591,7 @@ public class SimulationService {
         if (json == null) {
             throw new IllegalStateException("시뮬레이션 초기 좌표가 없습니다: " + simulationId);
         }
-        try {
-            List<List<BigDecimal>> compact = objectMapper.readValue(json, new TypeReference<>() {});
-            return compact.stream()
-                    .map(position -> {
-                        if (position == null || position.size() != 2) {
-                            throw new IllegalStateException("저장된 에이전트 좌표 형식이 올바르지 않습니다.");
-                        }
-                        return new PointDto(position.get(0), position.get(1));
-                    })
-                    .toList();
-        } catch (IOException exception) {
-            throw new IllegalStateException("저장된 에이전트 좌표를 읽지 못했습니다.", exception);
-        }
+        return AgentPositions.read(objectMapper, json);
     }
 
     private static HazardZone toHazardZone(Long simulationId, HazardZoneDto dto) {
