@@ -74,7 +74,8 @@ function hitFabric(
     const fabric = fabrics[i];
     const centerX = (fabric.startX + fabric.endX) / 2;
     const centerY = (fabric.startY + fabric.endY) / 2;
-    const rotation = typeof fabric.rotation === 'number' ? fabric.rotation : 0;
+    const rotation = fabric.rotation ?? 0;
+
     const local = rotatePoint(point, { x: centerX, y: centerY }, -rotation);
     const minX = Math.min(fabric.startX, fabric.endX) - tolerance;
     const maxX = Math.max(fabric.startX, fabric.endX) + tolerance;

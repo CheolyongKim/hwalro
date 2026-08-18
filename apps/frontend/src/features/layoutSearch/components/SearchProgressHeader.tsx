@@ -68,11 +68,6 @@ export function SearchProgressHeader({
             )}
         </span>
       </div>
-      {search.failureMessage && (
-        <p className="search-progress__failure" role="alert">
-          {search.failureMessage}
-        </p>
-      )}
       <div className="search-progress-floating__actions">
         {active && (
           <button

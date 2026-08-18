@@ -401,22 +401,6 @@
   font-weight: 700;
 }
 
-.search-progress__failure {
-  position: absolute;
-  top: -36px;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  border-radius: 999px;
-  background: rgba(230, 102, 78, 0.92);
-  padding: 4px 14px;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  box-shadow: var(--shadow-floating);
-  backdrop-filter: blur(10px);
-}
 
 .search-progress-floating__actions {
   display: flex;
