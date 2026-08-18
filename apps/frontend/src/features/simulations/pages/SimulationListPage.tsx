@@ -21,6 +21,7 @@ import {
   PageHeader,
   Pagination,
 } from '../../../components/ui';
+import { useDebounce } from '../../../hooks/useDebounce';
 
 const PAGE_SIZE = 5;
 
@@ -47,6 +48,7 @@ function SimulationListPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<SimulationOverview | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -62,8 +64,8 @@ function SimulationListPage() {
   const detailRequestSequenceRef = useRef(0);
   const statusDialogSimulationId = readStatusDialogSimulationId(location.state);
   const query = useQuery({
-    queryKey: ['simulations', 'overview', page, searchQuery],
-    queryFn: () => simulationApi.listOverview(page, PAGE_SIZE, searchQuery),
+    queryKey: ['simulations', 'overview', page, debouncedSearchQuery],
+    queryFn: () => simulationApi.listOverview(page, PAGE_SIZE, debouncedSearchQuery),
   });
   const items = query.data?.items ?? [];
   const totalPages = Math.max(1, Math.ceil((query.data?.totalCount ?? 0) / PAGE_SIZE));
@@ -271,7 +273,7 @@ function SimulationListPage() {
               />
             </div>
           ) : items.length === 0 ? (
-            searchQuery.trim() ? (
+            debouncedSearchQuery.trim() ? (
               <EmptyState
                 icon={LayoutGrid}
                 title="검색 결과가 없습니다."

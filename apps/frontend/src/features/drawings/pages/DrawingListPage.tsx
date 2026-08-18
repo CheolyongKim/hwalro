@@ -14,6 +14,7 @@ import {
   PageHeader,
   Pagination,
 } from '../../../components/ui';
+import { useDebounce } from '../../../hooks/useDebounce';
 import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
 import type { DrawingSummary } from '../types/drawing';
 
@@ -23,9 +24,14 @@ function DrawingListPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 300);
   const [drawingToDelete, setDrawingToDelete] = useState<DrawingSummary | null>(null);
   const [drawingToBlock, setDrawingToBlock] = useState<DrawingSummary | null>(null);
-  const { items, totalCount, isPending, isError, error } = useDrawingList(page, PAGE_SIZE, query);
+  const { items, totalCount, isPending, isError, error } = useDrawingList(
+    page,
+    PAGE_SIZE,
+    debouncedQuery,
+  );
   const deleteDrawing = useDeleteDrawing();
   const duplicateDrawing = useDuplicateDrawing();
 
@@ -138,7 +144,7 @@ function DrawingListPage() {
               title="페이지에 표시할 도면이 없습니다."
               description="다른 페이지로 이동해 도면을 확인해 보세요."
             />
-          ) : query.trim() ? (
+          ) : debouncedQuery.trim() ? (
             <EmptyState
               icon={FileText}
               title="검색 결과가 없습니다."

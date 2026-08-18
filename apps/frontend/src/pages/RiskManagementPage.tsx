@@ -11,6 +11,7 @@ import {
   Pagination,
   Skeleton,
 } from '../components/ui';
+import { useDebounce } from '../hooks/useDebounce';
 import { useRiskDetail, useRiskList } from '../features/risks/hooks/useRiskList';
 import { getRiskErrorMessage } from '../features/risks/utils/getRiskErrorMessage';
 import RiskCreateDialog from './riskManagement/RiskCreateDialog';
@@ -29,9 +30,14 @@ function RiskManagementPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 300);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const { items, totalCount, isPending, isError, error } = useRiskList(page, PAGE_SIZE, query);
+  const { items, totalCount, isPending, isError, error } = useRiskList(
+    page,
+    PAGE_SIZE,
+    debouncedQuery,
+  );
   const linkedRiskId = parseRiskId(searchParams.get('riskId'));
   const linkedRiskInCurrentPage = items.find((item) => item.id === linkedRiskId) ?? null;
   const linkedRiskQuery = useRiskDetail(linkedRiskId, linkedRiskInCurrentPage === null);
@@ -141,10 +147,14 @@ function RiskManagementPage() {
                   selectedId={selectedItem?.id ?? null}
                   onSelect={handleSelect}
                   emptyTitle={
-                    query.trim() ? '검색 결과가 없습니다.' : '등록된 위험 항목이 없습니다.'
+                    debouncedQuery.trim()
+                      ? '검색 결과가 없습니다.'
+                      : '등록된 위험 항목이 없습니다.'
                   }
                   emptyDescription={
-                    query.trim() ? '다른 검색어로 위험 항목을 검색해 보세요.' : undefined
+                    debouncedQuery.trim()
+                      ? '다른 검색어로 위험 항목을 검색해 보세요.'
+                      : undefined
                   }
                 />
                 {items.length > 0 && (
