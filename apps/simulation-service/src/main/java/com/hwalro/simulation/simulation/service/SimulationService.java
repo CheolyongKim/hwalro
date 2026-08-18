@@ -53,6 +53,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class SimulationService {
@@ -79,16 +80,19 @@ public class SimulationService {
     private final DrawingMapper drawingMapper;
     private final ObjectMapper objectMapper;
     private final RegulationUsageClient regulationUsageClient;
+    private final TransactionTemplate transactionTemplate;
 
     public SimulationService(
             SimulationMapper simulationMapper,
             DrawingMapper drawingMapper,
             ObjectMapper objectMapper,
-            RegulationUsageClient regulationUsageClient) {
+            RegulationUsageClient regulationUsageClient,
+            TransactionTemplate transactionTemplate) {
         this.simulationMapper = simulationMapper;
         this.drawingMapper = drawingMapper;
         this.objectMapper = objectMapper;
         this.regulationUsageClient = regulationUsageClient;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public List<SimulationSummaryResponse> list(Long layoutVersionId, JwtUser user) {
@@ -147,21 +151,12 @@ public class SimulationService {
                 Math.toIntExact(simulationMapper.countCompletedThisWeek(user.userId(), weekStartUtc)));
     }
 
-    @Transactional
     public void delete(Long id, JwtUser user, String authorization) {
-        Simulation simulation = findSimulationForUpdate(id);
+        Simulation simulation = findSimulation(id);
         requireAccessible(simulation.getCreatedBy(), user);
 
         if ("REQUESTED".equals(simulation.getStatus()) || "RUNNING".equals(simulation.getStatus())) {
             throw new SimulationConflictException("진행 중인 시뮬레이션은 삭제할 수 없습니다.");
-        }
-
-        if (simulationMapper.countImprovementReferences(id) > 0) {
-            throw new SimulationConflictException("개선안에 연결된 시뮬레이션은 삭제할 수 없습니다.");
-        }
-
-        if (simulationMapper.countChildSimulations(id) > 0) {
-            throw new SimulationConflictException("파생된 시뮬레이션이 있어 삭제할 수 없습니다.");
         }
 
         SimulationResult result = simulationMapper.findSimulationResult(id);
@@ -176,8 +171,23 @@ public class SimulationService {
             }
         }
 
-        simulationMapper.deleteSimulation(id);
-        simulationMapper.unlockLayoutVersionIfNoSimulations(simulation.getLayoutVersionId());
+        transactionTemplate.executeWithoutResult(status -> {
+            Simulation lockedSimulation = findSimulationForUpdate(id);
+            if ("REQUESTED".equals(lockedSimulation.getStatus()) || "RUNNING".equals(lockedSimulation.getStatus())) {
+                throw new SimulationConflictException("진행 중인 시뮬레이션은 삭제할 수 없습니다.");
+            }
+
+            if (simulationMapper.countImprovementReferences(id) > 0) {
+                throw new SimulationConflictException("개선안에 연결된 시뮬레이션은 삭제할 수 없습니다.");
+            }
+
+            if (simulationMapper.countChildSimulations(id) > 0) {
+                throw new SimulationConflictException("파생된 시뮬레이션이 있어 삭제할 수 없습니다.");
+            }
+
+            simulationMapper.deleteSimulation(id);
+            simulationMapper.unlockLayoutVersionIfNoSimulations(lockedSimulation.getLayoutVersionId());
+        });
     }
 
     @Transactional

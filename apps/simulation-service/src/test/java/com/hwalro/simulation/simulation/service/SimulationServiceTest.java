@@ -36,6 +36,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class SimulationServiceTest {
@@ -53,7 +58,12 @@ class SimulationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SimulationService(simulationMapper, drawingMapper, new ObjectMapper(), regulationUsageClient);
+        service = new SimulationService(
+                simulationMapper,
+                drawingMapper,
+                new ObjectMapper(),
+                regulationUsageClient,
+                new TransactionTemplate(new NoOpTransactionManager()));
         user = new JwtUser(7L, Set.of("OPERATOR"));
     }
 
@@ -492,5 +502,18 @@ class SimulationServiceTest {
         wall.setEndX(BigDecimal.valueOf(endX));
         wall.setEndY(BigDecimal.valueOf(endY));
         return wall;
+    }
+
+    private static final class NoOpTransactionManager implements PlatformTransactionManager {
+        @Override
+        public TransactionStatus getTransaction(TransactionDefinition definition) {
+            return new SimpleTransactionStatus();
+        }
+
+        @Override
+        public void commit(TransactionStatus status) {}
+
+        @Override
+        public void rollback(TransactionStatus status) {}
     }
 }
