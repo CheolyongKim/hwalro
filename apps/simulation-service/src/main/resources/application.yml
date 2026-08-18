@@ -39,6 +39,7 @@ simulation:
     timeout: ${SIMULATION_ENGINE_TIMEOUT:60m}
     max-simulation-time: 400
     frame-interval: 1
+    shared-target-recovery-enabled: ${SIMULATION_ENGINE_SHARED_TARGET_RECOVERY_ENABLED:false}
 
 springdoc:
   swagger-ui:

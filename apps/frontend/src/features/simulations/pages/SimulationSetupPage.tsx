@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Info, Minus, MousePointer2, Plus, Redo2, Undo2, X } from 'lucide-react';
 import { SimulationCanvas } from '../components/SimulationCanvas';
@@ -49,6 +56,13 @@ const TOOL_LABELS: Array<{ value: SimulationTool; label: string }> = [
   { value: 'erase', label: '지우개' },
   { value: 'hazard', label: '위험구역' },
 ];
+
+function readNumberInput(event: ChangeEvent<HTMLInputElement>): number {
+  const input = event.currentTarget;
+  const normalized = input.value.replace(/^(-?)0+(?=\d)/, '$1');
+  if (normalized !== input.value) input.value = normalized;
+  return Number(normalized);
+}
 
 function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) {
   return (
@@ -101,7 +115,8 @@ function SimulationSetupPage() {
   const [highlightedExitId, setHighlightedExitId] = useState<number | null>(null);
   const [highlightedAgentId, setHighlightedAgentId] = useState<number | null>(null);
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
-  const [reactionTime, setReactionTime] = useState(0.5);
+  const [initialResponseTimeMean, setInitialResponseTimeMean] = useState(0);
+  const [initialResponseTimeStdDev, setInitialResponseTimeStdDev] = useState(0);
   const [tool, setTool] = useState<SimulationTool>('spray');
   const [sprayRadius, setSprayRadius] = useState(1);
   const [eraserRadius, setEraserRadius] = useState(1);
@@ -146,7 +161,8 @@ function SimulationSetupPage() {
       setSelectedExitIds(data.selectedExitIds);
       setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
-      setReactionTime(data.reactionTime);
+      setInitialResponseTimeMean(data.initialResponseTimeMean);
+      setInitialResponseTimeStdDev(data.initialResponseTimeStdDev);
       setSelectedHazardId(null);
       setAgentDeletionToast(null);
       pastRef.current = [];
@@ -360,8 +376,16 @@ function SimulationSetupPage() {
   };
 
   const validateOptions = (): string | null => {
-    if (reactionTime < 0.1 || reactionTime > 2) {
-      return '속도 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
+    if (
+      initialResponseTimeMean < 0 ||
+      initialResponseTimeMean > 600 ||
+      initialResponseTimeStdDev < 0 ||
+      initialResponseTimeStdDev > 600
+    ) {
+      return '초기 반응시간 평균과 표준편차는 0초 이상 600초 이하로 입력해 주세요.';
+    }
+    if (initialResponseTimeMean === 0 && initialResponseTimeStdDev > 0) {
+      return '평균 초기 반응시간이 0초이면 표준편차도 0초로 입력해 주세요.';
     }
     if (walkingSpeed <= 0 || walkingSpeed > 3) {
       return '희망 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.';
@@ -380,7 +404,8 @@ function SimulationSetupPage() {
     try {
       const saved = await simulationApi.updateSetup(setup.simulationId, {
         walkingSpeed,
-        reactionTime,
+        initialResponseTimeMean,
+        initialResponseTimeStdDev,
         agentPositions: agents,
         hazardZones: hazards.map(({ centerX, centerY, radius }) => ({ centerX, centerY, radius })),
         selectedExitIds,
@@ -659,7 +684,7 @@ function SimulationSetupPage() {
                   min={0}
                   max={MAX_AGENTS}
                   value={uniformCount}
-                  onChange={(event) => setUniformCount(Number(event.target.value))}
+                  onChange={(event) => setUniformCount(readNumberInput(event))}
                   disabled={!editable}
                   className="mt-2 tabular-nums"
                 />
@@ -705,38 +730,51 @@ function SimulationSetupPage() {
                   max={3}
                   step={0.05}
                   value={walkingSpeed}
-                  onChange={(event) => setWalkingSpeed(Number(event.target.value))}
+                  onChange={(event) => setWalkingSpeed(readNumberInput(event))}
                   disabled={!editable}
                   className="mt-2 tabular-nums"
                 />
               </div>
               <div className="text-xs font-bold text-text-muted">
                 <div className="flex items-center gap-1">
-                  <label htmlFor="reaction-time">속도 반응시간 (초)</label>
-                  <InfoTooltip id="reaction-time-help" label="속도 반응시간 안내" align="right">
-                    현재 속도가 희망속도와 방향에 적응하는 시간상수 τ입니다. 값이 작을수록 속도가 더
-                    빠르게 변하며, 출발 전 대기시간은 아닙니다.
-                    <span className="my-1 block font-mono text-[10px] text-white">
-                      Fdrv = (희망속도 벡터 - 현재속도 벡터) / τ
-                    </span>
-                    JuPedSim SFM 기본값은 0.5초이고, 시스템 허용 범위는 0.1~2.0초입니다.
-                    <span className="mt-1 block text-white/70">
-                      출처: JuPedSim SFM, Helbing et al. (2000)
-                    </span>
+                  <label htmlFor="initial-response-time-mean">평균 초기 반응시간 (초)</label>
+                  <InfoTooltip
+                    id="initial-response-time-mean-help"
+                    label="초기 반응시간 안내"
+                    align="right"
+                  >
+                    시뮬레이션 시작 후 각 에이전트가 자발적인 보행을 시작하기 전까지의 평균
+                    대기시간입니다. 대기 중에도 다른 사람이나 장애물의 물리력으로 밀릴 수 있습니다.
+                    입력한 평균과 표준편차를 갖는 음이 아닌 감마분포에서 난수 시드에 따라 결정적으로
+                    생성됩니다. 표준편차가 0이면 모든 에이전트가 같은 시간에 출발합니다.
                   </InfoTooltip>
                 </div>
                 <Input
-                  id="reaction-time"
+                  id="initial-response-time-mean"
                   type="number"
-                  min={0.1}
-                  max={2}
+                  min={0}
+                  max={600}
                   step={0.1}
-                  value={reactionTime}
-                  onChange={(event) => setReactionTime(Number(event.target.value))}
+                  value={initialResponseTimeMean}
+                  onChange={(event) => setInitialResponseTimeMean(readNumberInput(event))}
                   disabled={!editable}
                   className="mt-2 tabular-nums"
                 />
               </div>
+              <label className="text-xs font-bold text-text-muted" htmlFor="initial-response-time-std-dev">
+                반응시간 표준편차 (초)
+                <Input
+                  id="initial-response-time-std-dev"
+                  type="number"
+                  min={0}
+                  max={600}
+                  step={0.1}
+                  value={initialResponseTimeStdDev}
+                  onChange={(event) => setInitialResponseTimeStdDev(readNumberInput(event))}
+                  disabled={!editable}
+                  className="mt-2 tabular-nums"
+                />
+              </label>
             </div>
           </section>
 

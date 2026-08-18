@@ -35,13 +35,17 @@ import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -58,6 +62,59 @@ public class SimulationExecutionService {
     private static final String MODEL_PROFILE = "SFM_DEFAULT_V2";
     private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 1000;
+    private static final int RECOVERY_GROUP_SIZE = 3;
+    private static final Set<String> RECOVERY_SUMMARY_FIELDS = Set.of(
+            "schemaVersion",
+            "scanCount",
+            "eligibleGroupCount",
+            "skippedEligibleGroupCount",
+            "infeasibleScanCount",
+            "recoveredGroupCount",
+            "recoveredAgentCount",
+            "recoveryTimeSeconds",
+            "recoveredExitLabels",
+            "recoveredExitIds",
+            "attemptedGroupSignatures",
+            "events");
+    private static final Set<String> RECOVERY_COUNTER_FIELDS = Set.of(
+            "scanCount",
+            "eligibleGroupCount",
+            "skippedEligibleGroupCount",
+            "infeasibleScanCount",
+            "recoveredGroupCount",
+            "recoveredAgentCount",
+            "attemptedGroupSignatures");
+    private static final Set<String> RECOVERY_EVENT_FIELDS = Set.of(
+            "timeSeconds",
+            "iteration",
+            "contextIndex",
+            "exitId",
+            "exitLabel",
+            "target",
+            "stableIds",
+            "oldTargets",
+            "newTargets",
+            "newApproaches",
+            "seedNodeIds",
+            "status",
+            "reasonCode",
+            "exceptionClass",
+            "postRecoveryInvalidMoves",
+            "postRecoveryFullRollbacks");
+    private static final Set<String> RECOVERY_EVENT_STATUSES =
+            Set.of("RECOVERED", "RECOVERY_INFEASIBLE", "RECOVERY_MUTATION_FAILED");
+    private static final Set<String> RECOVERY_REASON_CODES = Set.of(
+            "NO_SEEDS",
+            "EDGE_SEED",
+            "NON_DISTINCT_TARGETS",
+            "CONNECT_FAILED",
+            "REACH_FAILED",
+            "EXIT_ID_CHANGED",
+            "MUTATION_APPLY_FAILED");
+    private static final Set<String> RECOVERY_EVENT_POINT_LIST_FIELDS =
+            Set.of("oldTargets", "newTargets", "newApproaches");
+    private static final Pattern RECOVERY_EXCEPTION_CLASS_PATTERN =
+            Pattern.compile("([A-Za-z_$][A-Za-z0-9_$]*\\.)*[A-Za-z_$][A-Za-z0-9_$]*");
     private static final int LEGACY_TIMELINE_FRAMES_PER_CHUNK = 10;
     private static final int TIMELINE_FRAMES_PER_CHUNK = 20;
 
@@ -390,6 +447,11 @@ public class SimulationExecutionService {
         if (output.terminationDetail() != null) {
             result.setTerminationDetail(output.terminationDetail().toString());
         }
+        JsonNode recoverySummary = validateRecoverySummary(output.recoverySummary());
+        if (recoverySummary != null) {
+            logRecoverySummary(simulationId, recoverySummary);
+            result.setRecoveryDetail(recoverySummary.toString());
+        }
         simulationMapper.insertSimulationResult(result);
 
         List<SimulationMetric> metrics = new ArrayList<>();
@@ -603,6 +665,222 @@ public class SimulationExecutionService {
             long agentId = agent.longValue();
             if (agentId < 1 || agentId > maximumAgents || !seen.add(agentId)) {
                 throw new IllegalStateException("종료 상세 정보의 대표 에이전트가 올바르지 않습니다.");
+            }
+        }
+    }
+
+    static JsonNode validateRecoverySummary(JsonNode recoverySummary) {
+        if (recoverySummary == null) {
+            return null;
+        }
+        if (!recoverySummary.isObject()) {
+            return invalidRecoverySummary();
+        }
+        for (Iterator<String> names = recoverySummary.fieldNames(); names.hasNext(); ) {
+            if (!RECOVERY_SUMMARY_FIELDS.contains(names.next())) {
+                return invalidRecoverySummary();
+            }
+        }
+        JsonNode schemaVersion = recoverySummary.path("schemaVersion");
+        if (!schemaVersion.isIntegralNumber() || !schemaVersion.canConvertToInt() || schemaVersion.intValue() != 1) {
+            return invalidRecoverySummary();
+        }
+        for (String counter : RECOVERY_COUNTER_FIELDS) {
+            if (!isNonNegativeIntegral(recoverySummary.path(counter))) {
+                return invalidRecoverySummary();
+            }
+        }
+        if (!isFiniteNonNegativeNumber(recoverySummary.path("recoveryTimeSeconds"))) {
+            return invalidRecoverySummary();
+        }
+        JsonNode exitLabels = recoverySummary.path("recoveredExitLabels");
+        JsonNode exitIds = recoverySummary.path("recoveredExitIds");
+        if (!exitLabels.isArray() || !exitIds.isArray()) {
+            return invalidRecoverySummary();
+        }
+        for (JsonNode label : exitLabels) {
+            if (!label.isIntegralNumber() || !label.canConvertToInt() || label.intValue() < 0) {
+                return invalidRecoverySummary();
+            }
+        }
+        for (JsonNode exitId : exitIds) {
+            if (!isExitId(exitId)) {
+                return invalidRecoverySummary();
+            }
+        }
+        long recoveredGroups = recoverySummary.path("recoveredGroupCount").asLong();
+        long recoveredAgents = recoverySummary.path("recoveredAgentCount").asLong();
+        if (recoveredAgents != RECOVERY_GROUP_SIZE * recoveredGroups) {
+            return invalidRecoverySummary();
+        }
+        if ((recoveredGroups == 0) != (exitLabels.size() == 0 && exitIds.size() == 0)) {
+            return invalidRecoverySummary();
+        }
+        JsonNode events = recoverySummary.path("events");
+        if (!events.isArray()) {
+            return invalidRecoverySummary();
+        }
+        Set<String> recoveredLabelKeys = new HashSet<>();
+        for (JsonNode label : exitLabels) {
+            recoveredLabelKeys.add(label.asText());
+        }
+        Set<String> recoveredIdKeys = new HashSet<>();
+        for (JsonNode exitId : exitIds) {
+            recoveredIdKeys.add(exitId.asText());
+        }
+        long recoveredEventCount = 0;
+        for (JsonNode event : events) {
+            if (!isValidRecoveryEvent(event, recoveredLabelKeys, recoveredIdKeys)) {
+                return invalidRecoverySummary();
+            }
+            if ("RECOVERED".equals(event.path("status").asText())) {
+                recoveredEventCount += 1;
+            }
+        }
+        if (recoveredEventCount != recoveredGroups) {
+            return invalidRecoverySummary();
+        }
+        return recoverySummary;
+    }
+
+    private static boolean isValidRecoveryEvent(
+            JsonNode event, Set<String> recoveredLabelKeys, Set<String> recoveredIdKeys) {
+        if (event == null || !event.isObject()) {
+            return false;
+        }
+        for (Iterator<String> names = event.fieldNames(); names.hasNext(); ) {
+            if (!RECOVERY_EVENT_FIELDS.contains(names.next())) {
+                return false;
+            }
+        }
+        String status = event.path("status").asText("");
+        if (!RECOVERY_EVENT_STATUSES.contains(status)) {
+            return false;
+        }
+        boolean hasReasonCode = !event.path("reasonCode").isMissingNode();
+        boolean hasExceptionClass = !event.path("exceptionClass").isMissingNode();
+        if ("RECOVERED".equals(status)) {
+            if (hasReasonCode || hasExceptionClass) {
+                return false;
+            }
+        } else if ("RECOVERY_MUTATION_FAILED".equals(status)) {
+            if (!hasReasonCode
+                    || !"MUTATION_APPLY_FAILED".equals(event.path("reasonCode").asText())) {
+                return false;
+            }
+            if (!hasExceptionClass
+                    || !event.path("exceptionClass").isTextual()
+                    || !RECOVERY_EXCEPTION_CLASS_PATTERN
+                            .matcher(event.path("exceptionClass").asText())
+                            .matches()) {
+                return false;
+            }
+        } else {
+            if (!hasReasonCode
+                    || !RECOVERY_REASON_CODES.contains(event.path("reasonCode").asText())) {
+                return false;
+            }
+            if (hasExceptionClass) {
+                return false;
+            }
+        }
+        if (!isFiniteNonNegativeNumber(event.path("timeSeconds"))
+                || !isNonNegativeIntegral(event.path("iteration"))
+                || !isNonNegativeIntegral(event.path("contextIndex"))
+                || !isNonNegativeIntegral(event.path("exitLabel"))) {
+            return false;
+        }
+        if (!isExitId(event.path("exitId")) || !isPoint(event.path("target"))) {
+            return false;
+        }
+        JsonNode stableIds = event.path("stableIds");
+        if (!stableIds.isArray() || stableIds.size() != RECOVERY_GROUP_SIZE) {
+            return false;
+        }
+        Set<Long> distinctStableIds = new HashSet<>();
+        for (JsonNode stableId : stableIds) {
+            if (!stableId.isIntegralNumber()
+                    || !stableId.canConvertToLong()
+                    || stableId.longValue() < 1
+                    || !distinctStableIds.add(stableId.longValue())) {
+                return false;
+            }
+        }
+        for (String listField : RECOVERY_EVENT_POINT_LIST_FIELDS) {
+            JsonNode list = event.path(listField);
+            if (!list.isArray() || !(list.size() == 0 || list.size() == RECOVERY_GROUP_SIZE)) {
+                return false;
+            }
+            for (JsonNode item : list) {
+                if ("oldTargets".equals(listField) && item.isNull()) {
+                    continue;
+                }
+                if (!isPoint(item)) {
+                    return false;
+                }
+            }
+        }
+        JsonNode seedNodeIds = event.path("seedNodeIds");
+        if (!seedNodeIds.isArray() || !(seedNodeIds.size() == 0 || seedNodeIds.size() == RECOVERY_GROUP_SIZE)) {
+            return false;
+        }
+        for (JsonNode nodeId : seedNodeIds) {
+            if (!isNonNegativeIntegral(nodeId)) {
+                return false;
+            }
+        }
+        if (!isNonNegativeIntegral(event.path("postRecoveryInvalidMoves"))
+                || !isNonNegativeIntegral(event.path("postRecoveryFullRollbacks"))) {
+            return false;
+        }
+        if ("RECOVERED".equals(status)) {
+            return recoveredLabelKeys.contains(event.path("exitLabel").asText())
+                    && recoveredIdKeys.contains(event.path("exitId").asText());
+        }
+        return true;
+    }
+
+    private static boolean isExitId(JsonNode node) {
+        return node.isIntegralNumber() || (node.isTextual() && !node.asText().isBlank());
+    }
+
+    private static boolean isNonNegativeIntegral(JsonNode node) {
+        return node.isIntegralNumber() && node.canConvertToLong() && node.longValue() >= 0;
+    }
+
+    private static boolean isFiniteNonNegativeNumber(JsonNode node) {
+        return node.isNumber() && Double.isFinite(node.doubleValue()) && node.doubleValue() >= 0;
+    }
+
+    private static boolean isPoint(JsonNode node) {
+        return node != null
+                && node.isArray()
+                && node.size() == 2
+                && node.get(0).isNumber()
+                && Double.isFinite(node.get(0).doubleValue())
+                && node.get(1).isNumber()
+                && Double.isFinite(node.get(1).doubleValue());
+    }
+
+    private static JsonNode invalidRecoverySummary() {
+        log.warn("Simulation recovery summary has an invalid schema and will not be persisted");
+        return null;
+    }
+
+    private static void logRecoverySummary(Long simulationId, JsonNode recoverySummary) {
+        log.info(
+                "simulation_recovery_phase simulationId={} recoveredAgentCount={} recoveryTimeSeconds={} recoveredExitLabels={} recoveredExitIds={}",
+                simulationId,
+                recoverySummary.path("recoveredAgentCount").asLong(),
+                recoverySummary.path("recoveryTimeSeconds").decimalValue(),
+                recoverySummary.path("recoveredExitLabels").toString(),
+                recoverySummary.path("recoveredExitIds").toString());
+        for (JsonNode event : recoverySummary.path("events")) {
+            if ("RECOVERY_MUTATION_FAILED".equals(event.path("status").asText())) {
+                log.warn(
+                        "Simulation {} recovery mutation failed exceptionClass={}",
+                        simulationId,
+                        event.path("exceptionClass").asText());
             }
         }
     }

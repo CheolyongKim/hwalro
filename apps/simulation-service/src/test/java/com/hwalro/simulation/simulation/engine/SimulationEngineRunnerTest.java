@@ -21,14 +21,19 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.core.io.ClassPathResource;
 
 class SimulationEngineRunnerTest {
     @Test
     void rejectsMissingChunkCountsBeforeUnboxing() {
-        EngineResult result = new EngineResult("1.4.2", "ALL_EVACUATED", 1.0, 1, 0, 1.0, 1.0, 1.0, null, 1, 0.0, null);
+        EngineResult result =
+                new EngineResult("1.4.2", "ALL_EVACUATED", 1.0, 1, 0, 1.0, 1.0, 1.0, null, 1, 0.0, null, null);
 
         assertThatThrownBy(() -> SimulationEngineRunner.validateChunkCounts(result))
                 .isInstanceOf(EngineRunException.class)
@@ -55,7 +60,8 @@ class SimulationEngineRunnerTest {
                 blockedWorkRoot.toString(),
                 Duration.ofSeconds(1),
                 1,
-                1);
+                1,
+                false);
         Logger logger = (Logger) LoggerFactory.getLogger(SimulationEngineRunner.class);
         Level originalLevel = logger.getLevel();
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
@@ -228,7 +234,76 @@ class SimulationEngineRunnerTest {
         assertThat(runner.readFailureDetail(output, setup())).isNull();
     }
 
+    @Test
+    void includesRecoveryDetectorEnabledInEngineInput(@TempDir Path temporaryDirectory) {
+        assertThat(runner(temporaryDirectory, true).createInput(setup()))
+                .containsEntry("recoveryDetectorEnabled", true);
+        assertThat(runner(temporaryDirectory, false).createInput(setup()))
+                .containsEntry("recoveryDetectorEnabled", false);
+    }
+
+    @Test
+    void passesInitialResponseDistributionAndSeedWithoutConfigurableSfmReactionTime(@TempDir Path temporaryDirectory) {
+        Map<String, Object> input = runner(temporaryDirectory, false).createInput(setup());
+
+        assertThat(input).containsEntry("randomSeed", 1);
+        assertThat(input.get("model"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("initialResponseTimeMean", BigDecimal.ZERO)
+                .containsEntry("initialResponseTimeStdDev", BigDecimal.ZERO)
+                .doesNotContainKey("reactionTime");
+    }
+
+    @Test
+    void bindsSharedTargetRecoveryFlagDefaultingToFalse() throws Exception {
+        YamlPropertiesFactoryBean factory = new YamlPropertiesFactoryBean();
+        factory.setResources(new ClassPathResource("application.yml"));
+        Properties properties = factory.getObject();
+        assertThat(properties).isNotNull();
+        assertThat(properties.getProperty("simulation.engine.shared-target-recovery-enabled"))
+                .isEqualTo("${SIMULATION_ENGINE_SHARED_TARGET_RECOVERY_ENABLED:false}");
+    }
+
+    @Test
+    void deserializesEngineResultWithoutRecoverySummary() throws Exception {
+        String resultJson =
+                """
+                {"engineVersion":"1.4.2","terminationReason":"ALL_EVACUATED","simulationDurationSeconds":1.0,
+                 "evacuatedPeople":1,"remainingPeople":0,"totalEvacuationTimeSeconds":1.0,
+                 "averageEvacuationTimeSeconds":1.0,"frameIntervalSeconds":1.0,"timelineChunkCount":1,
+                 "heatmapChunkCount":1,"maxDensity":0.0}
+                """;
+        EngineResult withoutSummary = new ObjectMapper().readValue(resultJson, EngineResult.class);
+
+        assertThat(withoutSummary.recoverySummary()).isNull();
+        assertThat(withoutSummary.terminationDetail()).isNull();
+    }
+
+    @Test
+    void deserializesEngineResultWithRecoverySummary() throws Exception {
+        String resultJson =
+                """
+                {"engineVersion":"1.4.2","terminationReason":"ALL_EVACUATED","simulationDurationSeconds":1.0,
+                 "evacuatedPeople":1,"remainingPeople":0,"totalEvacuationTimeSeconds":1.0,
+                 "averageEvacuationTimeSeconds":1.0,"frameIntervalSeconds":1.0,"timelineChunkCount":1,
+                 "heatmapChunkCount":1,"maxDensity":0.0,
+                 "recoverySummary":{"schemaVersion":1,"recoveredAgentCount":3,"recoveryTimeSeconds":0.5,
+                                    "recoveredExitLabels":["1"],"recoveredExitIds":[501],"events":[]}}
+                """;
+        EngineResult withSummary = new ObjectMapper().readValue(resultJson, EngineResult.class);
+
+        assertThat(withSummary.recoverySummary()).isNotNull();
+        assertThat(withSummary.recoverySummary().path("recoveredAgentCount").asInt())
+                .isEqualTo(3);
+        assertThat(withSummary.recoverySummary().path("recoveryTimeSeconds").asDouble())
+                .isEqualTo(0.5);
+    }
+
     private static SimulationEngineRunner runner(Path temporaryDirectory) {
+        return runner(temporaryDirectory, false);
+    }
+
+    private static SimulationEngineRunner runner(Path temporaryDirectory, boolean sharedTargetRecoveryEnabled) {
         return new SimulationEngineRunner(
                 new ObjectMapper(),
                 "python",
@@ -236,7 +311,8 @@ class SimulationEngineRunnerTest {
                 temporaryDirectory.resolve("work").toString(),
                 Duration.ofSeconds(1),
                 1,
-                1);
+                1,
+                sharedTargetRecoveryEnabled);
     }
 
     private static SimulationSetupResponse setup() {
@@ -266,7 +342,8 @@ class SimulationEngineRunnerTest {
                 "HAZARD_RADIAL_EXP_V3",
                 2,
                 BigDecimal.valueOf(1.25),
-                BigDecimal.valueOf(0.5),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 List.of(
                         new PointDto(BigDecimal.ONE, BigDecimal.ONE),
                         new PointDto(BigDecimal.valueOf(2), BigDecimal.valueOf(3))),

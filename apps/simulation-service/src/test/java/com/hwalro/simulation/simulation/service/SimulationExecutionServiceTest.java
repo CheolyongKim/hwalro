@@ -16,6 +16,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,9 +63,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -170,7 +176,7 @@ class SimulationExecutionServiceTest {
     @Test
     void acceptsMaxDurationMatchingTheConfiguredRunLimit() {
         SimulationExecutionService.validateEngineResult(
-                new EngineResult("1.4.2", "MAX_DURATION", 400.0, 0, 1, null, null, 1.0, 1, 1, 1.0, null),
+                new EngineResult("1.4.2", "MAX_DURATION", 400.0, 0, 1, null, null, 1.0, 1, 1, 1.0, null, null),
                 validSetup(),
                 400.0);
     }
@@ -178,7 +184,7 @@ class SimulationExecutionServiceTest {
     @Test
     void rejectsStalledResultWithoutTerminationDetail() {
         assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
-                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 1, null, null, 1.0, 1, 1, 1.0, null),
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 1, null, null, 1.0, 1, 1, 1.0, null, null),
                         validSetup(),
                         400.0))
                 .isInstanceOf(IllegalStateException.class)
@@ -194,7 +200,7 @@ class SimulationExecutionServiceTest {
                          "reasonCounts":{"ROUTE_FOLLOWING_STUCK":3},"representativeAgents":[1,2]}
                         """);
         assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
-                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail),
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail, null),
                         twoAgentSetup(),
                         400.0))
                 .isInstanceOf(IllegalStateException.class)
@@ -210,7 +216,7 @@ class SimulationExecutionServiceTest {
                          "reasonCounts":{"ROUTE_FOLLOWING_STUCK":1},"representativeAgents":[1,2]}
                         """);
         assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
-                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail),
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail, null),
                         twoAgentSetup(),
                         400.0))
                 .isInstanceOf(IllegalStateException.class)
@@ -226,7 +232,7 @@ class SimulationExecutionServiceTest {
                          "reasonCounts":{"ROUTE_FOLLOWING_STUCK":2},"representativeAgents":[1,1]}
                         """);
         assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
-                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, duplicated),
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, duplicated, null),
                         twoAgentSetup(),
                         400.0))
                 .isInstanceOf(IllegalStateException.class)
@@ -239,7 +245,7 @@ class SimulationExecutionServiceTest {
                          "reasonCounts":{"ROUTE_FOLLOWING_STUCK":2},"representativeAgents":[3]}
                         """);
         assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
-                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, outOfRange),
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, outOfRange, null),
                         twoAgentSetup(),
                         400.0))
                 .isInstanceOf(IllegalStateException.class)
@@ -255,11 +261,259 @@ class SimulationExecutionServiceTest {
                          "reasonCounts":{"PHYSICAL_CONGESTION":2},"representativeAgents":[1,2]}
                         """);
         assertThatThrownBy(() -> SimulationExecutionService.validateEngineResult(
-                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail),
+                        new EngineResult("1.4.2", "STALLED", 10.0, 0, 2, null, null, 1.0, 1, 1, 1.0, detail, null),
                         twoAgentSetup(),
                         400.0))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("사유 종류");
+    }
+
+    @Test
+    void acceptsValidRecoverySummary() throws JsonProcessingException {
+        JsonNode valid = new ObjectMapper().readTree(VALID_RECOVERY_SUMMARY_JSON);
+
+        assertThat(SimulationExecutionService.validateRecoverySummary(valid)).isSameAs(valid);
+        assertThat(SimulationExecutionService.validateRecoverySummary(null)).isNull();
+    }
+
+    @Test
+    void rejectsRecoverySummaryWithMalformedEvents() throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode unknownField = mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
+                "\"seedNodeIds\":[11,12,13]", "\"seedNodeIds\":[11,12,13],\"message\":\"secret failure detail\""));
+        JsonNode rawStack = mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
+                "\"seedNodeIds\":[11,12,13]", "\"seedNodeIds\":[11,12,13],\"stackTrace\":\"boom\""));
+        JsonNode badStatus = mapper.readTree(
+                VALID_RECOVERY_SUMMARY_JSON.replace("\"status\":\"RECOVERED\"", "\"status\":\"PANIC\""));
+        JsonNode badReasonCode = mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
+                "\"status\":\"RECOVERED\"", "\"status\":\"RECOVERY_INFEASIBLE\",\"reasonCode\":\"BOGUS\""));
+        JsonNode shortStableIds =
+                mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace("\"stableIds\":[1,2,3]", "\"stableIds\":[1,2]"));
+        JsonNode mismatchedCounters = mapper.readTree(
+                VALID_RECOVERY_SUMMARY_JSON.replace("\"recoveredAgentCount\":3", "\"recoveredAgentCount\":5"));
+        JsonNode unknownTopLevel = mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
+                "\"attemptedGroupSignatures\":1", "\"attemptedGroupSignatures\":1,\"debugDump\":{}"));
+
+        assertThat(SimulationExecutionService.validateRecoverySummary(unknownField))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(rawStack)).isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(badStatus))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(badReasonCode))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(shortStableIds))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(mismatchedCounters))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(unknownTopLevel))
+                .isNull();
+    }
+
+    @Test
+    void rejectsNonCanonicalSchemaVersionAndExceptionClass() throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode stringSchemaVersion =
+                mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace("\"schemaVersion\":1", "\"schemaVersion\":\"1\""));
+        JsonNode floatSchemaVersion =
+                mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace("\"schemaVersion\":1", "\"schemaVersion\":1.0"));
+        String mutationBase = VALID_RECOVERY_SUMMARY_JSON.replace(
+                "\"status\":\"RECOVERED\"",
+                "\"status\":\"RECOVERY_MUTATION_FAILED\","
+                        + "\"reasonCode\":\"MUTATION_APPLY_FAILED\","
+                        + "\"exceptionClass\":\"RuntimeError\"");
+        JsonNode suffixedExceptionClass =
+                mapper.readTree(mutationBase.replace("RuntimeError", "RuntimeError+restoreFailed=1"));
+        JsonNode colonInExceptionClass =
+                mapper.readTree(mutationBase.replace("RuntimeError", "RuntimeError: secret detail"));
+        JsonNode spaceInExceptionClass =
+                mapper.readTree(mutationBase.replace("RuntimeError", "java.lang.Runtime Error"));
+
+        assertThat(SimulationExecutionService.validateRecoverySummary(stringSchemaVersion))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(floatSchemaVersion))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(suffixedExceptionClass))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(colonInExceptionClass))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(spaceInExceptionClass))
+                .isNull();
+
+        JsonNode qualifiedException = mapper.readTree(
+                """
+                {"schemaVersion":1,"scanCount":1,"eligibleGroupCount":1,"skippedEligibleGroupCount":0,
+                 "infeasibleScanCount":0,"recoveredGroupCount":0,"recoveredAgentCount":0,
+                 "recoveryTimeSeconds":0.5,"recoveredExitLabels":[],"recoveredExitIds":[],
+                 "attemptedGroupSignatures":1,
+                 "events":[{"timeSeconds":0.5,"iteration":50,"contextIndex":0,"exitId":501,
+                            "exitLabel":1,"target":[1.0,1.0],"stableIds":[1,2,3],
+                            "oldTargets":[],"newTargets":[],"newApproaches":[],"seedNodeIds":[],
+                            "status":"RECOVERY_MUTATION_FAILED","reasonCode":"MUTATION_APPLY_FAILED",
+                            "exceptionClass":"com.hwalro.simulation.EngineException",
+                            "postRecoveryInvalidMoves":0,"postRecoveryFullRollbacks":1}]}
+                """);
+        assertThat(SimulationExecutionService.validateRecoverySummary(qualifiedException))
+                .isSameAs(qualifiedException);
+    }
+
+    @Test
+    void rejectsInvalidRecoverySummaryWithoutFailingTheResult() throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode invalidSchema = mapper.readTree(
+                """
+                {"schemaVersion":2,"recoveredAgentCount":3,"recoveryTimeSeconds":0.5,"recoveredExitLabels":["1"],"recoveredExitIds":[501],"events":[]}
+                """);
+        JsonNode wrongType = mapper.readTree(
+                """
+                {"schemaVersion":1,"recoveredAgentCount":"three","recoveryTimeSeconds":0.5,"recoveredExitLabels":["1"],"recoveredExitIds":[501],"events":[]}
+                """);
+        JsonNode negativeTime = mapper.readTree(
+                """
+                {"schemaVersion":1,"recoveredAgentCount":3,"recoveryTimeSeconds":-0.5,"recoveredExitLabels":["1"],"recoveredExitIds":[501],"events":[]}
+                """);
+        JsonNode missingArrays = mapper.readTree(
+                """
+                {"schemaVersion":1,"recoveredAgentCount":3,"recoveryTimeSeconds":0.5}
+                """);
+
+        assertThat(SimulationExecutionService.validateRecoverySummary(invalidSchema))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(wrongType))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(negativeTime))
+                .isNull();
+        assertThat(SimulationExecutionService.validateRecoverySummary(missingArrays))
+                .isNull();
+    }
+
+    @Test
+    void warnsOnInvalidRecoverySummaryAndStaysSilentWhenAbsent() throws JsonProcessingException {
+        JsonNode invalid = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"recoveredAgentCount":-1,"recoveryTimeSeconds":0.5,
+                         "recoveredExitLabels":["1"],"recoveredExitIds":[501],"events":[]}
+                        """);
+        Logger logger = (Logger) LoggerFactory.getLogger(SimulationExecutionService.class);
+        Level originalLevel = logger.getLevel();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.setLevel(Level.WARN);
+        logger.addAppender(appender);
+        try {
+            assertThat(SimulationExecutionService.validateRecoverySummary(invalid))
+                    .isNull();
+            assertThat(SimulationExecutionService.validateRecoverySummary(null)).isNull();
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(originalLevel);
+            appender.stop();
+        }
+
+        var messages =
+                appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        assertThat(messages).singleElement().satisfies(message -> assertThat(message)
+                .contains("recovery summary"));
+    }
+
+    @Test
+    void persistsRecoveryDetailWhenEngineReturnsValidRecoverySummary() throws Exception {
+        stubRecoveryExecution(runWithRecoverySummary());
+
+        service.execute(21L, user);
+        queued.get().run();
+
+        ArgumentCaptor<SimulationResult> persisted = ArgumentCaptor.forClass(SimulationResult.class);
+        verify(simulationMapper).insertSimulationResult(persisted.capture());
+        assertThat(persisted.getValue().getRecoveryDetail()).contains("\"recoveredAgentCount\":3");
+        assertThat(persisted.getValue().getTerminationDetail()).isNull();
+    }
+
+    @Test
+    void doesNotPersistInvalidRecoverySummary() throws Exception {
+        JsonNode invalid = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"recoveredAgentCount":3,"recoveryTimeSeconds":-1.0,
+                         "recoveredExitLabels":["1"],"recoveredExitIds":[501],"events":[]}
+                        """);
+        stubRecoveryExecution(new EngineRun(
+                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0, null, invalid),
+                List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                400.0));
+
+        service.execute(21L, user);
+        queued.get().run();
+
+        ArgumentCaptor<SimulationResult> persisted = ArgumentCaptor.forClass(SimulationResult.class);
+        verify(simulationMapper).insertSimulationResult(persisted.capture());
+        assertThat(persisted.getValue().getRecoveryDetail()).isNull();
+    }
+
+    @Test
+    void doesNotPersistSummaryWithMalformedEventCarryingRawFailureDetails() throws Exception {
+        JsonNode malformed = new ObjectMapper()
+                .readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
+                        "\"seedNodeIds\":[11,12,13]",
+                        "\"seedNodeIds\":[11,12,13],"
+                                + "\"message\":\"RuntimeError: secret failure detail\","
+                                + "\"stackTrace\":[\"at java.lang.Thread.run\"]"));
+        stubRecoveryExecution(new EngineRun(
+                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0, null, malformed),
+                List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                400.0));
+
+        service.execute(21L, user);
+        queued.get().run();
+
+        ArgumentCaptor<SimulationResult> persisted = ArgumentCaptor.forClass(SimulationResult.class);
+        verify(simulationMapper).insertSimulationResult(persisted.capture());
+        assertThat(persisted.getValue().getRecoveryDetail()).isNull();
+        assertThat(persisted.getValue().getTerminationDetail()).isNull();
+    }
+
+    @Test
+    void warnsOnlyExceptionClassWhenRecoveryMutationFails() throws Exception {
+        JsonNode summary = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"scanCount":1,"eligibleGroupCount":1,"skippedEligibleGroupCount":0,
+                         "infeasibleScanCount":0,"recoveredGroupCount":0,"recoveredAgentCount":0,
+                         "recoveryTimeSeconds":0.5,"recoveredExitLabels":[],"recoveredExitIds":[],
+                         "attemptedGroupSignatures":1,
+                         "events":[{"timeSeconds":0.5,"iteration":50,"contextIndex":0,"exitId":501,
+                                    "exitLabel":1,"target":[1.0,1.0],"stableIds":[1,2,3],
+                                    "oldTargets":[],"newTargets":[],"newApproaches":[],"seedNodeIds":[],
+                                    "status":"RECOVERY_MUTATION_FAILED","reasonCode":"MUTATION_APPLY_FAILED",
+                                    "exceptionClass":"RuntimeException","postRecoveryInvalidMoves":0,
+                                    "postRecoveryFullRollbacks":1}]}
+                        """);
+        stubRecoveryExecution(new EngineRun(
+                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0, null, summary),
+                List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                400.0));
+        Logger logger = (Logger) LoggerFactory.getLogger(SimulationExecutionService.class);
+        Level originalLevel = logger.getLevel();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.setLevel(Level.WARN);
+        logger.addAppender(appender);
+        try {
+            service.execute(21L, user);
+            queued.get().run();
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(originalLevel);
+            appender.stop();
+        }
+
+        var messages =
+                appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        assertThat(messages).singleElement().satisfies(message -> assertThat(message)
+                .contains("exceptionClass=RuntimeException"));
     }
 
     @Test
@@ -674,10 +928,56 @@ class SimulationExecutionServiceTest {
 
     private static EngineRun successfulRun() {
         return new EngineRun(
-                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0, null),
+                new EngineResult("1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0, null, null),
                 List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
                 List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
                 400.0);
+    }
+
+    private static EngineRun runWithRecoverySummary() throws JsonProcessingException {
+        return new EngineRun(
+                new EngineResult(
+                        "1.4.2", "ALL_EVACUATED", 12.5, 1, 0, 12.5, 8.0, 1.0, 1, 1, 1.0, null, recoverySummary()),
+                List.of(new TimelineChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                List.of(new HeatmapChunk(0, "{\"chunkSequence\":0,\"frames\":[]}")),
+                400.0);
+    }
+
+    private static JsonNode recoverySummary() throws JsonProcessingException {
+        return new ObjectMapper().readTree(VALID_RECOVERY_SUMMARY_JSON);
+    }
+
+    private static final String VALID_RECOVERY_SUMMARY_JSON =
+            """
+            {"schemaVersion":1,"scanCount":2,"eligibleGroupCount":1,"skippedEligibleGroupCount":0,
+             "infeasibleScanCount":0,"recoveredGroupCount":1,"recoveredAgentCount":3,
+             "recoveryTimeSeconds":5.5,"recoveredExitLabels":[0],"recoveredExitIds":[501],
+             "attemptedGroupSignatures":1,
+             "events":[{"timeSeconds":5.5,"iteration":550,"contextIndex":0,"exitId":501,"exitLabel":0,
+                        "target":[9.7,4.0],"stableIds":[1,2,3],
+                        "oldTargets":[[9.7,4.0],[9.7,4.0],[9.7,4.0]],
+                        "newTargets":[[10.0,3.75],[10.0,4.0],[10.0,4.25]],
+                        "newApproaches":[[9.7,3.75],[9.7,4.0],[9.7,4.25]],
+                        "seedNodeIds":[11,12,13],"status":"RECOVERED",
+                        "postRecoveryInvalidMoves":0,"postRecoveryFullRollbacks":0}]}
+            """;
+
+    private void stubRecoveryExecution(EngineRun run) throws Exception {
+        stubDraftAndRequestedStatus();
+        captureWorker();
+        when(simulationMapper.requestExecution(21L)).thenReturn(1);
+        when(simulationService.getSetup(21L, user)).thenReturn(validSetup());
+        when(simulationMapper.markExecutionRunning(21L)).thenReturn(1);
+        when(engineRunner.run(eq(21L), any())).thenReturn(run);
+        when(simulationMapper.insertSimulationResult(any())).thenAnswer(invocation -> {
+            SimulationResult result = invocation.getArgument(0);
+            result.setId(31L);
+            return 1;
+        });
+        DensityThreshold threshold = new DensityThreshold(BigDecimal.valueOf(3.5), "PERSON_PER_M2");
+        when(densityThresholdProvider.getCurrent()).thenReturn(threshold);
+        when(bottleneckDetector.detect(any(), eq(threshold))).thenReturn(List.of());
+        when(simulationMapper.markExecutionCompleted(21L)).thenReturn(1);
     }
 
     private void captureWorker() {
@@ -733,7 +1033,8 @@ class SimulationExecutionServiceTest {
                 "HAZARD_RADIAL_EXP_V3",
                 agents.size(),
                 BigDecimal.valueOf(1.25),
-                BigDecimal.valueOf(0.5),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 agents,
                 List.of(),
                 exits,

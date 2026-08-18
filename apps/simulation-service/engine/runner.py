@@ -22,6 +22,7 @@ DT_SECONDS = 0.01
 AGENT_RADIUS_METERS = 0.3
 AGENT_SPACING_METERS = AGENT_RADIUS_METERS * 2.0
 MAX_SIMULATION_TIME_SECONDS = 600.0
+MAX_INITIAL_RESPONSE_TIME_SECONDS = 600.0
 MAX_AGENTS = 5000
 FRAMES_PER_CHUNK = 20
 HEATMAP_CELL_SIZE_METERS = 1.0
@@ -35,6 +36,8 @@ PHASE_NAMES = (
     "moveValidation",
     "targetAndExitUpdate",
     "snapshotAndSerialization",
+    "recoveryScan",
+    "recoveryMutation",
 )
 STALL_ITERATION_LIMIT = 500
 STALL_MOVEMENT_EPSILON_METERS = 0.001
@@ -43,6 +46,11 @@ STALL_PROGRESS_SAMPLE_INTERVAL_ITERATIONS = 50
 EXIT_PORTAL_COMPLETION_BAND_METERS = (
     AGENT_RADIUS_METERS + WAYPOINT_REACHED_DISTANCE_METERS
 )
+RECOVERY_STATIONARY_STREAK_THRESHOLD = 500
+RECOVERY_INVALID_QUIET_ITERATIONS = 500
+RECOVERY_GROUP_SIZE = 3
+RECOVERY_TARGET_ROUNDING_DIGITS = 6
+SFM_REACTION_TIME_SECONDS = 0.5
 
 
 class RunnerError(RuntimeError):
@@ -54,6 +62,10 @@ class AgentRouteUnreachableRunnerError(RunnerError):
 
 
 class NoReachableSelectedExitRunnerError(RunnerError):
+    pass
+
+
+class RecoveryMutationRollbackRunnerError(RunnerError):
     pass
 
 
@@ -100,6 +112,7 @@ class SimulationContext:
     positions: Any = field(default_factory=dict)
     numpy: Any = None
     phase_profile: PhaseProfile | None = None
+    context_index: int = 0
     agent_ids: Any = field(init=False, repr=False)
     slot_by_id: dict[int, int] = field(init=False, repr=False)
     stable_ids: Any = field(init=False, repr=False)
@@ -117,6 +130,20 @@ class SimulationContext:
     cursor_changed: Any = field(init=False, repr=False)
     progress_anchors: Any = field(init=False, repr=False)
     last_progress_iterations: Any = field(init=False, repr=False)
+    stationary_streak: Any = field(init=False, repr=False)
+    last_invalid_iteration: Any = field(init=False, repr=False)
+    recovered: Any = field(init=False, repr=False)
+    readiness_any: Any = field(init=False, repr=False)
+    removal_ready: Any = field(init=False, repr=False)
+    post_recovery_invalid_moves: Any = field(init=False, repr=False)
+    post_recovery_full_rollbacks: Any = field(init=False, repr=False)
+    attempted_group_signatures: set = field(init=False, repr=False)
+    recovery_events: list = field(init=False, repr=False)
+    recovery_counters: dict = field(init=False, repr=False)
+    start_iterations: Any = field(init=False, repr=False)
+    waiting: Any = field(init=False, repr=False)
+    waiting_count: int = field(init=False)
+    walking_speed: float = field(init=False)
 
     def __post_init__(self) -> None:
         np = self.numpy
@@ -163,6 +190,20 @@ class SimulationContext:
         self.cursor_changed = np.zeros(count, dtype=bool)
         self.progress_anchors = self.positions.copy()
         self.last_progress_iterations = np.zeros(count, dtype=np.int64)
+        self.stationary_streak = np.zeros(count, dtype=np.int32)
+        self.last_invalid_iteration = np.full(count, -1, dtype=np.int32)
+        self.recovered = np.zeros(count, dtype=bool)
+        self.readiness_any = np.zeros(count, dtype=bool)
+        self.removal_ready = np.zeros(count, dtype=bool)
+        self.post_recovery_invalid_moves = np.zeros(count, dtype=np.int32)
+        self.post_recovery_full_rollbacks = np.zeros(count, dtype=np.int32)
+        self.attempted_group_signatures: set[tuple] = set()
+        self.recovery_events: list[dict[str, Any]] = []
+        self.recovery_counters: dict[str, int] = {}
+        self.start_iterations = np.ones(count, dtype=np.int64)
+        self.waiting = np.zeros(count, dtype=bool)
+        self.waiting_count = 0
+        self.walking_speed = 0.0
 
 
 class TimelineWriter:
@@ -348,6 +389,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         from route_planner import (
             AgentRouteUnreachableError,
             GridRouter,
+            _id_key,
             build_routing_geometry,
             build_walkable_geometry,
             containing_component,
@@ -361,6 +403,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         from .route_planner import (  # type: ignore[no-redef]
             AgentRouteUnreachableError,
             GridRouter,
+            _id_key,
             build_routing_geometry,
             build_walkable_geometry,
             containing_component,
@@ -380,7 +423,22 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     if routing_profile != REQUIRED_ROUTING_PROFILE:
         raise RunnerError(f"model.routingProfile must be {REQUIRED_ROUTING_PROFILE}")
     walking_speed = _positive_number(model.get("walkingSpeed"), "model.walkingSpeed")
-    reaction_time = _positive_number(model.get("reactionTime"), "model.reactionTime")
+    initial_response_time_mean = _nonnegative_number(
+        model.get("initialResponseTimeMean", 0.0), "model.initialResponseTimeMean"
+    )
+    initial_response_time_std_dev = _nonnegative_number(
+        model.get("initialResponseTimeStdDev", 0.0), "model.initialResponseTimeStdDev"
+    )
+    if initial_response_time_mean <= 0.0 and initial_response_time_std_dev > 0.0:
+        raise RunnerError(
+            "model.initialResponseTimeStdDev must be zero when the mean is zero"
+        )
+    if (
+        initial_response_time_mean > MAX_INITIAL_RESPONSE_TIME_SECONDS
+        or initial_response_time_std_dev > MAX_INITIAL_RESPONSE_TIME_SECONDS
+    ):
+        raise RunnerError("initial response time parameters must not exceed 600 seconds")
+    random_seed = _integer_number(payload.get("randomSeed", 0), "randomSeed")
     max_time = _positive_number(
         payload.get("maxSimulationTimeSeconds"), "maxSimulationTimeSeconds"
     )
@@ -403,12 +461,23 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         raise RunnerError("at least one agent is required")
     if len(agents) > MAX_AGENTS:
         raise RunnerError("agents must not contain more than 5000 entries")
+    initial_response_times = _sample_initial_response_times(
+        np,
+        len(agents),
+        initial_response_time_mean,
+        initial_response_time_std_dev,
+        random_seed,
+    )
     hazards_value = payload.get("hazards")
     if not isinstance(hazards_value, list):
         raise RunnerError("hazards must be an array")
     selected_exit_ids = payload.get("selectedExitIds")
     if not isinstance(selected_exit_ids, list):
         raise RunnerError("selectedExitIds must be an array")
+    recovery_value = payload.get("recoveryDetectorEnabled", False)
+    if not isinstance(recovery_value, bool):
+        raise RunnerError("recoveryDetectorEnabled must be a boolean")
+    recovery_enabled = recovery_value
 
     try:
         hazards = parse_hazards(hazards_value)
@@ -522,8 +591,9 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                 indexed_agents,
                 [routes_by_index[index] for index, _position in indexed_agents],
                 walking_speed,
-                reaction_time,
+                [initial_response_times[index] for index, _position in indexed_agents],
                 phase_profile,
+                len(contexts),
             )
         )
 
@@ -552,6 +622,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
         elapsed = iteration * DT_SECONDS
         moved = 0.0
         evacuated_this_iteration = False
+        recovery_applied_this_iteration = False
         for context in contexts:
             if not context.states:
                 continue
@@ -561,13 +632,25 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                     evacuated_this_iteration = True
                     evacuation_times.append(elapsed)
                     timeline.add_exit_event(elapsed, state.stable_id, state.exit_id)
-            active_slots = context.numpy.flatnonzero(context.active)
+            active_slots = context.numpy.flatnonzero(context.active & ~context.waiting)
             if active_slots.size:
                 delta = context.positions[active_slots] - context.next_positions[active_slots]
-                moved += float(context.numpy.hypot(delta[:, 0], delta[:, 1]).sum())
+                step_sizes = context.numpy.hypot(delta[:, 0], delta[:, 1])
+                moved += float(step_sizes.sum())
+                context.stationary_streak[active_slots] = context.numpy.where(
+                    step_sizes < STALL_MOVEMENT_EPSILON_METERS,
+                    context.stationary_streak[active_slots] + 1,
+                    0,
+                )
                 if iteration % STALL_PROGRESS_SAMPLE_INTERVAL_ITERATIONS == 0:
                     _update_progress(context, active_slots, context.positions, iteration)
-        if evacuated_this_iteration:
+                    if recovery_enabled:
+                        recovery_applied_this_iteration = (
+                            recovery_applied_this_iteration
+                            or recovery_scan(context, iteration)
+                        )
+        waiting_for_start = any(context.waiting_count > 0 for context in contexts)
+        if evacuated_this_iteration or recovery_applied_this_iteration or waiting_for_start:
             stalled_iterations = 0
         elif moved < STALL_MOVEMENT_EPSILON_METERS:
             stalled_iterations += 1
@@ -623,6 +706,8 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     }
     if termination_reason == "STALLED":
         result["terminationDetail"] = _termination_detail(contexts, iteration)
+    if recovery_enabled:
+        result["recoverySummary"] = _build_recovery_summary(contexts)
     _write_json(output_dir / "result.json", result)
     if phase_profile is not None:
         phase_profile.add("snapshotAndSerialization", serialization_started)
@@ -709,8 +794,9 @@ def _create_context(
     indexed_agents,
     routes,
     walking_speed: float,
-    reaction_time: float,
+    initial_response_times,
     phase_profile: PhaseProfile | None = None,
+    context_index: int = 0,
 ) -> SimulationContext:
     simulation = jps.Simulation(
         model=jps.SocialForceModel(), geometry=physical_component, dt=DT_SECONDS
@@ -719,7 +805,11 @@ def _create_context(
     journey_id = simulation.add_journey(jps.JourneyDescription([stage_id]))
     states: dict[int, AgentRouteState] = {}
     positions: dict[int, tuple[float, float]] = {}
-    for (index, position), route in zip(indexed_agents, routes, strict=True):
+    start_iterations: dict[int, int] = {}
+    for (index, position), route, response_time in zip(
+        indexed_agents, routes, initial_response_times, strict=True
+    ):
+        start_iteration = _start_iteration(float(response_time))
         target = route.waypoints[1] if len(route.waypoints) > 1 else route.waypoints[0]
         direction = np.asarray(target, dtype=float) - np.asarray(position, dtype=float)
         norm = float(np.linalg.norm(direction))
@@ -731,8 +821,8 @@ def _create_context(
                     orientation=orientation,
                     journey_id=journey_id,
                     stage_id=stage_id,
-                    desired_speed=walking_speed,
-                    reaction_time=reaction_time,
+                    desired_speed=walking_speed if start_iteration == 1 else 0.0,
+                    reaction_time=SFM_REACTION_TIME_SECONDS,
                     radius=AGENT_RADIUS_METERS,
                 )
             )
@@ -748,7 +838,23 @@ def _create_context(
             cursor=1 if len(route.waypoints) > 1 else 0,
         )
         positions[agent_id] = position
-    return SimulationContext(simulation, router, states, positions, np, phase_profile)
+        start_iterations[agent_id] = start_iteration
+    context = SimulationContext(
+        simulation,
+        router,
+        states,
+        positions,
+        np,
+        phase_profile,
+        context_index,
+    )
+    context.start_iterations = np.asarray(
+        [start_iterations[int(agent_id)] for agent_id in context.agent_ids], dtype=np.int64
+    )
+    context.waiting = context.start_iterations > 1
+    context.waiting_count = int(np.count_nonzero(context.waiting))
+    context.walking_speed = walking_speed
+    return context
 
 
 def _active_agents_and_positions(context: SimulationContext, positions):
@@ -784,10 +890,25 @@ def _initialize_targets(context: SimulationContext) -> list[int]:
     return evacuated
 
 
+def _activate_due_agents(context: SimulationContext, iteration: int) -> None:
+    if context.waiting_count == 0:
+        return
+    due_slots = context.numpy.flatnonzero(
+        context.active & context.waiting & (context.start_iterations <= iteration)
+    )
+    for slot in due_slots:
+        agent_id = int(context.agent_ids[slot])
+        context.simulation.agent(agent_id).model.desired_speed = context.walking_speed
+    if due_slots.size:
+        context.waiting[due_slots] = False
+        context.waiting_count -= int(due_slots.size)
+
+
 def _advance_context(context: SimulationContext, iteration: int) -> list[int]:
     previous = context.positions
     profile = context.phase_profile
     iterate_started = time.perf_counter_ns() if profile is not None else 0
+    _activate_due_agents(context, iteration)
     try:
         context.simulation.iterate()
     except Exception as exc:
@@ -803,7 +924,7 @@ def _advance_context(context: SimulationContext, iteration: int) -> list[int]:
         profile.add("agentStateCapture", capture_started)
         movement_started = time.perf_counter_ns()
     crossed = _detect_exit_crossings(context, previous, current)
-    _rollback_invalid_moves(context, previous, agents, current, crossed)
+    _rollback_invalid_moves(context, previous, agents, current, crossed, iteration)
     if profile is not None:
         profile.add("moveValidation", movement_started)
         target_started = time.perf_counter_ns()
@@ -818,7 +939,7 @@ def _detect_exit_crossings(context: SimulationContext, previous, current):
     np = context.numpy
     crossed = np.zeros(len(context.agent_ids), dtype=bool)
     final_slots = np.flatnonzero(
-        context.active & (context.cursors + 1 == context.waypoint_counts)
+        context.active & ~context.waiting & (context.cursors + 1 == context.waypoint_counts)
     )
     if final_slots.size:
         crossed[final_slots] = context.router.crossed_exits(
@@ -831,26 +952,31 @@ def _detect_exit_crossings(context: SimulationContext, previous, current):
 
 
 def _rollback_invalid_moves(
-    context: SimulationContext, previous, agents, current, crossed=None
+    context: SimulationContext, previous, agents, current, crossed, iteration: int
 ) -> None:
     np = context.numpy
     active_slots = np.flatnonzero(context.active)
-    if crossed is not None:
-        active_slots = active_slots[~crossed[active_slots]]
+    active_slots = active_slots[~crossed[active_slots]]
     valid = np.asarray(
         context.router.valid_moves(previous[active_slots], current[active_slots]), dtype=bool
     )
     invalid_slots = active_slots[~valid]
     for slot in invalid_slots:
+        context.last_invalid_iteration[slot] = iteration
         agent_id = int(context.agent_ids[slot])
         agent = agents[agent_id]
         end = tuple(current[slot])
         corrected = context.router.clamp_to_walkable(end)
-        if not context.router.can_connect(tuple(previous[slot]), corrected):
+        full_rollback = not context.router.can_connect(tuple(previous[slot]), corrected)
+        if full_rollback:
             corrected = tuple(previous[slot])
         current[slot] = corrected
         agent.position = corrected
         agent.model.velocity = _slide_velocity(end, corrected, agent.model.velocity)
+        if context.recovered[slot]:
+            context.post_recovery_invalid_moves[slot] += 1
+            if full_rollback:
+                context.post_recovery_full_rollbacks[slot] += 1
 
 
 def _slide_velocity(end, corrected, velocity) -> tuple[float, float]:
@@ -870,10 +996,12 @@ def _slide_velocity(end, corrected, velocity) -> tuple[float, float]:
 def _update_targets(context: SimulationContext, agents, positions, crossed=None) -> list[int]:
     np = context.numpy
     context.cursor_changed.fill(False)
+    context.readiness_any.fill(False)
+    context.removal_ready.fill(False)
 
     while True:
         route_slots = np.flatnonzero(
-            context.active & (context.cursors + 1 < context.waypoint_counts)
+            context.active & ~context.waiting & (context.cursors + 1 < context.waypoint_counts)
         )
         near, passed = _waypoint_masks(context, route_slots, positions)
         advance = near.copy()
@@ -899,7 +1027,7 @@ def _update_targets(context: SimulationContext, agents, positions, crossed=None)
             context.states[agent_id].cursor = int(context.cursors[slot])
 
     final_slots = np.flatnonzero(
-        context.active & (context.cursors + 1 == context.waypoint_counts)
+        context.active & ~context.waiting & (context.cursors + 1 == context.waypoint_counts)
     )
     final_near, _final_passed = _waypoint_masks(context, final_slots, positions)
     ready = (
@@ -923,6 +1051,9 @@ def _update_targets(context: SimulationContext, agents, positions, crossed=None)
             context.exit_ends[reach_slots],
         )
 
+    context.removal_ready[final_slots] = ready
+    context.readiness_any[final_slots] = final_near | ready
+
     evacuated = []
     ready_slots = final_slots[ready]
     for slot in ready_slots:
@@ -943,6 +1074,334 @@ def _update_targets(context: SimulationContext, agents, positions, crossed=None)
         state = context.states[agent_id]
         agents[agent_id].target = state.waypoints[state.cursor]
     return evacuated
+
+
+def _exit_axis_projection(context: SimulationContext):
+    def key(slot: int):
+        state = context.states[int(context.agent_ids[slot])]
+        start = state.exit_start
+        end = state.exit_end
+        vx, vy = end[0] - start[0], end[1] - start[1]
+        length_squared = vx * vx + vy * vy
+        position = context.positions[slot]
+        projection = (
+            (position[0] - start[0]) * vx + (position[1] - start[1]) * vy
+        ) / length_squared
+        return (projection, int(context.stable_ids[slot]))
+
+    return key
+
+
+def _point_list(point) -> list[float]:
+    return [_rounded(point[0]), _rounded(point[1])]
+
+
+def _recovery_event(
+    context: SimulationContext,
+    iteration: int,
+    exit_label: int,
+    exit_id: Any,
+    target: tuple[float, float],
+    stable_ids: Sequence[int],
+) -> dict[str, Any]:
+    return {
+        "timeSeconds": _rounded(iteration * DT_SECONDS),
+        "iteration": int(iteration),
+        "contextIndex": int(context.context_index),
+        "exitId": exit_id,
+        "exitLabel": int(exit_label),
+        "target": [_rounded(target[0]), _rounded(target[1])],
+        "stableIds": [int(stable_id) for stable_id in stable_ids],
+        "oldTargets": [],
+        "newTargets": [],
+        "newApproaches": [],
+        "seedNodeIds": [],
+        "status": "RECOVERED",
+        "postRecoveryInvalidMoves": 0,
+        "postRecoveryFullRollbacks": 0,
+    }
+
+
+def _record_recovery_infeasible(
+    context: SimulationContext,
+    event: dict[str, Any],
+    reason_code: str,
+    seeds: Sequence | None = None,
+) -> bool:
+    event["status"] = "RECOVERY_INFEASIBLE"
+    event["reasonCode"] = reason_code
+    if seeds:
+        event["newTargets"] = [_point_list(seed[1]) for seed in seeds]
+        event["newApproaches"] = [_point_list(seed[2]) for seed in seeds]
+        event["seedNodeIds"] = [int(seed[0]) for seed in seeds]
+    context.recovery_counters["infeasible_scans"] = (
+        context.recovery_counters.get("infeasible_scans", 0) + 1
+    )
+    return False
+
+
+def _apply_recovery_mutation(
+    context: SimulationContext,
+    slots: Sequence[int],
+    seeds: Sequence,
+    event: dict[str, Any],
+) -> bool:
+    profile = context.phase_profile
+    mutation_started = time.perf_counter_ns() if profile is not None else 0
+    snapshot = []
+    try:
+        for slot, seed in zip(slots, seeds, strict=True):
+            agent_id = int(context.agent_ids[slot])
+            snapshot.append(
+                {
+                    "slot": int(slot),
+                    "agent_id": agent_id,
+                    "state": context.states[agent_id],
+                    "old_waypoints": context.states[agent_id].waypoints,
+                    "old_terminal_point": context.states[agent_id].terminal_point,
+                    "old_target": context.simulation.agent(agent_id).target,
+                }
+            )
+        for entry, seed in zip(snapshot, seeds, strict=True):
+            new_approach = seed[2]
+            new_target = seed[1]
+            entry["state"].waypoints = entry["state"].waypoints[:-1] + (new_approach,)
+            context.waypoints[
+                context.waypoint_offsets[entry["slot"]] + context.cursors[entry["slot"]]
+            ] = new_approach
+            entry["state"].terminal_point = new_target
+            context.terminal_points[entry["slot"]] = new_target
+            context.simulation.agent(entry["agent_id"]).target = new_approach
+    except Exception as exc:
+        restore_failures = 0
+        for entry in reversed(snapshot):
+            try:
+                entry["state"].waypoints = entry["old_waypoints"]
+                entry["state"].terminal_point = entry["old_terminal_point"]
+                context.waypoints[
+                    context.waypoint_offsets[entry["slot"]] + context.cursors[entry["slot"]]
+                ] = entry["old_waypoints"][-1]
+                context.terminal_points[entry["slot"]] = entry["old_terminal_point"]
+                context.simulation.agent(entry["agent_id"]).target = entry["old_target"]
+            except Exception:
+                restore_failures += 1
+        if restore_failures:
+            raise RecoveryMutationRollbackRunnerError(
+                f"recovery mutation rollback failed for {restore_failures} agent state(s)"
+            ) from exc
+        event["status"] = "RECOVERY_MUTATION_FAILED"
+        event["reasonCode"] = "MUTATION_APPLY_FAILED"
+        event["exceptionClass"] = type(exc).__name__
+        return False
+    finally:
+        if profile is not None:
+            profile.add("recoveryMutation", mutation_started)
+    recovered_slots = context.numpy.asarray(
+        [entry["slot"] for entry in snapshot], dtype=context.numpy.int64
+    )
+    context.recovered[recovered_slots] = True
+    event["newTargets"] = [_point_list(seed[1]) for seed in seeds]
+    event["newApproaches"] = [_point_list(seed[2]) for seed in seeds]
+    event["seedNodeIds"] = [int(seed[0]) for seed in seeds]
+    context.recovery_counters["recovered_groups"] = (
+        context.recovery_counters.get("recovered_groups", 0) + 1
+    )
+    if profile is not None:
+        profile.increment("recoveredGroups")
+    return True
+
+
+def recovery_scan(context: SimulationContext, iteration: int) -> bool:
+    try:
+        from route_planner import _id_key
+    except ModuleNotFoundError:
+        from .route_planner import _id_key  # type: ignore[no-redef]
+    np = context.numpy
+    profile = context.phase_profile
+    scan_started = time.perf_counter_ns() if profile is not None else 0
+    try:
+        context.recovery_counters["scans"] = context.recovery_counters.get("scans", 0) + 1
+        if profile is not None:
+            profile.increment("recoveryScans")
+        active = np.flatnonzero(context.active)
+        if not active.size:
+            return False
+        final_mask = context.cursors[active] + 1 == context.waypoint_counts[active]
+        eligible_mask = (
+            final_mask
+            & ~context.readiness_any[active]
+            & (context.stationary_streak[active] >= RECOVERY_STATIONARY_STREAK_THRESHOLD)
+            & ((iteration - context.last_invalid_iteration[active]) > RECOVERY_INVALID_QUIET_ITERATIONS)
+            & ~context.recovered[active]
+        )
+        eligible = active[eligible_mask]
+        if not eligible.size:
+            return False
+        groups: dict[tuple[int, tuple[float, float]], list[int]] = {}
+        for slot in eligible:
+            agent_id = int(context.agent_ids[slot])
+            state = context.states[agent_id]
+            waypoint = context.waypoints[context.waypoint_offsets[slot] + context.cursors[slot]]
+            exit_label = context.router._exit_labels[_id_key(state.exit_id)]
+            key = (
+                int(exit_label),
+                (
+                    round(float(waypoint[0]), RECOVERY_TARGET_ROUNDING_DIGITS),
+                    round(float(waypoint[1]), RECOVERY_TARGET_ROUNDING_DIGITS),
+                ),
+            )
+            groups.setdefault(key, []).append(int(slot))
+        ordered_keys = sorted(
+            groups,
+            key=lambda key: (
+                key[0],
+                key[1][0],
+                key[1][1],
+                min(int(context.stable_ids[slot]) for slot in groups[key]),
+            ),
+        )
+        context.recovery_counters["eligible_groups"] = (
+            context.recovery_counters.get("eligible_groups", 0) + len(ordered_keys)
+        )
+        chosen: tuple | None = None
+        skipped_groups = 0
+        for key in ordered_keys:
+            slots = groups[key]
+            if len(slots) != RECOVERY_GROUP_SIZE:
+                skipped_groups += 1
+                continue
+            signature = (
+                key[0],
+                key[1],
+                frozenset(int(context.stable_ids[slot]) for slot in slots),
+            )
+            if signature in context.attempted_group_signatures:
+                skipped_groups += 1
+                continue
+            chosen = (key, slots, signature)
+            break
+        context.recovery_counters["skipped_groups"] = (
+            context.recovery_counters.get("skipped_groups", 0) + skipped_groups
+        )
+        if chosen is None:
+            return False
+        key, slots, signature = chosen
+        exit_label = key[0]
+        slots_sorted = sorted(slots, key=_exit_axis_projection(context))
+        stable_ids = [int(context.stable_ids[slot]) for slot in slots_sorted]
+        first_state = context.states[int(context.agent_ids[slots_sorted[0]])]
+        exit_id = first_state.exit_id
+        waypoint = context.waypoints[
+            context.waypoint_offsets[slots_sorted[0]] + context.cursors[slots_sorted[0]]
+        ]
+        current_approach = (float(waypoint[0]), float(waypoint[1]))
+        event = _recovery_event(context, iteration, exit_label, exit_id, key[1], stable_ids)
+        context.recovery_events.append(event)
+        context.attempted_group_signatures.add(signature)
+        old_targets = []
+        for slot in slots_sorted:
+            target = context.simulation.agent(int(context.agent_ids[slot])).target
+            old_targets.append(_point_list(target) if target is not None else None)
+        event["oldTargets"] = old_targets
+        neighbors = context.router.recovery_seed_neighbors(exit_id, current_approach)
+        if neighbors is None:
+            return _record_recovery_infeasible(context, event, "NO_SEEDS")
+        if any(seed is None for seed in neighbors):
+            return _record_recovery_infeasible(context, event, "EDGE_SEED")
+        seeds = neighbors
+        distinct_targets = {
+            (
+                round(seed[1][0], RECOVERY_TARGET_ROUNDING_DIGITS),
+                round(seed[1][1], RECOVERY_TARGET_ROUNDING_DIGITS),
+            )
+            for seed in seeds
+        }
+        if len(distinct_targets) < RECOVERY_GROUP_SIZE:
+            return _record_recovery_infeasible(context, event, "NON_DISTINCT_TARGETS", seeds)
+        exit_ = context.router.exits[exit_label]
+        if _id_key(exit_.id) != _id_key(exit_id):
+            return _record_recovery_infeasible(context, event, "EXIT_ID_CHANGED", seeds)
+        for slot, seed in zip(slots_sorted, seeds, strict=True):
+            position = (float(context.positions[slot, 0]), float(context.positions[slot, 1]))
+            if not context.router.can_connect(position, seed[2]):
+                return _record_recovery_infeasible(context, event, "CONNECT_FAILED", seeds)
+            if not context.router.can_reach_exit(position, seed[1]):
+                return _record_recovery_infeasible(context, event, "REACH_FAILED", seeds)
+        return _apply_recovery_mutation(context, slots_sorted, seeds, event)
+    finally:
+        if profile is not None:
+            profile.add("recoveryScan", scan_started)
+
+
+def _build_recovery_summary(contexts: Sequence[SimulationContext]) -> dict[str, Any]:
+    try:
+        from route_planner import _id_key
+    except ModuleNotFoundError:
+        from .route_planner import _id_key  # type: ignore[no-redef]
+    scan_count = 0
+    eligible_group_count = 0
+    skipped_group_count = 0
+    infeasible_scan_count = 0
+    recovered_group_count = 0
+    attempted_signatures = 0
+    recovered_exit_labels: set[int] = set()
+    recovered_exit_ids: list[Any] = []
+    recovered_exit_id_keys: set[str] = set()
+    events: list[dict[str, Any]] = []
+    for context in contexts:
+        counters = context.recovery_counters
+        scan_count += counters.get("scans", 0)
+        eligible_group_count += counters.get("eligible_groups", 0)
+        skipped_group_count += counters.get("skipped_groups", 0)
+        infeasible_scan_count += counters.get("infeasible_scans", 0)
+        recovered_group_count += counters.get("recovered_groups", 0)
+        attempted_signatures += len(context.attempted_group_signatures)
+        for event in context.recovery_events:
+            serialized = dict(event)
+            stable_id_array = context.numpy.asarray(event["stableIds"], dtype=context.numpy.int64)
+            slots = context.numpy.flatnonzero(
+                context.numpy.isin(context.stable_ids, stable_id_array)
+            )
+            serialized["postRecoveryInvalidMoves"] = int(
+                context.post_recovery_invalid_moves[slots].sum()
+            )
+            serialized["postRecoveryFullRollbacks"] = int(
+                context.post_recovery_full_rollbacks[slots].sum()
+            )
+            if serialized["status"] == "RECOVERED":
+                recovered_exit_labels.add(int(serialized["exitLabel"]))
+                exit_id_key = _id_key(serialized["exitId"])
+                if exit_id_key not in recovered_exit_id_keys:
+                    recovered_exit_id_keys.add(exit_id_key)
+                    recovered_exit_ids.append(serialized["exitId"])
+            events.append(serialized)
+    events.sort(
+        key=lambda event: (
+            event["iteration"],
+            event["contextIndex"],
+            event["exitLabel"],
+            event["target"][0],
+            event["target"][1],
+            min(event["stableIds"]),
+        )
+    )
+    recovered_times = [
+        event["timeSeconds"] for event in events if event["status"] == "RECOVERED"
+    ]
+    return {
+        "schemaVersion": 1,
+        "scanCount": scan_count,
+        "eligibleGroupCount": eligible_group_count,
+        "skippedEligibleGroupCount": skipped_group_count,
+        "infeasibleScanCount": infeasible_scan_count,
+        "recoveredGroupCount": recovered_group_count,
+        "recoveredAgentCount": RECOVERY_GROUP_SIZE * recovered_group_count,
+        "recoveryTimeSeconds": _rounded(min(recovered_times)) if recovered_times else 0.0,
+        "recoveredExitLabels": sorted(recovered_exit_labels),
+        "recoveredExitIds": sorted(recovered_exit_ids, key=str),
+        "attemptedGroupSignatures": attempted_signatures,
+        "events": events,
+    }
 
 
 def _waypoint_masks(context: SimulationContext, slots, positions):
@@ -1046,6 +1505,48 @@ def _positive_number(value: Any, label: str) -> float:
     if not math.isfinite(result) or result <= 0:
         raise RunnerError(f"{label} must be a positive finite number")
     return result
+
+
+def _nonnegative_number(value: Any, label: str) -> float:
+    if isinstance(value, bool):
+        raise RunnerError(f"{label} must be a non-negative number")
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as exc:
+        raise RunnerError(f"{label} must be a non-negative number") from exc
+    if not math.isfinite(result) or result < 0:
+        raise RunnerError(f"{label} must be a non-negative finite number")
+    return result
+
+
+def _integer_number(value: Any, label: str) -> int:
+    if isinstance(value, bool):
+        raise RunnerError(f"{label} must be an integer")
+    try:
+        result = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise RunnerError(f"{label} must be an integer") from exc
+    if value != result:
+        raise RunnerError(f"{label} must be an integer")
+    return result
+
+
+def _sample_initial_response_times(np, count: int, mean: float, std_dev: float, seed: int):
+    if count < 1 or mean <= 0.0:
+        return [0.0] * count
+    if std_dev <= 0.0:
+        return [mean] * count
+    shape = (mean / std_dev) ** 2
+    scale = (std_dev * std_dev) / mean
+    return np.random.default_rng(seed & 0xFFFFFFFF).gamma(shape, scale, size=count)
+
+
+def _start_iteration(response_time: float) -> int:
+    if response_time <= 0.0:
+        return 1
+    if response_time >= MAX_SIMULATION_TIME_SECONDS:
+        return int(MAX_SIMULATION_TIME_SECONDS / DT_SECONDS) + 1
+    return int(math.ceil(response_time / DT_SECONDS - 1e-12)) + 1
 
 
 def _agents(value: Any) -> list[tuple[float, float]]:

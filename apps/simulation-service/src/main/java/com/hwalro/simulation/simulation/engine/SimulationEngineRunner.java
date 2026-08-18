@@ -43,6 +43,7 @@ public class SimulationEngineRunner {
     private final Duration timeout;
     private final double maxSimulationTimeSeconds;
     private final double frameIntervalSeconds;
+    private final boolean sharedTargetRecoveryEnabled;
 
     public SimulationEngineRunner(
             ObjectMapper objectMapper,
@@ -51,7 +52,8 @@ public class SimulationEngineRunner {
             @Value("${simulation.engine.work-directory:}") String workDirectory,
             @Value("${simulation.engine.timeout:30m}") Duration timeout,
             @Value("${simulation.engine.max-simulation-time:600}") double maxSimulationTimeSeconds,
-            @Value("${simulation.engine.frame-interval:1}") double frameIntervalSeconds) {
+            @Value("${simulation.engine.frame-interval:1}") double frameIntervalSeconds,
+            @Value("${simulation.engine.shared-target-recovery-enabled:false}") boolean sharedTargetRecoveryEnabled) {
         this.objectMapper = objectMapper;
         this.pythonCommand = resolvePythonCommand(pythonCommand);
         this.scriptPath = resolveScript(script);
@@ -63,6 +65,7 @@ public class SimulationEngineRunner {
         this.timeout = timeout;
         this.maxSimulationTimeSeconds = maxSimulationTimeSeconds;
         this.frameIntervalSeconds = frameIntervalSeconds;
+        this.sharedTargetRecoveryEnabled = sharedTargetRecoveryEnabled;
     }
 
     public void assertAvailable() {
@@ -244,21 +247,24 @@ public class SimulationEngineRunner {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
     }
 
-    private Map<String, Object> createInput(SimulationSetupResponse setup) {
+    Map<String, Object> createInput(SimulationSetupResponse setup) {
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("modelProfile", setup.modelProfile());
         model.put("routingProfile", setup.routingProfile());
         model.put("walkingSpeed", setup.walkingSpeed());
-        model.put("reactionTime", setup.reactionTime());
+        model.put("initialResponseTimeMean", setup.initialResponseTimeMean());
+        model.put("initialResponseTimeStdDev", setup.initialResponseTimeStdDev());
 
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("model", model);
+        input.put("randomSeed", setup.randomSeed());
         input.put("drawing", setup.drawing());
         input.put("agents", setup.agentPositions());
         input.put("hazards", setup.hazardZones());
         input.put("selectedExitIds", setup.selectedExitIds());
         input.put("maxSimulationTimeSeconds", maxSimulationTimeSeconds);
         input.put("frameIntervalSeconds", frameIntervalSeconds);
+        input.put("recoveryDetectorEnabled", sharedTargetRecoveryEnabled);
         return input;
     }
 
@@ -602,7 +608,8 @@ public class SimulationEngineRunner {
             Integer timelineChunkCount,
             Integer heatmapChunkCount,
             Double maxDensity,
-            com.fasterxml.jackson.databind.JsonNode terminationDetail) {}
+            com.fasterxml.jackson.databind.JsonNode terminationDetail,
+            com.fasterxml.jackson.databind.JsonNode recoverySummary) {}
 
     public static class EngineRunException extends Exception {
         private final boolean timeout;

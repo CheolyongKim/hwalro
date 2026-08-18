@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import heapq
 import math
+from types import MappingProxyType
 from typing import Any, Callable, Iterable, Sequence
 
 import numpy as np
@@ -26,6 +27,10 @@ from shapely.strtree import STRtree
 GRID_STEP_METERS = 0.25
 WALL_TOTAL_WIDTH_METERS = 0.02
 EXIT_SEED_MAX_DISTANCE_METERS = GRID_STEP_METERS * math.sqrt(2.0)
+# 문 크기의 짧은 출구는 기존 경로를 보존한다.
+# endpoint-clamped seed 제외는 장출구 경계 구간에만 한정한다.
+# 5.0m는 현재 회귀 fixture로 검증된 보수적 적용 경계다.
+EXIT_SEED_ENDPOINT_EXCLUSION_MIN_USABLE_LENGTH_METERS = 5.0
 HAZARD_BOUNDARY_MULTIPLIER = 5.0
 HAZARD_CENTER_MULTIPLIER = 500.0
 _CONNECTOR_VISIBILITY_BATCH_SIZE = 4096
@@ -42,6 +47,7 @@ _MOVES = (
 )
 
 Point = tuple[float, float]
+ExitSeed = tuple[int, Point, Point]
 
 
 @dataclass(frozen=True)
@@ -301,6 +307,9 @@ class GridRouter:
             for move in _MOVES
         }
         self.exits = tuple(exits)
+        self._exit_labels = MappingProxyType(
+            {_id_key(exit_.id): label for label, exit_ in enumerate(self.exits)}
+        )
         self.step = step
         self.exit_clearance = exit_clearance
 
@@ -521,8 +530,11 @@ class GridRouter:
     def _build_cost_field(self) -> None:
         heap: list[tuple[float, int, int]] = []
         seed_count = 0
+        seeds_by_exit: dict[str, tuple[ExitSeed, ...]] = {}
         for label, exit_ in enumerate(self.exits):
-            for node, target, approach in self._exit_seeds(exit_):
+            seeds = tuple(self._exit_seeds(exit_))
+            seeds_by_exit[_id_key(exit_.id)] = seeds
+            for node, target, approach in seeds:
                 seed_count += 1
                 seed_cost = self._edge_cost(self._point(node), target)
                 current = (float(self.distance[node]), int(self.exit_label[node]))
@@ -581,7 +593,79 @@ class GridRouter:
                     self.approach_y[neighbor] = self.approach_y[node]
                     heapq.heappush(heap, (next_cost, label, neighbor))
 
-    def _exit_seeds(self, exit_: Exit) -> list[tuple[int, Point, Point]]:
+        self._exit_seed_cache = MappingProxyType(seeds_by_exit)
+
+    def recovery_seed_neighbors(
+        self, exit_id: Any, current_approach: Point
+    ) -> tuple[ExitSeed, ExitSeed, ExitSeed] | None:
+        """Return the adjacent seed neighborhood of *current_approach* for *exit_id*.
+
+        The exit id is canonicalized with the same rules as exit parsing. The
+        result is ``(prev, current, next)`` where *current* is the cached seed
+        whose target lies nearest to the axis projection of *current_approach*
+        and *prev* / *next* are the immediately adjacent seeds along the exit.
+        Neighbors missing at the row edges are ``None``; the whole result is
+        ``None`` when the exit has fewer than three distinct seed targets. No
+        seed order wraps around and no coordinates are invented. Reachability
+        validation belongs to the caller (the runner), which can report the
+        exact failure reason per agent.
+        """
+        point = (float(current_approach[0]), float(current_approach[1]))
+        if not all(math.isfinite(value) for value in point):
+            raise ValueError("approach coordinates must be finite")
+        exit_key = _id_key(exit_id)
+        seeds = self._exit_seed_cache.get(exit_key)
+        if not seeds:
+            return None
+        exit_ = self.exits[self._exit_labels[exit_key]]
+        ordered = self._order_seeds_by_projection(exit_, seeds)
+        if len({seed[1] for seed in ordered}) < 3:
+            return None
+        start, end = usable_exit_segment(exit_, self.exit_clearance)
+        vx, vy = end[0] - start[0], end[1] - start[1]
+        length_squared = vx * vx + vy * vy
+        query_projection = (
+            (point[0] - start[0]) * vx + (point[1] - start[1]) * vy
+        ) / length_squared
+        current_index = min(
+            range(len(ordered)),
+            key=lambda index: (
+                abs(
+                    (
+                        (ordered[index][1][0] - start[0]) * vx
+                        + (ordered[index][1][1] - start[1]) * vy
+                    )
+                    / length_squared
+                    - query_projection
+                ),
+                index,
+            ),
+        )
+        return (
+            ordered[current_index - 1] if current_index > 0 else None,
+            ordered[current_index],
+            ordered[current_index + 1] if current_index + 1 < len(ordered) else None,
+        )
+
+    def _order_seeds_by_projection(self, exit_: Exit, seeds: Sequence[ExitSeed]) -> list[ExitSeed]:
+        """Return one representative per distinct seed position, ordered along the exit."""
+        start, end = usable_exit_segment(exit_, self.exit_clearance)
+        vx, vy = end[0] - start[0], end[1] - start[1]
+        length_squared = vx * vx + vy * vy
+        positions: dict[tuple[Point, Point], ExitSeed] = {}
+        for seed in seeds:
+            target, approach = seed[1], seed[2]
+            positions.setdefault((target, approach), seed)
+        return sorted(
+            positions.values(),
+            key=lambda seed: (
+                ((seed[1][0] - start[0]) * vx + (seed[1][1] - start[1]) * vy)
+                / length_squared,
+                seed[0],
+            ),
+        )
+
+    def _exit_seeds(self, exit_: Exit) -> list[ExitSeed]:
         candidates = np.flatnonzero(self.valid)
         start, end = usable_exit_segment(exit_, self.exit_clearance)
         ax, ay = start
@@ -590,17 +674,17 @@ class GridRouter:
         length_squared = vx * vx + vy * vy
         length = math.sqrt(length_squared)
         normal = (-vy / length, vx / length)
-        projection = np.clip(
-            ((self._x[candidates] - ax) * vx + (self._y[candidates] - ay) * vy) / length_squared,
-            0.0,
-            1.0,
-        )
+        raw_projection = (
+            (self._x[candidates] - ax) * vx + (self._y[candidates] - ay) * vy
+        ) / length_squared
+        projection = np.clip(raw_projection, 0.0, 1.0)
         target_x = ax + projection * vx
         target_y = ay + projection * vy
         squared = (self._x[candidates] - target_x) ** 2 + (self._y[candidates] - target_y) ** 2
         maximum_seed_distance = self.exit_clearance + EXIT_SEED_MAX_DISTANCE_METERS
         nearby = np.flatnonzero(squared <= (maximum_seed_distance + _EPSILON) ** 2)
         seeds = []
+        endpoint_clamped: set[int] = set()
         for offset in nearby:
             node = int(candidates[offset])
             target = (float(target_x[offset]), float(target_y[offset]))
@@ -626,6 +710,14 @@ class GridRouter:
             if valid_approaches:
                 approach = min(valid_approaches, key=lambda item: (math.dist(node_point, item), item))
                 seeds.append((node, target, approach))
+                if raw_projection[offset] <= 0.0 or raw_projection[offset] >= 1.0:
+                    endpoint_clamped.add(node)
+        if (
+            seeds
+            and len(seeds) > len(endpoint_clamped)
+            and length >= EXIT_SEED_ENDPOINT_EXCLUSION_MIN_USABLE_LENGTH_METERS
+        ):
+            seeds = [seed for seed in seeds if seed[0] not in endpoint_clamped]
         return seeds
 
     def contains(self, point: Point) -> bool:

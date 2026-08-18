@@ -200,7 +200,9 @@
                routing_profile,
                total_people,
                walking_speed,
-               reaction_time
+               reaction_time,
+               initial_response_time_mean,
+               initial_response_time_std_dev
         FROM simulation_options
         WHERE simulation_id = #{simulationId}
     </select>
@@ -236,6 +238,7 @@
                sr.termination_reason,
                sr.frame_interval_seconds,
                sr.termination_detail,
+               sr.recovery_detail,
                sr.created_at,
                (SELECT COUNT(*) FROM timelines t WHERE t.simulation_result_id = sr.id) AS timeline_chunk_count,
                (SELECT COUNT(*) FROM heatmaps h WHERE h.simulation_result_id = sr.id) AS heatmap_chunk_count,
@@ -285,9 +288,11 @@
 
     <insert id="insertSimulationOption" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO simulation_options
-            (simulation_id, random_seed, model_profile, routing_profile, total_people, walking_speed, reaction_time)
+            (simulation_id, random_seed, model_profile, routing_profile, total_people, walking_speed, reaction_time,
+             initial_response_time_mean, initial_response_time_std_dev)
         VALUES
-            (#{simulationId}, #{randomSeed}, #{modelProfile}, #{routingProfile}, #{totalPeople}, #{walkingSpeed}, #{reactionTime})
+            (#{simulationId}, #{randomSeed}, #{modelProfile}, #{routingProfile}, #{totalPeople}, #{walkingSpeed},
+             #{reactionTime}, #{initialResponseTimeMean}, #{initialResponseTimeStdDev})
     </insert>
 
     <insert id="insertInitialState">
@@ -315,7 +320,9 @@
         UPDATE simulation_options
         SET total_people = #{totalPeople},
             walking_speed = #{walkingSpeed},
-            reaction_time = #{reactionTime}
+            reaction_time = 0.5000,
+            initial_response_time_mean = #{initialResponseTimeMean},
+            initial_response_time_std_dev = #{initialResponseTimeStdDev}
         WHERE simulation_id = #{simulationId}
     </update>
 
@@ -409,11 +416,15 @@
 
     <insert id="insertSimulationResult" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO simulation_results
-            (simulation_id, engine_version, termination_reason, frame_interval_seconds, termination_detail)
+            (simulation_id, engine_version, termination_reason, frame_interval_seconds, termination_detail, recovery_detail)
         VALUES
             (#{simulationId}, #{engineVersion}, #{terminationReason}, #{frameIntervalSeconds},
              <choose>
                  <when test="terminationDetail != null">CAST(#{terminationDetail} AS JSON)</when>
+                 <otherwise>NULL</otherwise>
+             </choose>,
+             <choose>
+                 <when test="recoveryDetail != null">CAST(#{recoveryDetail} AS JSON)</when>
                  <otherwise>NULL</otherwise>
              </choose>)
     </insert>

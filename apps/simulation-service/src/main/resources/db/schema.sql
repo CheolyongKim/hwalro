@@ -212,7 +212,9 @@ CREATE TABLE IF NOT EXISTS simulation_options (
     routing_profile VARCHAR(50) NOT NULL DEFAULT 'HAZARD_RADIAL_EXP_V3',
     total_people INT UNSIGNED NOT NULL,
     walking_speed DECIMAL(8, 4) NOT NULL,
-    reaction_time DECIMAL(8, 4) NOT NULL,
+    reaction_time DECIMAL(8, 4) NOT NULL DEFAULT 0.5000,
+    initial_response_time_mean DECIMAL(8, 4) NOT NULL DEFAULT 0.0000,
+    initial_response_time_std_dev DECIMAL(8, 4) NOT NULL DEFAULT 0.0000,
     CONSTRAINT pk_simulation_options PRIMARY KEY (id),
     CONSTRAINT uk_simulation_options_simulation UNIQUE (simulation_id),
     CONSTRAINT fk_simulation_options_simulation
@@ -282,6 +284,7 @@ CREATE TABLE IF NOT EXISTS simulation_results (
     termination_reason VARCHAR(30) NOT NULL,
     frame_interval_seconds DECIMAL(8, 3) NOT NULL,
     termination_detail JSON NULL,
+    recovery_detail JSON NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_simulation_results PRIMARY KEY (id),
     CONSTRAINT uk_simulation_results_simulation UNIQUE (simulation_id),

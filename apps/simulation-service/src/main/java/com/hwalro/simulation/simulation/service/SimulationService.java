@@ -63,8 +63,8 @@ public class SimulationService {
     private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final BigDecimal DEFAULT_WALKING_SPEED = BigDecimal.valueOf(1.25);
     private static final BigDecimal DEFAULT_REACTION_TIME = BigDecimal.valueOf(0.5);
-    private static final BigDecimal MIN_REACTION_TIME = BigDecimal.valueOf(0.1);
-    private static final BigDecimal MAX_REACTION_TIME = BigDecimal.valueOf(2.0);
+    private static final BigDecimal DEFAULT_INITIAL_RESPONSE_TIME = BigDecimal.ZERO;
+    private static final BigDecimal MAX_INITIAL_RESPONSE_TIME = BigDecimal.valueOf(600.0);
     private static final BigDecimal MAX_WALKING_SPEED = BigDecimal.valueOf(3.0);
     private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
     private static final String ROLE_ADMIN = "ADMIN";
@@ -192,6 +192,8 @@ public class SimulationService {
         option.setTotalPeople(agents.size());
         option.setWalkingSpeed(DEFAULT_WALKING_SPEED);
         option.setReactionTime(DEFAULT_REACTION_TIME);
+        option.setInitialResponseTimeMean(DEFAULT_INITIAL_RESPONSE_TIME);
+        option.setInitialResponseTimeStdDev(DEFAULT_INITIAL_RESPONSE_TIME);
         simulationMapper.insertSimulationOption(option);
         simulationMapper.insertInitialState(simulation.getId(), writeAgentPositions(agents));
 
@@ -267,7 +269,9 @@ public class SimulationService {
         copiedOption.setRoutingProfile(sourceOption.getRoutingProfile());
         copiedOption.setTotalPeople(sourceOption.getTotalPeople());
         copiedOption.setWalkingSpeed(sourceOption.getWalkingSpeed());
-        copiedOption.setReactionTime(sourceOption.getReactionTime());
+        copiedOption.setReactionTime(DEFAULT_REACTION_TIME);
+        copiedOption.setInitialResponseTimeMean(sourceOption.getInitialResponseTimeMean());
+        copiedOption.setInitialResponseTimeStdDev(sourceOption.getInitialResponseTimeStdDev());
         simulationMapper.insertSimulationOption(copiedOption);
         simulationMapper.insertInitialState(draft.getId(), writeAgentPositions(agents));
 
@@ -413,10 +417,11 @@ public class SimulationService {
                 || request.hazardZones() == null
                 || request.selectedExitIds() == null
                 || request.walkingSpeed() == null
-                || request.reactionTime() == null) {
+                || request.initialResponseTimeMean() == null
+                || request.initialResponseTimeStdDev() == null) {
             throw new IllegalArgumentException("에이전트, 위험구역, 출입구와 시뮬레이션 옵션이 모두 필요합니다.");
         }
-        validateOptions(request.walkingSpeed(), request.reactionTime());
+        validateOptions(request.walkingSpeed(), request.initialResponseTimeMean(), request.initialResponseTimeStdDev());
 
         Simulation simulation = findSimulationForUpdate(id);
         requireAccessible(simulation.getCreatedBy(), user);
@@ -439,7 +444,11 @@ public class SimulationService {
                 drawing.exits());
 
         simulationMapper.updateSimulationOption(
-                id, request.agentPositions().size(), request.walkingSpeed(), request.reactionTime());
+                id,
+                request.agentPositions().size(),
+                request.walkingSpeed(),
+                request.initialResponseTimeMean(),
+                request.initialResponseTimeStdDev());
         simulationMapper.updateInitialState(id, writeAgentPositions(request.agentPositions()));
         simulationMapper.deleteHazardZones(id);
         simulationMapper.deleteSimulationExits(id);
@@ -491,7 +500,8 @@ public class SimulationService {
                 option.getRoutingProfile(),
                 option.getTotalPeople(),
                 option.getWalkingSpeed(),
-                option.getReactionTime(),
+                option.getInitialResponseTimeMean(),
+                option.getInitialResponseTimeStdDev(),
                 readAgentPositions(id),
                 simulationMapper.findHazardZones(id).stream()
                         .map(hazard -> new HazardZoneDto(
@@ -526,12 +536,19 @@ public class SimulationService {
         }
     }
 
-    private void validateOptions(BigDecimal walkingSpeed, BigDecimal reactionTime) {
+    private void validateOptions(
+            BigDecimal walkingSpeed, BigDecimal initialResponseTimeMean, BigDecimal initialResponseTimeStdDev) {
         if (walkingSpeed.signum() <= 0 || walkingSpeed.compareTo(MAX_WALKING_SPEED) > 0) {
             throw new IllegalArgumentException("보행 속도는 0보다 크고 3m/s 이하여야 합니다.");
         }
-        if (reactionTime.compareTo(MIN_REACTION_TIME) < 0 || reactionTime.compareTo(MAX_REACTION_TIME) > 0) {
-            throw new IllegalArgumentException("속도 반응시간은 0.1초 이상 2.0초 이하여야 합니다.");
+        if (initialResponseTimeMean.signum() < 0
+                || initialResponseTimeStdDev.signum() < 0
+                || initialResponseTimeMean.compareTo(MAX_INITIAL_RESPONSE_TIME) > 0
+                || initialResponseTimeStdDev.compareTo(MAX_INITIAL_RESPONSE_TIME) > 0) {
+            throw new IllegalArgumentException("초기 반응시간 평균과 표준편차는 0초 이상 600초 이하여야 합니다.");
+        }
+        if (initialResponseTimeMean.signum() == 0 && initialResponseTimeStdDev.signum() > 0) {
+            throw new IllegalArgumentException("평균 초기 반응시간이 0초이면 표준편차도 0초여야 합니다.");
         }
     }
 

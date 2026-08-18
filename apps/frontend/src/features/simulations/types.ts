@@ -54,7 +54,8 @@ export interface SimulationSetup {
   randomSeed: number;
   totalPeople: number;
   walkingSpeed: number;
-  reactionTime: number;
+  initialResponseTimeMean: number;
+  initialResponseTimeStdDev: number;
   modelProfile: string;
   routingProfile: string;
   agentPositions: SimulationPoint[];
@@ -206,7 +207,8 @@ export interface CreateSimulationDraftRequest {
 
 export interface UpdateSimulationSetupRequest {
   walkingSpeed: number;
-  reactionTime: number;
+  initialResponseTimeMean: number;
+  initialResponseTimeStdDev: number;
   agentPositions: SimulationPoint[];
   hazardZones: Array<Pick<SimulationHazardZone, 'centerX' | 'centerY' | 'radius'>>;
   selectedExitIds: number[];

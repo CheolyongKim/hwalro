@@ -16,7 +16,8 @@ public final class SimulationDtos {
             List<HazardZoneDto> hazardZones,
             List<Long> selectedExitIds,
             BigDecimal walkingSpeed,
-            BigDecimal reactionTime) {}
+            BigDecimal initialResponseTimeMean,
+            BigDecimal initialResponseTimeStdDev) {}
 
     public record PointDto(BigDecimal x, BigDecimal y) {}
 
@@ -83,7 +84,8 @@ public final class SimulationDtos {
             String routingProfile,
             Integer totalPeople,
             BigDecimal walkingSpeed,
-            BigDecimal reactionTime,
+            BigDecimal initialResponseTimeMean,
+            BigDecimal initialResponseTimeStdDev,
             List<PointDto> agentPositions,
             List<HazardZoneDto> hazardZones,
             List<Long> selectedExitIds,
