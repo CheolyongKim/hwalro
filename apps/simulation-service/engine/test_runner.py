@@ -39,6 +39,7 @@ from runner import (
     _update_targets,
     _waypoint_reached,
     main,
+    mid_route_recovery_scan,
     recovery_scan,
     run,
 )
@@ -2007,6 +2008,155 @@ class RecoveryScanTest(unittest.TestCase):
         )
         self.assertEqual(summary["events"][0]["exitId"], 501)
         self.assertEqual(summary["events"][1]["exitId"], 501)
+
+
+class MidRouteRecoveryScanTest(unittest.TestCase):
+    class Model:
+        def __init__(self):
+            self.velocity = (0.0, 0.0)
+
+    class Agent:
+        def __init__(self, target=None):
+            self._target = target
+            self.position = (0.0, 0.0)
+            self.model = MidRouteRecoveryScanTest.Model()
+
+        @property
+        def target(self):
+            return self._target
+
+        @target.setter
+        def target(self, value):
+            self._target = value
+
+    class Simulation:
+        def __init__(self, agents):
+            self.agents_by_id = agents
+
+        def agent(self, agent_id):
+            return self.agents_by_id[agent_id]
+
+        def mark_agent_for_removal(self, _agent_id):
+            return False
+
+    class Router:
+        def __init__(self, plan_fn):
+            self._exit_labels = {"501": 0}
+            self._plan_fn = plan_fn
+
+        def plan(self, position):
+            return self._plan_fn(position)
+
+    def _state(self, stable_id, waypoints):
+        return AgentRouteState(
+            stable_id=stable_id,
+            exit_id=501,
+            waypoints=waypoints,
+            terminal_point=(10.0, 4.0),
+            exit_start=(10.0, 1.0),
+            exit_end=(10.0, 7.0),
+            cursor=0,
+        )
+
+    def _context(self, states, positions, plan_fn):
+        agents = {agent_id: self.Agent((9.7, 4.0)) for agent_id in states}
+        simulation = self.Simulation(agents)
+        router = self.Router(plan_fn)
+        context = SimulationContext(
+            simulation,
+            router,
+            states,
+            positions,
+            numpy=np,
+        )
+        for slot in range(len(states)):
+            context.stationary_streak[slot] = 500
+            context.last_invalid_iteration[slot] = -1
+            context.readiness_any[slot] = False
+        return context, agents
+
+    def _new_route(self):
+        return SimpleNamespace(
+            exit_id=501,
+            waypoints=((9.4, 4.0), (9.7, 4.0), (10.0, 4.0)),
+            terminal_point=(10.0, 4.0),
+            exit_start=(10.0, 1.0),
+            exit_end=(10.0, 7.0),
+        )
+
+    def test_recovers_mid_route_stuck_agent(self):
+        states = {
+            1: self._state(1, ((9.0, 4.0), (9.4, 4.0), (9.7, 4.0))),
+        }
+        context, agents = self._context(states, {1: (9.3, 4.0)}, lambda _pos: self._new_route())
+
+        applied = mid_route_recovery_scan(context, 550)
+
+        self.assertTrue(applied)
+        self.assertEqual(states[1].waypoints, ((9.4, 4.0), (9.7, 4.0), (10.0, 4.0)))
+        self.assertEqual(states[1].cursor, 1)
+        self.assertTrue(context.recovered[0])
+        self.assertEqual(context.recovery_counters.get("recovered_mid_route"), 1)
+        self.assertEqual(agents[1].target, (9.7, 4.0))
+        event = context.recovery_events[0]
+        self.assertEqual(event["status"], "RECOVERED")
+        self.assertEqual(event["exitLabel"], 0)
+
+    def test_ignores_final_stage_agent(self):
+        states = {
+            1: self._state(1, ((9.7, 4.0),)),
+        }
+        context, _agents = self._context(
+            states, {1: (9.5, 4.0)}, lambda _pos: self._new_route()
+        )
+
+        self.assertFalse(mid_route_recovery_scan(context, 550))
+        self.assertEqual(context.recovery_counters.get("recovered_mid_route", 0), 0)
+
+    def test_ignores_non_stationary_agent(self):
+        states = {
+            1: self._state(1, ((9.0, 4.0), (9.4, 4.0), (9.7, 4.0))),
+        }
+        context, _agents = self._context(
+            states, {1: (9.3, 4.0)}, lambda _pos: self._new_route()
+        )
+        context.stationary_streak[0] = 10
+
+        self.assertFalse(mid_route_recovery_scan(context, 550))
+        self.assertEqual(context.recovery_counters.get("recovered_mid_route", 0), 0)
+
+    def test_reroute_unreachable_records_infeasible(self):
+        def plan(_pos):
+            raise AgentRouteUnreachableError()
+
+        states = {
+            1: self._state(1, ((9.0, 4.0), (9.4, 4.0), (9.7, 4.0))),
+        }
+        context, _agents = self._context(states, {1: (9.3, 4.0)}, plan)
+
+        self.assertFalse(mid_route_recovery_scan(context, 550))
+        self.assertFalse(context.recovered[0])
+        event = context.recovery_events[0]
+        self.assertEqual(event["status"], "RECOVERY_INFEASIBLE")
+        self.assertEqual(event["reasonCode"], "REROUTE_UNREACHABLE")
+
+    def test_reroute_unchanged_records_infeasible(self):
+        states = {
+            1: self._state(1, ((9.0, 4.0), (9.4, 4.0), (9.7, 4.0))),
+        }
+        unchanged = SimpleNamespace(
+            exit_id=501,
+            waypoints=((9.0, 4.0), (9.4, 4.0), (9.7, 4.0)),
+            terminal_point=(10.0, 4.0),
+            exit_start=(10.0, 1.0),
+            exit_end=(10.0, 7.0),
+        )
+        context, _agents = self._context(states, {1: (9.3, 4.0)}, lambda _pos: unchanged)
+
+        self.assertFalse(mid_route_recovery_scan(context, 550))
+        event = context.recovery_events[0]
+        self.assertEqual(event["status"], "RECOVERY_INFEASIBLE")
+        self.assertEqual(event["reasonCode"], "REROUTE_UNCHANGED")
 
 
 if __name__ == "__main__":

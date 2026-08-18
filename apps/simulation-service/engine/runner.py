@@ -47,6 +47,7 @@ EXIT_PORTAL_COMPLETION_BAND_METERS = (
     AGENT_RADIUS_METERS + WAYPOINT_REACHED_DISTANCE_METERS
 )
 RECOVERY_STATIONARY_STREAK_THRESHOLD = 500
+MID_ROUTE_STATIONARY_STREAK_THRESHOLD = 500
 RECOVERY_INVALID_QUIET_ITERATIONS = 500
 RECOVERY_GROUP_SIZE = 3
 RECOVERY_TARGET_ROUNDING_DIGITS = 6
@@ -711,6 +712,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
                         recovery_applied_this_iteration = (
                             recovery_applied_this_iteration
                             or recovery_scan(context, iteration)
+                            or mid_route_recovery_scan(context, iteration)
                         )
         waiting_for_start = any(context.waiting_count > 0 for context in contexts)
         if evacuated_this_iteration or recovery_applied_this_iteration or waiting_for_start:
@@ -1490,6 +1492,131 @@ def recovery_scan(context: SimulationContext, iteration: int) -> bool:
             profile.add("recoveryScan", scan_started)
 
 
+def _rebuild_waypoint_arrays(context: SimulationContext) -> None:
+    np = context.numpy
+    count = len(context.agent_ids)
+    flattened: list[tuple[float, float]] = []
+    offsets = np.empty(count + 1, dtype=np.int64)
+    offsets[0] = 0
+    counts = np.empty(count, dtype=np.int64)
+    old_waypoints = context.waypoints
+    old_offsets = context.waypoint_offsets
+    for slot in range(count):
+        if context.active[slot]:
+            waypoints = context.states[int(context.agent_ids[slot])].waypoints
+        else:
+            start = int(old_offsets[slot])
+            end = int(old_offsets[slot + 1])
+            waypoints = tuple(
+                (float(old_waypoints[index, 0]), float(old_waypoints[index, 1]))
+                for index in range(start, end)
+            )
+        flattened.extend(waypoints)
+        counts[slot] = len(waypoints)
+        offsets[slot + 1] = len(flattened)
+    context.waypoints = np.asarray(flattened, dtype=float).reshape(-1, 2)
+    context.waypoint_offsets = offsets
+    context.waypoint_counts = counts
+
+
+def _apply_reroute_mutation(
+    context: SimulationContext, slot: int, route, event: dict[str, Any]
+) -> bool:
+    agent_id = int(context.agent_ids[slot])
+    state = context.states[agent_id]
+    new_waypoints = tuple(route.waypoints)
+    new_cursor = 1 if len(new_waypoints) > 1 else 0
+    snapshot = {
+        "waypoints": state.waypoints,
+        "terminal_point": state.terminal_point,
+        "exit_start": state.exit_start,
+        "exit_end": state.exit_end,
+        "exit_id": state.exit_id,
+        "cursor": state.cursor,
+        "target": context.simulation.agent(agent_id).target,
+    }
+    try:
+        state.waypoints = new_waypoints
+        state.terminal_point = route.terminal_point
+        state.exit_start = route.exit_start
+        state.exit_end = route.exit_end
+        state.exit_id = route.exit_id
+        state.cursor = new_cursor
+        context.cursors[slot] = new_cursor
+        context.terminal_points[slot] = route.terminal_point
+        context.exit_starts[slot] = route.exit_start
+        context.exit_ends[slot] = route.exit_end
+        _rebuild_waypoint_arrays(context)
+        target = new_waypoints[new_cursor]
+        context.simulation.agent(agent_id).target = target
+        context.recovered[slot] = True
+        event["newTargets"] = [_point_list(target)]
+        event["status"] = "RECOVERED"
+        context.recovery_counters["recovered_mid_route"] = (
+            context.recovery_counters.get("recovered_mid_route", 0) + 1
+        )
+        return True
+    except Exception:
+        state.waypoints = snapshot["waypoints"]
+        state.terminal_point = snapshot["terminal_point"]
+        state.exit_start = snapshot["exit_start"]
+        state.exit_end = snapshot["exit_end"]
+        state.exit_id = snapshot["exit_id"]
+        state.cursor = snapshot["cursor"]
+        context.cursors[slot] = snapshot["cursor"]
+        context.terminal_points[slot] = snapshot["terminal_point"]
+        context.exit_starts[slot] = snapshot["exit_start"]
+        context.exit_ends[slot] = snapshot["exit_end"]
+        _rebuild_waypoint_arrays(context)
+        context.simulation.agent(agent_id).target = snapshot["target"]
+        event["status"] = "RECOVERY_MUTATION_FAILED"
+        return False
+
+
+def mid_route_recovery_scan(context: SimulationContext, iteration: int) -> bool:
+    try:
+        from route_planner import AgentRouteUnreachableError, _id_key
+    except ModuleNotFoundError:
+        from .route_planner import AgentRouteUnreachableError, _id_key  # type: ignore[no-redef]
+    np = context.numpy
+    active = np.flatnonzero(context.active)
+    if not active.size:
+        return False
+    mid_route_mask = context.cursors[active] + 1 < context.waypoint_counts[active]
+    eligible_mask = (
+        mid_route_mask
+        & (context.stationary_streak[active] >= MID_ROUTE_STATIONARY_STREAK_THRESHOLD)
+        & ((iteration - context.last_invalid_iteration[active]) > RECOVERY_INVALID_QUIET_ITERATIONS)
+        & ~context.recovered[active]
+    )
+    eligible = active[eligible_mask]
+    if not eligible.size:
+        return False
+    slot = int(min(eligible.tolist(), key=lambda value: int(context.stable_ids[value])))
+    agent_id = int(context.agent_ids[slot])
+    state = context.states[agent_id]
+    position = (float(context.positions[slot, 0]), float(context.positions[slot, 1]))
+    waypoint = context.waypoints[context.waypoint_offsets[slot] + context.cursors[slot]]
+    exit_label = context.router._exit_labels[_id_key(state.exit_id)]
+    target_key = (
+        round(float(waypoint[0]), RECOVERY_TARGET_ROUNDING_DIGITS),
+        round(float(waypoint[1]), RECOVERY_TARGET_ROUNDING_DIGITS),
+    )
+    event = _recovery_event(
+        context, iteration, exit_label, state.exit_id, target_key, [int(context.stable_ids[slot])]
+    )
+    context.recovery_events.append(event)
+    target = context.simulation.agent(agent_id).target
+    event["oldTargets"] = [_point_list(target) if target is not None else None]
+    try:
+        route = context.router.plan(position)
+    except AgentRouteUnreachableError:
+        return _record_recovery_infeasible(context, event, "REROUTE_UNREACHABLE")
+    if tuple(route.waypoints) == tuple(state.waypoints):
+        return _record_recovery_infeasible(context, event, "REROUTE_UNCHANGED")
+    return _apply_reroute_mutation(context, slot, route, event)
+
+
 def _build_recovery_summary(contexts: Sequence[SimulationContext]) -> dict[str, Any]:
     try:
         from route_planner import _id_key
@@ -1500,6 +1627,7 @@ def _build_recovery_summary(contexts: Sequence[SimulationContext]) -> dict[str, 
     skipped_group_count = 0
     infeasible_scan_count = 0
     recovered_group_count = 0
+    recovered_mid_route_count = 0
     attempted_signatures = 0
     recovered_exit_labels: set[int] = set()
     recovered_exit_ids: list[Any] = []
@@ -1512,6 +1640,7 @@ def _build_recovery_summary(contexts: Sequence[SimulationContext]) -> dict[str, 
         skipped_group_count += counters.get("skipped_groups", 0)
         infeasible_scan_count += counters.get("infeasible_scans", 0)
         recovered_group_count += counters.get("recovered_groups", 0)
+        recovered_mid_route_count += counters.get("recovered_mid_route", 0)
         attempted_signatures += len(context.attempted_group_signatures)
         for event in context.recovery_events:
             serialized = dict(event)
@@ -1553,6 +1682,7 @@ def _build_recovery_summary(contexts: Sequence[SimulationContext]) -> dict[str, 
         "infeasibleScanCount": infeasible_scan_count,
         "recoveredGroupCount": recovered_group_count,
         "recoveredAgentCount": RECOVERY_GROUP_SIZE * recovered_group_count,
+        "recoveredMidRouteAgentCount": recovered_mid_route_count,
         "recoveryTimeSeconds": _rounded(min(recovered_times)) if recovered_times else 0.0,
         "recoveredExitLabels": sorted(recovered_exit_labels),
         "recoveredExitIds": sorted(recovered_exit_ids, key=str),
