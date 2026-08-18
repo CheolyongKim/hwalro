@@ -8,6 +8,7 @@ export interface InspectionArea {
   active: boolean;
   inspectionCount: number;
   lastInspectedAt: string | null;
+  hasActiveTemplate: boolean;
 }
 
 export interface InspectionAreaRequest {

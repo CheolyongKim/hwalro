@@ -35,6 +35,21 @@ public interface DrawingMapper {
 
     int insertLayoutExits(List<LayoutExit> layoutExits);
 
+    int insertLayoutExit(LayoutExit layoutExit);
+
+    Long lockLayout(@Param("layoutId") Long layoutId);
+
+    int findNextLayoutVersionNumber(@Param("layoutId") Long layoutId);
+
+    int copyWalls(@Param("sourceVersionId") Long sourceVersionId, @Param("targetVersionId") Long targetVersionId);
+
+    int copyPillars(@Param("sourceVersionId") Long sourceVersionId, @Param("targetVersionId") Long targetVersionId);
+
+    int copyOutsideWalls(
+            @Param("sourceVersionId") Long sourceVersionId, @Param("targetVersionId") Long targetVersionId);
+
+    int copyLayoutTexts(@Param("sourceVersionId") Long sourceVersionId, @Param("targetVersionId") Long targetVersionId);
+
     FloorPlan findFloorPlanById(@Param("id") Long id);
 
     Layout findLayoutById(@Param("id") Long id);

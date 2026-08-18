@@ -46,7 +46,7 @@
   /* 포커스 링 */
   --color-focus-ring: rgb(22 143 128 / 0.3);
 
-  /* 도면 배치 편집기 페이지 — 오른쪽 상단 플로팅 패널 */
+  /* 전체 화면 캔버스 워크스페이스 - 딥그린 패널 */
   --color-panel: #19312d;
   --color-panel-soft: #243e39;
   --color-panel-border: #39534d;
@@ -57,7 +57,7 @@
   --color-panel-accent: #c9f438;
   --color-panel-danger: #e95a52;
 
-  /* 도면 배치 편집기 페이지 — 좌상단 줌 컨트롤 */
+  /* 도면 배치 편집기 - 줌 컨트롤 */
   --color-zoom-soft: #e9f8f1;
   --color-zoom-border: #32a96b;
   --color-zoom-text: #23945a;
@@ -151,6 +151,20 @@
   }
 
   .report-print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .checklist-print-area,
+  .checklist-print-area * {
+    visibility: visible;
+  }
+
+  .checklist-print-area {
     position: absolute;
     top: 0;
     left: 0;

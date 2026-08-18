@@ -103,6 +103,12 @@ public class SimulationEngineRunner {
     }
 
     public EngineRun run(Long simulationId, SimulationSetupResponse setup) throws EngineRunException {
+        return run(simulationId, setup, maxSimulationTimeSeconds);
+    }
+
+    public EngineRun run(Long simulationId, SimulationSetupResponse setup, double simulationTimeCapOverride)
+            throws EngineRunException {
+        double simulationTimeCap = simulationTimeCapOverride > 0 ? simulationTimeCapOverride : maxSimulationTimeSeconds;
         long totalStarted = System.nanoTime();
         long inputWriteMs = 0;
         long pythonProcessMs = 0;
@@ -127,7 +133,7 @@ public class SimulationEngineRunner {
             Path outputDirectory = jobDirectory.resolve("output");
             long inputWriteStarted = System.nanoTime();
             try {
-                objectMapper.writeValue(inputPath.toFile(), createInput(setup));
+                objectMapper.writeValue(inputPath.toFile(), createInput(setup, simulationTimeCap));
             } finally {
                 inputWriteMs = elapsedMillis(inputWriteStarted);
             }
@@ -205,7 +211,7 @@ public class SimulationEngineRunner {
                     .mapToLong(chunk -> chunk.densityData().length())
                     .sum();
             outcome = "COMPLETED";
-            return new EngineRun(result, timeline, heatmaps, maxSimulationTimeSeconds);
+            return new EngineRun(result, timeline, heatmaps, simulationTimeCap);
         } catch (EngineRunException exception) {
             outcome = exception.isTimeout() ? "TIMEOUT" : "ERROR";
             throw exception;
@@ -248,6 +254,10 @@ public class SimulationEngineRunner {
     }
 
     Map<String, Object> createInput(SimulationSetupResponse setup) {
+        return createInput(setup, maxSimulationTimeSeconds);
+    }
+
+    private Map<String, Object> createInput(SimulationSetupResponse setup, double simulationTimeCap) {
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("modelProfile", setup.modelProfile());
         model.put("routingProfile", setup.routingProfile());
@@ -262,7 +272,7 @@ public class SimulationEngineRunner {
         input.put("agents", setup.agentPositions());
         input.put("hazards", setup.hazardZones());
         input.put("selectedExitIds", setup.selectedExitIds());
-        input.put("maxSimulationTimeSeconds", maxSimulationTimeSeconds);
+        input.put("maxSimulationTimeSeconds", simulationTimeCap);
         input.put("frameIntervalSeconds", frameIntervalSeconds);
         input.put("recoveryDetectorEnabled", sharedTargetRecoveryEnabled);
         return input;

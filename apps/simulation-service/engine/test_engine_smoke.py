@@ -403,17 +403,18 @@ class JuPedSimSmokeTest(unittest.TestCase):
                         chunk_bytes[f"{subdirectory}/{chunk.name}"] = chunk.read_bytes()
             return result, result_bytes, chunk_bytes
 
-    def test_synthetic_stall_fixture_flag_false_is_deterministic_and_has_no_recovery_summary(self):
+    def test_synthetic_fixture_flag_false_is_deterministic_and_has_no_recovery_summary(self):
         first, first_bytes, _first_chunks = self._run_fixture(False)
         second, second_bytes, _second_chunks = self._run_fixture(False)
 
-        self.assertEqual(first["terminationReason"], "STALLED")
-        self.assertEqual(first["remainingPeople"], 2)
+        self.assertEqual(first["terminationReason"], "ALL_EVACUATED")
+        self.assertEqual(first["evacuatedPeople"], 4)
+        self.assertEqual(first["remainingPeople"], 0)
         self.assertNotIn("recoverySummary", first)
         self.assertEqual(first_bytes, second_bytes)
         self.assertEqual(first, second)
 
-    def test_synthetic_stall_fixture_flag_true_keeps_stall_and_records_recovery_summary(self):
+    def test_synthetic_fixture_flag_true_keeps_dynamics_and_records_empty_recovery_summary(self):
         disabled, disabled_bytes, disabled_chunks = self._run_fixture(False)
         enabled, enabled_bytes, enabled_chunks = self._run_fixture(True)
 
@@ -422,15 +423,15 @@ class JuPedSimSmokeTest(unittest.TestCase):
         summary = enabled["recoverySummary"]
         self.assertEqual(summary["schemaVersion"], 1)
         self.assertGreaterEqual(summary["scanCount"], 1)
-        self.assertGreaterEqual(summary["eligibleGroupCount"], 1)
-        self.assertGreaterEqual(summary["skippedEligibleGroupCount"], 1)
+        self.assertEqual(summary["eligibleGroupCount"], 0)
+        self.assertEqual(summary["skippedEligibleGroupCount"], 0)
         self.assertEqual(summary["recoveredGroupCount"], 0)
         self.assertEqual(summary["recoveredAgentCount"], 0)
         self.assertEqual(summary["events"], [])
         self.assertEqual(enabled_chunks, disabled_chunks)
         self.assertNotEqual(enabled_bytes, disabled_bytes)
 
-    def test_synthetic_stall_fixture_reversed_exit_endpoints_behave_identically(self):
+    def test_synthetic_fixture_reversed_exit_endpoints_behave_identically(self):
         from runner import run
         from tests.fixtures.build_fixture_013 import build_payload
 
@@ -454,9 +455,9 @@ class JuPedSimSmokeTest(unittest.TestCase):
                 input_path.write_text(json.dumps(candidate), encoding="utf-8")
                 results.append(run(input_path, output_path))
 
-        self.assertEqual(results[0]["terminationReason"], "STALLED")
-        self.assertEqual(results[1]["terminationReason"], "STALLED")
-        self.assertEqual(results[0]["remainingPeople"], results[1]["remainingPeople"])
+        self.assertEqual(results[0]["terminationReason"], "ALL_EVACUATED")
+        self.assertEqual(results[1]["terminationReason"], "ALL_EVACUATED")
+        self.assertEqual(results[0], results[1])
         self.assertNotIn("recoverySummary", results[0])
         self.assertNotIn("recoverySummary", results[1])
 

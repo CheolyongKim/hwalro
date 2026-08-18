@@ -51,6 +51,7 @@ RECOVERY_INVALID_QUIET_ITERATIONS = 500
 RECOVERY_GROUP_SIZE = 3
 RECOVERY_TARGET_ROUNDING_DIGITS = 6
 SFM_REACTION_TIME_SECONDS = 0.5
+RELOCATION_LOG_LIMIT = 20
 
 
 class RunnerError(RuntimeError):
@@ -396,6 +397,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            relocate_agents,
             split_agent_components,
             usable_exit_segment,
         )
@@ -410,6 +412,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            relocate_agents,
             split_agent_components,
             usable_exit_segment,
         )
@@ -486,9 +489,23 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             usable_exit_segment(exit_, AGENT_RADIUS_METERS)
         walkable = build_walkable_geometry(drawing)
         routing_area = build_routing_geometry(drawing, AGENT_RADIUS_METERS)
+        agents, relocations = relocate_agents(routing_area, agents)
         groups = split_agent_components(routing_area, agents)
     except ValueError as exc:
         raise RunnerError(str(exc)) from exc
+
+    if relocations:
+        print(f"relocated {len(relocations)} agent(s) out of obstacles", file=sys.stderr)
+        for item in relocations[:RELOCATION_LOG_LIMIT]:
+            print(
+                f"  agent {item.index + 1}: {item.origin} -> {item.destination}",
+                file=sys.stderr,
+            )
+        if len(relocations) > RELOCATION_LOG_LIMIT:
+            print(
+                f"  ... and {len(relocations) - RELOCATION_LOG_LIMIT} more",
+                file=sys.stderr,
+            )
 
     contexts: list[SimulationContext] = []
     routing_groups: list[tuple[Any, Any, Any]] = []
@@ -586,6 +603,7 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
             _create_context(
                 jps,
                 np,
+                _shapely,
                 physical_component,
                 router,
                 indexed_agents,
@@ -786,9 +804,60 @@ def _exit_segment_distance(
     return math.dist(position, (ax + projection * vx, ay + projection * vy))
 
 
+def _add_agent_with_spacing(
+    simulation,
+    jps,
+    np,
+    shapely,
+    physical_component,
+    placed_positions: list[tuple[float, float]],
+    journey_id,
+    stage_id,
+    position: tuple[float, float],
+    target,
+    walking_speed: float,
+    reaction_time: float,
+) -> int:
+    min_spacing = AGENT_RADIUS_METERS * 2.0
+    candidates = [position]
+    for ring in range(1, 5):
+        radius = min_spacing * ring
+        for step in range(12):
+            angle = 2.0 * math.pi * step / 12
+            candidates.append((position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle)))
+    last_error: Exception | None = None
+    for candidate in candidates:
+        if not physical_component.covers(shapely.Point(candidate)):
+            continue
+        if any(math.dist(candidate, other) < min_spacing - 1e-6 for other in placed_positions):
+            continue
+        direction = np.asarray(target, dtype=float) - np.asarray(candidate, dtype=float)
+        norm = float(np.linalg.norm(direction))
+        orientation = (1.0, 0.0) if norm <= 1e-12 else tuple((direction / norm).tolist())
+        try:
+            agent_id = simulation.add_agent(
+                jps.SocialForceModelAgentParameters(
+                    position=candidate,
+                    orientation=orientation,
+                    journey_id=journey_id,
+                    stage_id=stage_id,
+                    desired_speed=walking_speed,
+                    reaction_time=reaction_time,
+                    radius=AGENT_RADIUS_METERS,
+                )
+            )
+        except Exception as exc:
+            last_error = exc
+            continue
+        placed_positions.append(candidate)
+        return agent_id
+    raise RunnerError(f"could not add agent: {last_error}") from last_error
+
+
 def _create_context(
     jps,
     np,
+    shapely,
     physical_component,
     router,
     indexed_agents,
@@ -806,27 +875,28 @@ def _create_context(
     states: dict[int, AgentRouteState] = {}
     positions: dict[int, tuple[float, float]] = {}
     start_iterations: dict[int, int] = {}
+    placed_positions: list[tuple[float, float]] = []
     for (index, position), route, response_time in zip(
         indexed_agents, routes, initial_response_times, strict=True
     ):
         start_iteration = _start_iteration(float(response_time))
         target = route.waypoints[1] if len(route.waypoints) > 1 else route.waypoints[0]
-        direction = np.asarray(target, dtype=float) - np.asarray(position, dtype=float)
-        norm = float(np.linalg.norm(direction))
-        orientation = (1.0, 0.0) if norm <= 1e-12 else tuple((direction / norm).tolist())
         try:
-            agent_id = simulation.add_agent(
-                jps.SocialForceModelAgentParameters(
-                    position=position,
-                    orientation=orientation,
-                    journey_id=journey_id,
-                    stage_id=stage_id,
-                    desired_speed=walking_speed if start_iteration == 1 else 0.0,
-                    reaction_time=SFM_REACTION_TIME_SECONDS,
-                    radius=AGENT_RADIUS_METERS,
-                )
+            agent_id = _add_agent_with_spacing(
+                simulation,
+                jps,
+                np,
+                shapely,
+                physical_component,
+                placed_positions,
+                journey_id,
+                stage_id,
+                position,
+                target,
+                walking_speed if start_iteration == 1 else 0.0,
+                SFM_REACTION_TIME_SECONDS,
             )
-        except Exception as exc:
+        except RunnerError as exc:
             raise RunnerError(f"could not add agent {index}: {exc}") from exc
         states[agent_id] = AgentRouteState(
             stable_id=index + 1,

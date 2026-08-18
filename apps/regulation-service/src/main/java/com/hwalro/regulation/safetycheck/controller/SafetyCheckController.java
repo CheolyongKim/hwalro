@@ -95,6 +95,12 @@ public class SafetyCheckController {
         return safetyCheckService.createInspection(areaId, request, user);
     }
 
+    @PostMapping("/areas/{areaId}/inspections/current")
+    public InspectionDetailResponse getOrCreateOpenInspection(
+            @PathVariable Long areaId, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return safetyCheckService.getOrCreateOpenInspection(areaId, user);
+    }
+
     @GetMapping("/inspections/{inspectionId}")
     public InspectionDetailResponse getInspection(
             @PathVariable Long inspectionId,

@@ -358,7 +358,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
     text !== null;
 
   return (
-    <aside aria-label="도면 설정" className="px-3 pb-3">
+    <section aria-label="도면 상세 설정" className="layout-settings-content">
       {wall !== null ? (
         <WallFields wall={wall} dispatch={dispatch} />
       ) : outsideWall !== null ? (
@@ -388,6 +388,6 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
         </div>
       </section>
       <BackgroundSection state={state} dispatch={dispatch} />
-    </aside>
+    </section>
   );
 }

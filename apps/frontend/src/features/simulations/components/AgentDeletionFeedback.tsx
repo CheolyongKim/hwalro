@@ -11,6 +11,7 @@ interface AgentDeletionConfirmDialogProps {
 interface AgentDeletionSuccessToastProps {
   count: number;
   onClose: () => void;
+  className?: string;
 }
 
 export function AgentDeletionConfirmDialog({
@@ -86,12 +87,16 @@ export function AgentDeletionConfirmDialog({
   );
 }
 
-export function AgentDeletionSuccessToast({ count, onClose }: AgentDeletionSuccessToastProps) {
+export function AgentDeletionSuccessToast({
+  count,
+  onClose,
+  className,
+}: AgentDeletionSuccessToastProps) {
   return (
     <article
       role="status"
       aria-live="polite"
-      className="absolute right-4 top-4 z-20 w-80 overflow-hidden rounded-2xl border border-success/25 bg-white shadow-floating"
+      className={`absolute right-4 top-4 z-20 w-80 overflow-hidden rounded-2xl border border-success/25 bg-white shadow-floating ${className ?? ''}`}
     >
       <div className="flex gap-3 p-4">
         <div

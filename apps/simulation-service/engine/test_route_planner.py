@@ -48,6 +48,65 @@ class HazardCostTest(unittest.TestCase):
         self.assertAlmostEqual(edge_cost((0.0, 0.0), (0.25, 0.0), []), 0.25)
 
 
+class VectorCostTest(unittest.TestCase):
+    """The array forms feed the cost field, so they must agree to the last bit."""
+
+    HAZARDS = (Hazard(1.0, 1.0, 2.0), Hazard(3.5, 0.5, 1.25))
+
+    def _points(self):
+        values = np.arange(0.0, 4.0, 0.25)
+        x, y = np.meshgrid(values, values)
+        return x.ravel(), y.ravel()
+
+    def test_hazard_multipliers_match_the_scalar_function(self):
+        x, y = self._points()
+        for hazards in ((), self.HAZARDS[:1], self.HAZARDS):
+            with self.subTest(count=len(hazards)):
+                expected = np.array(
+                    [hazard_multiplier((px, py), hazards) for px, py in zip(x, y)]
+                )
+
+                np.testing.assert_array_equal(
+                    route_planner.hazard_multipliers(x, y, hazards), expected
+                )
+
+    def test_edge_costs_match_the_scalar_function(self):
+        x, y = self._points()
+        for dx, dy in ((0.25, 0.0), (0.0, 0.25), (0.25, 0.25), (-0.25, 0.25)):
+            for hazards in ((), self.HAZARDS):
+                with self.subTest(move=(dx, dy), count=len(hazards)):
+                    expected = np.array(
+                        [
+                            edge_cost((px, py), (px + dx, py + dy), hazards)
+                            for px, py in zip(x, y)
+                        ]
+                    )
+
+                    np.testing.assert_array_equal(
+                        route_planner.edge_costs(x, y, x + dx, y + dy, hazards), expected
+                    )
+
+
+class PlanCostTest(unittest.TestCase):
+    def test_plan_cost_matches_the_full_route(self):
+        walkable = box(0, 0, 6, 4).difference(box(2, 1, 3, 3))
+        router = GridRouter(walkable, [Hazard(4.0, 3.0, 1.0)], [Exit(1, (6, 1.5), (6, 2.5))])
+
+        for start in ((0.4, 0.4), (1.0, 2.0), (4.5, 3.5), (5.5, 0.5)):
+            with self.subTest(start=start):
+                route = router.plan(start)
+
+                self.assertEqual(router.plan_cost(start), (route.total_cost, route.exit_id))
+
+    def test_plan_cost_rejects_what_plan_rejects(self):
+        router = GridRouter(box(0, 0, 4, 4), [], [Exit(1, (4, 1), (4, 3))])
+
+        with self.assertRaises(ValueError):
+            router.plan_cost((9.0, 9.0))
+        with self.assertRaises(ValueError):
+            router.plan_cost((float("nan"), 1.0))
+
+
 class GeometryTest(unittest.TestCase):
     def test_routing_geometry_reserves_agent_radius_without_changing_physical_geometry(self):
         drawing = {
@@ -907,6 +966,138 @@ class RecoverySeedCacheTest(unittest.TestCase):
         for invalid in (True, None, object()):
             with self.assertRaisesRegex(ValueError, "non-null numbers or strings"):
                 route_planner._id_key(invalid)
+class DeriveEquivalenceTest(unittest.TestCase):
+    """`derive` must land on the same field a fresh GridRouter builds.
+
+    layout_search evaluates one candidate per moved obstacle, so every
+    difference here would silently change an evacuation route.
+    """
+
+    EXIT = Exit(1, (8, 2.5), (8, 3.5))
+    HAZARDS = (Hazard(3.0, 4.5, 1.5),)
+    OUTER = box(0, 0, 8, 6)
+    LEFT = box(2.0, 1.0, 3.0, 2.0)
+    RIGHT = box(5.0, 3.0, 6.0, 4.0)
+
+    def _router(self, obstacles, hazards):
+        walkable = self.OUTER.difference(
+            box(0, 0, 0, 0).union(*obstacles) if obstacles else box(0, 0, 0, 0)
+        )
+        return GridRouter(walkable, hazards, [self.EXIT]), walkable
+
+    def _assert_same_field(self, derived, fresh):
+        # Everything that decides a route must match exactly. `distance` is the
+        # one exception: both propagators skip a stale heap entry only when it
+        # exceeds the settled cost by more than _EPSILON, so the field is defined
+        # to 1e-9 and the incremental order can settle a node one ULP off. The
+        # chain is unaffected, which `next_node` below pins down.
+        np.testing.assert_allclose(
+            derived.distance, fresh.distance, rtol=1e-12, atol=0.0, err_msg="distance"
+        )
+        for name in (
+            "next_node",
+            "exit_label",
+            "terminal_x",
+            "terminal_y",
+            "approach_x",
+            "approach_y",
+            "valid",
+        ):
+            np.testing.assert_array_equal(
+                getattr(derived, name), getattr(fresh, name), err_msg=name
+            )
+        np.testing.assert_array_equal(derived._neighbor_nodes, fresh._neighbor_nodes)
+        for direction, values in fresh._grid_edges.items():
+            np.testing.assert_array_equal(derived._grid_edges[direction], values)
+        self.assertEqual(derived.seeded_exit_ids, fresh.seeded_exit_ids)
+
+    @staticmethod
+    def _bounds(*geometries):
+        boxes = [geometry.bounds for geometry in geometries]
+        return (
+            min(item[0] for item in boxes),
+            min(item[1] for item in boxes),
+            max(item[2] for item in boxes),
+            max(item[3] for item in boxes),
+        )
+
+    def _check(self, before_obstacles, after_obstacles, hazards, changed_bounds):
+        base, _ = self._router(before_obstacles, hazards)
+        fresh, after_area = self._router(after_obstacles, hazards)
+
+        derived = base.derive(
+            after_area, physical_walkable=after_area, changed_bounds=changed_bounds
+        )
+
+        self._assert_same_field(derived, fresh)
+        return derived
+
+    def test_removing_an_obstacle_matches_a_fresh_router(self):
+        for hazards in ((), self.HAZARDS):
+            with self.subTest(hazards=bool(hazards)):
+                self._check([self.LEFT], [], hazards, self._bounds(self.LEFT))
+
+    def test_adding_an_obstacle_matches_a_fresh_router(self):
+        for hazards in ((), self.HAZARDS):
+            with self.subTest(hazards=bool(hazards)):
+                self._check([], [self.LEFT], hazards, self._bounds(self.LEFT))
+
+    def test_moving_an_obstacle_matches_a_fresh_router(self):
+        for hazards in ((), self.HAZARDS):
+            with self.subTest(hazards=bool(hazards)):
+                self._check(
+                    [self.LEFT],
+                    [self.RIGHT],
+                    hazards,
+                    self._bounds(self.LEFT, self.RIGHT),
+                )
+
+    def test_moving_an_obstacle_into_the_hazard_matches_a_fresh_router(self):
+        inside_hazard = box(2.5, 4.0, 3.5, 5.0)
+        self._check(
+            [self.LEFT],
+            [inside_hazard],
+            self.HAZARDS,
+            self._bounds(self.LEFT, inside_hazard),
+        )
+
+    def test_changed_bounds_does_not_change_the_result(self):
+        for before, after in (
+            ([self.LEFT], []),
+            ([], [self.LEFT]),
+            ([self.LEFT], [self.RIGHT]),
+        ):
+            for hazards in ((), self.HAZARDS):
+                with self.subTest(after=bool(after), hazards=bool(hazards)):
+                    base, _ = self._router(before, hazards)
+                    _, after_area = self._router(after, hazards)
+                    windowed = base.derive(
+                        after_area,
+                        physical_walkable=after_area,
+                        changed_bounds=self._bounds(*(before + after)),
+                    )
+                    whole = base.derive(after_area, physical_walkable=after_area)
+
+                    self._assert_same_field(windowed, whole)
+
+    def test_derived_router_plans_the_same_routes(self):
+        starts = [(0.6, 0.6), (4.0, 5.0), (7.0, 1.0), (2.5, 3.0)]
+        base, _ = self._router([self.LEFT], self.HAZARDS)
+        fresh, after_area = self._router([self.RIGHT], self.HAZARDS)
+
+        derived = base.derive(
+            after_area,
+            physical_walkable=after_area,
+            changed_bounds=self._bounds(self.LEFT, self.RIGHT),
+        )
+
+        for start in starts:
+            with self.subTest(start=start):
+                actual, expected = derived.plan(start), fresh.plan(start)
+                self.assertEqual(actual.exit_id, expected.exit_id)
+                self.assertEqual(actual.waypoints, expected.waypoints)
+                self.assertEqual(actual.terminal_point, expected.terminal_point)
+                self.assertAlmostEqual(actual.total_cost, expected.total_cost, places=9)
 
 
 if __name__ == "__main__":

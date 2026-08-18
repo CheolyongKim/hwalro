@@ -65,7 +65,10 @@ export function InlineTextInput({
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Escape') {
       onCancel();
-    } else if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
       const value = event.currentTarget.value;
       onCommit(value);
       event.currentTarget.blur();

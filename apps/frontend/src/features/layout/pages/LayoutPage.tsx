@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
-import { ArrowLeft } from 'lucide-react';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutToolbar } from '../components/LayoutToolbar';
+import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
 import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { InlineTextInput } from '../components/InlineTextInput';
 import { Button } from '../../../components/ui';
+import {
+  CanvasWorkspace,
+  CanvasWorkspaceBackButton,
+  CanvasWorkspacePanel,
+  CanvasWorkspacePanelRestore,
+  CanvasWorkspaceState,
+  useCollapsibleWorkspacePanel,
+} from '../../../components/workspace';
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
@@ -54,17 +62,33 @@ function LayoutPage() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [retryCount, setRetryCount] = useState(0);
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const settingsPanel = useCollapsibleWorkspacePanel();
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
+  const collapseButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreButtonRef = useRef<HTMLButtonElement>(null);
+  const restorePanelFocusRef = useRef(false);
 
   useLayoutEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useLayoutEffect(() => {
+    if (!restorePanelFocusRef.current) {
+      return;
+    }
+    if (settingsPanel.isMinimized) {
+      restoreButtonRef.current?.focus();
+      restorePanelFocusRef.current = false;
+    } else if (settingsPanel.isExpanding) {
+      collapseButtonRef.current?.focus();
+      restorePanelFocusRef.current = false;
+    }
+  }, [settingsPanel.isExpanding, settingsPanel.isMinimized]);
 
   const onSizeChange = useCallback((next: { w: number; h: number }) => {
     setSize(next);
@@ -269,64 +293,53 @@ function LayoutPage() {
       : (state.doc.layoutTexts.find((t) => t.id === draftTextId)?.text ?? '');
 
   if (loadStatus === 'loading') {
-    return (
-      <div className="flex h-dvh items-center justify-center bg-background">
-        <p className="text-sm text-text-muted">도면 불러오는 중...</p>
-      </div>
-    );
+    return <CanvasWorkspaceState message="도면 불러오는 중..." />;
   }
 
   if (loadStatus === 'missing') {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background">
-        <p className="text-sm text-text-muted">도면을 찾을 수 없습니다</p>
-        <button
-          type="button"
-          onClick={() => navigate('/drawings')}
-          className="h-9 cursor-pointer rounded-md bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85"
-        >
-          목록으로 이동
-        </button>
-      </div>
+      <CanvasWorkspaceState
+        message="도면을 찾을 수 없습니다."
+        actions={
+          <Button type="button" size="sm" onClick={() => navigate('/drawings')}>
+            목록으로 이동
+          </Button>
+        }
+      />
     );
   }
 
   if (loadStatus === 'error') {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background">
-        <p className="text-sm text-text-muted">도면을 불러오지 못했습니다</p>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => setRetryCount((count) => count + 1)}
-            className="h-9 rounded-md bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary/85"
-          >
-            다시 시도
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/drawings')}
-            className="h-9 cursor-pointer rounded-md border border-line-strong bg-white px-4 text-sm font-bold text-text-strong transition-colors hover:bg-surface"
-          >
-            목록으로 이동
-          </button>
-        </div>
-      </div>
+      <CanvasWorkspaceState
+        message="도면을 불러오지 못했습니다."
+        actions={
+          <>
+            <Button type="button" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
+              다시 시도
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/drawings')}
+            >
+              목록으로 이동
+            </Button>
+          </>
+        }
+      />
     );
   }
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-background">
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={() => navigate('/drawings')}
-        className="fixed left-4 top-4 z-30 cursor-pointer shadow-raised"
-      >
-        <ArrowLeft aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
-        뒤로
-      </Button>
+    <CanvasWorkspace className="layout-workspace">
+      <CanvasWorkspaceBackButton onClick={() => navigate('/drawings')} />
+      <LayoutWorkspaceHeader
+        name={state.doc.name}
+        readOnly={readOnly}
+        onRename={(name) => dispatch({ type: 'renameDoc', name })}
+      />
       <LayoutCanvas
         state={state}
         dispatch={dispatch}
@@ -334,36 +347,57 @@ function LayoutPage() {
         onSizeChange={onSizeChange}
         readOnly={readOnly}
       />
-      <div className="absolute right-4 top-4 z-20 flex max-h-[calc(100dvh-2rem)] w-[312px] flex-col overflow-hidden rounded-xl bg-panel shadow-overlay">
-        <LayoutToolbar
-          state={state}
-          saveStatus={saveStatus}
-          onSave={() => void performSave()}
-          onStartSimulation={() => void handleOpenDraftDialog()}
-          onRename={(name) => dispatch({ type: 'renameDoc', name })}
-          readOnly={readOnly}
-          collapsed={panelCollapsed}
-          onToggleCollapse={() => setPanelCollapsed((value) => !value)}
-        />
-        {!panelCollapsed && (
+      {settingsPanel.isMinimized ? (
+        <CanvasWorkspacePanelRestore
+          ref={restoreButtonRef}
+          aria-controls="layout-settings-panel"
+          aria-expanded="false"
+          onClick={() => {
+            restorePanelFocusRef.current = true;
+            settingsPanel.restore();
+          }}
+        >
+          도면 설정 열기
+        </CanvasWorkspacePanelRestore>
+      ) : (
+        <CanvasWorkspacePanel
+          id="layout-settings-panel"
+          ariaLabel="도면 설정"
+          animate
+          className={`${settingsPanel.isCollapsing ? 'is-collapsing' : ''} ${settingsPanel.isExpanding ? 'is-expanding' : ''}`}
+          onAnimationEnd={(event) => {
+            if (event.currentTarget === event.target) settingsPanel.handleAnimationEnd();
+          }}
+        >
+          <LayoutToolbar
+            saveStatus={saveStatus}
+            onSave={() => void performSave()}
+            onStartSimulation={() => void handleOpenDraftDialog()}
+            readOnly={readOnly}
+            collapseButtonRef={collapseButtonRef}
+            onCollapse={() => {
+              restorePanelFocusRef.current = true;
+              settingsPanel.collapse();
+            }}
+          />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className={readOnly ? 'pointer-events-none opacity-60' : ''}>
               <SettingsPanel state={state} dispatch={dispatch} />
             </div>
           </div>
-        )}
-      </div>
+        </CanvasWorkspacePanel>
+      )}
       <ToolToolbar
         state={state}
         dispatch={dispatch}
         disabled={readOnly}
-        className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
+        className="layout-workspace-tool-dock"
       />
       <ZoomControl
         state={state}
         dispatch={dispatch}
         size={size}
-        className="absolute left-4 top-16 z-20"
+        className="layout-workspace-zoom"
       />
       {state.textDraft && (
         <InlineTextInput
@@ -401,7 +435,7 @@ function LayoutPage() {
           onConfirm={(parentSimulationId) => void handleCreateDraft(parentSimulationId)}
         />
       )}
-    </div>
+    </CanvasWorkspace>
   );
 }
 

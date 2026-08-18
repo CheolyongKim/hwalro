@@ -28,6 +28,15 @@ public final class SimulationDtos {
     public record RectDto(
             String name, BigDecimal startX, BigDecimal startY, BigDecimal endX, BigDecimal endY, BigDecimal rotation) {}
 
+    public record FabricRectDto(
+            Long id,
+            String name,
+            BigDecimal startX,
+            BigDecimal startY,
+            BigDecimal endX,
+            BigDecimal endY,
+            BigDecimal rotation) {}
+
     public record TextDto(String text, BigDecimal x, BigDecimal y) {}
 
     public record ExitDto(
@@ -41,7 +50,7 @@ public final class SimulationDtos {
             List<PointDto> outsideBoundary,
             List<SegmentDto> walls,
             List<RectDto> pillars,
-            List<RectDto> fabrics,
+            List<FabricRectDto> fabrics,
             List<TextDto> layoutTexts,
             List<ExitDto> exits) {}
 

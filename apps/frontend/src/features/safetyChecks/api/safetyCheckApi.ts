@@ -38,6 +38,10 @@ export const safetyCheckApi = {
     apiClient
       .post<InspectionDetail>(`/api/safety-checks/areas/${areaId}/inspections`, {})
       .then((response) => response.data),
+  getOrCreateCurrentInspection: (areaId: number) =>
+    apiClient
+      .post<InspectionDetail>(`/api/safety-checks/areas/${areaId}/inspections/current`)
+      .then((response) => response.data),
   updateInspection: (inspectionId: number, body: InspectionUpdateRequest) =>
     apiClient
       .put<InspectionDetail>(`/api/safety-checks/inspections/${inspectionId}`, body)
