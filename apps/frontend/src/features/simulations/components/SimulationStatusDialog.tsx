@@ -37,7 +37,7 @@ export function SimulationStatusDialog({
         if (!isRetrying) onClose();
       }}
       title={failed ? '시뮬레이션 실행 실패' : '시뮬레이션 실행 취소'}
-      description={`${simulation.layoutTitle} · 시뮬레이션 #${simulation.id}`}
+      description={`${simulation.title || simulation.layoutTitle} · 시뮬레이션 #${simulation.id}`}
       size="sm"
       footer={
         <>

@@ -49,6 +49,7 @@ export interface PriorityRiskItem {
 
 export interface RecentSimulationRow {
   id: number;
+  title?: string;
   layoutTitle: string;
   executedAt: string | null;
   createdBy: number;

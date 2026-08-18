@@ -42,6 +42,7 @@ function setup(): SimulationSetup {
     simulationId: 42,
     layoutVersionId: 7,
     parentSimulationId: null,
+    title: '테스트 시뮬레이션',
     status: 'COMPLETED',
     createdAt: '2026-08-13T00:00:00Z',
     randomSeed: 1,

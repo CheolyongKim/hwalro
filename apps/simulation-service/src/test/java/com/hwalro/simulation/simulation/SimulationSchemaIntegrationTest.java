@@ -116,7 +116,7 @@ class SimulationSchemaIntegrationTest {
                 Statement statement = connection.createStatement()) {
             statement.executeUpdate("DELETE FROM density_threshold_settings");
             ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
-            assertThat(densityThreshold(statement)).isEqualByComparingTo("3.500");
+            assertThat(densityThreshold(statement)).isEqualByComparingTo("3.000");
 
             statement.executeUpdate("UPDATE density_threshold_settings SET threshold_value = 4.200 WHERE id = 1");
             ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/density-threshold-dml.sql"));
@@ -135,11 +135,11 @@ class SimulationSchemaIntegrationTest {
             statement.executeUpdate(
                     "INSERT INTO layout_versions (id, layout_id, version, status) " + "VALUES (933, 932, 1, '잠금')");
             statement.executeUpdate("INSERT INTO simulations "
-                    + "(id, layout_version_id, created_by, status) "
-                    + "VALUES (934, 933, 7, 'REQUESTED')");
+                    + "(id, layout_version_id, created_by, title, status) "
+                    + "VALUES (934, 933, 7, 'failure detail', 'REQUESTED')");
             statement.executeUpdate("INSERT INTO simulations "
-                    + "(id, layout_version_id, created_by, status, failure_message, failure_detail) "
-                    + "VALUES (935, 933, 7, 'RUNNING', 'stale', JSON_OBJECT('code', 'stale'))");
+                    + "(id, layout_version_id, created_by, title, status, failure_message, failure_detail) "
+                    + "VALUES (935, 933, 7, 'failure detail', 'RUNNING', 'stale', JSON_OBJECT('code', 'stale'))");
         }
 
         String detail =
@@ -173,7 +173,7 @@ class SimulationSchemaIntegrationTest {
     }
 
     @Test
-    void parentSimulationMustBelongToSameLayoutVersion() throws SQLException {
+    void parentSimulationCanBelongToDifferentLayoutVersion() throws SQLException {
         try (Connection connection = connection();
                 Statement statement = connection.createStatement()) {
             statement.executeUpdate("INSERT INTO floor_plans (id, name, width, height) VALUES (911, 'parent', 10, 10)");
@@ -181,13 +181,18 @@ class SimulationSchemaIntegrationTest {
                     "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (912, 911, 7, 'parent')");
             statement.executeUpdate("INSERT INTO layout_versions (id, layout_id, version, status) VALUES "
                     + "(913, 912, 1, '잠금'), (914, 912, 2, '잠금')");
-            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, status) "
-                    + "VALUES (915, 913, 7, 'DRAFT')");
+            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, title, status) "
+                    + "VALUES (915, 913, 7, 'parent', 'DRAFT')");
 
-            assertThatThrownBy(() -> statement.executeUpdate("INSERT INTO simulations "
-                            + "(id, layout_version_id, parent_simulation_id, created_by, status) "
-                            + "VALUES (916, 914, 915, 7, 'DRAFT')"))
-                    .isInstanceOf(SQLException.class);
+            statement.executeUpdate("INSERT INTO simulations "
+                    + "(id, layout_version_id, parent_simulation_id, created_by, title, status) "
+                    + "VALUES (916, 914, 915, 7, 'parent', 'DRAFT')");
+            Simulation parentDerived;
+            try (SqlSession session = sqlSessionFactory.openSession()) {
+                parentDerived = session.getMapper(SimulationMapper.class).findSimulationById(916L);
+            }
+            assertThat(parentDerived).isNotNull();
+            assertThat(parentDerived.getParentSimulationId()).isEqualTo(915L);
         }
     }
 
@@ -200,12 +205,12 @@ class SimulationSchemaIntegrationTest {
                     "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (922, 921, 7, 'status')");
             statement.executeUpdate(
                     "INSERT INTO layout_versions (id, layout_id, version, status) VALUES (923, 922, 1, '잠금')");
-            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, status) "
-                    + "VALUES (924, 923, 7, 'CANCELLED')");
+            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, title, status) "
+                    + "VALUES (924, 923, 7, 'status', 'CANCELLED')");
 
             assertThatThrownBy(() -> statement.executeUpdate(
-                            "INSERT INTO simulations (id, layout_version_id, created_by, status) "
-                                    + "VALUES (925, 923, 7, 'UNKNOWN')"))
+                            "INSERT INTO simulations (id, layout_version_id, created_by, title, status) "
+                                    + "VALUES (925, 923, 7, 'status', 'UNKNOWN')"))
                     .isInstanceOf(SQLException.class);
         }
     }
@@ -222,8 +227,8 @@ class SimulationSchemaIntegrationTest {
             statement.executeUpdate("INSERT INTO layout_exits "
                     + "(id, layout_version_id, name, start_x, start_y, end_x, end_y) "
                     + "VALUES (905, 904, 'exit', 0, 0, 1, 0)");
-            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, status) "
-                    + "VALUES (906, 903, 7, 'DRAFT')");
+            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, title, status) "
+                    + "VALUES (906, 903, 7, 'test', 'DRAFT')");
 
             assertThatThrownBy(() -> statement.executeUpdate(
                             "INSERT INTO simulation_exits (simulation_id, layout_exit_id, layout_version_id) "

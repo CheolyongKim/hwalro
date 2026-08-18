@@ -201,6 +201,7 @@ public class CandidateAdoptionService {
         derived.setLayoutVersionId(targetVersionId);
         derived.setParentSimulationId(source.getId());
         derived.setCreatedBy(requestedBy);
+        derived.setTitle(source.getTitle() != null && !source.getTitle().isBlank() ? source.getTitle() : "개선안 시뮬레이션");
         derived.setStatus("DRAFT");
         simulationMapper.insertSimulation(derived);
 

@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS simulations (
     layout_version_id BIGINT UNSIGNED NOT NULL,
     parent_simulation_id BIGINT UNSIGNED NULL,
     created_by BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(200) NOT NULL,
     status VARCHAR(30) NOT NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     requested_at DATETIME(6) NULL,

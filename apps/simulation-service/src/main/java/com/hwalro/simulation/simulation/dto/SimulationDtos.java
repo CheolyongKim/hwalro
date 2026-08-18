@@ -7,16 +7,30 @@ import java.util.List;
 public final class SimulationDtos {
     private SimulationDtos() {}
 
-    public record DraftCreateRequest(Long layoutVersionId, Long parentSimulationId) {}
+    public record DraftCreateRequest(Long layoutVersionId, Long parentSimulationId, String title) {
+        public DraftCreateRequest(Long layoutVersionId, Long parentSimulationId) {
+            this(layoutVersionId, parentSimulationId, null);
+        }
+    }
 
     public record PlacementAdjustmentDraftRequest(Boolean applyRecommendation) {}
 
     public record SetupUpdateRequest(
+            String title,
             List<PointDto> agentPositions,
             List<HazardZoneDto> hazardZones,
             List<Long> selectedExitIds,
             BigDecimal walkingSpeed,
-            BigDecimal reactionTime) {}
+            BigDecimal reactionTime) {
+        public SetupUpdateRequest(
+                List<PointDto> agentPositions,
+                List<HazardZoneDto> hazardZones,
+                List<Long> selectedExitIds,
+                BigDecimal walkingSpeed,
+                BigDecimal reactionTime) {
+            this(null, agentPositions, hazardZones, selectedExitIds, walkingSpeed, reactionTime);
+        }
+    }
 
     public record PointDto(BigDecimal x, BigDecimal y) {}
 
@@ -57,6 +71,7 @@ public final class SimulationDtos {
             Long id,
             Long layoutVersionId,
             Long parentSimulationId,
+            String title,
             String status,
             LocalDateTime createdAt,
             Integer totalPeople) {}
@@ -68,6 +83,7 @@ public final class SimulationDtos {
             String layoutTitle,
             Integer layoutVersionNumber,
             Long createdBy,
+            String title,
             String status,
             LocalDateTime createdAt,
             LocalDateTime requestedAt,
@@ -85,6 +101,7 @@ public final class SimulationDtos {
             Long simulationId,
             Long layoutVersionId,
             Long parentSimulationId,
+            String title,
             String status,
             LocalDateTime createdAt,
             Integer randomSeed,

@@ -77,6 +77,8 @@ public interface SimulationMapper {
             @Param("walkingSpeed") BigDecimal walkingSpeed,
             @Param("reactionTime") BigDecimal reactionTime);
 
+    int updateSimulationTitle(@Param("simulationId") Long simulationId, @Param("title") String title);
+
     int updateExecutionProfiles(
             @Param("simulationId") Long simulationId,
             @Param("modelProfile") String modelProfile,

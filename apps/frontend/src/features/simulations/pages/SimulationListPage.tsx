@@ -193,10 +193,10 @@ function SimulationListPage() {
     const content = (
       <>
         <span className="block max-w-64 truncate text-sm font-bold text-ink group-hover:text-primary">
-          {simulation.layoutTitle}
+          {simulation.title || simulation.layoutTitle}
         </span>
         <span className="mt-1 block text-xs tabular-nums text-text-muted">
-          도면 #{simulation.layoutId} · 버전 {simulation.layoutVersionNumber}
+          도면: {simulation.layoutTitle} · 버전 {simulation.layoutVersionNumber}
         </span>
       </>
     );
@@ -243,7 +243,7 @@ function SimulationListPage() {
         <Card className="mt-5" aria-label="시뮬레이션 검색">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label htmlFor="simulation-search" className="sr-only">
-              도면 제목 검색
+              시뮬레이션 제목 또는 도면 검색
             </label>
             <Input
               id="simulation-search"
@@ -253,7 +253,7 @@ function SimulationListPage() {
                 setSearchQuery(event.target.value);
                 setPage(1);
               }}
-              placeholder="도면 제목 검색"
+              placeholder="시뮬레이션 제목 또는 도면 검색"
               className="min-w-0 flex-1"
             />
           </div>
@@ -301,8 +301,8 @@ function SimulationListPage() {
                   <caption className="sr-only">시뮬레이션 실행 및 배치 목록</caption>
                   <thead className="bg-surface text-xs font-bold tracking-wide text-text-muted">
                     <tr>
-                      <th className="px-6 py-4">도면</th>
-                      <th className="px-4 py-4">시뮬레이션</th>
+                      <th className="px-6 py-4">시뮬레이션</th>
+                      <th className="px-4 py-4">ID</th>
                       <th className="px-4 py-4">상태</th>
                       <th className="px-4 py-4">인원</th>
                       <th className="px-4 py-4">결과</th>
@@ -419,7 +419,7 @@ function SimulationListPage() {
         title="시뮬레이션 실행 취소"
         description={
           pendingCancellation
-            ? `${pendingCancellation.layoutTitle} · 시뮬레이션 #${pendingCancellation.id}`
+            ? `${pendingCancellation.title || pendingCancellation.layoutTitle} · 시뮬레이션 #${pendingCancellation.id}`
             : undefined
         }
         confirmLabel="실행 취소"
@@ -451,7 +451,7 @@ function SimulationListPage() {
         title="시뮬레이션 삭제"
         description={
           pendingDeletion
-            ? `${pendingDeletion.layoutTitle} · 시뮬레이션 #${pendingDeletion.id}`
+            ? `${pendingDeletion.title || pendingDeletion.layoutTitle} · 시뮬레이션 #${pendingDeletion.id}`
             : undefined
         }
         confirmLabel="삭제"

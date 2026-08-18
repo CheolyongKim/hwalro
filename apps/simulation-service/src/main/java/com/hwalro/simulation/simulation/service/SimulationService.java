@@ -105,6 +105,7 @@ public class SimulationService {
                         simulation.getId(),
                         simulation.getLayoutVersionId(),
                         simulation.getParentSimulationId(),
+                        simulation.getTitle(),
                         simulation.getStatus(),
                         simulation.getCreatedAt(),
                         simulation.getTotalPeople()))
@@ -235,10 +236,16 @@ public class SimulationService {
                     drawing.exits());
         }
 
+        String title = StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle();
+        if (title.length() > 200) {
+            title = title.substring(0, 200);
+        }
+
         Simulation simulation = new Simulation();
         simulation.setLayoutVersionId(request.layoutVersionId());
         simulation.setParentSimulationId(request.parentSimulationId());
         simulation.setCreatedBy(user.userId());
+        simulation.setTitle(title);
         simulation.setStatus(SIMULATION_STATUS_DRAFT);
         simulationMapper.insertSimulation(simulation);
 
@@ -311,10 +318,16 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
+        String baseTitle = StringUtils.hasText(source.getTitle()) ? source.getTitle() : context.getTitle();
+        if (baseTitle.length() > 200) {
+            baseTitle = baseTitle.substring(0, 200);
+        }
+
         Simulation draft = new Simulation();
         draft.setLayoutVersionId(source.getLayoutVersionId());
         draft.setParentSimulationId(source.getId());
         draft.setCreatedBy(user.userId());
+        draft.setTitle(baseTitle);
         draft.setStatus(SIMULATION_STATUS_DRAFT);
         simulationMapper.insertSimulation(draft);
 
@@ -420,6 +433,14 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
+        if (StringUtils.hasText(request.title())) {
+            String nextTitle = request.title().trim();
+            if (nextTitle.length() > 200) {
+                nextTitle = nextTitle.substring(0, 200);
+            }
+            simulationMapper.updateSimulationTitle(id, nextTitle);
+        }
+
         simulationMapper.updateSimulationOption(
                 id, request.agentPositions().size(), request.walkingSpeed(), request.reactionTime());
         simulationMapper.updateInitialState(id, writeAgentPositions(request.agentPositions()));
@@ -470,6 +491,7 @@ public class SimulationService {
                 simulation.getId(),
                 simulation.getLayoutVersionId(),
                 simulation.getParentSimulationId(),
+                simulation.getTitle(),
                 simulation.getStatus(),
                 simulation.getCreatedAt(),
                 option.getRandomSeed(),
@@ -673,6 +695,7 @@ public class SimulationService {
                 simulation.getLayoutTitle(),
                 simulation.getLayoutVersionNumber(),
                 simulation.getCreatedBy(),
+                simulation.getTitle(),
                 simulation.getStatus(),
                 simulation.getCreatedAt(),
                 simulation.getRequestedAt(),
