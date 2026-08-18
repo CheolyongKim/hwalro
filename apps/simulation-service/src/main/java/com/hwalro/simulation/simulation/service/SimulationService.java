@@ -76,6 +76,7 @@ public class SimulationService {
     private static final String ROLE_REVIEWER = "SAFETY_REVIEWER";
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_PAGE = 100_000;
+    private static final int MAX_TITLE_LENGTH = 200;
 
     private final SimulationMapper simulationMapper;
     private final DrawingMapper drawingMapper;
@@ -236,10 +237,8 @@ public class SimulationService {
                     drawing.exits());
         }
 
-        String title = StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle();
-        if (title.length() > 200) {
-            title = title.substring(0, 200);
-        }
+        String title = truncateTitle(
+                StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle());
 
         Simulation simulation = new Simulation();
         simulation.setLayoutVersionId(request.layoutVersionId());
@@ -318,10 +317,8 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
-        String baseTitle = StringUtils.hasText(source.getTitle()) ? source.getTitle() : context.getTitle();
-        if (baseTitle.length() > 200) {
-            baseTitle = baseTitle.substring(0, 200);
-        }
+        String baseTitle =
+                truncateTitle(StringUtils.hasText(source.getTitle()) ? source.getTitle() : context.getTitle());
 
         Simulation draft = new Simulation();
         draft.setLayoutVersionId(source.getLayoutVersionId());
@@ -433,11 +430,9 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
-        if (StringUtils.hasText(request.title())) {
-            String nextTitle = request.title().trim();
-            if (nextTitle.length() > 200) {
-                nextTitle = nextTitle.substring(0, 200);
-            }
+        if (request.title() != null) {
+            String nextTitle = truncateTitle(
+                    StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle());
             simulationMapper.updateSimulationTitle(id, nextTitle);
         }
 
@@ -651,6 +646,17 @@ public class SimulationService {
         hazard.setCenterY(dto.centerY());
         hazard.setRadius(dto.radius());
         return hazard;
+    }
+
+    private static String truncateTitle(String title) {
+        if (title == null || title.length() <= MAX_TITLE_LENGTH) {
+            return title;
+        }
+        String truncated = title.substring(0, MAX_TITLE_LENGTH);
+        if (Character.isHighSurrogate(truncated.charAt(truncated.length() - 1))) {
+            truncated = truncated.substring(0, truncated.length() - 1);
+        }
+        return truncated;
     }
 
     private static SegmentDto toSegment(Wall wall) {

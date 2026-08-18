@@ -434,7 +434,7 @@ function SimulationSetupPage() {
     setMessage(null);
     try {
       const saved = await simulationApi.updateSetup(setup.simulationId, {
-        title: title.trim() || undefined,
+        title: title.trim(),
         walkingSpeed,
         reactionTime,
         agentPositions: agents,
