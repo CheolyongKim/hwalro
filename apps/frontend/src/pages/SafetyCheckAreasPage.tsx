@@ -135,7 +135,8 @@ function SafetyCheckAreasPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
+    <main className="bg-background">
+      <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
       <SafetyCheckHeader
         eyebrow="안전 운영"
         title="안전 점검·체크리스트"
@@ -338,7 +339,8 @@ function SafetyCheckAreasPage() {
           <AreaQrDialog area={qrArea} onClose={() => setQrArea(null)} />
         </Suspense>
       )}
-    </div>
+      </div>
+    </main>
   );
 }
 

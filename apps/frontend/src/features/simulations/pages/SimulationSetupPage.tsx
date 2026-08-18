@@ -105,6 +105,7 @@ function SimulationSetupPage() {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [executing, setExecuting] = useState(false);
   const [setup, setSetup] = useState<SimulationSetup | null>(null);
+  const [title, setTitle] = useState('');
   const [agents, setAgents] = useState<SimulationPoint[]>([]);
   const [hazards, setHazards] = useState<EditableHazardZone[]>([]);
   const [selectedExitIds, setSelectedExitIds] = useState<number[]>([]);
@@ -167,6 +168,7 @@ function SimulationSetupPage() {
         clientId: `hazard-${hazard.id ?? index}-${hazardSequenceRef.current++}`,
       }));
       setSetup(data);
+      setTitle(data.title || data.drawing.title);
       setSelectedExitIds(data.selectedExitIds);
       setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
@@ -432,6 +434,7 @@ function SimulationSetupPage() {
     setMessage(null);
     try {
       const saved = await simulationApi.updateSetup(setup.simulationId, {
+        title: title.trim() || undefined,
         walkingSpeed,
         reactionTime,
         agentPositions: agents,
@@ -496,8 +499,8 @@ function SimulationSetupPage() {
         onClick={() => navigate(`/layout/${setup.drawing.layoutId}`)}
       />
       <CanvasWorkspaceHeader
-        title={setup.drawing.title}
-        subtitle={`시뮬레이션 배치 · 도면 버전 #${setup.layoutVersionId} · ${setup.modelProfile}`}
+        title={title.trim() || setup.title || setup.drawing.title}
+        subtitle={`도면: ${setup.drawing.title} · 버전 #${setup.layoutVersionId} · ${setup.modelProfile}`}
         status={editable ? '설정 중' : setup.status}
         statusTone={editable ? 'editing' : 'locked'}
       />
@@ -642,6 +645,25 @@ function SimulationSetupPage() {
             </div>
           </div>
           <div className="simulation-setup-panel__content">
+            <section className="simulation-setup-panel__section">
+              <label
+                htmlFor="simulation-title-input"
+                className="mb-1.5 block text-xs font-bold text-text-muted"
+              >
+                시뮬레이션 제목
+              </label>
+              <input
+                id="simulation-title-input"
+                type="text"
+                value={title}
+                disabled={!editable}
+                maxLength={200}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={setup.drawing.title}
+                className="simulation-setup-title-input"
+              />
+            </section>
+
             <section className="simulation-setup-panel__summary">
               <div className="flex items-end justify-between">
                 <div>

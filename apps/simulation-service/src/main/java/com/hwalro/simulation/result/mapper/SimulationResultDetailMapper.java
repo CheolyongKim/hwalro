@@ -36,6 +36,7 @@ public interface SimulationResultDetailMapper {
             Long createdBy,
             Long layoutVersionId,
             String layoutTitle,
+            String title,
             String drawingName,
             double drawingWidth,
             double drawingHeight,

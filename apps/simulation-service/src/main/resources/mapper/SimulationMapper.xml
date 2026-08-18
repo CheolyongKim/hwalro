@@ -107,7 +107,7 @@
                 AND s.created_by = #{createdBy}
             </if>
             <if test="query != null and query != ''">
-                AND (s.title LIKE CONCAT('%', #{query}, '%') OR l.title LIKE CONCAT('%', #{query}, '%'))
+                AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
         ORDER BY s.created_at DESC, s.id DESC
@@ -117,16 +117,12 @@
     <select id="countSimulationOverview" resultType="long">
         SELECT COUNT(*)
         FROM simulations s
-        <if test="query != null and query != ''">
-            LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
-            LEFT JOIN layouts l ON l.id = lv.layout_id
-        </if>
         <where>
             <if test="createdBy != null">
                 AND s.created_by = #{createdBy}
             </if>
             <if test="query != null and query != ''">
-                AND (s.title LIKE CONCAT('%', #{query}, '%') OR l.title LIKE CONCAT('%', #{query}, '%'))
+                AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
     </select>

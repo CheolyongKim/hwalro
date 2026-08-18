@@ -81,7 +81,8 @@ function RiskManagementPage() {
       : null;
 
   return (
-    <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
+    <main className="bg-background">
+      <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
       <div className="border-b border-line pb-6">
         <PageHeader
           eyebrow="안전 운영"
@@ -192,7 +193,8 @@ function RiskManagementPage() {
       </div>
 
       {isCreateOpen && <RiskCreateDialog onClose={() => setIsCreateOpen(false)} />}
-    </div>
+      </div>
+    </main>
   );
 }
 

@@ -123,13 +123,13 @@ export function CreateSimulationDraftDialog({
               />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-3 text-sm font-bold text-ink">
-                  <span className="tabular-nums">시뮬레이션 #{summary.id}</span>
-                  <span className="tabular-nums text-primary">
+                  <span className="truncate">{summary.title || `시뮬레이션 #${summary.id}`}</span>
+                  <span className="shrink-0 tabular-nums text-primary">
                     {summary.totalPeople.toLocaleString()}명
                   </span>
                 </span>
                 <span className="mt-1 block text-xs tabular-nums text-text-muted">
-                  {formatCreatedAt(summary.createdAt)} · {summary.status}
+                  #{summary.id} · {formatCreatedAt(summary.createdAt)} · {summary.status}
                 </span>
               </span>
             </label>
