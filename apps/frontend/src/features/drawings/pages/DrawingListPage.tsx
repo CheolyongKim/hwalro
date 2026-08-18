@@ -69,19 +69,21 @@ function DrawingListPage() {
   return (
     <main className="bg-background">
       <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
-        <PageHeader
-          eyebrow="도면"
-          title="도면 목록"
-          description="등록된 도면을 확인하고 관리합니다. 도면명을 선택하면 수정 화면으로 이동합니다."
-          actions={
-            <Link
-              to="/drawings/new"
-              className={buttonClassName({ variant: 'primary', size: 'lg' })}
-            >
-              도면 등록
-            </Link>
-          }
-        />
+        <div className="border-b border-line pb-6">
+          <PageHeader
+            eyebrow="도면"
+            title="도면 목록"
+            description="등록된 도면을 확인하고 관리합니다. 도면명을 선택하면 수정 화면으로 이동합니다."
+            actions={
+              <Link
+                to="/drawings/new"
+                className={buttonClassName({ variant: 'primary', size: 'lg' })}
+              >
+                도면 등록
+              </Link>
+            }
+          />
+        </div>
 
         <Card className="mt-4" aria-label="도면 검색">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
