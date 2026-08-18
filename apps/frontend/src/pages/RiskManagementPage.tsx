@@ -141,9 +141,7 @@ function RiskManagementPage() {
                   selectedId={selectedItem?.id ?? null}
                   onSelect={handleSelect}
                   emptyTitle={
-                    query.trim()
-                      ? '검색 결과가 없습니다.'
-                      : '등록된 위험 항목이 없습니다.'
+                    query.trim() ? '검색 결과가 없습니다.' : '등록된 위험 항목이 없습니다.'
                   }
                   emptyDescription={
                     query.trim() ? '다른 검색어로 위험 항목을 검색해 보세요.' : undefined
