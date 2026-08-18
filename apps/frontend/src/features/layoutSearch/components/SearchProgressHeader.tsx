@@ -50,7 +50,9 @@ export function SearchProgressHeader({
           {SEARCH_STATUS_LABELS[search.status]}
         </span>
         <span className="search-progress-floating__meta">
-          {active && progress.plannedCount === null ? (
+          {search.failureMessage ? (
+            <span className="search-progress-floating__failure-text">{search.failureMessage}</span>
+          ) : active && progress.plannedCount === null ? (
             <span>진행 {formatNumber(progress.verifiedCount)}건 검증 · 전체 후보 계산 중</span>
           ) : active && progress.plannedCount !== 0 ? (
             <span>
@@ -66,6 +68,11 @@ export function SearchProgressHeader({
             )}
         </span>
       </div>
+      {search.failureMessage && (
+        <p className="search-progress__failure" role="alert">
+          {search.failureMessage}
+        </p>
+      )}
       <div className="search-progress-floating__actions">
         {active && (
           <button
@@ -88,11 +95,6 @@ export function SearchProgressHeader({
           </button>
         )}
       </div>
-      {search.failureMessage && (
-        <p className="search-progress__failure" role="alert" style={{ display: 'none' }}>
-          {search.failureMessage}
-        </p>
-      )}
     </aside>
   );
 }
