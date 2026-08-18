@@ -91,7 +91,7 @@ function DrawingListPage() {
           />
         </div>
 
-        <Card className="mt-4" aria-label="도면 검색">
+        <Card className="mt-5" aria-label="도면 검색">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label htmlFor="drawing-search" className="sr-only">
               도면 제목 검색
@@ -110,7 +110,7 @@ function DrawingListPage() {
           </div>
         </Card>
 
-        <Card padded={false} className="mt-4 overflow-hidden" aria-label="도면 목록">
+        <Card padded={false} className="mt-5 overflow-hidden" aria-label="도면 목록">
           {isPending ? (
             <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
               도면을 불러오는 중...

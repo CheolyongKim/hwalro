@@ -182,6 +182,7 @@ class SimulationEngineRunnerTest {
                 21L,
                 11L,
                 null,
+                "test simulation",
                 "REQUESTED",
                 LocalDateTime.now(),
                 1,

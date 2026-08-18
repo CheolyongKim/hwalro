@@ -33,6 +33,7 @@
                layout_version_id,
                parent_simulation_id,
                created_by,
+               title,
                status,
                created_at,
                requested_at,
@@ -49,6 +50,7 @@
                layout_version_id,
                parent_simulation_id,
                created_by,
+               title,
                status,
                created_at,
                requested_at,
@@ -66,6 +68,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                so.total_people
@@ -83,6 +86,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                s.requested_at,
@@ -103,7 +107,7 @@
                 AND s.created_by = #{createdBy}
             </if>
             <if test="query != null and query != ''">
-                AND l.title LIKE CONCAT('%', #{query}, '%')
+                AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
         ORDER BY s.created_at DESC, s.id DESC
@@ -113,16 +117,12 @@
     <select id="countSimulationOverview" resultType="long">
         SELECT COUNT(*)
         FROM simulations s
-        <if test="query != null and query != ''">
-            LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
-            LEFT JOIN layouts l ON l.id = lv.layout_id
-        </if>
         <where>
             <if test="createdBy != null">
                 AND s.created_by = #{createdBy}
             </if>
             <if test="query != null and query != ''">
-                AND l.title LIKE CONCAT('%', #{query}, '%')
+                AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
     </select>
@@ -132,6 +132,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                s.requested_at,
@@ -165,6 +166,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                s.requested_at,
@@ -288,8 +290,8 @@
     </select>
 
     <insert id="insertSimulation" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, status)
-        VALUES (#{layoutVersionId}, #{parentSimulationId}, #{createdBy}, #{status})
+        INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, title, status)
+        VALUES (#{layoutVersionId}, #{parentSimulationId}, #{createdBy}, #{title}, #{status})
     </insert>
 
     <insert id="insertSimulationOption" useGeneratedKeys="true" keyProperty="id">
@@ -326,6 +328,12 @@
             walking_speed = #{walkingSpeed},
             reaction_time = #{reactionTime}
         WHERE simulation_id = #{simulationId}
+    </update>
+
+    <update id="updateSimulationTitle">
+        UPDATE simulations
+        SET title = #{title}
+        WHERE id = #{simulationId}
     </update>
 
     <update id="updateExecutionProfiles">

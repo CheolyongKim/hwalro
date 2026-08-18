@@ -9,6 +9,7 @@
                simulation.created_by AS createdBy,
                simulation.layout_version_id AS layoutVersionId,
                layout.title AS layoutTitle,
+               simulation.title AS title,
                floor_plan.name AS drawingName,
                floor_plan.width AS drawingWidth,
                floor_plan.height AS drawingHeight,
@@ -95,7 +96,7 @@
     <select id="findComparableSimulationPage" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$ComparableRow">
         SELECT candidate.id AS simulationId,
                candidate_result.id AS simulationResultId,
-               COALESCE(proposal.title, CONCAT('비교 시뮬레이션 #', candidate.id)) AS name,
+               COALESCE(proposal.title, candidate.title, CONCAT('비교 시뮬레이션 #', candidate.id)) AS name,
                metric.metric_value AS totalEvacuationTime
         FROM simulations candidate
         JOIN simulation_results candidate_result ON candidate_result.simulation_id = candidate.id

@@ -57,6 +57,7 @@ public final class ChangeSetApplier {
                 baseline.simulationId(),
                 baseline.layoutVersionId(),
                 baseline.parentSimulationId(),
+                baseline.title(),
                 baseline.status(),
                 baseline.createdAt(),
                 baseline.randomSeed(),

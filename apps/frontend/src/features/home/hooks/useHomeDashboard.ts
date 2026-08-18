@@ -125,7 +125,7 @@ export function useHomeDashboard() {
       analysisOpened: activity.activityType === 'SIMULATION_RESULT',
     };
     return {
-      title: simulation.layoutTitle,
+      title: simulation.title || simulation.layoutTitle,
       resumePath: resumePath(activity),
       subtitle: `도면 #${simulation.layoutId} · 버전 ${simulation.layoutVersionNumber} · 시뮬레이션 #${simulation.id}`,
       occurredAt: activity.occurredAt,
@@ -140,6 +140,7 @@ export function useHomeDashboard() {
         const action = getSimulationListAction(item);
         return {
           id: item.id,
+          title: item.title,
           layoutTitle: item.layoutTitle,
           executedAt: item.startedAt ?? item.requestedAt ?? item.createdAt,
           createdBy: item.createdBy,

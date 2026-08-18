@@ -46,11 +46,13 @@ function CreateDrawingPage() {
   return (
     <main className="bg-background">
       <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
-        <PageHeader
-          eyebrow="도면"
-          title="도면 등록"
-          description="기본 도면 데이터로 시작하거나 빈 도면으로 시작할 수 있습니다. 등록 후 편집 화면에서 배치를 수정할 수 있습니다."
-        />
+        <div className="border-b border-line pb-6">
+          <PageHeader
+            eyebrow="도면"
+            title="도면 등록"
+            description="기본 도면 데이터로 시작하거나 빈 도면으로 시작할 수 있습니다. 등록 후 편집 화면에서 배치를 수정할 수 있습니다."
+          />
+        </div>
 
         <form onSubmit={handleSubmit} className="mt-5">
           <Card className="sm:p-6" aria-label="도면 정보 입력">

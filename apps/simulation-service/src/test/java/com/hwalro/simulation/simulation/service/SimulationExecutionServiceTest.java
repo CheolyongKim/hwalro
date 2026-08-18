@@ -587,6 +587,7 @@ class SimulationExecutionServiceTest {
                 21L,
                 11L,
                 null,
+                "test simulation",
                 "REQUESTED",
                 LocalDateTime.now(),
                 1,
@@ -606,6 +607,7 @@ class SimulationExecutionServiceTest {
         simulation.setId(21L);
         simulation.setLayoutVersionId(11L);
         simulation.setCreatedBy(7L);
+        simulation.setTitle("test simulation");
         simulation.setStatus(status);
         return simulation;
     }

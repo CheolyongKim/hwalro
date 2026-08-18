@@ -75,6 +75,7 @@ public class SimulationService {
     private static final String ROLE_REVIEWER = "SAFETY_REVIEWER";
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_PAGE = 100_000;
+    private static final int MAX_TITLE_LENGTH = 200;
 
     private final SimulationMapper simulationMapper;
     private final DrawingMapper drawingMapper;
@@ -104,6 +105,7 @@ public class SimulationService {
                         simulation.getId(),
                         simulation.getLayoutVersionId(),
                         simulation.getParentSimulationId(),
+                        simulation.getTitle(),
                         simulation.getStatus(),
                         simulation.getCreatedAt(),
                         simulation.getTotalPeople()))
@@ -234,10 +236,14 @@ public class SimulationService {
                     drawing.exits());
         }
 
+        String title = truncateTitle(
+                StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle());
+
         Simulation simulation = new Simulation();
         simulation.setLayoutVersionId(request.layoutVersionId());
         simulation.setParentSimulationId(request.parentSimulationId());
         simulation.setCreatedBy(user.userId());
+        simulation.setTitle(title);
         simulation.setStatus(SIMULATION_STATUS_DRAFT);
         simulationMapper.insertSimulation(simulation);
 
@@ -310,10 +316,14 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
+        String baseTitle =
+                truncateTitle(StringUtils.hasText(source.getTitle()) ? source.getTitle() : context.getTitle());
+
         Simulation draft = new Simulation();
         draft.setLayoutVersionId(source.getLayoutVersionId());
         draft.setParentSimulationId(source.getId());
         draft.setCreatedBy(user.userId());
+        draft.setTitle(baseTitle);
         draft.setStatus(SIMULATION_STATUS_DRAFT);
         simulationMapper.insertSimulation(draft);
 
@@ -419,6 +429,12 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
+        if (request.title() != null) {
+            String nextTitle = truncateTitle(
+                    StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle());
+            simulationMapper.updateSimulationTitle(id, nextTitle);
+        }
+
         simulationMapper.updateSimulationOption(
                 id, request.agentPositions().size(), request.walkingSpeed(), request.reactionTime());
         simulationMapper.updateInitialState(id, writeAgentPositions(request.agentPositions()));
@@ -469,6 +485,7 @@ public class SimulationService {
                 simulation.getId(),
                 simulation.getLayoutVersionId(),
                 simulation.getParentSimulationId(),
+                simulation.getTitle(),
                 simulation.getStatus(),
                 simulation.getCreatedAt(),
                 option.getRandomSeed(),
@@ -611,6 +628,17 @@ public class SimulationService {
         return hazard;
     }
 
+    private static String truncateTitle(String title) {
+        if (title == null || title.length() <= MAX_TITLE_LENGTH) {
+            return title;
+        }
+        String truncated = title.substring(0, MAX_TITLE_LENGTH);
+        if (Character.isHighSurrogate(truncated.charAt(truncated.length() - 1))) {
+            truncated = truncated.substring(0, truncated.length() - 1);
+        }
+        return truncated;
+    }
+
     private static SegmentDto toSegment(Wall wall) {
         return new SegmentDto(wall.getName(), wall.getStartX(), wall.getStartY(), wall.getEndX(), wall.getEndY());
     }
@@ -653,6 +681,7 @@ public class SimulationService {
                 simulation.getLayoutTitle(),
                 simulation.getLayoutVersionNumber(),
                 simulation.getCreatedBy(),
+                simulation.getTitle(),
                 simulation.getStatus(),
                 simulation.getCreatedAt(),
                 simulation.getRequestedAt(),

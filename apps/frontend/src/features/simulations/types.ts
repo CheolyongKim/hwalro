@@ -50,6 +50,7 @@ export interface SimulationSetup {
   simulationId: number;
   layoutVersionId: number;
   parentSimulationId: number | null;
+  title: string;
   status: string;
   createdAt: string;
   randomSeed: number;
@@ -162,6 +163,7 @@ export interface SimulationHeatmapChunk {
 
 export interface SimulationSummary {
   id: number;
+  title?: string;
   status: string;
   createdAt: string;
   totalPeople: number;
@@ -174,6 +176,7 @@ export interface SimulationOverview {
   layoutTitle: string;
   layoutVersionNumber: number;
   createdBy: number;
+  title: string;
   status: SimulationExecutionStatus;
   createdAt: string;
   requestedAt: string | null;
@@ -194,9 +197,11 @@ export interface SimulationOverviewPage {
 export interface CreateSimulationDraftRequest {
   layoutVersionId: number;
   parentSimulationId?: number;
+  title?: string;
 }
 
 export interface UpdateSimulationSetupRequest {
+  title?: string;
   walkingSpeed: number;
   reactionTime: number;
   agentPositions: SimulationPoint[];

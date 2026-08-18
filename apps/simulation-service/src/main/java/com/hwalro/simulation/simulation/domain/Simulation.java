@@ -7,6 +7,7 @@ public class Simulation {
     private Long layoutVersionId;
     private Long parentSimulationId;
     private Long createdBy;
+    private String title;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime requestedAt;
@@ -50,6 +51,14 @@ public class Simulation {
 
     public void setCreatedBy(Long createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public String getStatus() {

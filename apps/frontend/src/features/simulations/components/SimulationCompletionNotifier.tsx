@@ -86,7 +86,7 @@ function SimulationCompletionNotifier({ userId }: SimulationCompletionNotifierPr
           key={simulation.id}
           id={simulation.id}
           title="시뮬레이션 실행이 완료되었습니다"
-          description={`${simulation.layoutTitle} · 시뮬레이션 #${simulation.id}`}
+          description={`${simulation.title || simulation.layoutTitle} · 시뮬레이션 #${simulation.id}`}
           dismissLabel="시뮬레이션 완료 알림 닫기"
           onDismiss={dismiss}
           action={

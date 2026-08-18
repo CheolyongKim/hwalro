@@ -446,6 +446,7 @@ class SimulationServiceTest {
         simulation.setId(21L);
         simulation.setLayoutVersionId(11L);
         simulation.setCreatedBy(7L);
+        simulation.setTitle("test simulation");
         simulation.setStatus("DRAFT");
         simulation.setCreatedAt(LocalDateTime.now());
         return simulation;
