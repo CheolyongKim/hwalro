@@ -14,7 +14,7 @@ function HomePage() {
     <div className="mx-auto w-full max-w-[1360px] px-1 pb-10 sm:px-4">
       <h1 className="sr-only">홈</h1>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <div className="lg:col-span-8">
           <ActiveReviewCard
             review={activeReview.data}
@@ -40,7 +40,7 @@ function HomePage() {
         />
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-12">
+      <div className="mt-8 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
         <div className="lg:col-span-8">
           <RecentSimulationTable
             rows={recentSimulations.data}
@@ -53,6 +53,7 @@ function HomePage() {
         <div className="lg:col-span-4">
           <PriorityRiskPanel
             items={priorityRisks.data}
+            totalCount={priorityRisks.totalCount}
             isPending={priorityRisks.isPending}
             isError={priorityRisks.isError}
             errorMessage={getRiskErrorMessage(priorityRisks.error)}
