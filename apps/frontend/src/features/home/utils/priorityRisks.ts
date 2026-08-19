@@ -32,5 +32,3 @@ export function selectPriorityRisks(risks: Risk[], limit = PRIORITY_RISK_LIMIT):
 export function countPriorityRisks(risks: Risk[]): number {
   return filterPriorityRisks(risks).length;
 }
-
-

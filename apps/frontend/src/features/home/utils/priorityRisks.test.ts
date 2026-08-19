@@ -82,5 +82,3 @@ describe('selectPriorityRisks and countPriorityRisks', () => {
     expect(selectPriorityRisks(list)).toHaveLength(3);
   });
 });
-
-
