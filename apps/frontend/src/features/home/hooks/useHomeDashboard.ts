@@ -16,7 +16,7 @@ import type {
   RecentSimulationRow,
   SimulationWorkSummary,
 } from '../types/home';
-import { selectPriorityRisks } from '../utils/priorityRisks';
+import { countPriorityRisks, selectPriorityRisks } from '../utils/priorityRisks';
 import {
   activityHasSimulation,
   currentStageLabel,
@@ -188,6 +188,11 @@ export function useHomeDashboard() {
         ? getSimulationErrorMessage(pointedSimulationQuery.error)
         : '';
 
+  const totalPriorityCount = useMemo(
+    () => (risksQuery.data?.items ? countPriorityRisks(risksQuery.data.items) : 0),
+    [risksQuery.data],
+  );
+
   return {
     activeReview: {
       data: activeReview,
@@ -217,6 +222,7 @@ export function useHomeDashboard() {
     },
     priorityRisks: {
       data: priorityRiskItems,
+      totalCount: totalPriorityCount,
       isPending: risksQuery.isPending,
       isError: risksQuery.isError,
       error: risksQuery.error,
