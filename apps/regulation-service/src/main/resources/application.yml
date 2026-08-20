@@ -54,6 +54,7 @@ simulation-service:
   base-url: ${SIMULATION_SERVICE_URL:http://localhost:8081}
   connect-timeout: ${SIMULATION_SERVICE_CONNECT_TIMEOUT:2s}
   read-timeout: ${SIMULATION_SERVICE_READ_TIMEOUT:10s}
+  max-result-count: ${SIMULATION_SERVICE_MAX_RESULT_COUNT:6}
 
 springdoc:
   swagger-ui:

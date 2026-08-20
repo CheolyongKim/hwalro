@@ -162,7 +162,7 @@ class SimulationSchemaIntegrationTest {
             statement.executeUpdate(
                     "INSERT INTO layout_versions (id, layout_id, version, status) VALUES (953, 952, 1, '잠금')");
             statement.executeUpdate(
-                    "INSERT INTO simulations (id, layout_version_id, created_by, status) VALUES (954, 953, 7, 'COMPLETED')");
+                    "INSERT INTO simulations (id, layout_version_id, created_by, title, status) VALUES (954, 953, 7, 'recovery', 'COMPLETED')");
         }
 
         String recovery =
@@ -202,7 +202,7 @@ class SimulationSchemaIntegrationTest {
             statement.executeUpdate(
                     "INSERT INTO layout_versions (id, layout_id, version, status) VALUES (943, 942, 1, '잠금')");
             statement.executeUpdate(
-                    "INSERT INTO simulations (id, layout_version_id, created_by, status) VALUES (944, 943, 7, 'COMPLETED')");
+                    "INSERT INTO simulations (id, layout_version_id, created_by, title, status) VALUES (944, 943, 7, 'termination', 'COMPLETED')");
         }
 
         String detail =

@@ -4,9 +4,9 @@ import type { BadgeTone } from '../../components/ui';
 import type { Risk } from '../../features/risks/types/risks';
 import { formatDate } from '../../features/risks/utils/formatDate';
 
-const TABLE_HEADERS = ['위험 예상 항목', '심각도', '담당자', '등록일'] as const;
+const TABLE_HEADERS = ['위험 예상 항목', '시뮬레이션', '심각도', '담당자', '등록일'] as const;
 
-const TABLE_COLUMNS = 'grid-cols-[minmax(0,2.5fr)_1fr_1fr_2fr]';
+const TABLE_COLUMNS = 'grid-cols-[minmax(0,2.5fr)_minmax(0,1.5fr)_1fr_1fr_2fr]';
 
 const SEVERITY_TONES: Record<string, BadgeTone> = {
   높음: 'danger',
@@ -66,6 +66,9 @@ function RiskItemTable({
                     </Badge>
                   )}
                 </div>
+                <span className="truncate text-sm text-text-muted">
+                  {item.simulationTitle ?? ''}
+                </span>
                 <Badge tone={SEVERITY_TONES[item.severity] ?? 'neutral'}>{item.severity}</Badge>
                 <span className="text-sm tabular-nums text-text-strong">
                   {item.assigneeName ?? '-'}
