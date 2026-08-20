@@ -17,4 +17,5 @@ public record RiskResponse(
         String severity,
         String status,
         LocalDateTime createdAt,
-        List<AttachedLawRef> attachedLaws) {}
+        List<AttachedLawRef> attachedLaws,
+        String simulationTitle) {}

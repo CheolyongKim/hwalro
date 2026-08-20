@@ -18,6 +18,7 @@ export interface Risk {
   status: string;
   attachedLaws: AttachedLawRef[];
   createdAt: string;
+  simulationTitle: string | null;
 }
 
 export interface RiskCreateRequest {
@@ -62,6 +63,7 @@ export interface RiskDrawingContext {
   simulationResultId: number;
   simulationId: number;
   layoutTitle: string;
+  title: string;
   drawing: {
     name: string;
     width: number;
