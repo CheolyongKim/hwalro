@@ -347,7 +347,8 @@ function SimulationListPage() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                            {simulation.status === 'REQUESTED' || simulation.status === 'RUNNING' ? (
+                            {simulation.status === 'REQUESTED' ||
+                            simulation.status === 'RUNNING' ? (
                               <button
                                 type="button"
                                 onClick={() => {
