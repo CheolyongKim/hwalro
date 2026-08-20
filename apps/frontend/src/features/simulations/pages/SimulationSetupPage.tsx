@@ -73,7 +73,7 @@ function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) 
       <span
         id={id}
         role="tooltip"
-        className={`pointer-events-none absolute top-full z-30 mt-2 hidden w-48 rounded-lg bg-ink px-3 py-2 text-[11px] font-medium leading-5 text-white shadow-raised group-hover:block group-focus-within:block ${align === 'right' ? 'right-0' : 'left-0'}`}
+        className={`simulation-setup-info-tooltip pointer-events-none absolute top-full z-30 mt-2 hidden w-48 rounded-lg px-3 py-2 text-[11px] font-medium leading-5 shadow-raised group-hover:block group-focus-within:block ${align === 'right' ? 'right-0' : 'left-0'}`}
       >
         {children}
       </span>
@@ -105,13 +105,15 @@ function SimulationSetupPage() {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [executing, setExecuting] = useState(false);
   const [setup, setSetup] = useState<SimulationSetup | null>(null);
+  const [title, setTitle] = useState('');
   const [agents, setAgents] = useState<SimulationPoint[]>([]);
   const [hazards, setHazards] = useState<EditableHazardZone[]>([]);
   const [selectedExitIds, setSelectedExitIds] = useState<number[]>([]);
   const [highlightedExitId, setHighlightedExitId] = useState<number | null>(null);
   const [highlightedAgentId, setHighlightedAgentId] = useState<number | null>(null);
   const [walkingSpeed, setWalkingSpeed] = useState(1.25);
-  const [reactionTime, setReactionTime] = useState(0.5);
+  const [initialResponseTimeMean, setInitialResponseTimeMean] = useState(0);
+  const [initialResponseTimeStdDev, setInitialResponseTimeStdDev] = useState(0);
   const [tool, setTool] = useState<SimulationTool>('select');
   const [sprayRadius, setSprayRadius] = useState(1);
   const [eraserRadius, setEraserRadius] = useState(1);
@@ -167,10 +169,12 @@ function SimulationSetupPage() {
         clientId: `hazard-${hazard.id ?? index}-${hazardSequenceRef.current++}`,
       }));
       setSetup(data);
+      setTitle(data.title || data.drawing.title);
       setSelectedExitIds(data.selectedExitIds);
       setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
-      setReactionTime(data.reactionTime);
+      setInitialResponseTimeMean(data.initialResponseTimeMean);
+      setInitialResponseTimeStdDev(data.initialResponseTimeStdDev);
       if (resetTool) setTool('select');
       setSelectedHazardId(null);
       setAgentDeletionToast(null);
@@ -413,8 +417,16 @@ function SimulationSetupPage() {
   };
 
   const validateOptions = (): string | null => {
-    if (reactionTime < 0.1 || reactionTime > 2) {
-      return '속도 반응시간은 0.1초 이상 2.0초 이하로 입력해 주세요.';
+    if (
+      initialResponseTimeMean < 0 ||
+      initialResponseTimeMean > 600 ||
+      initialResponseTimeStdDev < 0 ||
+      initialResponseTimeStdDev > 600
+    ) {
+      return '초기 반응시간 평균과 표준편차는 0초 이상 600초 이하로 입력해 주세요.';
+    }
+    if (initialResponseTimeMean === 0 && initialResponseTimeStdDev > 0) {
+      return '평균 초기 반응시간이 0초이면 표준편차도 0초로 입력해 주세요.';
     }
     if (walkingSpeed <= 0 || walkingSpeed > 3) {
       return '희망 이동속도는 0보다 크고 3.0m/s 이하로 입력해 주세요.';
@@ -432,8 +444,10 @@ function SimulationSetupPage() {
     setMessage(null);
     try {
       const saved = await simulationApi.updateSetup(setup.simulationId, {
+        title: title.trim(),
         walkingSpeed,
-        reactionTime,
+        initialResponseTimeMean,
+        initialResponseTimeStdDev,
         agentPositions: agents,
         hazardZones: hazards.map(({ centerX, centerY, radius }) => ({ centerX, centerY, radius })),
         selectedExitIds,
@@ -496,8 +510,8 @@ function SimulationSetupPage() {
         onClick={() => navigate(`/layout/${setup.drawing.layoutId}`)}
       />
       <CanvasWorkspaceHeader
-        title={setup.drawing.title}
-        subtitle={`시뮬레이션 배치 · 도면 버전 #${setup.layoutVersionId} · ${setup.modelProfile}`}
+        title={title.trim() || setup.title || setup.drawing.title}
+        subtitle={`도면: ${setup.drawing.title} · 버전 #${setup.layoutVersionId} · ${setup.modelProfile}`}
         status={editable ? '설정 중' : setup.status}
         statusTone={editable ? 'editing' : 'locked'}
       />
@@ -642,6 +656,25 @@ function SimulationSetupPage() {
             </div>
           </div>
           <div className="simulation-setup-panel__content">
+            <section className="simulation-setup-panel__section">
+              <label
+                htmlFor="simulation-title-input"
+                className="mb-1.5 block text-xs font-bold text-text-muted"
+              >
+                시뮬레이션 제목
+              </label>
+              <input
+                id="simulation-title-input"
+                type="text"
+                value={title}
+                disabled={!editable}
+                maxLength={200}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={setup.drawing.title}
+                className="simulation-setup-title-input"
+              />
+            </section>
+
             <section className="simulation-setup-panel__summary">
               <div className="flex items-end justify-between">
                 <div>
@@ -749,15 +782,15 @@ function SimulationSetupPage() {
 
             <section className="simulation-setup-panel__section">
               <h2 className="text-sm font-black">시뮬레이션 조건</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="text-xs font-bold text-text-muted">
-                  <div className="flex items-center gap-1">
+              <div className="simulation-setup-condition-grid mt-4 grid grid-cols-2 gap-x-3 gap-y-4">
+                <div className="simulation-setup-condition-field text-xs font-bold text-text-muted">
+                  <div className="simulation-setup-condition-label flex gap-1">
                     <label htmlFor="walking-speed">희망 이동속도 (m/s)</label>
                     <InfoTooltip id="walking-speed-help" label="희망 이동속도 안내">
                       에이전트가 방해받지 않을 때 목표로 하는 속도입니다. 일반 자유 보행의 대표
                       평균은 약 1.34m/s이며, 3m/s는 빠른 대피 상황을 고려한 시스템 상한입니다. 실제
                       속도는 혼잡도와 상호작용에 따라 달라집니다.
-                      <span className="mt-1 block text-white/70">
+                      <span className="simulation-setup-info-tooltip__source mt-1 block">
                         출처: Weidmann (1993), ETH Zürich
                       </span>
                     </InfoTooltip>
@@ -773,29 +806,44 @@ function SimulationSetupPage() {
                     disabled={!editable}
                   />
                 </div>
-                <div className="text-xs font-bold text-text-muted">
-                  <div className="flex items-center gap-1">
-                    <label htmlFor="reaction-time">속도 반응시간 (초)</label>
-                    <InfoTooltip id="reaction-time-help" label="속도 반응시간 안내" align="right">
-                      현재 속도가 희망속도와 방향에 적응하는 시간상수 τ입니다. 값이 작을수록 속도가
-                      더 빠르게 변하며, 출발 전 대기시간은 아닙니다.
-                      <span className="my-1 block font-mono text-[10px] text-white">
-                        Fdrv = (희망속도 벡터 - 현재속도 벡터) / τ
-                      </span>
-                      JuPedSim SFM 기본값은 0.5초이고, 시스템 허용 범위는 0.1~2.0초입니다.
-                      <span className="mt-1 block text-white/70">
-                        출처: JuPedSim SFM, Helbing et al. (2000)
-                      </span>
+                <div className="simulation-setup-condition-field text-xs font-bold text-text-muted">
+                  <div className="simulation-setup-condition-label flex gap-1">
+                    <label htmlFor="initial-response-time-mean">평균 초기 반응시간 (초)</label>
+                    <InfoTooltip
+                      id="initial-response-time-mean-help"
+                      label="초기 반응시간 안내"
+                      align="right"
+                    >
+                      시뮬레이션 시작 후 각 에이전트가 자발적인 보행을 시작하기 전까지의 평균
+                      대기시간입니다. 대기 중에도 다른 사람이나 장애물의 물리력으로 밀릴 수
+                      있습니다. 입력한 평균과 표준편차를 갖는 음이 아닌 감마분포에서 난수 시드에
+                      따라 결정적으로 생성됩니다. 표준편차가 0이면 모든 에이전트가 같은 시간에
+                      출발합니다.
                     </InfoTooltip>
                   </div>
                   <NumberStepperInput
-                    id="reaction-time"
-                    label="속도 반응시간"
-                    min={0.1}
-                    max={2}
+                    id="initial-response-time-mean"
+                    label="평균 초기 반응시간"
+                    min={0}
+                    max={600}
                     step={0.1}
-                    value={reactionTime}
-                    onValueChange={setReactionTime}
+                    value={initialResponseTimeMean}
+                    onValueChange={setInitialResponseTimeMean}
+                    disabled={!editable}
+                  />
+                </div>
+                <div className="simulation-setup-condition-field text-xs font-bold text-text-muted">
+                  <div className="simulation-setup-condition-label flex gap-1">
+                    <label htmlFor="initial-response-time-std-dev">반응시간 표준편차 (초)</label>
+                  </div>
+                  <NumberStepperInput
+                    id="initial-response-time-std-dev"
+                    label="반응시간 표준편차"
+                    min={0}
+                    max={600}
+                    step={0.1}
+                    value={initialResponseTimeStdDev}
+                    onValueChange={setInitialResponseTimeStdDev}
                     disabled={!editable}
                   />
                 </div>

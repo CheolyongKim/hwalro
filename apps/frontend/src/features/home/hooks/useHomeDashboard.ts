@@ -16,7 +16,7 @@ import type {
   RecentSimulationRow,
   SimulationWorkSummary,
 } from '../types/home';
-import { selectPriorityRisks } from '../utils/priorityRisks';
+import { countPriorityRisks, selectPriorityRisks } from '../utils/priorityRisks';
 import {
   activityHasSimulation,
   currentStageLabel,
@@ -125,7 +125,7 @@ export function useHomeDashboard() {
       analysisOpened: activity.activityType === 'SIMULATION_RESULT',
     };
     return {
-      title: simulation.layoutTitle,
+      title: simulation.title || simulation.layoutTitle,
       resumePath: resumePath(activity),
       subtitle: `도면 #${simulation.layoutId} · 버전 ${simulation.layoutVersionNumber} · 시뮬레이션 #${simulation.id}`,
       occurredAt: activity.occurredAt,
@@ -140,6 +140,7 @@ export function useHomeDashboard() {
         const action = getSimulationListAction(item);
         return {
           id: item.id,
+          title: item.title,
           layoutTitle: item.layoutTitle,
           executedAt: item.startedAt ?? item.requestedAt ?? item.createdAt,
           createdBy: item.createdBy,
@@ -187,6 +188,11 @@ export function useHomeDashboard() {
         ? getSimulationErrorMessage(pointedSimulationQuery.error)
         : '';
 
+  const totalPriorityCount = useMemo(
+    () => (risksQuery.data?.items ? countPriorityRisks(risksQuery.data.items) : 0),
+    [risksQuery.data],
+  );
+
   return {
     activeReview: {
       data: activeReview,
@@ -216,6 +222,7 @@ export function useHomeDashboard() {
     },
     priorityRisks: {
       data: priorityRiskItems,
+      totalCount: totalPriorityCount,
       isPending: risksQuery.isPending,
       isError: risksQuery.isError,
       error: risksQuery.error,

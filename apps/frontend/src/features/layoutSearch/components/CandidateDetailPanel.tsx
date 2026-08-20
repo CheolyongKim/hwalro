@@ -16,6 +16,7 @@ interface Props {
   previewAvailable: boolean;
   onReject: () => void;
   rejecting: boolean;
+  onMinimize?: () => void;
 }
 
 export function CandidateDetailPanel({
@@ -26,6 +27,7 @@ export function CandidateDetailPanel({
   previewAvailable,
   onReject,
   rejecting,
+  onMinimize,
 }: Props) {
   // 검증 없이 돌린 탐색은 실측 지표가 없다. 그때 개선 폭을 알 수 있는 유일한 방법이 이 후보로
   // 시뮬레이션을 실제로 돌려보는 것이므로, 수치가 없다는 이유로 준비를 막으면 안 된다.
@@ -33,12 +35,25 @@ export function CandidateDetailPanel({
   const preparedSimulation = candidate.preparedSimulation;
 
   return (
-    <aside className="search-insight">
+    <div className="search-insight-body">
       <div className="search-insight__header">
         <div className="workspace-section-heading">
-          <span>개선안 상세</span>
-          <small>{operatorLabel(candidate.operatorType)}</small>
+          <div>
+            <span>개선안 상세</span>
+            <small>{operatorLabel(candidate.operatorType)}</small>
+          </div>
+          {onMinimize && (
+            <button
+              type="button"
+              className="candidate-panel-close-btn"
+              onClick={onMinimize}
+              aria-label="개선안 상세 최소화"
+            >
+              −
+            </button>
+          )}
         </div>
+
         <div className="strategy-tags">
           <span>{findingLabel(candidate.originFindingType)}</span>
           <span>{candidate.round === 1 ? '1차 개선안' : `${candidate.round}차 개선안`}</span>
@@ -151,6 +166,6 @@ export function CandidateDetailPanel({
           </button>
         )}
       </div>
-    </aside>
+    </div>
   );
 }

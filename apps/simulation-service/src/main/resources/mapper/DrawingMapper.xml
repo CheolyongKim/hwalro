@@ -38,7 +38,12 @@
                created_at
         FROM layouts
         <where>
-            <if test="createdBy != null">created_by = #{createdBy}</if>
+            <if test="createdBy != null">
+                AND created_by = #{createdBy}
+            </if>
+            <if test="query != null and query != ''">
+                AND title LIKE CONCAT('%', #{query}, '%')
+            </if>
         </where>
         ORDER BY id DESC
         LIMIT #{offset}, #{size}
@@ -48,7 +53,12 @@
         SELECT COUNT(*)
         FROM layouts
         <where>
-            <if test="createdBy != null">created_by = #{createdBy}</if>
+            <if test="createdBy != null">
+                AND created_by = #{createdBy}
+            </if>
+            <if test="query != null and query != ''">
+                AND title LIKE CONCAT('%', #{query}, '%')
+            </if>
         </where>
     </select>
 

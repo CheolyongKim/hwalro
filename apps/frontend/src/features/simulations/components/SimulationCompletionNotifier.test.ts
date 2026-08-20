@@ -11,6 +11,7 @@ function simulation(
     id,
     createdBy,
     status,
+    title: '테스트 시뮬레이션',
     layoutVersionId: 1,
     layoutId: 1,
     layoutTitle: '테스트 도면',

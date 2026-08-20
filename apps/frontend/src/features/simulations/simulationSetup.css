@@ -347,6 +347,78 @@
   color: var(--color-panel-faint);
 }
 
+.simulation-setup-title-input {
+  width: 100%;
+  border: 1px solid rgba(151, 177, 170, 0.32);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px 12px;
+  color: var(--color-panel-text);
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.simulation-setup-title-input::placeholder {
+  color: var(--color-panel-muted);
+}
+
+.simulation-setup-title-input:hover:not(:disabled) {
+  border-color: rgba(151, 177, 170, 0.48);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.simulation-setup-title-input:focus {
+  border-color: var(--color-panel-accent);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-panel-accent) 30%, transparent);
+}
+
+.simulation-setup-title-input:disabled {
+  cursor: not-allowed;
+  border-color: rgba(151, 177, 170, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-panel-faint);
+}
+
+.simulation-setup-condition-grid {
+  align-items: start;
+}
+
+.simulation-setup-condition-field {
+  min-width: 0;
+}
+
+.simulation-setup-condition-label {
+  min-height: 40px;
+  align-items: flex-start;
+  line-height: 20px;
+}
+
+.simulation-setup-condition-label > label {
+  min-width: 0;
+}
+
+.simulation-setup-condition-label > .group {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.simulation-setup-info-tooltip {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--color-ink-deep);
+  color: var(--color-white);
+  box-shadow: 0 14px 32px rgba(7, 24, 21, 0.38);
+}
+
+.simulation-setup-info-tooltip__source {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .simulation-number-stepper {
   position: relative;
   margin-top: 8px;

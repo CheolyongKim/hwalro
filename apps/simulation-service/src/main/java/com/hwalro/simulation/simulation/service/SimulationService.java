@@ -1,6 +1,5 @@
 package com.hwalro.simulation.simulation.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
@@ -35,6 +34,7 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupRespon
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationWorkSummaryResponse;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.TextDto;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
@@ -54,6 +54,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 @Service
 public class SimulationService {
@@ -66,8 +67,8 @@ public class SimulationService {
     private static final String ROUTING_PROFILE = "HAZARD_RADIAL_EXP_V3";
     private static final BigDecimal DEFAULT_WALKING_SPEED = BigDecimal.valueOf(1.25);
     private static final BigDecimal DEFAULT_REACTION_TIME = BigDecimal.valueOf(0.5);
-    private static final BigDecimal MIN_REACTION_TIME = BigDecimal.valueOf(0.1);
-    private static final BigDecimal MAX_REACTION_TIME = BigDecimal.valueOf(2.0);
+    private static final BigDecimal DEFAULT_INITIAL_RESPONSE_TIME = BigDecimal.ZERO;
+    private static final BigDecimal MAX_INITIAL_RESPONSE_TIME = BigDecimal.valueOf(600.0);
     private static final BigDecimal MAX_WALKING_SPEED = BigDecimal.valueOf(3.0);
     private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
     private static final String ROLE_ADMIN = "ADMIN";
@@ -75,6 +76,7 @@ public class SimulationService {
     private static final String ROLE_REVIEWER = "SAFETY_REVIEWER";
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_PAGE = 100_000;
+    private static final int MAX_TITLE_LENGTH = 200;
 
     private final SimulationMapper simulationMapper;
     private final DrawingMapper drawingMapper;
@@ -104,6 +106,7 @@ public class SimulationService {
                         simulation.getId(),
                         simulation.getLayoutVersionId(),
                         simulation.getParentSimulationId(),
+                        simulation.getTitle(),
                         simulation.getStatus(),
                         simulation.getCreatedAt(),
                         simulation.getTotalPeople()))
@@ -111,13 +114,20 @@ public class SimulationService {
     }
 
     public SimulationOverviewPageResponse listOverview(int page, int size, JwtUser user) {
+        return listOverview(page, size, null, user);
+    }
+
+    public SimulationOverviewPageResponse listOverview(int page, int size, String query, JwtUser user) {
         if (page < 1 || page > MAX_PAGE || size < 1 || size > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException("page는 1 이상, size는 1~100이어야 합니다.");
         }
+        String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
         Long createdBy = canSeeAll(user.roles()) ? null : user.userId();
-        long totalCount = simulationMapper.countSimulationOverview(createdBy);
+        long totalCount = simulationMapper.countSimulationOverview(createdBy, normalizedQuery);
         List<SimulationOverviewResponse> items =
-                simulationMapper.findSimulationOverviewPage((page - 1) * size, size, createdBy).stream()
+                simulationMapper
+                        .findSimulationOverviewPage((page - 1) * size, size, createdBy, normalizedQuery)
+                        .stream()
                         .map(SimulationService::toOverviewResponse)
                         .toList();
         return new SimulationOverviewPageResponse(
@@ -227,10 +237,14 @@ public class SimulationService {
                     drawing.exits());
         }
 
+        String title = truncateTitle(
+                StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle());
+
         Simulation simulation = new Simulation();
         simulation.setLayoutVersionId(request.layoutVersionId());
         simulation.setParentSimulationId(request.parentSimulationId());
         simulation.setCreatedBy(user.userId());
+        simulation.setTitle(title);
         simulation.setStatus(SIMULATION_STATUS_DRAFT);
         simulationMapper.insertSimulation(simulation);
 
@@ -242,6 +256,8 @@ public class SimulationService {
         option.setTotalPeople(agents.size());
         option.setWalkingSpeed(DEFAULT_WALKING_SPEED);
         option.setReactionTime(DEFAULT_REACTION_TIME);
+        option.setInitialResponseTimeMean(DEFAULT_INITIAL_RESPONSE_TIME);
+        option.setInitialResponseTimeStdDev(DEFAULT_INITIAL_RESPONSE_TIME);
         simulationMapper.insertSimulationOption(option);
         simulationMapper.insertInitialState(simulation.getId(), writeAgentPositions(agents));
 
@@ -303,10 +319,14 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
+        String baseTitle =
+                truncateTitle(StringUtils.hasText(source.getTitle()) ? source.getTitle() : context.getTitle());
+
         Simulation draft = new Simulation();
         draft.setLayoutVersionId(source.getLayoutVersionId());
         draft.setParentSimulationId(source.getId());
         draft.setCreatedBy(user.userId());
+        draft.setTitle(baseTitle);
         draft.setStatus(SIMULATION_STATUS_DRAFT);
         simulationMapper.insertSimulation(draft);
 
@@ -317,7 +337,9 @@ public class SimulationService {
         copiedOption.setRoutingProfile(sourceOption.getRoutingProfile());
         copiedOption.setTotalPeople(sourceOption.getTotalPeople());
         copiedOption.setWalkingSpeed(sourceOption.getWalkingSpeed());
-        copiedOption.setReactionTime(sourceOption.getReactionTime());
+        copiedOption.setReactionTime(DEFAULT_REACTION_TIME);
+        copiedOption.setInitialResponseTimeMean(sourceOption.getInitialResponseTimeMean());
+        copiedOption.setInitialResponseTimeStdDev(sourceOption.getInitialResponseTimeStdDev());
         simulationMapper.insertSimulationOption(copiedOption);
         simulationMapper.insertInitialState(draft.getId(), writeAgentPositions(agents));
 
@@ -353,31 +375,107 @@ public class SimulationService {
             JsonNode root = objectMapper.readTree(simulation.getFailureDetail());
             if (root == null
                     || !root.isObject()
-                    || root.size() != 4
                     || !root.has("code")
-                    || !root.has("agentId")
-                    || !root.has("currentPosition")
-                    || !root.has("recommendedPosition")
-                    || !root.get("code").isTextual()
-                    || !ROUTING_ERROR_CODE.equals(root.get("code").textValue())
-                    || !root.get("agentId").isIntegralNumber()
-                    || !root.get("agentId").canConvertToLong()) {
+                    || !root.get("code").isTextual()) {
                 return null;
             }
-            long agentId = root.get("agentId").longValue();
-            PointDto currentPosition = readFailurePoint(root.get("currentPosition"));
-            JsonNode recommendationNode = root.get("recommendedPosition");
-            PointDto recommendation = recommendationNode.isNull() ? null : readFailurePoint(recommendationNode);
-            if (agentId < 1
-                    || agentId > SimulationGeometry.MAX_AGENTS
-                    || currentPosition == null
-                    || (!recommendationNode.isNull() && recommendation == null)) {
-                return null;
+            String code = root.get("code").textValue();
+            if (ROUTING_ERROR_CODE.equals(code)) {
+                return readAgentRouteUnreachableFailureDetail(root);
             }
-            return new SimulationFailureDetailResponse(ROUTING_ERROR_CODE, agentId, currentPosition, recommendation);
+            if (SimulationEngineRunner.NO_REACHABLE_EXIT_CODE.equals(code)) {
+                return readNoReachableExitFailureDetail(root);
+            }
+            return null;
         } catch (IOException | RuntimeException exception) {
             return null;
         }
+    }
+
+    private static SimulationFailureDetailResponse readAgentRouteUnreachableFailureDetail(JsonNode root) {
+        if (root.size() != 4
+                || !root.has("agentId")
+                || !root.has("currentPosition")
+                || !root.has("recommendedPosition")
+                || !root.get("agentId").isIntegralNumber()
+                || !root.get("agentId").canConvertToLong()) {
+            return null;
+        }
+        long agentId = root.get("agentId").longValue();
+        PointDto currentPosition = readFailurePoint(root.get("currentPosition"));
+        JsonNode recommendationNode = root.get("recommendedPosition");
+        PointDto recommendation = recommendationNode.isNull() ? null : readFailurePoint(recommendationNode);
+        if (agentId < 1
+                || agentId > SimulationGeometry.MAX_AGENTS
+                || currentPosition == null
+                || (!recommendationNode.isNull() && recommendation == null)) {
+            return null;
+        }
+        return new SimulationFailureDetailResponse(
+                ROUTING_ERROR_CODE, agentId, currentPosition, recommendation, null, null, null, null);
+    }
+
+    private static SimulationFailureDetailResponse readNoReachableExitFailureDetail(JsonNode root) {
+        if (root.size() != 7
+                || !root.has("affectedAgentCount")
+                || !root.has("representativeAgentIds")
+                || !root.has("componentCount")
+                || !root.has("selectedExitIds")
+                || !root.has("reason")
+                || !root.get("affectedAgentCount").isIntegralNumber()
+                || !root.get("affectedAgentCount").canConvertToLong()
+                || !root.get("componentCount").isIntegralNumber()
+                || !root.get("componentCount").canConvertToLong()) {
+            return null;
+        }
+        long affected = root.get("affectedAgentCount").longValue();
+        long componentCount = root.get("componentCount").longValue();
+        List<Long> representativeIds =
+                readFailureIdList(root.get("representativeAgentIds"), SimulationGeometry.MAX_AGENTS);
+        List<Long> selectedExitIds = readFailureIdList(root.get("selectedExitIds"), SimulationGeometry.MAX_AGENTS);
+        if (affected < 1
+                || affected > SimulationGeometry.MAX_AGENTS
+                || componentCount < 1
+                || componentCount > SimulationGeometry.MAX_AGENTS
+                || representativeIds == null
+                || representativeIds.isEmpty()
+                || selectedExitIds == null
+                || selectedExitIds.isEmpty()
+                || !root.get("reason").isTextual()
+                || !isSupportedNoReachableExitReason(root.get("reason").textValue())) {
+            return null;
+        }
+        return new SimulationFailureDetailResponse(
+                SimulationEngineRunner.NO_REACHABLE_EXIT_CODE,
+                null,
+                null,
+                null,
+                affected,
+                representativeIds,
+                selectedExitIds,
+                root.get("reason").textValue());
+    }
+
+    private static boolean isSupportedNoReachableExitReason(String reason) {
+        return "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT".equals(reason);
+    }
+
+    private static List<Long> readFailureIdList(JsonNode node, int maximumValue) {
+        if (node == null || !node.isArray() || node.size() < 1 || node.size() > maximumValue) {
+            return null;
+        }
+        java.util.ArrayList<Long> values = new java.util.ArrayList<>(node.size());
+        for (JsonNode item : node) {
+            if (!item.isIntegralNumber() || !item.canConvertToLong()) {
+                return null;
+            }
+            long value = item.longValue();
+            if (value < 1 || value > maximumValue) {
+                return null;
+            }
+            values.add(value);
+        }
+        return List.copyOf(values);
     }
 
     @Transactional
@@ -387,10 +485,11 @@ public class SimulationService {
                 || request.hazardZones() == null
                 || request.selectedExitIds() == null
                 || request.walkingSpeed() == null
-                || request.reactionTime() == null) {
+                || request.initialResponseTimeMean() == null
+                || request.initialResponseTimeStdDev() == null) {
             throw new IllegalArgumentException("에이전트, 위험구역, 출입구와 시뮬레이션 옵션이 모두 필요합니다.");
         }
-        validateOptions(request.walkingSpeed(), request.reactionTime());
+        validateOptions(request.walkingSpeed(), request.initialResponseTimeMean(), request.initialResponseTimeStdDev());
 
         Simulation simulation = findSimulationForUpdate(id);
         requireAccessible(simulation.getCreatedBy(), user);
@@ -412,8 +511,18 @@ public class SimulationService {
                 drawing.fabrics(),
                 drawing.exits());
 
+        if (request.title() != null) {
+            String nextTitle = truncateTitle(
+                    StringUtils.hasText(request.title()) ? request.title().trim() : context.getTitle());
+            simulationMapper.updateSimulationTitle(id, nextTitle);
+        }
+
         simulationMapper.updateSimulationOption(
-                id, request.agentPositions().size(), request.walkingSpeed(), request.reactionTime());
+                id,
+                request.agentPositions().size(),
+                request.walkingSpeed(),
+                request.initialResponseTimeMean(),
+                request.initialResponseTimeStdDev());
         simulationMapper.updateInitialState(id, writeAgentPositions(request.agentPositions()));
         simulationMapper.deleteHazardZones(id);
         simulationMapper.deleteSimulationExits(id);
@@ -462,6 +571,7 @@ public class SimulationService {
                 simulation.getId(),
                 simulation.getLayoutVersionId(),
                 simulation.getParentSimulationId(),
+                simulation.getTitle(),
                 simulation.getStatus(),
                 simulation.getCreatedAt(),
                 option.getRandomSeed(),
@@ -469,7 +579,8 @@ public class SimulationService {
                 option.getRoutingProfile(),
                 option.getTotalPeople(),
                 option.getWalkingSpeed(),
-                option.getReactionTime(),
+                option.getInitialResponseTimeMean(),
+                option.getInitialResponseTimeStdDev(),
                 readAgentPositions(id),
                 simulationMapper.findHazardZones(id).stream()
                         .map(hazard -> new HazardZoneDto(
@@ -504,12 +615,19 @@ public class SimulationService {
         }
     }
 
-    private void validateOptions(BigDecimal walkingSpeed, BigDecimal reactionTime) {
+    private void validateOptions(
+            BigDecimal walkingSpeed, BigDecimal initialResponseTimeMean, BigDecimal initialResponseTimeStdDev) {
         if (walkingSpeed.signum() <= 0 || walkingSpeed.compareTo(MAX_WALKING_SPEED) > 0) {
             throw new IllegalArgumentException("보행 속도는 0보다 크고 3m/s 이하여야 합니다.");
         }
-        if (reactionTime.compareTo(MIN_REACTION_TIME) < 0 || reactionTime.compareTo(MAX_REACTION_TIME) > 0) {
-            throw new IllegalArgumentException("속도 반응시간은 0.1초 이상 2.0초 이하여야 합니다.");
+        if (initialResponseTimeMean.signum() < 0
+                || initialResponseTimeStdDev.signum() < 0
+                || initialResponseTimeMean.compareTo(MAX_INITIAL_RESPONSE_TIME) > 0
+                || initialResponseTimeStdDev.compareTo(MAX_INITIAL_RESPONSE_TIME) > 0) {
+            throw new IllegalArgumentException("초기 반응시간 평균과 표준편차는 0초 이상 600초 이하여야 합니다.");
+        }
+        if (initialResponseTimeMean.signum() == 0 && initialResponseTimeStdDev.signum() > 0) {
+            throw new IllegalArgumentException("평균 초기 반응시간이 0초이면 표준편차도 0초여야 합니다.");
         }
     }
 
@@ -555,7 +673,10 @@ public class SimulationService {
     }
 
     private static boolean matchesFailureDetail(SimulationFailureDetailResponse failureDetail, List<PointDto> agents) {
-        if (failureDetail == null || failureDetail.agentId() < 1 || failureDetail.agentId() > agents.size()) {
+        if (failureDetail == null
+                || failureDetail.agentId() == null
+                || failureDetail.agentId() < 1
+                || failureDetail.agentId() > agents.size()) {
             return false;
         }
         PointDto stored = agents.get(Math.toIntExact(failureDetail.agentId() - 1));
@@ -584,14 +705,7 @@ public class SimulationService {
     }
 
     private String writeAgentPositions(List<PointDto> positions) {
-        try {
-            List<List<BigDecimal>> compact = positions.stream()
-                    .map(point -> List.of(point.x(), point.y()))
-                    .toList();
-            return objectMapper.writeValueAsString(compact);
-        } catch (IOException exception) {
-            throw new IllegalStateException("에이전트 좌표를 저장 형식으로 변환하지 못했습니다.", exception);
-        }
+        return AgentPositions.write(objectMapper, positions);
     }
 
     private List<PointDto> readAgentPositions(Long simulationId) {
@@ -599,19 +713,7 @@ public class SimulationService {
         if (json == null) {
             throw new IllegalStateException("시뮬레이션 초기 좌표가 없습니다: " + simulationId);
         }
-        try {
-            List<List<BigDecimal>> compact = objectMapper.readValue(json, new TypeReference<>() {});
-            return compact.stream()
-                    .map(position -> {
-                        if (position == null || position.size() != 2) {
-                            throw new IllegalStateException("저장된 에이전트 좌표 형식이 올바르지 않습니다.");
-                        }
-                        return new PointDto(position.get(0), position.get(1));
-                    })
-                    .toList();
-        } catch (IOException exception) {
-            throw new IllegalStateException("저장된 에이전트 좌표를 읽지 못했습니다.", exception);
-        }
+        return AgentPositions.read(objectMapper, json);
     }
 
     private static HazardZone toHazardZone(Long simulationId, HazardZoneDto dto) {
@@ -621,6 +723,17 @@ public class SimulationService {
         hazard.setCenterY(dto.centerY());
         hazard.setRadius(dto.radius());
         return hazard;
+    }
+
+    private static String truncateTitle(String title) {
+        if (title == null || title.length() <= MAX_TITLE_LENGTH) {
+            return title;
+        }
+        String truncated = title.substring(0, MAX_TITLE_LENGTH);
+        if (Character.isHighSurrogate(truncated.charAt(truncated.length() - 1))) {
+            truncated = truncated.substring(0, truncated.length() - 1);
+        }
+        return truncated;
     }
 
     private static SegmentDto toSegment(Wall wall) {
@@ -665,6 +778,7 @@ public class SimulationService {
                 simulation.getLayoutTitle(),
                 simulation.getLayoutVersionNumber(),
                 simulation.getCreatedBy(),
+                simulation.getTitle(),
                 simulation.getStatus(),
                 simulation.getCreatedAt(),
                 simulation.getRequestedAt(),

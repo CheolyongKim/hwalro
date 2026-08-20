@@ -92,14 +92,14 @@ export function RecentSimulationTable({
                         to={row.path}
                         className="block max-w-56 truncate rounded text-sm font-bold text-ink outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
                       >
-                        {row.layoutTitle}
+                        {row.title || row.layoutTitle}
                       </Link>
                     ) : (
                       <span
                         aria-disabled="true"
                         className="block max-w-56 cursor-not-allowed truncate text-sm font-bold text-text-muted"
                       >
-                        {row.layoutTitle}
+                        {row.title || row.layoutTitle}
                       </span>
                     )}
                   </td>

@@ -7,9 +7,11 @@ import type {
 } from '../types/drawing';
 
 export const drawingApi = {
-  list: (page: number, size: number) =>
+  list: (page: number, size: number, query?: string) =>
     apiClient
-      .get<DrawingListResponse>('/api/drawings', { params: { page, size } })
+      .get<DrawingListResponse>('/api/drawings', {
+        params: { page, size, query: query?.trim() || undefined },
+      })
       .then((res) => res.data),
   get: (id: number) => apiClient.get<Drawing>(`/api/drawings/${id}`).then((res) => res.data),
   create: (body: DrawingCreateRequest) =>

@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { riskApi } from '../api/riskApi';
 
-export function useRiskList(page: number, pageSize: number) {
+export function useRiskList(page: number, pageSize: number, query?: string) {
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ['risks', page, pageSize],
-    queryFn: () => riskApi.list(page, pageSize),
+    queryKey: ['risks', page, pageSize, query],
+    queryFn: () => riskApi.list(page, pageSize, query),
   });
 
   return {

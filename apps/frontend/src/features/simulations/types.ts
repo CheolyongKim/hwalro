@@ -50,12 +50,14 @@ export interface SimulationSetup {
   simulationId: number;
   layoutVersionId: number;
   parentSimulationId: number | null;
+  title: string;
   status: string;
   createdAt: string;
   randomSeed: number;
   totalPeople: number;
   walkingSpeed: number;
-  reactionTime: number;
+  initialResponseTimeMean: number;
+  initialResponseTimeStdDev: number;
   modelProfile: string;
   routingProfile: string;
   agentPositions: SimulationPoint[];
@@ -94,12 +96,21 @@ export interface SimulationExecution {
   startedAt: string | null;
   finishedAt: string | null;
   failureMessage: string | null;
-  failureDetail?: {
-    code: 'AGENT_ROUTE_UNREACHABLE';
-    agentId: number;
-    currentPosition: SimulationPoint;
-    recommendedPosition: SimulationPoint | null;
-  } | null;
+  failureDetail?:
+    | {
+        code: 'AGENT_ROUTE_UNREACHABLE';
+        agentId: number;
+        currentPosition: SimulationPoint;
+        recommendedPosition: SimulationPoint | null;
+      }
+    | {
+        code: 'NO_REACHABLE_SELECTED_EXIT';
+        affectedAgentCount: number;
+        representativeAgentIds: number[];
+        selectedExitIds: number[];
+        reason: 'NO_EXIT_SEED_IN_OCCUPIED_COMPONENT';
+      }
+    | null;
   result: SimulationResultSummary | null;
 }
 
@@ -162,6 +173,7 @@ export interface SimulationHeatmapChunk {
 
 export interface SimulationSummary {
   id: number;
+  title?: string;
   status: string;
   createdAt: string;
   totalPeople: number;
@@ -174,6 +186,7 @@ export interface SimulationOverview {
   layoutTitle: string;
   layoutVersionNumber: number;
   createdBy: number;
+  title: string;
   status: SimulationExecutionStatus;
   createdAt: string;
   requestedAt: string | null;
@@ -194,11 +207,14 @@ export interface SimulationOverviewPage {
 export interface CreateSimulationDraftRequest {
   layoutVersionId: number;
   parentSimulationId?: number;
+  title?: string;
 }
 
 export interface UpdateSimulationSetupRequest {
+  title?: string;
   walkingSpeed: number;
-  reactionTime: number;
+  initialResponseTimeMean: number;
+  initialResponseTimeStdDev: number;
   agentPositions: SimulationPoint[];
   hazardZones: Array<Pick<SimulationHazardZone, 'centerX' | 'centerY' | 'radius'>>;
   selectedExitIds: number[];

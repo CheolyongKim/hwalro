@@ -4,6 +4,7 @@ import type { SimulationDrawing, SimulationPoint, SimulationRect } from '../type
 export const AGENT_RADIUS = 0.3;
 export const AGENT_SPACING = AGENT_RADIUS * 2;
 export const MAX_AGENTS = 5000;
+export const MIN_GEOMETRY_CLEARANCE = AGENT_RADIUS + 0.001;
 const EPSILON = 1e-7;
 const GRID_SPACING = 0.601;
 
@@ -39,7 +40,7 @@ function hasBoundaryClearance(point: SimulationPoint, boundary: SimulationPoint[
   for (let i = 0; i < boundary.length; i += 1) {
     if (
       distanceToSegment(point, boundary[i], boundary[(i + 1) % boundary.length]) + EPSILON <
-      AGENT_RADIUS
+      MIN_GEOMETRY_CLEARANCE
     ) {
       return false;
     }
@@ -59,7 +60,7 @@ function collidesWithRotatedRect(point: SimulationPoint, rect: SimulationRect): 
   const localY = dx * Math.sin(radians) + dy * Math.cos(radians);
   const outsideX = Math.max(Math.abs(localX) - halfWidth, 0);
   const outsideY = Math.max(Math.abs(localY) - halfHeight, 0);
-  return Math.hypot(outsideX, outsideY) + EPSILON < AGENT_RADIUS;
+  return Math.hypot(outsideX, outsideY) + EPSILON < MIN_GEOMETRY_CLEARANCE;
 }
 
 export function isValidAgentPosition(
@@ -73,7 +74,7 @@ export function isValidAgentPosition(
   const collidesWithLine = (line: { startX: number; startY: number; endX: number; endY: number }) =>
     distanceToSegment(point, { x: line.startX, y: line.startY }, { x: line.endX, y: line.endY }) +
       EPSILON <
-    AGENT_RADIUS;
+    MIN_GEOMETRY_CLEARANCE;
   if (drawing.walls.some(collidesWithLine) || drawing.exits.some(collidesWithLine)) return false;
   if (
     drawing.pillars.some((rect) => collidesWithRotatedRect(point, rect)) ||
@@ -121,11 +122,15 @@ export function createUniformPlacement(
   const candidates: SimulationPoint[] = [];
 
   let row = 0;
-  for (let y = minY + AGENT_RADIUS; y <= maxY - AGENT_RADIUS + EPSILON; y += rowHeight) {
+  for (
+    let y = minY + MIN_GEOMETRY_CLEARANCE;
+    y <= maxY - MIN_GEOMETRY_CLEARANCE + EPSILON;
+    y += rowHeight
+  ) {
     const offset = row % 2 === 0 ? 0 : GRID_SPACING / 2;
     for (
-      let x = minX + AGENT_RADIUS + offset;
-      x <= maxX - AGENT_RADIUS + EPSILON;
+      let x = minX + MIN_GEOMETRY_CLEARANCE + offset;
+      x <= maxX - MIN_GEOMETRY_CLEARANCE + EPSILON;
       x += GRID_SPACING
     ) {
       const candidate = rounded({ x, y });

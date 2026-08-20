@@ -1,4 +1,5 @@
 import math
+from types import MappingProxyType
 import unittest
 from unittest.mock import patch
 
@@ -279,6 +280,95 @@ class GridRoutingTest(unittest.TestCase):
                 [Exit(1, (1.2, 0.1), (1.2, 0.9))],
                 physical_walkable=physical,
             )
+
+    def _seed_coordinates(self, router, exit_):
+        return {
+            (round(target[0], 6), round(target[1], 6), round(approach[0], 6), round(approach[1], 6))
+            for _node, target, approach in router._exit_seeds(exit_)
+        }
+
+    def test_exit_seeds_exclude_endpoint_clamped_for_long_exit_with_interior_seeds(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+        exit_ = Exit(1, (10, 1), (10, 7))
+        usable_start, usable_end = usable_exit_segment(exit_, 0.3)
+        with patch("route_planner.EXIT_SEED_ENDPOINT_EXCLUSION_MIN_USABLE_LENGTH_METERS", 1e9):
+            complete = self._seed_coordinates(router, exit_)
+        default = self._seed_coordinates(router, exit_)
+
+        self.assertGreater(len(default), 0)
+        self.assertLess(len(default), len(complete))
+        self.assertTrue(default.issubset(complete))
+        removed = complete - default
+        self.assertGreater(len(removed), 0)
+        for _target_x, _target_y, _approach_x, _approach_y in removed:
+            self.assertIn((_target_x, _target_y), (usable_start, usable_end))
+
+    def test_exit_seeds_keep_all_when_no_interior_seed_exists(self):
+        router = GridRouter(
+            box(0, 6.7, 2, 8),
+            [],
+            [Exit(1, (2, 1), (2, 7))],
+            physical_walkable=box(0, 6.7, 2, 8),
+        )
+        exit_ = Exit(1, (2, 1), (2, 7))
+        with patch("route_planner.EXIT_SEED_ENDPOINT_EXCLUSION_MIN_USABLE_LENGTH_METERS", 1e9):
+            complete = self._seed_coordinates(router, exit_)
+        default = self._seed_coordinates(router, exit_)
+
+        self.assertGreater(len(default), 0)
+        self.assertEqual(default, complete)
+
+    def test_exit_seeds_are_reversal_symmetric(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+        forward = self._seed_coordinates(router, Exit(1, (10, 1), (10, 7)))
+        reversed_router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 7), (10, 1))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+        reversed_seeds = self._seed_coordinates(reversed_router, Exit(1, (10, 7), (10, 1)))
+
+        self.assertEqual(forward, reversed_seeds)
+
+    def test_exit_seeds_keep_all_for_short_exit(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 4))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+        exit_ = Exit(1, (10, 1), (10, 4))
+        usable_start, usable_end = usable_exit_segment(exit_, 0.3)
+        self.assertLess(
+            math.dist(usable_start, usable_end),
+            route_planner.EXIT_SEED_ENDPOINT_EXCLUSION_MIN_USABLE_LENGTH_METERS,
+        )
+        with patch("route_planner.EXIT_SEED_ENDPOINT_EXCLUSION_MIN_USABLE_LENGTH_METERS", 1e9):
+            complete = self._seed_coordinates(router, exit_)
+        default = self._seed_coordinates(router, exit_)
+
+        self.assertGreater(len(complete), 0)
+        clamped = {
+            coordinate
+            for coordinate in complete
+            if math.dist((coordinate[0], coordinate[1]), usable_start) <= 1e-6
+            or math.dist((coordinate[0], coordinate[1]), usable_end) <= 1e-6
+        }
+        self.assertGreater(
+            len(clamped), 0, "short-exit seed set must contain endpoint-clamped seeds"
+        )
+        self.assertEqual(default, complete)
 
     def test_exit_must_be_wider_than_agent_diameter(self):
         with self.assertRaisesRegex(ValueError, "wider than 0.6m"):
@@ -630,6 +720,21 @@ class GridRoutingTest(unittest.TestCase):
         self.assertTrue(router.can_connect(route.waypoints[0], route.waypoints[1]))
         self.assertEqual(router.plan(start), route)
 
+    def test_mixed_boundary_and_interior_exits_are_both_routable(self):
+        walkable = Polygon(((0, 0), (20, 0), (20, 10), (0, 10)))
+        exits = [
+            Exit(1, (20, 4), (20, 6)),
+            Exit(2, (10, 4), (10, 6)),
+        ]
+        router = GridRouter(walkable, [], exits)
+
+        first = router.plan((16.0, 5.0))
+        second = router.plan((3.0, 5.0))
+
+        self.assertEqual(first.exit_id, 1)
+        self.assertEqual(second.exit_id, 2)
+        self.assertEqual(router.plan((16.0, 5.0)), first)
+
     def test_long_expanded_connector_samples_hazard_at_grid_step_intervals(self):
         router = GridRouter(
             box(0, 0, 10, 2),
@@ -681,6 +786,186 @@ class GridRoutingTest(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
+class RecoverySeedCacheTest(unittest.TestCase):
+    @staticmethod
+    def _rounded(point):
+        return (round(point[0], 9), round(point[1], 9))
+
+    def test_build_cost_field_computes_exit_seeds_once_per_exit(self):
+        original = GridRouter._exit_seeds
+        seen = []
+
+        def counting_exit_seeds(self, exit_):
+            seen.append(exit_)
+            return original(self, exit_)
+
+        exits = [Exit(1, (10, 1), (10, 7)), Exit(2, (0, 1), (0, 3))]
+        with patch.object(GridRouter, "_exit_seeds", new=counting_exit_seeds):
+            router = GridRouter(
+                box(0, 0, 10, 8), [], exits, physical_walkable=box(0, 0, 10, 8)
+            )
+
+        self.assertEqual([exit_.id for exit_ in seen], [1, 2])
+        self.assertEqual(list(router._exit_seed_cache), ["1", "2"])
+        self.assertEqual(
+            router._exit_seed_cache["1"],
+            tuple(original(router, Exit(1, (10, 1), (10, 7)))),
+        )
+
+    def test_zero_seed_exit_is_cached_empty_and_has_no_neighbors(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7)), Exit(2, (0, 8.5), (2, 8.5))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+
+        self.assertEqual(router._exit_seed_cache["2"], ())
+        self.assertIsNone(router.recovery_seed_neighbors(2, (9.7, 4.0)))
+        self.assertIsNone(router.recovery_seed_neighbors(99, (9.7, 4.0)))
+
+    def test_seed_cache_and_label_map_are_frozen(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+
+        self.assertIsInstance(router._exit_seed_cache, MappingProxyType)
+        self.assertIsInstance(router._exit_labels, MappingProxyType)
+        self.assertEqual(router._exit_labels, {"1": 0})
+        with self.assertRaises(TypeError):
+            router._exit_seed_cache["1"] = ()
+        with self.assertRaises(TypeError):
+            router._exit_labels["1"] = 1
+
+    def test_recovery_neighbors_return_adjacent_seeds_along_exit(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+
+        prev, current, nxt = router.recovery_seed_neighbors(1, (9.7, 4.0))
+
+        self.assertEqual(self._rounded(prev[1]), (10.0, 3.75))
+        self.assertEqual(self._rounded(prev[2]), (9.7, 3.75))
+        self.assertEqual(self._rounded(current[1]), (10.0, 4.0))
+        self.assertEqual(self._rounded(current[2]), (9.7, 4.0))
+        self.assertEqual(self._rounded(nxt[1]), (10.0, 4.25))
+        self.assertEqual(self._rounded(nxt[2]), (9.7, 4.25))
+
+    def test_recovery_neighbors_no_wrap_at_first_and_last_seed(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+
+        prev, current, nxt = router.recovery_seed_neighbors(1, (9.7, 1.5))
+        self.assertIsNone(prev)
+        self.assertEqual(self._rounded(current[2]), (9.7, 1.5))
+        self.assertEqual(self._rounded(nxt[2]), (9.7, 1.75))
+
+        prev, current, nxt = router.recovery_seed_neighbors(1, (9.7, 6.5))
+        self.assertEqual(self._rounded(prev[2]), (9.7, 6.25))
+        self.assertEqual(self._rounded(current[2]), (9.7, 6.5))
+        self.assertIsNone(nxt)
+
+    def test_recovery_neighbors_pick_nearest_approach_and_distinguish_target(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+
+        _prev, current, _nxt = router.recovery_seed_neighbors(1, (9.7, 4.1))
+        self.assertEqual(self._rounded(current[2]), (9.7, 4.0))
+        self.assertEqual(self._rounded(current[1]), (10.0, 4.0))
+        self.assertNotEqual(current[1], current[2])
+
+        _prev, current, _nxt = router.recovery_seed_neighbors(1, (10.0, 4.0))
+        self.assertEqual(self._rounded(current[2]), (9.7, 4.0))
+        self.assertEqual(self._rounded(current[1]), (10.0, 4.0))
+
+    def test_recovery_neighbors_leave_reachability_to_the_caller(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+        original = router.can_connect
+
+        def blocked_connector(start, end):
+            if abs(end[1] - 4.25) < 1e-9:
+                return False
+            return original(start, end)
+
+        router.can_connect = blocked_connector
+
+        prev, current, nxt = router.recovery_seed_neighbors(1, (9.7, 4.0))
+
+        self.assertEqual(self._rounded(prev[2]), (9.7, 3.75))
+        self.assertEqual(self._rounded(current[2]), (9.7, 4.0))
+        self.assertEqual(self._rounded(nxt[2]), (9.7, 4.25))
+
+    def test_recovery_neighbors_reject_non_finite_approach(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(1, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+
+        with self.assertRaisesRegex(ValueError, "finite"):
+            router.recovery_seed_neighbors(1, (float("nan"), 4.0))
+        with self.assertRaisesRegex(ValueError, "finite"):
+            router.recovery_seed_neighbors(1, (9.7, float("inf")))
+
+    def test_recovery_neighbors_resolve_exit_ids_by_id_key(self):
+        router = GridRouter(
+            box(0, 0, 10, 8),
+            [],
+            [Exit(10, (10, 1), (10, 7))],
+            physical_walkable=box(0, 0, 10, 8),
+        )
+
+        for exit_id in (10, 10.0, "10"):
+            _prev, current, _nxt = router.recovery_seed_neighbors(exit_id, (9.7, 4.0))
+            self.assertEqual(self._rounded(current[2]), (9.7, 4.0))
+        self.assertIsNone(router.recovery_seed_neighbors("9", (9.7, 4.0)))
+
+    def test_single_seed_exit_has_insufficient_neighbors(self):
+        original = GridRouter._exit_seeds
+
+        def single_seed(self, exit_):
+            return original(self, exit_)[:1]
+
+        with patch.object(GridRouter, "_exit_seeds", new=single_seed):
+            router = GridRouter(
+                box(0, 0, 10, 8),
+                [],
+                [Exit(1, (10, 1), (10, 7))],
+                physical_walkable=box(0, 0, 10, 8),
+            )
+
+        seed = router._exit_seed_cache["1"][0]
+        self.assertIsNone(router.recovery_seed_neighbors(1, seed[2]))
+
+    def test_id_key_canonicalizes_and_rejects_invalid_ids(self):
+        self.assertEqual(route_planner._id_key(1), "1")
+        self.assertEqual(route_planner._id_key(1.0), "1")
+        self.assertEqual(route_planner._id_key("1"), "1")
+        self.assertEqual(route_planner._id_key(2.5), "2.5")
+
+        for invalid in (True, None, object()):
+            with self.assertRaisesRegex(ValueError, "non-null numbers or strings"):
+                route_planner._id_key(invalid)
 class DeriveEquivalenceTest(unittest.TestCase):
     """`derive` must land on the same field a fresh GridRouter builds.
 

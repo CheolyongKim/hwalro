@@ -9,10 +9,12 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  Input,
   Modal,
   PageHeader,
   Pagination,
 } from '../../../components/ui';
+import { useDebounce } from '../../../hooks/useDebounce';
 import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
 import type { DrawingSummary } from '../types/drawing';
 
@@ -21,9 +23,15 @@ const PAGE_SIZE = 5;
 function DrawingListPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 300);
   const [drawingToDelete, setDrawingToDelete] = useState<DrawingSummary | null>(null);
   const [drawingToBlock, setDrawingToBlock] = useState<DrawingSummary | null>(null);
-  const { items, totalCount, isPending, isError, error } = useDrawingList(page, PAGE_SIZE);
+  const { items, totalCount, isPending, isError, error } = useDrawingList(
+    page,
+    PAGE_SIZE,
+    debouncedQuery,
+  );
   const deleteDrawing = useDeleteDrawing();
   const duplicateDrawing = useDuplicateDrawing();
 
@@ -83,6 +91,25 @@ function DrawingListPage() {
           />
         </div>
 
+        <Card className="mt-5" aria-label="도면 검색">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <label htmlFor="drawing-search" className="sr-only">
+              도면 제목 검색
+            </label>
+            <Input
+              id="drawing-search"
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+              placeholder="도면 제목 검색"
+              className="min-w-0 flex-1"
+            />
+          </div>
+        </Card>
+
         <Card padded={false} className="mt-5 overflow-hidden" aria-label="도면 목록">
           {isPending ? (
             <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-text-muted">
@@ -116,6 +143,12 @@ function DrawingListPage() {
               icon={FileText}
               title="페이지에 표시할 도면이 없습니다."
               description="다른 페이지로 이동해 도면을 확인해 보세요."
+            />
+          ) : debouncedQuery.trim() ? (
+            <EmptyState
+              icon={FileText}
+              title="검색 결과가 없습니다."
+              description="다른 검색어로 도면을 검색해 보세요."
             />
           ) : (
             <EmptyState

@@ -9,6 +9,8 @@ public class SimulationResult {
     private String engineVersion;
     private String terminationReason;
     private BigDecimal frameIntervalSeconds;
+    private String terminationDetail;
+    private String recoveryDetail;
     private LocalDateTime createdAt;
     private Integer timelineChunkCount;
     private Integer heatmapChunkCount;
@@ -52,6 +54,22 @@ public class SimulationResult {
 
     public void setFrameIntervalSeconds(BigDecimal frameIntervalSeconds) {
         this.frameIntervalSeconds = frameIntervalSeconds;
+    }
+
+    public String getTerminationDetail() {
+        return terminationDetail;
+    }
+
+    public void setTerminationDetail(String terminationDetail) {
+        this.terminationDetail = terminationDetail;
+    }
+
+    public String getRecoveryDetail() {
+        return recoveryDetail;
+    }
+
+    public void setRecoveryDetail(String recoveryDetail) {
+        this.recoveryDetail = recoveryDetail;
     }
 
     public LocalDateTime getCreatedAt() {

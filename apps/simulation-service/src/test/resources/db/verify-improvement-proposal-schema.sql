@@ -33,8 +33,8 @@ BEGIN
     SET current_version_id = @saved_layout_version_id
     WHERE id = @layout_id;
 
-    INSERT INTO simulations (layout_version_id, created_by, status)
-    VALUES (@source_layout_version_id, 1, 'COMPLETED');
+    INSERT INTO simulations (layout_version_id, created_by, title, status)
+    VALUES (@source_layout_version_id, 1, 'Source simulation', 'COMPLETED');
     SET @source_simulation_id = LAST_INSERT_ID();
 
     INSERT INTO improvement_proposals (
@@ -73,8 +73,8 @@ BEGIN
     WHERE source_simulation_id = @source_simulation_id
       AND proposal_order = 2;
 
-    INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, status)
-    VALUES (@saved_layout_version_id, @source_simulation_id, 1, 'COMPLETED');
+    INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, title, status)
+    VALUES (@saved_layout_version_id, @source_simulation_id, 1, 'Verified simulation', 'COMPLETED');
     SET @verification_simulation_id = LAST_INSERT_ID();
 
     INSERT INTO proposal_simulations (improvement_proposal_id, simulation_id, source_simulation_id)

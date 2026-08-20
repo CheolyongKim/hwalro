@@ -6,6 +6,9 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.domain.LayoutExit;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
+import com.hwalro.simulation.drawing.domain.OutsideWall;
+import com.hwalro.simulation.drawing.domain.Pillar;
+import com.hwalro.simulation.drawing.domain.Wall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.search.domain.CandidateStatus;
 import com.hwalro.simulation.search.domain.ChangeOp;
@@ -15,11 +18,16 @@ import com.hwalro.simulation.search.domain.LayoutSearchEntity;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.PreparedSimulationDto;
 import com.hwalro.simulation.search.mapper.LayoutSearchMapper;
 import com.hwalro.simulation.simulation.domain.HazardZone;
+import com.hwalro.simulation.simulation.domain.LayoutSimulationContext;
 import com.hwalro.simulation.simulation.domain.Simulation;
 import com.hwalro.simulation.simulation.domain.SimulationOption;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.HazardZoneDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
 import com.hwalro.simulation.simulation.exception.SimulationConflictException;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
+import com.hwalro.simulation.simulation.service.AgentPositions;
+import com.hwalro.simulation.simulation.service.SimulationGeometry;
 import com.hwalro.simulation.simulation.service.SimulationService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -197,18 +205,22 @@ public class CandidateAdoptionService {
             throw new IllegalArgumentException("기준 시뮬레이션 설정을 찾을 수 없습니다.");
         }
 
+        List<HazardZone> sourceHazards = simulationMapper.findHazardZones(source.getId());
+
         Simulation derived = new Simulation();
         derived.setLayoutVersionId(targetVersionId);
         derived.setParentSimulationId(source.getId());
         derived.setCreatedBy(requestedBy);
+        derived.setTitle(source.getTitle() != null && !source.getTitle().isBlank() ? source.getTitle() : "개선안 시뮬레이션");
         derived.setStatus("DRAFT");
         simulationMapper.insertSimulation(derived);
 
         SimulationOption option = copyOption(sourceOption, derived.getId());
         simulationMapper.insertSimulationOption(option);
-        simulationMapper.insertInitialState(derived.getId(), initialState);
+        simulationMapper.insertInitialState(
+                derived.getId(), relocateAgents(targetVersionId, initialState, sourceHazards));
 
-        List<HazardZone> hazards = simulationMapper.findHazardZones(source.getId()).stream()
+        List<HazardZone> hazards = sourceHazards.stream()
                 .map(sourceHazard -> copyHazard(sourceHazard, derived.getId()))
                 .toList();
         if (!hazards.isEmpty()) {
@@ -223,6 +235,38 @@ public class CandidateAdoptionService {
             simulationMapper.insertSimulationExits(derived.getId(), targetVersionId, selectedExits);
         }
         return derived.getId();
+    }
+
+    /**
+     * 채택한 배치에서는 구조물이 옮겨졌으므로, 원본 시뮬레이션의 에이전트 좌표를 그대로 쓰면
+     * 구조물 안에 사람이 박힌 초안이 만들어진다. 새 도면 기준으로 밀어낸 좌표를 저장한다.
+     *
+     * <p>재배치는 여기서 한 번만 일어나고, 결과를 저장 직전에 {@code validateSetup}으로 다시 확인한다.
+     * 어느 쪽이든 실패하면 {@code prepare}의 트랜잭션이 통째로 롤백되어 잘못된 초안이 남지 않는다.
+     */
+    private String relocateAgents(Long targetVersionId, String initialState, List<HazardZone> hazards) {
+        LayoutSimulationContext context = simulationMapper.findLayoutContext(targetVersionId);
+        if (context == null) {
+            throw new IllegalStateException("채택한 배치 버전을 찾을 수 없습니다: " + targetVersionId);
+        }
+        List<Wall> walls = drawingMapper.findWallsByVersionId(targetVersionId);
+        List<OutsideWall> outsideWalls = drawingMapper.findOutsideWallsByVersionId(targetVersionId);
+        List<Pillar> pillars = drawingMapper.findPillarsByVersionId(targetVersionId);
+        List<Fabric> fabrics = drawingMapper.findFabricsByVersionId(targetVersionId);
+        List<LayoutExit> exits = drawingMapper.findLayoutExitsByVersionId(targetVersionId);
+        List<PointDto> boundary =
+                SimulationGeometry.assembleBoundary(outsideWalls, context.getWidth(), context.getHeight());
+
+        List<PointDto> agents = AgentPositions.read(objectMapper, initialState);
+        List<PointDto> relaxed = SimulationGeometry.relaxAgents(agents, boundary, walls, pillars, fabrics, exits);
+
+        List<HazardZoneDto> hazardDtos = hazards.stream()
+                .map(hazard ->
+                        new HazardZoneDto(hazard.getId(), hazard.getCenterX(), hazard.getCenterY(), hazard.getRadius()))
+                .toList();
+        SimulationGeometry.validateSetup(relaxed, hazardDtos, boundary, walls, pillars, fabrics, exits);
+
+        return AgentPositions.write(objectMapper, relaxed);
     }
 
     private List<Long> mapSelectedExits(Long sourceVersionId, Long targetVersionId, Set<Long> selectedSourceIds) {

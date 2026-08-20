@@ -48,8 +48,9 @@ public class DrawingController {
     public DrawingListResponse list(
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
             @Parameter(description = "1부터 시작하는 페이지 번호") @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "페이지당 조회 건수") @RequestParam(defaultValue = "20") int size) {
-        return drawingService.list(page, size, user);
+            @Parameter(description = "페이지당 조회 건수") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "도면명 검색어") @RequestParam(required = false) String query) {
+        return drawingService.list(page, size, query, user);
     }
 
     @GetMapping("/{id}")

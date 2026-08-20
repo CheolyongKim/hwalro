@@ -33,6 +33,7 @@
                layout_version_id,
                parent_simulation_id,
                created_by,
+               title,
                status,
                created_at,
                requested_at,
@@ -49,6 +50,7 @@
                layout_version_id,
                parent_simulation_id,
                created_by,
+               title,
                status,
                created_at,
                requested_at,
@@ -66,6 +68,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                so.total_people
@@ -83,6 +86,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                s.requested_at,
@@ -94,13 +98,16 @@
                lv.version AS layout_version_number,
                sr.termination_reason
         FROM simulations s
-        JOIN simulation_options so ON so.simulation_id = s.id
-        JOIN layout_versions lv ON lv.id = s.layout_version_id
-        JOIN layouts l ON l.id = lv.layout_id
+        LEFT JOIN simulation_options so ON so.simulation_id = s.id
+        LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
+        LEFT JOIN layouts l ON l.id = lv.layout_id
         LEFT JOIN simulation_results sr ON sr.simulation_id = s.id
         <where>
             <if test="createdBy != null">
-                s.created_by = #{createdBy}
+                AND s.created_by = #{createdBy}
+            </if>
+            <if test="query != null and query != ''">
+                AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
         ORDER BY s.created_at DESC, s.id DESC
@@ -112,7 +119,10 @@
         FROM simulations s
         <where>
             <if test="createdBy != null">
-                s.created_by = #{createdBy}
+                AND s.created_by = #{createdBy}
+            </if>
+            <if test="query != null and query != ''">
+                AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
         </where>
     </select>
@@ -122,6 +132,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                s.requested_at,
@@ -155,6 +166,7 @@
                s.layout_version_id,
                s.parent_simulation_id,
                s.created_by,
+               s.title,
                s.status,
                s.created_at,
                s.requested_at,
@@ -200,7 +212,9 @@
                routing_profile,
                total_people,
                walking_speed,
-               reaction_time
+               reaction_time,
+               initial_response_time_mean,
+               initial_response_time_std_dev
         FROM simulation_options
         WHERE simulation_id = #{simulationId}
     </select>
@@ -235,6 +249,8 @@
                sr.engine_version,
                sr.termination_reason,
                sr.frame_interval_seconds,
+               sr.termination_detail,
+               sr.recovery_detail,
                sr.created_at,
                (SELECT COUNT(*) FROM timelines t WHERE t.simulation_result_id = sr.id) AS timeline_chunk_count,
                (SELECT COUNT(*) FROM heatmaps h WHERE h.simulation_result_id = sr.id) AS heatmap_chunk_count,
@@ -278,15 +294,17 @@
     </select>
 
     <insert id="insertSimulation" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, status)
-        VALUES (#{layoutVersionId}, #{parentSimulationId}, #{createdBy}, #{status})
+        INSERT INTO simulations (layout_version_id, parent_simulation_id, created_by, title, status)
+        VALUES (#{layoutVersionId}, #{parentSimulationId}, #{createdBy}, #{title}, #{status})
     </insert>
 
     <insert id="insertSimulationOption" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO simulation_options
-            (simulation_id, random_seed, model_profile, routing_profile, total_people, walking_speed, reaction_time)
+            (simulation_id, random_seed, model_profile, routing_profile, total_people, walking_speed, reaction_time,
+             initial_response_time_mean, initial_response_time_std_dev)
         VALUES
-            (#{simulationId}, #{randomSeed}, #{modelProfile}, #{routingProfile}, #{totalPeople}, #{walkingSpeed}, #{reactionTime})
+            (#{simulationId}, #{randomSeed}, #{modelProfile}, #{routingProfile}, #{totalPeople}, #{walkingSpeed},
+             #{reactionTime}, #{initialResponseTimeMean}, #{initialResponseTimeStdDev})
     </insert>
 
     <insert id="insertInitialState">
@@ -314,8 +332,16 @@
         UPDATE simulation_options
         SET total_people = #{totalPeople},
             walking_speed = #{walkingSpeed},
-            reaction_time = #{reactionTime}
+            reaction_time = 0.5000,
+            initial_response_time_mean = #{initialResponseTimeMean},
+            initial_response_time_std_dev = #{initialResponseTimeStdDev}
         WHERE simulation_id = #{simulationId}
+    </update>
+
+    <update id="updateSimulationTitle">
+        UPDATE simulations
+        SET title = #{title}
+        WHERE id = #{simulationId}
     </update>
 
     <update id="updateExecutionProfiles">
@@ -416,9 +442,17 @@
 
     <insert id="insertSimulationResult" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO simulation_results
-            (simulation_id, engine_version, termination_reason, frame_interval_seconds)
+            (simulation_id, engine_version, termination_reason, frame_interval_seconds, termination_detail, recovery_detail)
         VALUES
-            (#{simulationId}, #{engineVersion}, #{terminationReason}, #{frameIntervalSeconds})
+            (#{simulationId}, #{engineVersion}, #{terminationReason}, #{frameIntervalSeconds},
+             <choose>
+                 <when test="terminationDetail != null">CAST(#{terminationDetail} AS JSON)</when>
+                 <otherwise>NULL</otherwise>
+             </choose>,
+             <choose>
+                 <when test="recoveryDetail != null">CAST(#{recoveryDetail} AS JSON)</when>
+                 <otherwise>NULL</otherwise>
+             </choose>)
     </insert>
 
     <insert id="insertSimulationMetrics">

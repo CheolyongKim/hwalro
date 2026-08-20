@@ -37,7 +37,7 @@ export function SimulationStatusDialog({
         if (!isRetrying) onClose();
       }}
       title={failed ? '시뮬레이션 실행 실패' : '시뮬레이션 실행 취소'}
-      description={`${simulation.layoutTitle} · 시뮬레이션 #${simulation.id}`}
+      description={`${simulation.title || simulation.layoutTitle} · 시뮬레이션 #${simulation.id}`}
       size="sm"
       footer={
         <>
@@ -71,7 +71,7 @@ export function SimulationStatusDialog({
                 <p className="text-sm font-bold leading-6 text-danger-strong">
                   {execution?.failureMessage ?? '시뮬레이션 실행에 실패했습니다.'}
                 </p>
-                {failureDetail && (
+                {failureDetail && failureDetail.code === 'AGENT_ROUTE_UNREACHABLE' && (
                   <dl className="mt-4 space-y-2 rounded-xl bg-surface p-4 text-xs leading-5 text-text-strong">
                     <div>
                       <dt className="inline font-bold">대상 에이전트: </dt>
@@ -89,6 +89,18 @@ export function SimulationStatusDialog({
                         </dd>
                       </div>
                     )}
+                  </dl>
+                )}
+                {failureDetail && failureDetail.code === 'NO_REACHABLE_SELECTED_EXIT' && (
+                  <dl className="mt-4 space-y-2 rounded-xl bg-surface p-4 text-xs leading-5 text-text-strong">
+                    <div>
+                      <dt className="inline font-bold">연결되지 않은 인원: </dt>
+                      <dd className="inline">{failureDetail.affectedAgentCount}명</dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-bold">대상 출입구: </dt>
+                      <dd className="inline">{failureDetail.selectedExitIds.join(', ')}</dd>
+                    </div>
                   </dl>
                 )}
               </>

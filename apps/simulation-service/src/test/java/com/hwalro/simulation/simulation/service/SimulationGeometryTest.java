@@ -51,14 +51,24 @@ class SimulationGeometryTest {
     }
 
     @Test
-    void acceptsExactAgentClearanceAndSpacing() {
+    void rejectsRadiusOnlyClearanceButAcceptsOneMillimeterMarginAndExactSpacing() {
         List<PointDto> boundary = SimulationGeometry.assembleBoundary(
                 List.of(wall(0, 0, 10, 0), wall(10, 0, 10, 10), wall(10, 10, 0, 10), wall(0, 10, 0, 0)),
                 decimal(10),
                 decimal(10));
 
+        assertThatThrownBy(() -> SimulationGeometry.validateSetup(
+                        List.of(point(0.3, 1)), List.of(), boundary, List.of(), List.of(), List.of(), List.of()))
+                .isInstanceOf(InvalidSimulationGeometryException.class);
+
         SimulationGeometry.validateSetup(
-                List.of(point(0.3, 1), point(0.9, 1)), List.of(), boundary, List.of(), List.of(), List.of(), List.of());
+                List.of(point(0.301, 1), point(0.901, 1)),
+                List.of(),
+                boundary,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     @Test
@@ -132,6 +142,30 @@ class SimulationGeometryTest {
                         List.of(),
                         List.of(layoutExit(4, 5.299999, 6, 5.299999))))
                 .isInstanceOf(InvalidSimulationGeometryException.class);
+    }
+
+    @Test
+    void rejectsRadiusOnlyObstacleClearanceButAcceptsOneMillimeterMargin() {
+        List<PointDto> boundary = squareBoundary();
+
+        assertThatThrownBy(() -> SimulationGeometry.validateSetup(
+                        List.of(point(5, 5)),
+                        List.of(),
+                        boundary,
+                        List.of(innerWall(4, 5.3, 6, 5.3)),
+                        List.of(),
+                        List.of(),
+                        List.of()))
+                .isInstanceOf(InvalidSimulationGeometryException.class);
+
+        SimulationGeometry.validateSetup(
+                List.of(point(5, 5)),
+                List.of(),
+                boundary,
+                List.of(innerWall(4, 5.301, 6, 5.301)),
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     @Test

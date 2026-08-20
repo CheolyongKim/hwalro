@@ -47,6 +47,7 @@ class Scenario:
     iterations: int
     payload: dict[str, Any]
     source: dict[str, Any]
+    expected_exit_code: int | None = None
 
 
 @dataclass(frozen=True)
@@ -381,6 +382,15 @@ def _correctness_scenarios() -> list[Scenario]:
         [1],
         5,
         0.01,
+    )
+    trapped = Scenario(
+        name=trapped.name,
+        category=trapped.category,
+        agent_count=trapped.agent_count,
+        iterations=trapped.iterations,
+        payload=trapped.payload,
+        source=trapped.source,
+        expected_exit_code=3,
     )
     return [wall_rollback, bottleneck, hazard_multi_exit, multi_context, trapped]
 
@@ -759,6 +769,7 @@ def _run_runner(
     input_path: Path,
     output_dir: Path,
     phase_profile_path: Path | None,
+    expected_exit_code: int | None = None,
 ) -> RunResult:
     command = [python, str(engine_root / "runner.py"), str(input_path), str(output_dir)]
     environment = os.environ.copy()
@@ -780,6 +791,26 @@ def _run_runner(
         check=False,
     )
     elapsed = time.perf_counter_ns() - started
+    if expected_exit_code is not None:
+        if completed.returncode != expected_exit_code:
+            raise BenchmarkError(
+                f"runner expected exit code {expected_exit_code}, got {completed.returncode}: "
+                f"{' '.join(command)}\nstdout:\n{completed.stdout[-4000:]}\n"
+                f"stderr:\n{completed.stderr[-4000:]}"
+            )
+        tree_digest, files = _hash_output_tree(output_dir)
+        if "error.json" not in files or "result.json" in files:
+            raise BenchmarkError(
+                f"expected-failure runner produced an unexpected output tree in {output_dir}"
+            )
+        return RunResult(
+            elapsed_ns=elapsed,
+            tree_sha256=tree_digest,
+            files=files,
+            summary={"expectedFailureCode": expected_exit_code},
+            phase_profile=None,
+            result_bytes=b"",
+        )
     if completed.returncode != 0:
         raise BenchmarkError(
             f"runner failed with exit code {completed.returncode}: {' '.join(command)}\n"
@@ -868,6 +899,7 @@ def _run_pair(
             work_dir / scenario.name / "phase-profiles" / f"{phase}-{label}.json"
             if phase_profile
             else None,
+            scenario.expected_exit_code,
         )
     return measured
 

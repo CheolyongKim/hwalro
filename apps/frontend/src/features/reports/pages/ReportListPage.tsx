@@ -214,12 +214,7 @@ function ReportListPage() {
           </div>
         </Card>
 
-        <Card className="mt-4 overflow-hidden" padded={false} aria-labelledby="report-table-title">
-          <div className="border-b border-line px-5 py-4 sm:px-7">
-            <h2 id="report-table-title" className="text-xl font-black text-ink">
-              보고서 목록
-            </h2>
-          </div>
+        <Card className="mt-5 overflow-hidden" padded={false} aria-label="보고서 목록">
           {isLoading ? (
             <div className="px-5 py-5 sm:px-7">
               <div className="space-y-5">
@@ -252,20 +247,20 @@ function ReportListPage() {
                   </colgroup>
                   <thead className="bg-surface text-xs font-bold tracking-wide text-text-muted">
                     <tr>
-                      <th className="px-7 py-4">보고서 제목</th>
-                      {canViewAllReports && <th className="px-5 py-4">작성자</th>}
-                      <th className="px-7 py-4">최근 수정</th>
-                      <th className="px-5 py-4">상태</th>
-                      <th className="px-5 py-4 text-center">관리</th>
+                      <th className="px-6 py-4">보고서 제목</th>
+                      {canViewAllReports && <th className="px-4 py-4">작성자</th>}
+                      <th className="px-4 py-4">최근 수정</th>
+                      <th className="px-4 py-4">상태</th>
+                      <th className="px-6 py-4 text-center">관리</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
                     {reports.map((report) => (
                       <tr
                         key={report.id}
-                        className="group transition-colors hover:bg-primary-faint"
+                        className="group transition-colors hover:bg-primary-soft/30"
                       >
-                        <td className="px-7 py-4">
+                        <td className="px-6 py-4">
                           {canOpenReport(report.status) ? (
                             <Link
                               to={`/reports/${report.id}`}
@@ -292,14 +287,14 @@ function ReportListPage() {
                           )}
                         </td>
                         {canViewAllReports && (
-                          <td className="px-5 py-4 text-sm font-medium text-text-strong">
+                          <td className="px-4 py-4 text-sm font-medium text-text-strong">
                             {report.authorName ?? '-'}
                           </td>
                         )}
-                        <td className="px-7 py-4 text-sm tabular-nums text-text-strong">
+                        <td className="px-4 py-4 text-sm tabular-nums text-text-strong">
                           {formatUpdatedAt(report.updatedAt)}
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-4">
                           <div className="flex flex-col items-start gap-2">
                             <Badge tone={STATUS_BADGE_TONES[report.status]}>{report.status}</Badge>
                             {canRetryAiReport(report.status) && (
@@ -314,7 +309,7 @@ function ReportListPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-5 py-4 text-center">
+                        <td className="px-6 py-4 text-center">
                           <button
                             type="button"
                             onClick={() => openDeleteModal(report)}

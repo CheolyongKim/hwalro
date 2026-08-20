@@ -44,17 +44,17 @@ function DrawingListTable({ items, onDelete, onDuplicate }: DrawingListTableProp
           </colgroup>
           <thead className="bg-surface text-xs font-bold tracking-wide text-text-muted">
             <tr>
-              <th className="px-7 py-4">도면명</th>
-              <th className="px-5 py-4">설명</th>
-              <th className="px-5 py-4">등록자</th>
-              <th className="px-5 py-4">등록일</th>
-              <th className="px-5 py-4 text-right">관리</th>
+              <th className="px-6 py-4">도면명</th>
+              <th className="px-4 py-4">설명</th>
+              <th className="px-4 py-4">등록자</th>
+              <th className="px-4 py-4">등록일</th>
+              <th className="px-6 py-4 text-right">관리</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {items.map((drawing) => (
               <tr key={drawing.id} className="group transition-colors hover:bg-primary-soft/30">
-                <td className="px-7 py-4">
+                <td className="px-6 py-4">
                   <Link
                     to={`/layout/${drawing.id}`}
                     className="block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -67,18 +67,18 @@ function DrawingListTable({ items, onDelete, onDuplicate }: DrawingListTableProp
                     </span>
                   </Link>
                 </td>
-                <td className="px-5 py-4">
+                <td className="px-4 py-4">
                   <span className="block truncate text-sm text-text-muted">
                     {drawing.description}
                   </span>
                 </td>
-                <td className="px-5 py-4 text-sm font-medium text-text-strong">
+                <td className="px-4 py-4 text-sm font-medium text-text-strong">
                   {creatorLabel(drawing.createdBy, user?.id ?? null, user?.name ?? '')}
                 </td>
-                <td className="px-5 py-4 text-sm tabular-nums text-text-strong">
+                <td className="px-4 py-4 text-sm tabular-nums text-text-strong">
                   {formatCreatedAt(drawing.createdAt)}
                 </td>
-                <td className="px-5 py-4 text-right">
+                <td className="px-6 py-4 text-right">
                   <DrawingRowActions
                     label={`도면 #${drawing.id} 관리 메뉴`}
                     open={openMenuId === drawing.id}

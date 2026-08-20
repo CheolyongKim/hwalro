@@ -86,9 +86,34 @@ class JuPedSimSmokeTest(unittest.TestCase):
                     "moveValidation",
                     "targetAndExitUpdate",
                     "snapshotAndSerialization",
+                    "recoveryScan",
+                    "recoveryMutation",
                 },
             )
             self.assertGreater(phase_profile["counters"]["agentSteps"], 0)
+
+            baseline_duration = result["simulationDurationSeconds"]
+            payload["randomSeed"] = 123
+            payload["model"]["reactionTime"] = 2.0
+            payload["model"]["initialResponseTimeMean"] = 2.0
+            payload["model"]["initialResponseTimeStdDev"] = 0.0
+            delayed_output = root / "delayed-output"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+            delayed = run(input_path, delayed_output)
+            delayed_timeline = json.loads(
+                (delayed_output / "timeline" / "000000.json").read_text("utf-8")
+            )
+            self.assertEqual(delayed["terminationReason"], "ALL_EVACUATED")
+            self.assertAlmostEqual(
+                delayed["simulationDurationSeconds"] - baseline_duration, 2.0, delta=0.01
+            )
+            waiting_position = delayed_timeline["frames"][1]["agents"][0]
+            self.assertEqual(waiting_position["agentId"], 1)
+            self.assertLess(
+                ((waiting_position["x"] - 1.0) ** 2 + (waiting_position["y"] - 2.0) ** 2)
+                ** 0.5,
+                0.01,
+            )
 
             payload["maxSimulationTimeSeconds"] = 0.05
             input_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -184,8 +209,133 @@ class JuPedSimSmokeTest(unittest.TestCase):
         self.assertEqual(agent.position, (2.0, 2.0))
         self.assertEqual(agent.model.velocity, (0.0, 0.0))
 
-    def test_agent_without_connected_exit_remains_in_timeline(self):
+    def test_mixed_boundary_and_interior_exit_selection_runs_and_evacuates(self):
         from runner import run
+
+        payload = {
+            "model": {
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
+                "walkingSpeed": 1.2,
+                "reactionTime": 0.5,
+            },
+            "drawing": {
+                "outsideBoundary": [
+                    {"x": 0, "y": 0},
+                    {"x": 20, "y": 0},
+                    {"x": 20, "y": 10},
+                    {"x": 0, "y": 10},
+                ],
+                "walls": [],
+                "pillars": [],
+                "fabrics": [],
+                "exits": [
+                    {"id": 1, "startX": 20, "startY": 4, "endX": 20, "endY": 6},
+                    {"id": 2, "startX": 10, "startY": 4, "endX": 10, "endY": 6},
+                ],
+            },
+            "agents": [
+                {"x": 16, "y": 5},
+                {"x": 17, "y": 4.4},
+                {"x": 17, "y": 5.6},
+            ],
+            "hazards": [],
+            "selectedExitIds": [1, 2],
+            "maxSimulationTimeSeconds": 60,
+            "frameIntervalSeconds": 1,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_path = root / "output"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = run(input_path, output_path)
+
+            self.assertEqual(result["terminationReason"], "ALL_EVACUATED")
+            self.assertEqual(result["evacuatedPeople"], 3)
+            self.assertFalse((output_path / "error.json").exists())
+            exit_events = [
+                event["exitId"]
+                for chunk_path in sorted((output_path / "timeline").glob("*.json"))
+                for event in json.loads(chunk_path.read_text("utf-8")).get("exitEvents", [])
+            ]
+            self.assertTrue(exit_events)
+            self.assertTrue(all(exit_id == 1 for exit_id in exit_events))
+
+    def test_wide_single_exit_endpoint_stall_recovers_to_all_evacuated(self):
+        from runner import run
+
+        payload = {
+            "model": {
+                "modelProfile": "SFM_DEFAULT_V2",
+                "routingProfile": "HAZARD_RADIAL_EXP_V3",
+                "walkingSpeed": 1.25,
+                "reactionTime": 0.5,
+            },
+            "drawing": {
+                "outsideBoundary": [
+                    {"x": 31.2, "y": 5.5},
+                    {"x": 31.2, "y": 71.2},
+                    {"x": 113.3, "y": 71.8},
+                    {"x": 113.3, "y": 5.5},
+                ],
+                "walls": [],
+                "pillars": [
+                    {"startX": 35.1, "startY": 10.3, "endX": 106.5, "endY": 64.7, "rotation": 0.0}
+                ],
+                "fabrics": [],
+                "exits": [{"id": 19, "startX": 31.2, "startY": 71.2, "endX": 51.1, "endY": 71.3}],
+            },
+            "agents": [
+                {"x": 105.1252, "y": 8.2939},
+                {"x": 104.4181, "y": 8.3832},
+                {"x": 105.6372, "y": 8.8181},
+                {"x": 104.6006, "y": 9.4711},
+                {"x": 106.9916, "y": 11.1521},
+                {"x": 107.2246, "y": 11.9509},
+                {"x": 107.8059, "y": 13.134},
+                {"x": 108.4439, "y": 10.7843},
+                {"x": 107.8434, "y": 12.4854},
+                {"x": 109.7756, "y": 10.0728},
+                {"x": 110.609, "y": 10.3845},
+                {"x": 109.8136, "y": 8.1897},
+                {"x": 109.754, "y": 7.4071},
+                {"x": 110.005, "y": 8.7804},
+                {"x": 105.0236, "y": 5.9399},
+                {"x": 106.0845, "y": 5.8776},
+                {"x": 100.5952, "y": 7.3403},
+                {"x": 101.7576, "y": 7.1808},
+                {"x": 101.4767, "y": 8.0085},
+                {"x": 96.8531, "y": 9.2658},
+                {"x": 97.0279, "y": 8.5612},
+                {"x": 96.3118, "y": 9.5318},
+                {"x": 100.7267, "y": 8.5015},
+                {"x": 99.9612, "y": 8.5806},
+                {"x": 100.2654, "y": 9.4262},
+                {"x": 99.7512, "y": 9.7561},
+            ],
+            "hazards": [],
+            "selectedExitIds": [19],
+            "maxSimulationTimeSeconds": 600,
+            "frameIntervalSeconds": 1,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_path = root / "output"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = run(input_path, output_path)
+
+            self.assertEqual(result["terminationReason"], "ALL_EVACUATED")
+            self.assertEqual(result["evacuatedPeople"], 26)
+            self.assertEqual(result["remainingPeople"], 0)
+            self.assertFalse((output_path / "error.json").exists())
+
+    def test_agent_in_component_without_connected_exit_fails_with_typed_setup_error(self):
+        from runner import run
+        from runner import NoReachableSelectedExitRunnerError
 
         payload = {
             "model": {
@@ -218,20 +368,98 @@ class JuPedSimSmokeTest(unittest.TestCase):
             output_path = root / "output"
             input_path.write_text(json.dumps(payload), encoding="utf-8")
 
-            result = run(input_path, output_path)
-            last_chunk = json.loads(
-                (output_path / "timeline" / f"{result['timelineChunkCount'] - 1:06d}.json").read_text(
-                    "utf-8"
-                )
-            )
+            with self.assertRaises(NoReachableSelectedExitRunnerError):
+                run(input_path, output_path)
 
-            self.assertEqual(result["terminationReason"], "STALLED")
-            self.assertEqual(result["evacuatedPeople"], 1)
-            self.assertEqual(result["remainingPeople"], 1)
-            self.assertEqual(
-                last_chunk["frames"][-1]["agents"],
-                [{"agentId": 2, "x": 5.0, "y": 2.0}],
-            )
+            error = json.loads((output_path / "error.json").read_text("utf-8"))
+            self.assertEqual(error["code"], "NO_REACHABLE_SELECTED_EXIT")
+            self.assertEqual(error["affectedAgentCount"], 1)
+            self.assertEqual(error["representativeAgentIds"], [2])
+            self.assertEqual(error["componentCount"], 1)
+            self.assertEqual(error["reason"], "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT")
+            self.assertFalse((output_path / "result.json").exists())
+            self.assertFalse((output_path / "timeline").exists())
+            self.assertFalse((output_path / "heatmap").exists())
+
+    @staticmethod
+    def _run_fixture(flag):
+        from runner import run
+        from tests.fixtures.build_fixture_013 import build_payload
+
+        payload = build_payload()
+        payload["recoveryDetectorEnabled"] = flag
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_path = root / "output"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+            result = run(input_path, output_path)
+            result_bytes = (output_path / "result.json").read_bytes()
+            chunk_bytes = {}
+            for subdirectory in ("timeline", "heatmap"):
+                folder = output_path / subdirectory
+                if folder.exists():
+                    for chunk in sorted(folder.glob("*.json")):
+                        chunk_bytes[f"{subdirectory}/{chunk.name}"] = chunk.read_bytes()
+            return result, result_bytes, chunk_bytes
+
+    def test_synthetic_fixture_flag_false_is_deterministic_and_has_no_recovery_summary(self):
+        first, first_bytes, _first_chunks = self._run_fixture(False)
+        second, second_bytes, _second_chunks = self._run_fixture(False)
+
+        self.assertEqual(first["terminationReason"], "ALL_EVACUATED")
+        self.assertEqual(first["evacuatedPeople"], 4)
+        self.assertEqual(first["remainingPeople"], 0)
+        self.assertNotIn("recoverySummary", first)
+        self.assertEqual(first_bytes, second_bytes)
+        self.assertEqual(first, second)
+
+    def test_synthetic_fixture_flag_true_keeps_dynamics_and_records_empty_recovery_summary(self):
+        disabled, disabled_bytes, disabled_chunks = self._run_fixture(False)
+        enabled, enabled_bytes, enabled_chunks = self._run_fixture(True)
+
+        self.assertEqual(enabled["terminationReason"], disabled["terminationReason"])
+        self.assertEqual(enabled["remainingPeople"], disabled["remainingPeople"])
+        summary = enabled["recoverySummary"]
+        self.assertEqual(summary["schemaVersion"], 1)
+        self.assertGreaterEqual(summary["scanCount"], 1)
+        self.assertEqual(summary["eligibleGroupCount"], 0)
+        self.assertEqual(summary["skippedEligibleGroupCount"], 0)
+        self.assertEqual(summary["recoveredGroupCount"], 0)
+        self.assertEqual(summary["recoveredAgentCount"], 0)
+        self.assertEqual(summary["events"], [])
+        self.assertEqual(enabled_chunks, disabled_chunks)
+        self.assertNotEqual(enabled_bytes, disabled_bytes)
+
+    def test_synthetic_fixture_reversed_exit_endpoints_behave_identically(self):
+        from runner import run
+        from tests.fixtures.build_fixture_013 import build_payload
+
+        payload = build_payload()
+        payload["recoveryDetectorEnabled"] = False
+        reversed_payload = json.loads(json.dumps(payload))
+        exit_ = reversed_payload["drawing"]["exits"][0]
+        exit_["startX"], exit_["startY"], exit_["endX"], exit_["endY"] = (
+            exit_["endX"],
+            exit_["endY"],
+            exit_["startX"],
+            exit_["startY"],
+        )
+
+        results = []
+        for candidate in (payload, reversed_payload):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                input_path = root / "input.json"
+                output_path = root / "output"
+                input_path.write_text(json.dumps(candidate), encoding="utf-8")
+                results.append(run(input_path, output_path))
+
+        self.assertEqual(results[0]["terminationReason"], "ALL_EVACUATED")
+        self.assertEqual(results[1]["terminationReason"], "ALL_EVACUATED")
+        self.assertEqual(results[0], results[1])
+        self.assertNotIn("recoverySummary", results[0])
+        self.assertNotIn("recoverySummary", results[1])
 
 
 if __name__ == "__main__":

@@ -280,4 +280,3 @@
           AND search.status IN ('PENDING', 'DIAGNOSING', 'GENERATING', 'VERIFYING')
     </update>
 </mapper>
-
