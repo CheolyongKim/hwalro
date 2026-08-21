@@ -47,6 +47,7 @@ type ExecutionPhase = 'idle' | 'saving' | 'validating' | 'requesting';
 type PageAlert = { tone: 'error' | 'success'; text: string } | null;
 type AgentDeletionToast = { state: 'confirm' | 'success'; count: number } | null;
 
+
 interface InfoTooltipProps {
   id: string;
   label: string;
@@ -94,8 +95,18 @@ function errorAlert(text: string): PageAlert {
 function SimulationSetupPage() {
   const { simulationId = '' } = useParams();
   const navigate = useNavigate();
-  const recordLastActivity = useRecordLastActivity();
   const [searchParams, setSearchParams] = useSearchParams();
+  const recordLastActivity = useRecordLastActivity();
+  const requestedDefaultAllExitsRef = useRef({
+    simulationId,
+    value: searchParams.get('defaultAllExits') === 'true',
+  });
+  if (requestedDefaultAllExitsRef.current.simulationId !== simulationId) {
+    requestedDefaultAllExitsRef.current = {
+      simulationId,
+      value: searchParams.get('defaultAllExits') === 'true',
+    };
+  }
   const settingsPanel = useCollapsibleWorkspacePanel();
   const requestedHighlightRef = useRef({
     simulationId,
@@ -182,9 +193,7 @@ function SimulationSetupPage() {
       setSetup(data);
       setTitle(data.title || data.drawing.title);
       setSelectedExitIds(
-        selectAllExits && data.selectedExitIds.length === 0
-          ? data.drawing.exits.map((exit) => exit.id)
-          : data.selectedExitIds,
+        selectAllExits ? data.drawing.exits.map((exit) => exit.id) : data.selectedExitIds,
       );
       setWalkingSpeed(data.walkingSpeed);
       setInitialResponseTimeStdDev(data.initialResponseTimeStdDev);
@@ -214,7 +223,18 @@ function SimulationSetupPage() {
       .getSetup(id)
       .then((data) => {
         if (!cancelled) {
-          loadSetup(data, requestedHighlightRef.current.value, true, true);
+          const defaultAllExits = requestedDefaultAllExitsRef.current.value;
+          loadSetup(data, requestedHighlightRef.current.value, true, defaultAllExits);
+          if (defaultAllExits) {
+            setSearchParams(
+              (current) => {
+                const next = new URLSearchParams(current);
+                next.delete('defaultAllExits');
+                return next;
+              },
+              { replace: true },
+            );
+          }
           setLoadState('ready');
         }
       })
@@ -227,7 +247,7 @@ function SimulationSetupPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadSetup, simulationId]);
+  }, [loadSetup, navigate, setSearchParams, simulationId]);
 
   useEffect(() => {
     if (loadState !== 'ready' || !searchParams.has('highlightAgent')) return;
