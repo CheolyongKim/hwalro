@@ -277,6 +277,37 @@ class SimulationExecutionServiceTest {
     }
 
     @Test
+    void acceptsGroupAndSingleAgentMidRouteRecoverySummary() throws JsonProcessingException {
+        JsonNode valid = new ObjectMapper()
+                .readTree(
+                        """
+                        {"schemaVersion":1,"scanCount":2,"eligibleGroupCount":1,"skippedEligibleGroupCount":0,
+                         "infeasibleScanCount":1,"recoveredGroupCount":1,"recoveredAgentCount":3,
+                         "recoveredMidRouteAgentCount":1,"recoveryTimeSeconds":5.5,
+                         "recoveredExitLabels":[0,1],"recoveredExitIds":[501,502],
+                         "attemptedGroupSignatures":1,
+                         "events":[
+                           {"timeSeconds":5.5,"iteration":550,"contextIndex":0,"exitId":501,"exitLabel":0,
+                            "target":[9.7,4.0],"stableIds":[1,2,3],
+                            "oldTargets":[[9.7,4.0],[9.7,4.0],[9.7,4.0]],
+                            "newTargets":[[10.0,3.75],[10.0,4.0],[10.0,4.25]],
+                            "newApproaches":[[9.7,3.75],[9.7,4.0],[9.7,4.25]],"seedNodeIds":[11,12,13],
+                            "status":"RECOVERED","postRecoveryInvalidMoves":0,"postRecoveryFullRollbacks":0},
+                           {"timeSeconds":6.0,"iteration":600,"contextIndex":0,"exitId":502,"exitLabel":1,
+                            "target":[3.0,3.0],"stableIds":[4],"oldTargets":[[3.0,3.0]],
+                            "newTargets":[[4.0,4.0]],"newApproaches":[],"seedNodeIds":[],
+                            "status":"RECOVERED","postRecoveryInvalidMoves":0,"postRecoveryFullRollbacks":0},
+                           {"timeSeconds":6.5,"iteration":650,"contextIndex":0,"exitId":502,"exitLabel":1,
+                            "target":[4.0,4.0],"stableIds":[5],"oldTargets":[[4.0,4.0]],
+                            "newTargets":[],"newApproaches":[],"seedNodeIds":[],
+                            "status":"RECOVERY_INFEASIBLE","reasonCode":"REROUTE_UNCHANGED",
+                            "postRecoveryInvalidMoves":0,"postRecoveryFullRollbacks":0}]}
+                        """);
+
+        assertThat(SimulationExecutionService.validateRecoverySummary(valid)).isSameAs(valid);
+    }
+
+    @Test
     void rejectsRecoverySummaryWithMalformedEvents() throws JsonProcessingException {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode unknownField = mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
@@ -287,8 +318,8 @@ class SimulationExecutionServiceTest {
                 VALID_RECOVERY_SUMMARY_JSON.replace("\"status\":\"RECOVERED\"", "\"status\":\"PANIC\""));
         JsonNode badReasonCode = mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
                 "\"status\":\"RECOVERED\"", "\"status\":\"RECOVERY_INFEASIBLE\",\"reasonCode\":\"BOGUS\""));
-        JsonNode shortStableIds =
-                mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace("\"stableIds\":[1,2,3]", "\"stableIds\":[1,2]"));
+        JsonNode oversizedStableIds = mapper.readTree(
+                VALID_RECOVERY_SUMMARY_JSON.replace("\"stableIds\":[1,2,3]", "\"stableIds\":[1,2,3,4]"));
         JsonNode mismatchedCounters = mapper.readTree(
                 VALID_RECOVERY_SUMMARY_JSON.replace("\"recoveredAgentCount\":3", "\"recoveredAgentCount\":5"));
         JsonNode unknownTopLevel = mapper.readTree(VALID_RECOVERY_SUMMARY_JSON.replace(
@@ -301,7 +332,7 @@ class SimulationExecutionServiceTest {
                 .isNull();
         assertThat(SimulationExecutionService.validateRecoverySummary(badReasonCode))
                 .isNull();
-        assertThat(SimulationExecutionService.validateRecoverySummary(shortStableIds))
+        assertThat(SimulationExecutionService.validateRecoverySummary(oversizedStableIds))
                 .isNull();
         assertThat(SimulationExecutionService.validateRecoverySummary(mismatchedCounters))
                 .isNull();
@@ -343,6 +374,7 @@ class SimulationExecutionServiceTest {
                 """
                 {"schemaVersion":1,"scanCount":1,"eligibleGroupCount":1,"skippedEligibleGroupCount":0,
                  "infeasibleScanCount":0,"recoveredGroupCount":0,"recoveredAgentCount":0,
+                 "recoveredMidRouteAgentCount":0,
                  "recoveryTimeSeconds":0.5,"recoveredExitLabels":[],"recoveredExitIds":[],
                  "attemptedGroupSignatures":1,
                  "events":[{"timeSeconds":0.5,"iteration":50,"contextIndex":0,"exitId":501,
@@ -481,6 +513,7 @@ class SimulationExecutionServiceTest {
                         """
                         {"schemaVersion":1,"scanCount":1,"eligibleGroupCount":1,"skippedEligibleGroupCount":0,
                          "infeasibleScanCount":0,"recoveredGroupCount":0,"recoveredAgentCount":0,
+                         "recoveredMidRouteAgentCount":0,
                          "recoveryTimeSeconds":0.5,"recoveredExitLabels":[],"recoveredExitIds":[],
                          "attemptedGroupSignatures":1,
                          "events":[{"timeSeconds":0.5,"iteration":50,"contextIndex":0,"exitId":501,
@@ -951,6 +984,7 @@ class SimulationExecutionServiceTest {
             """
             {"schemaVersion":1,"scanCount":2,"eligibleGroupCount":1,"skippedEligibleGroupCount":0,
              "infeasibleScanCount":0,"recoveredGroupCount":1,"recoveredAgentCount":3,
+             "recoveredMidRouteAgentCount":0,
              "recoveryTimeSeconds":5.5,"recoveredExitLabels":[0],"recoveredExitIds":[501],
              "attemptedGroupSignatures":1,
              "events":[{"timeSeconds":5.5,"iteration":550,"contextIndex":0,"exitId":501,"exitLabel":0,
