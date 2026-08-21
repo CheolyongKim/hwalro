@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { apiClient } from '../api/client';
+import { PageHeader, buttonClassName } from '../components/ui';
 import './SystemManagementPage.css';
 
 interface UserSummary {
@@ -236,25 +237,26 @@ function SystemManagementPage() {
   return (
     <main className="system-management-page">
       <div className="system-management-content">
-        <header className="page-header">
-          <div>
-            <p className="page-eyebrow">시스템 설정</p>
-            <h1>시스템 관리</h1>
-            <p>사용자와 역할을 관리합니다.</p>
-          </div>
-          <div className="account-control">
-            <button
-              ref={inviteButtonRef}
-              type="button"
-              onClick={() => setIsInviteOpen(true)}
-              disabled={isLoading || data.roles.length === 0}
-            >
-              사용자 초대
-            </button>
-          </div>
-        </header>
+        <div className="border-b border-line pb-6">
+          <PageHeader
+            eyebrow="시스템 설정"
+            title="시스템 관리"
+            description="사용자와 역할을 관리합니다."
+            actions={
+              <button
+                ref={inviteButtonRef}
+                type="button"
+                onClick={() => setIsInviteOpen(true)}
+                disabled={isLoading || data.roles.length === 0}
+                className={buttonClassName({ variant: 'primary', size: 'lg' })}
+              >
+                사용자 초대
+              </button>
+            }
+          />
+        </div>
 
-        <section className="management-card" aria-labelledby="users-heading">
+        <section className="management-card mt-5" aria-labelledby="users-heading">
           <div className="card-heading">
             <h2 id="users-heading">사용자·권한</h2>
             <span>{`전체 역할 ${data.roles.length}개`}</span>
