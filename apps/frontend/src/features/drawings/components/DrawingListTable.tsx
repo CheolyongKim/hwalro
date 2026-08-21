@@ -6,6 +6,8 @@ interface DrawingListTableProps {
   items: DrawingSummary[];
   onDelete: (drawing: DrawingSummary) => void;
   onDuplicate: (drawing: DrawingSummary) => void;
+  /** 등록자 ID → 표시 이름. 조회 실패(403 등) 시 undefined로 이름 없이 표시한다. */
+  nameById?: Map<number, string>;
 }
 
 function formatCreatedAt(value: string): string {
@@ -17,14 +19,19 @@ function creatorLabel(
   createdBy: number,
   currentUserId: number | null,
   currentUserName: string,
+  nameById: Map<number, string> | undefined,
 ): string {
+  const name = nameById?.get(createdBy);
+  if (name !== undefined && name !== '') {
+    return name;
+  }
   if (currentUserId !== null && createdBy === currentUserId) {
     return currentUserName;
   }
   return `#${createdBy}`;
 }
 
-function DrawingListTable({ items, onDelete, onDuplicate }: DrawingListTableProps) {
+function DrawingListTable({ items, onDelete, onDuplicate, nameById }: DrawingListTableProps) {
   const { user } = useAuth();
 
   return (
@@ -70,7 +77,7 @@ function DrawingListTable({ items, onDelete, onDuplicate }: DrawingListTableProp
                   </span>
                 </td>
                 <td className="px-4 py-4 text-sm font-medium text-text-strong">
-                  {creatorLabel(drawing.createdBy, user?.id ?? null, user?.name ?? '')}
+                  {creatorLabel(drawing.createdBy, user?.id ?? null, user?.name ?? '', nameById)}
                 </td>
                 <td className="px-4 py-4 text-sm tabular-nums text-text-strong">
                   {formatCreatedAt(drawing.createdAt)}
