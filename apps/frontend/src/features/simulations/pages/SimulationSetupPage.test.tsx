@@ -114,8 +114,24 @@ function executeButton(): HTMLButtonElement {
 }
 
 describe('출입구 기본 선택', () => {
-  it('수정 페이지를 열면 모든 출입구를 선택한다', async () => {
+  it('저장된 출입구 선택을 유지한다', async () => {
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
+
+    await renderPage();
+
+    const exitCheckboxes = [
+      ...container.querySelectorAll<HTMLInputElement>(
+        '.simulation-setup-exit-list input[type="checkbox"]',
+      ),
+    ];
+    expect(exitCheckboxes).toHaveLength(2);
+    expect(exitCheckboxes.map((checkbox) => checkbox.checked)).toEqual([true, false]);
+  });
+
+  it('저장된 출입구 선택이 없으면 모든 출입구를 선택한다', async () => {
+    const current = setup();
+    current.selectedExitIds = [];
+    vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(current);
 
     await renderPage();
 
