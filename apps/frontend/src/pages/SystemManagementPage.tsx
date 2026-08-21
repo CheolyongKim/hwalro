@@ -52,14 +52,25 @@ const roleLabels: Record<string, string> = {
   SAFETY_REVIEWER: '안전 검토자',
 };
 
+const roleScopeSummaries: Record<string, string> = {
+  ADMIN: '사용자와 역할을 관리하고 전체 업무 데이터를 확인합니다.',
+  OPERATOR: '담당 도면과 시뮬레이션을 운영하고 보고서를 작성합니다.',
+  SAFETY_REVIEWER: '전체 검토 데이터를 확인하고 위험 항목, 안전 점검 및 보고서를 검토합니다.',
+};
+
 function roleTone(roleName: string) {
   if (roleName === 'SAFETY_REVIEWER') return 'reviewer';
   if (roleName === 'ADMIN') return 'admin';
-  return 'operator';
+  if (roleName === 'OPERATOR') return 'operator';
+  return 'default';
 }
 
 function roleLabel(roleName: string) {
   return roleLabels[roleName] ?? roleName;
+}
+
+function roleDescription(role: RoleSummary) {
+  return roleScopeSummaries[role.roleName] ?? role.description ?? '등록된 권한 범위를 사용합니다.';
 }
 
 function formatCreatedAt(createdAt: string) {
@@ -317,7 +328,13 @@ function SystemManagementPage() {
           )}
 
           <div className="role-section">
-            <h3>역할별 주요 권한</h3>
+            <div className="role-section-heading">
+              <div>
+                <h3>역할별 주요 권한</h3>
+                <p>현재 서비스에서 역할별로 사용할 수 있는 주요 업무 범위입니다.</p>
+              </div>
+              <span>현재 기준</span>
+            </div>
             {!isLoading &&
               !loadError &&
               (data.roles.length === 0 ? (
@@ -326,12 +343,26 @@ function SystemManagementPage() {
                 </p>
               ) : (
                 <div className="role-list">
-                  {data.roles.map((role) => (
-                    <article className={`role-card ${roleTone(role.roleName)}`} key={role.roleId}>
-                      <h4>{roleLabel(role.roleName)}</h4>
-                      <p>{role.description || '설명 없음'}</p>
-                    </article>
-                  ))}
+                  {data.roles.map((role) => {
+                    const assignedUserCount = data.users.filter((user) =>
+                      user.roles.includes(role.roleName),
+                    ).length;
+
+                    return (
+                      <article className={`role-card ${roleTone(role.roleName)}`} key={role.roleId}>
+                        <div className="role-card-heading">
+                          <div>
+                            <h4>{roleLabel(role.roleName)}</h4>
+                            <span className="role-code">{role.roleName}</span>
+                          </div>
+                          <span className="role-user-count">
+                            {assignedUserCount.toLocaleString()}명
+                          </span>
+                        </div>
+                        <p>{roleDescription(role)}</p>
+                      </article>
+                    );
+                  })}
                 </div>
               ))}
           </div>
