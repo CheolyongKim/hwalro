@@ -18,75 +18,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.system-management-page .page-header {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--color-line);
-}
-
-.system-management-page .page-eyebrow {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.system-management-page .page-header h1 {
-  margin: 8px 0 0;
-  color: var(--color-ink);
-  font-size: 30px;
-  font-weight: 900;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-}
-
-.system-management-page .page-header p {
-  margin: 12px 0 0;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  line-height: 24px;
-}
-
-.system-management-page .account-control {
-  margin: 0;
-}
-
-.system-management-page .account-control button {
-  min-width: 112px;
-  height: 44px;
-  padding: 0 20px;
-  border-radius: 8px;
-  color: var(--color-white);
-  background: var(--color-primary);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: default;
-  transition: background-color 150ms ease;
-}
-
-.system-management-page .account-control button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-}
-
-.system-management-page .account-control button:active:not(:disabled) {
-  background: var(--color-primary-active);
-}
-
-.system-management-page .account-control button:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-.system-management-page .account-control button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 .system-management-page .management-card {
   width: 100%;
   overflow: hidden;
@@ -634,16 +565,6 @@
   .system-management-content {
     padding: 8px 16px 0;
   }
-
-  .system-management-page .page-header {
-    flex-direction: row;
-    align-items: flex-end;
-  }
-
-  .system-management-page .page-header h1 {
-    font-size: 36px;
-    line-height: 1.11;
-  }
 }
 
 @media (min-width: 1024px) {
@@ -653,10 +574,6 @@
 }
 
 @media (max-width: 520px) {
-  .system-management-page .page-header {
-    gap: 32px;
-  }
-
   .system-management-page .role-list {
     grid-template-columns: 1fr;
   }
