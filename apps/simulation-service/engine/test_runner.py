@@ -96,19 +96,20 @@ class TimelineWriterTest(unittest.TestCase):
 
 
 class InitialResponseTimeTest(unittest.TestCase):
-    def test_gamma_sampling_is_nonnegative_and_seed_deterministic(self):
-        first = _sample_initial_response_times(np, 10_000, 5.0, 2.0, -17)
-        repeated = _sample_initial_response_times(np, 10_000, 5.0, 2.0, -17)
-        other_seed = _sample_initial_response_times(np, 10_000, 5.0, 2.0, -18)
+    def test_sampling_is_nonnegative_seed_deterministic_and_starts_at_zero(self):
+        first = _sample_initial_response_times(np, 10_000, 2.0, -17)
+        repeated = _sample_initial_response_times(np, 10_000, 2.0, -17)
+        other_seed = _sample_initial_response_times(np, 10_000, 2.0, -18)
 
         np.testing.assert_array_equal(first, repeated)
         self.assertTrue(np.all(first >= 0.0))
+        self.assertEqual(float(np.min(first)), 0.0)
         self.assertFalse(np.array_equal(first, other_seed))
-        self.assertAlmostEqual(float(np.mean(first)), 5.0, delta=0.1)
         self.assertAlmostEqual(float(np.std(first)), 2.0, delta=0.1)
 
-    def test_zero_std_dev_uses_one_fixed_start_time(self):
-        self.assertEqual(_sample_initial_response_times(np, 3, 2.0, 0.0, 7), [2.0] * 3)
+    def test_zero_std_dev_starts_every_agent_immediately(self):
+        self.assertEqual(_sample_initial_response_times(np, 3, 0.0, 7), [0.0] * 3)
+        np.testing.assert_array_equal(_sample_initial_response_times(np, 1, 2.0, 7), [0.0])
         self.assertEqual(_start_iteration(0.0), 1)
         self.assertEqual(_start_iteration(2.0), 201)
         self.assertEqual(_start_iteration(float("inf")), 60_001)

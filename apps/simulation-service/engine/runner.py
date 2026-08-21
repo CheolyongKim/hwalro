@@ -454,21 +454,11 @@ def run(
     if routing_profile != REQUIRED_ROUTING_PROFILE:
         raise RunnerError(f"model.routingProfile must be {REQUIRED_ROUTING_PROFILE}")
     walking_speed = _positive_number(model.get("walkingSpeed"), "model.walkingSpeed")
-    initial_response_time_mean = _nonnegative_number(
-        model.get("initialResponseTimeMean", 0.0), "model.initialResponseTimeMean"
-    )
     initial_response_time_std_dev = _nonnegative_number(
         model.get("initialResponseTimeStdDev", 0.0), "model.initialResponseTimeStdDev"
     )
-    if initial_response_time_mean <= 0.0 and initial_response_time_std_dev > 0.0:
-        raise RunnerError(
-            "model.initialResponseTimeStdDev must be zero when the mean is zero"
-        )
-    if (
-        initial_response_time_mean > MAX_INITIAL_RESPONSE_TIME_SECONDS
-        or initial_response_time_std_dev > MAX_INITIAL_RESPONSE_TIME_SECONDS
-    ):
-        raise RunnerError("initial response time parameters must not exceed 600 seconds")
+    if initial_response_time_std_dev > MAX_INITIAL_RESPONSE_TIME_SECONDS:
+        raise RunnerError("initial response time standard deviation must not exceed 600 seconds")
     sfm_agent_scale = _positive_float_from_environment(
         SFM_AGENT_SCALE_ENVIRONMENT_VARIABLE, SFM_AGENT_SCALE_NEWTONS
     )
@@ -510,7 +500,6 @@ def run(
     initial_response_times = _sample_initial_response_times(
         np,
         len(agents),
-        initial_response_time_mean,
         initial_response_time_std_dev,
         random_seed,
     )
@@ -1825,14 +1814,11 @@ def _integer_number(value: Any, label: str) -> int:
     return result
 
 
-def _sample_initial_response_times(np, count: int, mean: float, std_dev: float, seed: int):
-    if count < 1 or mean <= 0.0:
+def _sample_initial_response_times(np, count: int, std_dev: float, seed: int):
+    if count < 1 or std_dev <= 0.0:
         return [0.0] * count
-    if std_dev <= 0.0:
-        return [mean] * count
-    shape = (mean / std_dev) ** 2
-    scale = (std_dev * std_dev) / mean
-    return np.random.default_rng(seed & 0xFFFFFFFF).gamma(shape, scale, size=count)
+    response_times = np.random.default_rng(seed & 0xFFFFFFFF).normal(0.0, std_dev, size=count)
+    return response_times - response_times.min()
 
 
 def _start_iteration(response_time: float) -> int:

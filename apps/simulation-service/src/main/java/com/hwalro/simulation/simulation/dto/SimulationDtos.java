@@ -21,23 +21,14 @@ public final class SimulationDtos {
             List<HazardZoneDto> hazardZones,
             List<Long> selectedExitIds,
             BigDecimal walkingSpeed,
-            BigDecimal initialResponseTimeMean,
             BigDecimal initialResponseTimeStdDev) {
         public SetupUpdateRequest(
                 List<PointDto> agentPositions,
                 List<HazardZoneDto> hazardZones,
                 List<Long> selectedExitIds,
                 BigDecimal walkingSpeed,
-                BigDecimal initialResponseTimeMean,
                 BigDecimal initialResponseTimeStdDev) {
-            this(
-                    null,
-                    agentPositions,
-                    hazardZones,
-                    selectedExitIds,
-                    walkingSpeed,
-                    initialResponseTimeMean,
-                    initialResponseTimeStdDev);
+            this(null, agentPositions, hazardZones, selectedExitIds, walkingSpeed, initialResponseTimeStdDev);
         }
     }
 
@@ -118,7 +109,6 @@ public final class SimulationDtos {
             String routingProfile,
             Integer totalPeople,
             BigDecimal walkingSpeed,
-            BigDecimal initialResponseTimeMean,
             BigDecimal initialResponseTimeStdDev,
             List<PointDto> agentPositions,
             List<HazardZoneDto> hazardZones,
