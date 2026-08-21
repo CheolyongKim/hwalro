@@ -47,7 +47,6 @@ type ExecutionPhase = 'idle' | 'saving' | 'validating' | 'requesting';
 type PageAlert = { tone: 'error' | 'success'; text: string } | null;
 type AgentDeletionToast = { state: 'confirm' | 'success'; count: number } | null;
 
-
 interface InfoTooltipProps {
   id: string;
   label: string;

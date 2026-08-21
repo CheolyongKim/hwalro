@@ -93,9 +93,7 @@ async function renderPage(defaultAllExits = false) {
     root.render(
       <MemoryRouter
         initialEntries={[
-          defaultAllExits
-            ? '/simulations/42/setup?defaultAllExits=true'
-            : '/simulations/42/setup',
+          defaultAllExits ? '/simulations/42/setup?defaultAllExits=true' : '/simulations/42/setup',
         ]}
       >
         <Routes>
