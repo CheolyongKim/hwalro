@@ -194,6 +194,7 @@ function SimulationSetupPage() {
       setSelectedExitIds(
         selectAllExits ? data.drawing.exits.map((exit) => exit.id) : data.selectedExitIds,
       );
+      setHighlightedExitId(null);
       setWalkingSpeed(data.walkingSpeed);
       setInitialResponseTimeStdDev(data.initialResponseTimeStdDev);
       if (resetTool) setTool('select');
