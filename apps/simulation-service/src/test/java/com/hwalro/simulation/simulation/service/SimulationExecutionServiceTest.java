@@ -116,6 +116,73 @@ class SimulationExecutionServiceTest {
     }
 
     @Test
+    void validatesDraftRoutingWithoutChangingExecutionState() throws Exception {
+        SimulationSetupResponse setup = validDraftSetup();
+        when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(simulation("DRAFT"));
+        when(simulationService.getSetup(21L, user)).thenReturn(setup);
+        Semaphore capacity = (Semaphore) ReflectionTestUtils.getField(service, "executionCapacity");
+        int permitsBefore = capacity.availablePermits();
+
+        var response = service.validateRouting(21L, user);
+
+        assertThat(response.valid()).isTrue();
+        assertThat(response.message()).isEqualTo("경로 검증에 성공했습니다. 시뮬레이션 실행을 요청합니다.");
+        assertThat(response.failureDetail()).isNull();
+        assertThat(capacity.availablePermits()).isEqualTo(permitsBefore);
+        verify(engineRunner).validateRouting(21L, setup);
+        verify(simulationMapper, never()).requestExecution(anyLong());
+        verify(executor, never()).execute(any(Runnable.class));
+    }
+
+    @Test
+    void returnsTypedRoutingFailureWithoutQueuingExecution() throws Exception {
+        SimulationSetupResponse setup = validDraftSetup();
+        SimulationFailureDetailResponse detail = new SimulationFailureDetailResponse(
+                "NO_REACHABLE_SELECTED_EXIT",
+                null,
+                null,
+                null,
+                2L,
+                List.of(1L, 2L),
+                List.of(501L),
+                "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT");
+        when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(simulation("DRAFT"));
+        when(simulationService.getSetup(21L, user)).thenReturn(setup);
+        when(engineRunner.validateRouting(21L, setup)).thenReturn(detail);
+
+        var response = service.validateRouting(21L, user);
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.message()).isEqualTo("선택한 출입구에 도달할 수 없는 구역이 있습니다. 도면과 출입구를 확인해 주세요.");
+        assertThat(response.failureDetail()).isSameAs(detail);
+        verify(simulationMapper, never()).requestExecution(anyLong());
+        verify(executor, never()).execute(any(Runnable.class));
+    }
+
+    @Test
+    void rejectsRoutingValidationOutsideDraftState() {
+        when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(simulation("FAILED"));
+
+        assertThatThrownBy(() -> service.validateRouting(21L, user))
+                .isInstanceOf(SimulationConflictException.class)
+                .hasMessageContaining("DRAFT");
+
+        verify(engineRunner, never()).assertAvailable();
+    }
+
+    @Test
+    void exposesRoutingValidationTimeoutAsEngineUnavailable() throws Exception {
+        SimulationSetupResponse setup = validDraftSetup();
+        when(simulationService.getAccessibleSimulation(21L, user)).thenReturn(simulation("DRAFT"));
+        when(simulationService.getSetup(21L, user)).thenReturn(setup);
+        when(engineRunner.validateRouting(21L, setup)).thenThrow(new EngineRunException("timeout", true));
+
+        assertThatThrownBy(() -> service.validateRouting(21L, user))
+                .isInstanceOf(SimulationEngineUnavailableException.class)
+                .hasMessageContaining("시간이 초과");
+    }
+
+    @Test
     void executesAndPersistsMetricsAndTimeline() throws Exception {
         stubDraftAndRequestedStatus();
         captureWorker();
@@ -918,6 +985,10 @@ class SimulationExecutionServiceTest {
         return setup(List.of(new PointDto(BigDecimal.ONE, BigDecimal.ONE)), List.of(501L));
     }
 
+    private static SimulationSetupResponse validDraftSetup() {
+        return setup(List.of(new PointDto(BigDecimal.ONE, BigDecimal.ONE)), List.of(501L), "DRAFT");
+    }
+
     private static SimulationSetupResponse twoAgentSetup() {
         return setup(
                 List.of(
@@ -1006,6 +1077,10 @@ class SimulationExecutionServiceTest {
     }
 
     private static SimulationSetupResponse setup(List<PointDto> agents, List<Long> exits) {
+        return setup(agents, exits, "REQUESTED");
+    }
+
+    private static SimulationSetupResponse setup(List<PointDto> agents, List<Long> exits, String status) {
         DrawingGeometryDto drawing = new DrawingGeometryDto(
                 3L,
                 "test",
@@ -1027,7 +1102,7 @@ class SimulationExecutionServiceTest {
                 11L,
                 null,
                 "test simulation",
-                "REQUESTED",
+                status,
                 LocalDateTime.now(),
                 1,
                 "SFM_DEFAULT_V2",

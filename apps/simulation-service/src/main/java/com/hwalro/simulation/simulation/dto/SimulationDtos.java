@@ -149,6 +149,9 @@ public final class SimulationDtos {
             List<Long> selectedExitIds,
             String reason) {}
 
+    public record SimulationRoutingValidationResponse(
+            boolean valid, String message, SimulationFailureDetailResponse failureDetail) {}
+
     public record SimulationExecutionResponse(
             Long simulationId,
             String status,

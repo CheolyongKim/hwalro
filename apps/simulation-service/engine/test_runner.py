@@ -408,6 +408,131 @@ class NoReachableSelectedExitContractTest(unittest.TestCase):
             self.assertFalse((output_dir / "error.json").exists())
 
 
+class RoutingValidationModeTest(unittest.TestCase):
+    def test_validation_accepts_slanted_boundary_exit_rounding_error(self):
+        payload = AgentRouteErrorContractTest._payload()
+        payload["drawing"] = {
+            "outsideBoundary": [
+                {"x": 47.4, "y": 56.5},
+                {"x": 83.2, "y": 23.1},
+                {"x": 125.7, "y": 52.6},
+                {"x": 128.2, "y": 75.1},
+                {"x": 71.8, "y": 76.5},
+            ],
+            "walls": [],
+            "pillars": [],
+            "fabrics": [
+                {
+                    "startX": 67.2,
+                    "startY": 43.6,
+                    "endX": 102.8,
+                    "endY": 61.0,
+                    "rotation": 0,
+                }
+            ],
+            "exits": [
+                {
+                    "id": 17,
+                    "startX": 71.8,
+                    "startY": 76.5,
+                    "endX": 92.3,
+                    "endY": 76.0,
+                }
+            ],
+        }
+        payload["agents"] = [{"x": 64.1704, "y": 59.7878}]
+        payload["selectedExitIds"] = [17]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch("runner._create_context") as create_context,
+            ):
+                exit_code = main(["--validate-only", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 0)
+            create_context.assert_not_called()
+            self.assertFalse((output_dir / "error.json").exists())
+
+    def test_success_stops_after_initial_route_planning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(
+                json.dumps(AgentRouteErrorContractTest._payload()), encoding="utf-8"
+            )
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch("route_planner.GridRouter.plan", return_value=object()) as plan,
+                patch("runner._create_context") as create_context,
+            ):
+                exit_code = main(["--validate-only", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(plan.call_count, 2)
+            create_context.assert_not_called()
+            self.assertFalse((output_dir / "result.json").exists())
+            self.assertFalse((output_dir / "timeline").exists())
+            self.assertFalse((output_dir / "heatmap").exists())
+
+    def test_route_failure_keeps_existing_typed_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(
+                json.dumps(AgentRouteErrorContractTest._payload()), encoding="utf-8"
+            )
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter.plan",
+                    side_effect=AgentRouteUnreachableError("hidden position"),
+                ),
+                patch("route_planner.GridRouter.recommended_position", return_value=None),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = main(["--validate-only", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(
+                json.loads((output_dir / "error.json").read_text("utf-8"))["code"],
+                "AGENT_ROUTE_UNREACHABLE",
+            )
+
+    def test_component_failure_keeps_existing_typed_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(
+                json.dumps(NoReachableSelectedExitContractTest._payload()),
+                encoding="utf-8",
+            )
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter",
+                    side_effect=ValueError(
+                        "no selected exit is reachable from this walkable component"
+                    ),
+                ),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = main(["--validate-only", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(
+                json.loads((output_dir / "error.json").read_text("utf-8"))["code"],
+                "NO_REACHABLE_SELECTED_EXIT",
+            )
+
+
 class TerminationDetailTest(unittest.TestCase):
     @staticmethod
     def _context(states, positions, last_progress):
