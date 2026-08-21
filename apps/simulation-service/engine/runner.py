@@ -408,7 +408,9 @@ def _load_dependencies():
     return jps, np, shapely, ENGINE_VERSION
 
 
-def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
+def run(
+    input_path: Path, output_dir: Path, *, validate_only: bool = False
+) -> dict[str, Any]:
     phase_profile = _phase_profile_from_environment()
     setup_started = time.perf_counter_ns() if phase_profile is not None else 0
     jps, np, _shapely, engine_version = _load_dependencies()
@@ -639,6 +641,10 @@ def run(input_path: Path, output_dir: Path) -> dict[str, Any]:
     if phase_profile is not None:
         phase_profile.add("routePlanning", route_started)
         setup_started = time.perf_counter_ns()
+    if validate_only:
+        if phase_profile is not None:
+            phase_profile.write()
+        return {"valid": True}
     for physical_component, router, indexed_agents in routing_groups:
         contexts.append(
             _create_context(
@@ -1868,19 +1874,24 @@ def _write_json(path: Path, value: Any) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", action="store_true", help="print the installed engine version")
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="validate initial routes without running simulation iterations",
+    )
     parser.add_argument("input", nargs="?", type=Path, help="input JSON path")
     parser.add_argument("output_dir", nargs="?", type=Path, help="output directory")
     args = parser.parse_args(argv)
     try:
         if args.version:
-            if args.input is not None or args.output_dir is not None:
+            if args.validate_only or args.input is not None or args.output_dir is not None:
                 parser.error("--version does not accept input or output paths")
             *_dependencies, version = _load_dependencies()
             print(f"jupedsim {version}")
             return 0
         if args.input is None or args.output_dir is None:
             parser.error("input and output_dir are required")
-        run(args.input, args.output_dir)
+        run(args.input, args.output_dir, validate_only=args.validate_only)
         return 0
     except NoReachableSelectedExitRunnerError:
         print("runner error: NO_REACHABLE_SELECTED_EXIT", file=sys.stderr)
