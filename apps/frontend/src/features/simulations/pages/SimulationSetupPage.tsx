@@ -169,15 +169,21 @@ function SimulationSetupPage() {
   );
 
   const loadSetup = useCallback(
-    (data: SimulationSetup, highlightAgent: string | null = null, resetTool = false) => {
+    (
+      data: SimulationSetup,
+      highlightAgent: string | null = null,
+      resetTool = false,
+      selectAllExits = false,
+    ) => {
       const loadedHazards = data.hazardZones.map((hazard, index) => ({
         ...hazard,
         clientId: `hazard-${hazard.id ?? index}-${hazardSequenceRef.current++}`,
       }));
       setSetup(data);
       setTitle(data.title || data.drawing.title);
-      setSelectedExitIds(data.selectedExitIds);
-      setHighlightedExitId(null);
+      setSelectedExitIds(
+        selectAllExits ? data.drawing.exits.map((exit) => exit.id) : data.selectedExitIds,
+      );
       setWalkingSpeed(data.walkingSpeed);
       setInitialResponseTimeStdDev(data.initialResponseTimeStdDev);
       if (resetTool) setTool('select');
@@ -206,7 +212,7 @@ function SimulationSetupPage() {
       .getSetup(id)
       .then((data) => {
         if (!cancelled) {
-          loadSetup(data, requestedHighlightRef.current.value, true);
+          loadSetup(data, requestedHighlightRef.current.value, true, true);
           setLoadState('ready');
         }
       })

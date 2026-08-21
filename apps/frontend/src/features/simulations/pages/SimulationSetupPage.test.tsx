@@ -51,7 +51,10 @@ function setup(): SimulationSetup {
       pillars: [],
       fabrics: [],
       layoutTexts: [],
-      exits: [{ id: 501, name: '출구 1', startX: 10, startY: 4, endX: 10, endY: 6 }],
+      exits: [
+        { id: 501, name: '출구 1', startX: 10, startY: 4, endX: 10, endY: 6 },
+        { id: 502, name: '출구 2', startX: 0, startY: 4, endX: 0, endY: 6 },
+      ],
     },
   };
 }
@@ -109,6 +112,22 @@ function executeButton(): HTMLButtonElement {
   }
   return match;
 }
+
+describe('출입구 기본 선택', () => {
+  it('수정 페이지를 열면 모든 출입구를 선택한다', async () => {
+    vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
+
+    await renderPage();
+
+    const exitCheckboxes = [
+      ...container.querySelectorAll<HTMLInputElement>(
+        '.simulation-setup-exit-list input[type="checkbox"]',
+      ),
+    ];
+    expect(exitCheckboxes).toHaveLength(2);
+    expect(exitCheckboxes.every((checkbox) => checkbox.checked)).toBe(true);
+  });
+});
 
 describe('실행 전 라우팅 검증', () => {
   it('저장과 검증에 성공하면 페이지에서 성공을 알리고 실행한 뒤 이동한다', async () => {
