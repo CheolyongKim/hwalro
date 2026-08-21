@@ -30,7 +30,6 @@ function setup(): SimulationSetup {
     randomSeed: 1,
     totalPeople: 1,
     walkingSpeed: 1.25,
-    initialResponseTimeMean: 0,
     initialResponseTimeStdDev: 0,
     modelProfile: 'SFM_DEFAULT_V2',
     routingProfile: 'HAZARD_RADIAL_EXP_V3',
@@ -133,6 +132,7 @@ describe('실행 전 라우팅 검증', () => {
     });
 
     expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0]?.[1]).not.toHaveProperty('initialResponseTimeMean');
     expect(validate).toHaveBeenCalledWith(42);
     expect(execute).toHaveBeenCalledWith(42);
     expect(update.mock.invocationCallOrder[0]).toBeLessThan(validate.mock.invocationCallOrder[0]);

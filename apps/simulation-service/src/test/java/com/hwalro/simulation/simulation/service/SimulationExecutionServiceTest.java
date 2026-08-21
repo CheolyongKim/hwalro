@@ -1144,7 +1144,6 @@ class SimulationExecutionServiceTest {
                 agents.size(),
                 BigDecimal.valueOf(1.25),
                 BigDecimal.ZERO,
-                BigDecimal.ZERO,
                 agents,
                 List.of(),
                 exits,

@@ -271,8 +271,8 @@ class SimulationEngineRunnerTest {
         assertThat(input).containsEntry("randomSeed", 1);
         assertThat(input.get("model"))
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
-                .containsEntry("initialResponseTimeMean", BigDecimal.ZERO)
                 .containsEntry("initialResponseTimeStdDev", BigDecimal.ZERO)
+                .doesNotContainKey("initialResponseTimeMean")
                 .doesNotContainKey("reactionTime");
     }
 
@@ -365,7 +365,6 @@ class SimulationEngineRunnerTest {
                 "HAZARD_RADIAL_EXP_V3",
                 2,
                 BigDecimal.valueOf(1.25),
-                BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 List.of(
                         new PointDto(BigDecimal.ONE, BigDecimal.ONE),

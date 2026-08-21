@@ -316,7 +316,6 @@ public class SimulationEngineRunner {
         model.put("modelProfile", setup.modelProfile());
         model.put("routingProfile", setup.routingProfile());
         model.put("walkingSpeed", setup.walkingSpeed());
-        model.put("initialResponseTimeMean", setup.initialResponseTimeMean());
         model.put("initialResponseTimeStdDev", setup.initialResponseTimeStdDev());
 
         Map<String, Object> input = new LinkedHashMap<>();
