@@ -2227,13 +2227,26 @@ class MidRouteRecoveryScanTest(unittest.TestCase):
         self.assertEqual(event["status"], "RECOVERED")
         self.assertEqual(event["exitLabel"], 0)
 
-    def test_ignores_final_stage_agent(self):
+    def test_recovers_stuck_agent_following_final_waypoint(self):
         states = {
             1: self._state(1, ((9.7, 4.0),)),
         }
         context, _agents = self._context(
             states, {1: (9.5, 4.0)}, lambda _pos: self._new_route()
         )
+
+        self.assertTrue(mid_route_recovery_scan(context, 550))
+        self.assertTrue(context.recovered[0])
+        self.assertEqual(context.recovery_counters.get("recovered_mid_route"), 1)
+
+    def test_ignores_exit_ready_final_stage_agent(self):
+        states = {
+            1: self._state(1, ((9.7, 4.0),)),
+        }
+        context, _agents = self._context(
+            states, {1: (9.5, 4.0)}, lambda _pos: self._new_route()
+        )
+        context.readiness_any[0] = True
 
         self.assertFalse(mid_route_recovery_scan(context, 550))
         self.assertEqual(context.recovery_counters.get("recovered_mid_route", 0), 0)

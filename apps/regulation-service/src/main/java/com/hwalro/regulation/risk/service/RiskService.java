@@ -4,6 +4,7 @@ import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.report.client.AuthorDirectoryClient;
 import com.hwalro.regulation.report.exception.SimulationServiceException;
+import com.hwalro.regulation.report.exception.SimulationServiceTimeoutException;
 import com.hwalro.regulation.risk.client.RiskDrawingContextClient;
 import com.hwalro.regulation.risk.domain.Risk;
 import com.hwalro.regulation.risk.dto.AttachedLawRef;
@@ -16,6 +17,7 @@ import com.hwalro.regulation.risk.dto.RiskUpdateRequest;
 import com.hwalro.regulation.risk.exception.RiskNotFoundException;
 import com.hwalro.regulation.risk.mapper.RiskMapper;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,11 +72,13 @@ public class RiskService {
         Map<Long, List<AttachedLawRef>> attachedLawsByRiskId =
                 fetchAttachedLawsByRiskIds(risks.stream().map(Risk::getId).toList());
         Map<Long, String> assigneeNames = findAssigneeNames(risks, authorization);
+        Map<Long, String> simulationTitles = findSimulationTitles(risks, authorization);
         List<RiskResponse> items = risks.stream()
                 .map(risk -> toResponse(
                         risk,
                         attachedLawsByRiskId.getOrDefault(risk.getId(), List.of()),
-                        assigneeNames.get(risk.getAssigneeId())))
+                        assigneeNames.get(risk.getAssigneeId()),
+                        simulationTitles.get(risk.getSimulationResultId())))
                 .toList();
         return new RiskListResponse((int) totalCount, page, size, page * size < totalCount, items);
     }
@@ -218,10 +222,11 @@ public class RiskService {
     }
 
     private RiskResponse toResponse(Risk risk, List<AttachedLawRef> attachedLaws) {
-        return toResponse(risk, attachedLaws, null);
+        return toResponse(risk, attachedLaws, null, null);
     }
 
-    private RiskResponse toResponse(Risk risk, List<AttachedLawRef> attachedLaws, String assigneeName) {
+    private RiskResponse toResponse(
+            Risk risk, List<AttachedLawRef> attachedLaws, String assigneeName, String simulationTitle) {
         return new RiskResponse(
                 risk.getId(),
                 risk.getSimulationResultId(),
@@ -236,7 +241,51 @@ public class RiskService {
                 risk.getSeverity(),
                 risk.getStatus(),
                 risk.getCreatedAt(),
-                attachedLaws);
+                attachedLaws,
+                simulationTitle);
+    }
+
+    private Map<Long, String> findSimulationTitles(List<Risk> risks, String authorization) {
+        List<Long> resultIds = risks.stream()
+                .map(Risk::getSimulationResultId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> titles = new HashMap<>();
+        if (resultIds.isEmpty()) {
+            return titles;
+        }
+        int batchSize = drawingContextClient.maxResultCount();
+        for (int start = 0; start < resultIds.size(); start += batchSize) {
+            List<Long> batch = resultIds.subList(start, Math.min(resultIds.size(), start + batchSize));
+            try {
+                for (RiskDrawingContextResponse context : drawingContextClient.findAll(batch, authorization)) {
+                    titles.put(context.simulationResultId(), context.title());
+                }
+            } catch (SimulationServiceTimeoutException exception) {
+                log.warn("Failed to resolve simulation titles. resultIds={}", batch, exception);
+            } catch (RuntimeException exception) {
+                log.warn(
+                        "Simulation title batch rejected. Falling back to per-result lookup. resultIds={}",
+                        batch,
+                        exception);
+                for (Long resultId : batch) {
+                    resolveSimulationTitle(resultId, authorization, titles);
+                }
+            }
+        }
+        return titles;
+    }
+
+    private void resolveSimulationTitle(Long resultId, String authorization, Map<Long, String> titles) {
+        try {
+            RiskDrawingContextResponse context = drawingContextClient.findOne(resultId, authorization);
+            if (context != null) {
+                titles.put(resultId, context.title());
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Failed to resolve simulation title. resultId={}", resultId, exception);
+        }
     }
 
     private Map<Long, List<AttachedLawRef>> fetchAttachedLawsByRiskIds(List<Long> riskIds) {

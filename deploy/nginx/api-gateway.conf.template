@@ -1,0 +1,82 @@
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+upstream auth_service_upstream {
+    zone auth_service_upstream 64k;
+    server ${AUTH_SERVICE_URL} resolve;
+}
+
+upstream simulation_service_upstream {
+    zone simulation_service_upstream 64k;
+    server ${SIMULATION_SERVICE_URL} resolve;
+}
+
+upstream regulation_service_upstream {
+    zone regulation_service_upstream 64k;
+    server ${REGULATION_SERVICE_URL} resolve;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    client_max_body_size 10m;
+
+    proxy_http_version 1.1;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+
+    location = /health {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location /api/auth {
+        proxy_pass http://auth_service_upstream;
+    }
+
+    location /api/admin {
+        proxy_pass http://auth_service_upstream;
+    }
+
+    location /api/drawings {
+        proxy_pass http://simulation_service_upstream;
+    }
+
+    location /api/simulations {
+        proxy_pass http://simulation_service_upstream;
+    }
+
+    location /api/simulation-results {
+        proxy_pass http://simulation_service_upstream;
+    }
+
+    location /api/layout-searches {
+        proxy_pass http://simulation_service_upstream;
+    }
+
+    location /api/regulations {
+        proxy_pass http://regulation_service_upstream;
+    }
+
+    location /api/reports {
+        proxy_pass http://regulation_service_upstream;
+    }
+
+    location /api/risks {
+        proxy_pass http://regulation_service_upstream;
+    }
+
+    location /api/safety-checks {
+        proxy_pass http://regulation_service_upstream;
+    }
+
+    location / {
+        return 404;
+    }
+}

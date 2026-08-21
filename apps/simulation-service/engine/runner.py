@@ -1588,9 +1588,10 @@ def mid_route_recovery_scan(context: SimulationContext, iteration: int) -> bool:
     active = np.flatnonzero(context.active)
     if not active.size:
         return False
-    mid_route_mask = context.cursors[active] + 1 < context.waypoint_counts[active]
+    route_following_mask = context.cursors[active] < context.waypoint_counts[active]
     eligible_mask = (
-        mid_route_mask
+        route_following_mask
+        & ~context.readiness_any[active]
         & (context.stationary_streak[active] >= MID_ROUTE_STATIONARY_STREAK_THRESHOLD)
         & ((iteration - context.last_invalid_iteration[active]) > RECOVERY_INVALID_QUIET_ITERATIONS)
         & ~context.recovered[active]

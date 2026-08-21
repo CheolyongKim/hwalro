@@ -96,8 +96,8 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   };
 
   const handleOpenSimulation = () => {
-    if (drawingContextQuery.data) {
-      navigate(`/simulations/${drawingContextQuery.data.simulationId}/results`);
+    if (drawingContextQuery?.data) {
+      navigate(`/simulations/${drawingContextQuery?.data.simulationId}/results`);
     }
   };
 
@@ -168,7 +168,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
               <ErrorState message={getRiskErrorMessage(drawingContextQuery.error)} />
             </div>
           ) : (
-            drawingContextQuery.data && (
+            drawingContextQuery?.data && (
               <div className="mt-2 space-y-2">
                 <button
                   type="button"
@@ -176,14 +176,17 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
                   title="시뮬레이션 결과 페이지로 이동"
                   className="block w-full cursor-pointer overflow-hidden rounded-xl border border-line bg-white text-left outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
                 >
-                  <RiskZonePreview drawing={drawingContextQuery.data.drawing} zone={zoneBounds} />
+                  <RiskZonePreview drawing={drawingContextQuery?.data.drawing} zone={zoneBounds} />
                 </button>
                 <button
                   type="button"
                   onClick={handleOpenSimulation}
-                  className="h-10 w-full cursor-pointer rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="flex h-10 w-full cursor-pointer items-center justify-center gap-1 overflow-hidden rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
-                  시뮬레이션 결과 보러가기
+                  <span className="truncate">
+                    {drawingContextQuery?.data.title || '시뮬레이션 결과'}
+                  </span>
+                  <span className="shrink-0">보러가기</span>
                 </button>
               </div>
             )

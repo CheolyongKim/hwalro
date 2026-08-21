@@ -4,4 +4,5 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "simulation-service")
-public record SimulationServiceProperties(String baseUrl, Duration connectTimeout, Duration readTimeout) {}
+public record SimulationServiceProperties(
+        String baseUrl, Duration connectTimeout, Duration readTimeout, Integer maxResultCount) {}

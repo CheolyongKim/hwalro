@@ -128,9 +128,10 @@ function RiskManagementPage() {
                   {Array.from({ length: 4 }).map((_, index) => (
                     <li
                       key={index}
-                      className="grid grid-cols-[minmax(0,2.5fr)_1fr_1fr_2fr] items-center gap-x-6 px-5 py-4 sm:px-7"
+                      className="grid grid-cols-[minmax(0,2.5fr)_minmax(0,1.5fr)_1fr_1fr_2fr] items-center gap-x-6 px-5 py-4 sm:px-7"
                     >
                       <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-4 w-16" />
                       <Skeleton className="h-4 w-12" />
                       <Skeleton className="h-4 w-16" />
                       <Skeleton className="h-4 w-20" />

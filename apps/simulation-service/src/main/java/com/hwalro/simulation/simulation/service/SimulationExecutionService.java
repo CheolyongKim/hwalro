@@ -74,6 +74,7 @@ public class SimulationExecutionService {
             "infeasibleScanCount",
             "recoveredGroupCount",
             "recoveredAgentCount",
+            "recoveredMidRouteAgentCount",
             "recoveryTimeSeconds",
             "recoveredExitLabels",
             "recoveredExitIds",
@@ -86,6 +87,7 @@ public class SimulationExecutionService {
             "infeasibleScanCount",
             "recoveredGroupCount",
             "recoveredAgentCount",
+            "recoveredMidRouteAgentCount",
             "attemptedGroupSignatures");
     private static final Set<String> RECOVERY_EVENT_FIELDS = Set.of(
             "timeSeconds",
@@ -113,6 +115,8 @@ public class SimulationExecutionService {
             "CONNECT_FAILED",
             "REACH_FAILED",
             "EXIT_ID_CHANGED",
+            "REROUTE_UNREACHABLE",
+            "REROUTE_UNCHANGED",
             "MUTATION_APPLY_FAILED");
     private static final Set<String> RECOVERY_EVENT_POINT_LIST_FIELDS =
             Set.of("oldTargets", "newTargets", "newApproaches");
@@ -737,10 +741,12 @@ public class SimulationExecutionService {
         }
         long recoveredGroups = recoverySummary.path("recoveredGroupCount").asLong();
         long recoveredAgents = recoverySummary.path("recoveredAgentCount").asLong();
+        long recoveredMidRouteAgents =
+                recoverySummary.path("recoveredMidRouteAgentCount").asLong();
         if (recoveredAgents != RECOVERY_GROUP_SIZE * recoveredGroups) {
             return invalidRecoverySummary();
         }
-        if ((recoveredGroups == 0) != (exitLabels.size() == 0 && exitIds.size() == 0)) {
+        if ((recoveredGroups + recoveredMidRouteAgents == 0) != (exitLabels.size() == 0 && exitIds.size() == 0)) {
             return invalidRecoverySummary();
         }
         JsonNode events = recoverySummary.path("events");
@@ -755,16 +761,22 @@ public class SimulationExecutionService {
         for (JsonNode exitId : exitIds) {
             recoveredIdKeys.add(exitId.asText());
         }
-        long recoveredEventCount = 0;
+        long recoveredGroupEventCount = 0;
+        long recoveredMidRouteEventCount = 0;
         for (JsonNode event : events) {
             if (!isValidRecoveryEvent(event, recoveredLabelKeys, recoveredIdKeys)) {
                 return invalidRecoverySummary();
             }
             if ("RECOVERED".equals(event.path("status").asText())) {
-                recoveredEventCount += 1;
+                int recoveredEventAgentCount = event.path("stableIds").size();
+                if (recoveredEventAgentCount == 1) {
+                    recoveredMidRouteEventCount += 1;
+                } else {
+                    recoveredGroupEventCount += 1;
+                }
             }
         }
-        if (recoveredEventCount != recoveredGroups) {
+        if (recoveredGroupEventCount != recoveredGroups || recoveredMidRouteEventCount != recoveredMidRouteAgents) {
             return invalidRecoverySummary();
         }
         return recoverySummary;
@@ -821,9 +833,10 @@ public class SimulationExecutionService {
             return false;
         }
         JsonNode stableIds = event.path("stableIds");
-        if (!stableIds.isArray() || stableIds.size() != RECOVERY_GROUP_SIZE) {
+        if (!stableIds.isArray() || !(stableIds.size() == 1 || stableIds.size() == RECOVERY_GROUP_SIZE)) {
             return false;
         }
+        int eventAgentCount = stableIds.size();
         Set<Long> distinctStableIds = new HashSet<>();
         for (JsonNode stableId : stableIds) {
             if (!stableId.isIntegralNumber()
@@ -835,7 +848,7 @@ public class SimulationExecutionService {
         }
         for (String listField : RECOVERY_EVENT_POINT_LIST_FIELDS) {
             JsonNode list = event.path(listField);
-            if (!list.isArray() || !(list.size() == 0 || list.size() == RECOVERY_GROUP_SIZE)) {
+            if (!list.isArray() || !(list.size() == 0 || list.size() == eventAgentCount)) {
                 return false;
             }
             for (JsonNode item : list) {
@@ -848,7 +861,7 @@ public class SimulationExecutionService {
             }
         }
         JsonNode seedNodeIds = event.path("seedNodeIds");
-        if (!seedNodeIds.isArray() || !(seedNodeIds.size() == 0 || seedNodeIds.size() == RECOVERY_GROUP_SIZE)) {
+        if (!seedNodeIds.isArray() || !(seedNodeIds.size() == 0 || seedNodeIds.size() == eventAgentCount)) {
             return false;
         }
         for (JsonNode nodeId : seedNodeIds) {
@@ -896,9 +909,10 @@ public class SimulationExecutionService {
 
     private static void logRecoverySummary(Long simulationId, JsonNode recoverySummary) {
         log.info(
-                "simulation_recovery_phase simulationId={} recoveredAgentCount={} recoveryTimeSeconds={} recoveredExitLabels={} recoveredExitIds={}",
+                "simulation_recovery_phase simulationId={} recoveredAgentCount={} recoveredMidRouteAgentCount={} recoveryTimeSeconds={} recoveredExitLabels={} recoveredExitIds={}",
                 simulationId,
                 recoverySummary.path("recoveredAgentCount").asLong(),
+                recoverySummary.path("recoveredMidRouteAgentCount").asLong(),
                 recoverySummary.path("recoveryTimeSeconds").decimalValue(),
                 recoverySummary.path("recoveredExitLabels").toString(),
                 recoverySummary.path("recoveredExitIds").toString());

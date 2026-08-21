@@ -23,6 +23,12 @@ spring:
   ai:
     model:
       chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
 
   datasource:
     url: ${REGULATION_DB_URL:jdbc:mysql://localhost:3307/hwalro_regulation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
@@ -54,6 +60,7 @@ simulation-service:
   base-url: ${SIMULATION_SERVICE_URL:http://localhost:8081}
   connect-timeout: ${SIMULATION_SERVICE_CONNECT_TIMEOUT:2s}
   read-timeout: ${SIMULATION_SERVICE_READ_TIMEOUT:10s}
+  max-result-count: ${SIMULATION_SERVICE_MAX_RESULT_COUNT:6}
 
 springdoc:
   swagger-ui:
