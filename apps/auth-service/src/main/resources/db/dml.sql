@@ -5,15 +5,17 @@ START TRANSACTION;
 INSERT IGNORE INTO roles (role_name, description) VALUES
 ('ADMIN', '관리자'),
 ('OPERATOR', '운영 담당자'),
-('SAFETY_REVIEWER', '안전 검토자');
+('SAFETY_REVIEWER', '안전 검토자'),
+('GENERAL_EMPLOYEE', '일반 직원');
 
 UPDATE roles
 SET description = CASE role_name
   WHEN 'ADMIN' THEN '관리자'
   WHEN 'OPERATOR' THEN '운영 담당자'
   WHEN 'SAFETY_REVIEWER' THEN '안전 검토자'
+  WHEN 'GENERAL_EMPLOYEE' THEN '일반 직원'
 END
-WHERE role_name IN ('ADMIN', 'OPERATOR', 'SAFETY_REVIEWER');
+WHERE role_name IN ('ADMIN', 'OPERATOR', 'SAFETY_REVIEWER', 'GENERAL_EMPLOYEE');
 
 INSERT INTO user_roles (user_id, role_id)
 SELECT ur.user_id, new_role.role_id
