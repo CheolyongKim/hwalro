@@ -87,21 +87,28 @@ export function RecentSimulationTable({
               {rows.map((row) => (
                 <tr key={row.id} className="transition-colors hover:bg-primary-soft/30">
                   <td className="px-6 py-4">
-                    {row.path ? (
-                      <Link
-                        to={row.path}
-                        className="block max-w-56 truncate rounded text-sm font-bold text-ink outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
-                      >
-                        {row.title || row.layoutTitle}
-                      </Link>
-                    ) : (
-                      <span
-                        aria-disabled="true"
-                        className="block max-w-56 cursor-not-allowed truncate text-sm font-bold text-text-muted"
-                      >
-                        {row.title || row.layoutTitle}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {row.path ? (
+                        <Link
+                          to={row.path}
+                          className="block max-w-56 truncate rounded text-sm font-bold text-ink outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          {row.title || row.layoutTitle}
+                        </Link>
+                      ) : (
+                        <span
+                          aria-disabled="true"
+                          className="block max-w-56 cursor-not-allowed truncate text-sm font-bold text-text-muted"
+                        >
+                          {row.title || row.layoutTitle}
+                        </span>
+                      )}
+                      {row.isImprovement && (
+                        <span className="inline-flex shrink-0 items-center rounded bg-primary-soft px-1.5 py-0.5 text-[11px] font-bold text-primary">
+                          배치 개선안
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-4 text-sm tabular-nums text-text-muted">
                     {formatDateTime(row.executedAt)}

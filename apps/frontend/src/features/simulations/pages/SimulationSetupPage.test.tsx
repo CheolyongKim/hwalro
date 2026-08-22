@@ -293,4 +293,13 @@ describe('실행 전 라우팅 검증', () => {
     expect(container.querySelector('[data-testid="simulation-list"]')).toBeNull();
     expect(executeButton().disabled).toBe(false);
   });
+
+  it('배치 개선안 시뮬레이션인 경우 헤더에 배치 개선안 뱃지를 표시한다', async () => {
+    const current = { ...setup(), isImprovement: true };
+    vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(current);
+
+    await renderPage();
+
+    expect(container.textContent).toContain('배치 개선안');
+  });
 });
