@@ -13,7 +13,10 @@
                floor_plan.name AS drawingName,
                floor_plan.width AS drawingWidth,
                floor_plan.height AS drawingHeight,
-               simulation_option.total_people AS totalPeople
+               simulation_option.total_people AS totalPeople,
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = simulation.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = simulation.id)
+                     THEN TRUE ELSE FALSE END) AS isImprovement
         FROM simulations simulation
         JOIN simulation_results result ON result.simulation_id = simulation.id
         JOIN simulation_options simulation_option ON simulation_option.simulation_id = simulation.id
