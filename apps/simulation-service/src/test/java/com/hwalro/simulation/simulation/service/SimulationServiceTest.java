@@ -94,6 +94,7 @@ class SimulationServiceTest {
         assertThat(response.simulationId()).isEqualTo(21L);
         assertThat(response.totalPeople()).isEqualTo(2);
         assertThat(response.parentSimulationId()).isEqualTo(20L);
+        assertThat(response.isImprovement()).isFalse();
         verify(simulationMapper).lockLayoutVersion(11L);
         ArgumentCaptor<SimulationOption> optionCaptor = ArgumentCaptor.forClass(SimulationOption.class);
         verify(simulationMapper).insertSimulationOption(optionCaptor.capture());
@@ -462,6 +463,7 @@ class SimulationServiceTest {
         simulation.setTitle("test simulation");
         simulation.setStatus("DRAFT");
         simulation.setCreatedAt(LocalDateTime.now());
+        simulation.setIsImprovement(false);
         return simulation;
     }
 

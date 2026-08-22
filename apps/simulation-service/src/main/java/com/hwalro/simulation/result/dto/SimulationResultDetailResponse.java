@@ -13,7 +13,8 @@ public record SimulationResultDetailResponse(
         double densityThreshold,
         Drawing drawing,
         List<HazardZone> hazardZones,
-        List<Bottleneck> bottlenecks) {
+        List<Bottleneck> bottlenecks,
+        Boolean isImprovement) {
 
     public record Drawing(
             String name,

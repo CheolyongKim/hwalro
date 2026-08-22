@@ -48,7 +48,7 @@ class SimulationResultDetailServiceTest {
         long simulationId = 9201L;
         when(mapper.findSummary(simulationId))
                 .thenReturn(new SimulationResultDetailMapper.SummaryRow(
-                        9301L, simulationId, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100));
+                        9301L, simulationId, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100, true));
         when(mapper.findMetrics(9301L))
                 .thenReturn(List.of(
                         new SimulationResultDetailMapper.MetricRow("SIMULATION_DURATION_SECONDS", 264),
@@ -102,7 +102,7 @@ class SimulationResultDetailServiceTest {
     void rejectsAnotherOperatorsSimulation() {
         when(mapper.findSummary(9201L))
                 .thenReturn(new SimulationResultDetailMapper.SummaryRow(
-                        9301L, 9201L, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100));
+                        9301L, 9201L, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100, false));
 
         assertThatThrownBy(() -> service.find(9201L, new JwtUser(7L, Set.of("OPERATOR"))))
                 .isInstanceOf(ForbiddenException.class);
@@ -122,7 +122,7 @@ class SimulationResultDetailServiceTest {
         long simulationId = 9201L;
         when(mapper.findSummary(simulationId))
                 .thenReturn(new SimulationResultDetailMapper.SummaryRow(
-                        9301L, simulationId, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100));
+                        9301L, simulationId, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100, false));
         when(mapper.countComparableSimulations(simulationId, 9001L)).thenReturn(7L);
         when(mapper.findComparableSimulationPage(simulationId, 9001L, 5, 5))
                 .thenReturn(List.of(new SimulationResultDetailMapper.ComparableRow(9202L, 9302L, "비교안", 221)));
@@ -146,7 +146,7 @@ class SimulationResultDetailServiceTest {
         long simulationId = 9201L;
         when(mapper.findSummary(simulationId))
                 .thenReturn(new SimulationResultDetailMapper.SummaryRow(
-                        9301L, simulationId, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100));
+                        9301L, simulationId, 9001L, 9100L, "행사장", "테스트 시뮬레이션", "지하 2층", 20, 10, 100, false));
         when(mapper.findMetrics(9301L))
                 .thenReturn(List.of(new SimulationResultDetailMapper.MetricRow("MAX_DENSITY", 4.8)));
 
