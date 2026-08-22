@@ -36,16 +36,27 @@ JOIN roles old_role ON ur.role_id = old_role.role_id AND old_role.role_name = 'U
 DELETE FROM roles WHERE role_name = 'USER';
 
 INSERT IGNORE INTO users (login_id, password, name, enabled) VALUES
-('test', '$2y$10$0DguaN63igiENXyzyn0x3OAmPFc7Q6K0A/SASAgAGTdevBWltAl3q', '테스트', TRUE);
+('test', '$2y$10$0DguaN63igiENXyzyn0x3OAmPFc7Q6K0A/SASAgAGTdevBWltAl3q', '테스트', TRUE),
+('employee', '$2a$10$A1dytiT0n2FclizxJnwxwOQLD7D5i2SSyUhdDpgb7VWe2h7AisyFC', '일반 직원', TRUE);
 
 UPDATE users
 SET name = '테스트'
 WHERE login_id = 'test';
+
+UPDATE users
+SET name = '일반 직원'
+WHERE login_id = 'employee';
 
 INSERT IGNORE INTO user_roles (user_id, role_id)
 SELECT u.user_id, r.role_id
 FROM users u
 JOIN roles r ON r.role_name IN ('OPERATOR', 'SAFETY_REVIEWER')
 WHERE u.login_id = 'test';
+
+INSERT IGNORE INTO user_roles (user_id, role_id)
+SELECT u.user_id, r.role_id
+FROM users u
+JOIN roles r ON r.role_name = 'GENERAL_EMPLOYEE'
+WHERE u.login_id = 'employee';
 
 COMMIT;
