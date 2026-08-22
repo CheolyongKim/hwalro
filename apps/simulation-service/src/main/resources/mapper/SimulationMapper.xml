@@ -41,10 +41,10 @@
                s.finished_at,
                s.failure_message,
                s.failure_detail,
-               (CASE WHEN lsc.id IS NOT NULL OR ps.id IS NOT NULL THEN TRUE ELSE FALSE END) AS is_improvement
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
+                     THEN TRUE ELSE FALSE END) AS is_improvement
         FROM simulations s
-        LEFT JOIN layout_search_candidates lsc ON lsc.prepared_simulation_id = s.id
-        LEFT JOIN proposal_simulations ps ON ps.simulation_id = s.id
         WHERE s.id = #{id}
     </select>
 
@@ -61,10 +61,10 @@
                s.finished_at,
                s.failure_message,
                s.failure_detail,
-               (CASE WHEN lsc.id IS NOT NULL OR ps.id IS NOT NULL THEN TRUE ELSE FALSE END) AS is_improvement
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
+                     THEN TRUE ELSE FALSE END) AS is_improvement
         FROM simulations s
-        LEFT JOIN layout_search_candidates lsc ON lsc.prepared_simulation_id = s.id
-        LEFT JOIN proposal_simulations ps ON ps.simulation_id = s.id
         WHERE s.id = #{id}
         FOR UPDATE
     </select>
@@ -78,11 +78,11 @@
                s.status,
                s.created_at,
                so.total_people,
-               (CASE WHEN lsc.id IS NOT NULL OR ps.id IS NOT NULL THEN TRUE ELSE FALSE END) AS is_improvement
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
+                     THEN TRUE ELSE FALSE END) AS is_improvement
         FROM simulations s
         JOIN simulation_options so ON so.simulation_id = s.id
-        LEFT JOIN layout_search_candidates lsc ON lsc.prepared_simulation_id = s.id
-        LEFT JOIN proposal_simulations ps ON ps.simulation_id = s.id
         WHERE s.layout_version_id = #{layoutVersionId}
         <if test="createdBy != null">
             AND s.created_by = #{createdBy}
@@ -106,14 +106,14 @@
                l.title AS layout_title,
                lv.version AS layout_version_number,
                sr.termination_reason,
-               (CASE WHEN lsc.id IS NOT NULL OR ps.id IS NOT NULL THEN TRUE ELSE FALSE END) AS is_improvement
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
+                     THEN TRUE ELSE FALSE END) AS is_improvement
         FROM simulations s
         LEFT JOIN simulation_options so ON so.simulation_id = s.id
         LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
         LEFT JOIN layouts l ON l.id = lv.layout_id
         LEFT JOIN simulation_results sr ON sr.simulation_id = s.id
-        LEFT JOIN layout_search_candidates lsc ON lsc.prepared_simulation_id = s.id
-        LEFT JOIN proposal_simulations ps ON ps.simulation_id = s.id
         <where>
             <if test="createdBy != null">
                 AND s.created_by = #{createdBy}
@@ -155,14 +155,14 @@
                l.title AS layout_title,
                lv.version AS layout_version_number,
                sr.termination_reason,
-               (CASE WHEN lsc.id IS NOT NULL OR ps.id IS NOT NULL THEN TRUE ELSE FALSE END) AS is_improvement
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
+                     THEN TRUE ELSE FALSE END) AS is_improvement
         FROM simulations s
         JOIN simulation_options so ON so.simulation_id = s.id
         JOIN layout_versions lv ON lv.id = s.layout_version_id
         JOIN layouts l ON l.id = lv.layout_id
         LEFT JOIN simulation_results sr ON sr.simulation_id = s.id
-        LEFT JOIN layout_search_candidates lsc ON lsc.prepared_simulation_id = s.id
-        LEFT JOIN proposal_simulations ps ON ps.simulation_id = s.id
         WHERE s.created_by = #{createdBy}
           AND (
               s.status IN ('REQUESTED', 'RUNNING')
@@ -192,14 +192,14 @@
                l.title AS layout_title,
                lv.version AS layout_version_number,
                sr.termination_reason,
-               (CASE WHEN lsc.id IS NOT NULL OR ps.id IS NOT NULL THEN TRUE ELSE FALSE END) AS is_improvement
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
+                     THEN TRUE ELSE FALSE END) AS is_improvement
         FROM simulations s
         JOIN simulation_options so ON so.simulation_id = s.id
         JOIN layout_versions lv ON lv.id = s.layout_version_id
         JOIN layouts l ON l.id = lv.layout_id
         LEFT JOIN simulation_results sr ON sr.simulation_id = s.id
-        LEFT JOIN layout_search_candidates lsc ON lsc.prepared_simulation_id = s.id
-        LEFT JOIN proposal_simulations ps ON ps.simulation_id = s.id
         WHERE s.id = #{id}
     </select>
 

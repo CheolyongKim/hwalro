@@ -14,15 +14,15 @@
                floor_plan.width AS drawingWidth,
                floor_plan.height AS drawingHeight,
                simulation_option.total_people AS totalPeople,
-               (CASE WHEN lsc.id IS NOT NULL OR ps.id IS NOT NULL THEN TRUE ELSE FALSE END) AS isImprovement
+               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = simulation.id)
+                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = simulation.id)
+                     THEN TRUE ELSE FALSE END) AS isImprovement
         FROM simulations simulation
         JOIN simulation_results result ON result.simulation_id = simulation.id
         JOIN simulation_options simulation_option ON simulation_option.simulation_id = simulation.id
         JOIN layout_versions layout_version ON layout_version.id = simulation.layout_version_id
         JOIN layouts layout ON layout.id = layout_version.layout_id
         JOIN floor_plans floor_plan ON floor_plan.id = layout.floor_plan_id
-        LEFT JOIN layout_search_candidates lsc ON lsc.prepared_simulation_id = simulation.id
-        LEFT JOIN proposal_simulations ps ON ps.simulation_id = simulation.id
         WHERE simulation.id = #{simulationId}
     </select>
 
