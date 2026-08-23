@@ -7,6 +7,8 @@ import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
 import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { LayersPanel } from '../components/LayersPanel';
+import { ZonePanel, StructureConstraintPanel } from '../components/ZonePanel';
 import { InlineTextInput } from '../components/InlineTextInput';
 import { Button } from '../../../components/ui';
 import {
@@ -26,6 +28,14 @@ import { simulationApi } from '../../simulations/api/simulationApi';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
+import { useLayoutMetadata } from '../hooks/useLayoutMetadata';
+import { zoneOfFabric } from '../utils/zoneMembership';
+import { canEditStructureConstraints } from '../utils/structureConstraintPolicy';
+import { authApi } from '../../auth/api/authApi';
+import { useAuth } from '../../auth/context/AuthContext';
+import { can } from '../../auth/capabilities';
+import type { EmployeeSummary } from '../../auth/types/auth';
+import type { ZoneRect, ZoneType } from '../api/layoutMetadataApi';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
@@ -63,6 +73,13 @@ function LayoutPage() {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [retryCount, setRetryCount] = useState(0);
   const settingsPanel = useCollapsibleWorkspacePanel();
+  const layersPanel = useCollapsibleWorkspacePanel();
+  const { user } = useAuth();
+  const canManageZones = can(user?.roles, 'zones.manage');
+  const canManageGeometry = can(user?.roles, 'drawings.manage');
+  const metadata = useLayoutMetadata(drawingId);
+  const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
+  const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
   const stateRef = useRef(state);
@@ -89,6 +106,23 @@ function LayoutPage() {
       restorePanelFocusRef.current = false;
     }
   }, [settingsPanel.isExpanding, settingsPanel.isMinimized]);
+
+  useEffect(() => {
+    if (!canManageZones) {
+      return;
+    }
+    let active = true;
+    // 이름을 못 붙여도 편집기는 계속 동작해야 하므로 실패를 삼킨다.
+    authApi
+      .employees()
+      .then((list) => {
+        if (active) setEmployees(list);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [canManageZones]);
 
   const onSizeChange = useCallback((next: { w: number; h: number }) => {
     setSize(next);
@@ -286,6 +320,49 @@ function LayoutPage() {
   }, [performSave]);
 
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
+  const employeeNameById = Object.fromEntries(
+    employees.map((employee) => [employee.id, employee.name]),
+  );
+  const selectedZone =
+    metadata.metadata.zones.find((zone) => zone.zoneId === selectedZoneId) ?? null;
+  const selectedFabric =
+    state.doc.fabrics.find((fabric) => fabric.id === state.selection.fabricIds[0]) ?? null;
+  const selectedFabricZone =
+    selectedFabric === null ? null : zoneOfFabric(selectedFabric, metadata.metadata.zones);
+  const selectedFabricConstraint =
+    selectedFabric?.backendId == null
+      ? null
+      : (metadata.metadata.structureConstraints.find(
+          (constraint) => constraint.fabricId === selectedFabric.backendId,
+        ) ?? null);
+  const canEditSelectedConstraints = canEditStructureConstraints(
+    user?.roles,
+    user?.id ?? null,
+    selectedFabricZone,
+  );
+
+  const handleZoneDrawn = (rect: ZoneRect) => {
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    void metadata
+      .createZone({
+        ...rect,
+        name: `구역 ${metadata.metadata.zones.length + 1}`,
+        zoneType: 'WORK',
+        assignedUserId: null,
+        defaultExitId: null,
+        alternateExitId: null,
+        structureFabricIds: null,
+      })
+      .then((created) => {
+        if (created) {
+          setSelectedZoneId(created.zoneId);
+          dispatch({ type: 'setTool', tool: 'select' });
+        }
+      });
+  };
+
   const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
   const draftInitialText =
     draftTextId === null
@@ -346,7 +423,46 @@ function LayoutPage() {
         size={size}
         onSizeChange={onSizeChange}
         readOnly={readOnly}
+        zones={metadata.metadata.zones}
+        selectedZoneId={selectedZoneId}
+        onZoneDrawn={handleZoneDrawn}
       />
+      {layersPanel.isMinimized ? (
+        <CanvasWorkspacePanelRestore
+          aria-controls="layout-layers-panel"
+          aria-expanded="false"
+          onClick={() => layersPanel.restore()}
+          className="layout-workspace-layers-restore"
+        >
+          계층 열기
+        </CanvasWorkspacePanelRestore>
+      ) : (
+        <CanvasWorkspacePanel
+          id="layout-layers-panel"
+          ariaLabel="도면 계층"
+          className="layout-workspace-layers"
+        >
+          <div className="flex items-center justify-between border-b border-panel-divider px-3 py-2">
+            <h2 className="text-sm font-bold text-panel-text">계층</h2>
+            <button
+              type="button"
+              aria-label="계층 접기"
+              onClick={() => layersPanel.collapse()}
+              className="h-7 rounded-md px-2 text-xs font-bold text-panel-muted transition-colors hover:bg-panel-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            >
+              접기
+            </button>
+          </div>
+          <LayersPanel
+            state={state}
+            dispatch={dispatch}
+            zones={metadata.metadata.zones}
+            selectedZoneId={selectedZoneId}
+            onSelectZone={setSelectedZoneId}
+            employeeNameById={employeeNameById}
+          />
+        </CanvasWorkspacePanel>
+      )}
       {settingsPanel.isMinimized ? (
         <CanvasWorkspacePanelRestore
           ref={restoreButtonRef}
@@ -373,7 +489,7 @@ function LayoutPage() {
             saveStatus={saveStatus}
             onSave={() => void performSave()}
             onStartSimulation={() => void handleOpenDraftDialog()}
-            readOnly={readOnly}
+            readOnly={readOnly || !canManageGeometry}
             collapseButtonRef={collapseButtonRef}
             onCollapse={() => {
               restorePanelFocusRef.current = true;
@@ -381,16 +497,117 @@ function LayoutPage() {
             }}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className={readOnly ? 'pointer-events-none opacity-60' : ''}>
-              <SettingsPanel state={state} dispatch={dispatch} />
-            </div>
+            {metadata.errorMessage ? (
+              <p
+                role="alert"
+                className="mx-3 mt-3 rounded-md border border-danger/40 bg-panel-soft px-3 py-2 text-xs text-danger"
+              >
+                {metadata.errorMessage}
+              </p>
+            ) : null}
+            {selectedZone !== null ? (
+              <div className="px-3 py-3">
+                <ZonePanel
+                  zone={selectedZone}
+                  exits={state.doc.exits}
+                  employees={employees}
+                  readOnly={!canManageZones}
+                  selectedFabric={selectedFabric}
+                  onRename={(name) =>
+                    void metadata.updateZone(selectedZone.zoneId, { name }, (zone) => ({
+                      ...zone,
+                      name,
+                    }))
+                  }
+                  onChangeType={(zoneType: ZoneType) =>
+                    void metadata.updateZone(selectedZone.zoneId, { zoneType }, (zone) => ({
+                      ...zone,
+                      zoneType,
+                    }))
+                  }
+                  onChangeRect={(patch) =>
+                    void metadata.updateZone(selectedZone.zoneId, patch, (zone) => ({
+                      ...zone,
+                      rect: { ...zone.rect, ...patch },
+                    }))
+                  }
+                  onAssign={(assignedUserId) =>
+                    void metadata.updateZone(
+                      selectedZone.zoneId,
+                      assignedUserId === null ? { clearAssignedUser: true } : { assignedUserId },
+                      (zone) => ({ ...zone, assignedUserId }),
+                    )
+                  }
+                  onChangeExit={(which, exitId) =>
+                    void metadata.updateZone(
+                      selectedZone.zoneId,
+                      which === 'default'
+                        ? exitId === null
+                          ? { clearDefaultExit: true }
+                          : { defaultExitId: exitId }
+                        : exitId === null
+                          ? { clearAlternateExit: true }
+                          : { alternateExitId: exitId },
+                      (zone) =>
+                        which === 'default'
+                          ? { ...zone, defaultExitId: exitId }
+                          : { ...zone, alternateExitId: exitId },
+                    )
+                  }
+                  onToggleMembership={(fabricBackendId, add) => {
+                    const next = add
+                      ? [...selectedZone.structureFabricIds, fabricBackendId]
+                      : selectedZone.structureFabricIds.filter((id) => id !== fabricBackendId);
+                    void metadata.updateZone(
+                      selectedZone.zoneId,
+                      { structureFabricIds: next },
+                      (zone) => ({ ...zone, structureFabricIds: next }),
+                    );
+                  }}
+                  onDelete={() => {
+                    void metadata.deleteZone(selectedZone.zoneId);
+                    setSelectedZoneId(null);
+                  }}
+                />
+              </div>
+            ) : (
+              <>
+                <div
+                  className={readOnly || !canManageGeometry ? 'pointer-events-none opacity-60' : ''}
+                >
+                  <SettingsPanel state={state} dispatch={dispatch} />
+                </div>
+                {selectedFabric !== null ? (
+                  <div className="px-3 pb-4">
+                    <StructureConstraintPanel
+                      fabricName={selectedFabric.name}
+                      zoneName={selectedFabricZone?.name ?? null}
+                      constraint={selectedFabricConstraint}
+                      editable={canEditSelectedConstraints}
+                      saved={selectedFabric.backendId !== null}
+                      onChange={(patch) => {
+                        if (selectedFabric.backendId === null) {
+                          return;
+                        }
+                        void metadata.updateStructureConstraints(
+                          selectedFabric.backendId,
+                          patch,
+                          patch,
+                        );
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
         </CanvasWorkspacePanel>
       )}
       <ToolToolbar
         state={state}
         dispatch={dispatch}
-        disabled={readOnly}
+        disabled={readOnly || !canManageGeometry}
+        zoneDisabled={!canManageZones}
         className="layout-workspace-tool-dock"
       />
       <ZoomControl

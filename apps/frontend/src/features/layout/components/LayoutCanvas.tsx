@@ -29,7 +29,8 @@ import {
   hitTestRotateHandle,
 } from '../utils/hitTest';
 import type { ElementHit, HandleHit } from '../utils/hitTest';
-import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO } from '../utils/colors';
+import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO, FONT_UI } from '../utils/colors';
+import type { LayoutZone, ZoneRect } from '../api/layoutMetadataApi';
 import {
   BackgroundLayer,
   ExitView,
@@ -48,6 +49,43 @@ interface LayoutCanvasProps {
   size: { w: number; h: number };
   onSizeChange: (size: { w: number; h: number }) => void;
   readOnly?: boolean;
+  /** 서버가 소유하는 구역. 문서(doc)가 아니라 별도 훅이 들고 있다. */
+  zones?: LayoutZone[];
+  selectedZoneId?: number | null;
+  onZoneDrawn?: (rect: ZoneRect) => void;
+}
+
+function ZoneView({
+  zone,
+  selected,
+  s,
+}: {
+  zone: LayoutZone;
+  selected: boolean;
+  s: (value: number) => number;
+}) {
+  return (
+    <Group listening={false}>
+      <Rect
+        x={zone.rect.x}
+        y={zone.rect.y}
+        width={zone.rect.width}
+        height={zone.rect.height}
+        fill={selected ? CANVAS_COLORS.zoneSelectedFill : CANVAS_COLORS.zoneFill}
+        stroke={CANVAS_COLORS.zoneStroke}
+        strokeWidth={s(selected ? 2 : 1)}
+        dash={selected ? undefined : [s(6), s(4)]}
+      />
+      <KonvaText
+        x={zone.rect.x + s(4)}
+        y={zone.rect.y + s(4)}
+        text={zone.name}
+        fontSize={s(12)}
+        fontFamily={FONT_UI}
+        fill={CANVAS_COLORS.zoneLabel}
+      />
+    </Group>
+  );
 }
 
 interface PanSession {
@@ -76,6 +114,9 @@ export function LayoutCanvas({
   size,
   onSizeChange,
   readOnly = false,
+  zones = [],
+  selectedZoneId = null,
+  onZoneDrawn,
 }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const suppressClickRef = useRef(false);
@@ -229,6 +270,21 @@ export function LayoutCanvas({
         dispatch({ type: 'fabricCommit' });
       } else {
         dispatch({ type: 'fabricStart', point: world });
+      }
+      return;
+    }
+    if (tool === 'zone') {
+      if (state.draft && 'start' in state.draft) {
+        const start = state.draft.start;
+        dispatch({ type: 'escape' });
+        onZoneDrawn?.({
+          x: Math.min(start.x, world.x),
+          y: Math.min(start.y, world.y),
+          width: Math.abs(world.x - start.x),
+          height: Math.abs(world.y - start.y),
+        });
+      } else {
+        dispatch({ type: 'zoneStart', point: world });
       }
       return;
     }
@@ -477,6 +533,8 @@ export function LayoutCanvas({
         dispatch({ type: 'pillarUpdate', point: world });
       } else if (tool === 'fabric') {
         dispatch({ type: 'fabricUpdate', point: world });
+      } else if (tool === 'zone') {
+        dispatch({ type: 'zoneUpdate', point: world });
       }
     }
   };
@@ -582,6 +640,14 @@ export function LayoutCanvas({
               stroke={CANVAS_COLORS.gridBoundary}
               strokeWidth={s(1)}
             />
+            {zones.map((zone) => (
+              <ZoneView
+                key={zone.zoneId}
+                zone={zone}
+                selected={zone.zoneId === selectedZoneId}
+                s={s}
+              />
+            ))}
             {doc.walls.map((wall) => (
               <WallView
                 key={wall.id}

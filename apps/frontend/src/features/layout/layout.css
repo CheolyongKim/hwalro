@@ -169,6 +169,18 @@
   padding: 0 18px 18px;
 }
 
+/* 계층 패널은 같은 패널 컴포넌트를 쓰되 캔버스 왼쪽에 붙인다. */
+.layout-workspace-layers {
+  right: auto;
+  left: var(--canvas-workspace-panel-right);
+  width: 268px;
+}
+
+.layout-workspace-layers-restore {
+  right: auto;
+  left: var(--canvas-workspace-panel-right);
+}
+
 .layout-workspace-tool-dock {
   position: absolute;
   left: 50%;
@@ -296,6 +308,18 @@
   .layout-workspace-zoom {
     left: 12px;
     bottom: 76px;
+  }
+
+  /* 계층 패널은 같은 패널 컴포넌트를 쓰되 캔버스 왼쪽에 붙인다. */
+  .layout-workspace-layers {
+    right: auto;
+    left: var(--canvas-workspace-panel-right);
+    width: 268px;
+  }
+
+  .layout-workspace-layers-restore {
+    right: auto;
+    left: var(--canvas-workspace-panel-right);
   }
 
   .layout-workspace-tool-dock {
