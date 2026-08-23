@@ -409,7 +409,11 @@ def _load_dependencies():
 
 
 def run(
-    input_path: Path, output_dir: Path, *, validate_only: bool = False
+    input_path: Path,
+    output_dir: Path,
+    *,
+    validate_only: bool = False,
+    route_preview: bool = False,
 ) -> dict[str, Any]:
     phase_profile = _phase_profile_from_environment()
     setup_started = time.perf_counter_ns() if phase_profile is not None else 0
@@ -630,6 +634,36 @@ def run(
     if phase_profile is not None:
         phase_profile.add("routePlanning", route_started)
         setup_started = time.perf_counter_ns()
+    # Every failure mode worth reporting has already been handled above: geometry
+    # validation, relocation out of obstacles, NO_REACHABLE_SELECTED_EXIT and
+    # AGENT_ROUTE_UNREACHABLE. Emitting the planned routes here reuses all of it
+    # and stops short of building JuPedSim contexts, which is the expensive part.
+    if route_preview:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(
+            output_dir / "routes.json",
+            {
+                "schemaVersion": 1,
+                "routes": [
+                    {
+                        "agentId": index + 1,
+                        "exitId": routes_by_index[index].exit_id,
+                        "waypoints": [
+                            {"x": _rounded(x), "y": _rounded(y)}
+                            for x, y in routes_by_index[index].waypoints
+                        ],
+                        "terminalPoint": {
+                            "x": _rounded(routes_by_index[index].terminal_point[0]),
+                            "y": _rounded(routes_by_index[index].terminal_point[1]),
+                        },
+                    }
+                    for index in sorted(routes_by_index)
+                ],
+            },
+        )
+        if phase_profile is not None:
+            phase_profile.write()
+        return {"routePreview": True, "routeCount": len(routes_by_index)}
     if validate_only:
         if phase_profile is not None:
             phase_profile.write()
@@ -1889,19 +1923,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="validate initial routes without running simulation iterations",
     )
+    parser.add_argument(
+        "--route-preview",
+        action="store_true",
+        help=(
+            "write routes.json with the planned route per agent and exit without "
+            "running simulation iterations; wins over --validate-only"
+        ),
+    )
     parser.add_argument("input", nargs="?", type=Path, help="input JSON path")
     parser.add_argument("output_dir", nargs="?", type=Path, help="output directory")
     args = parser.parse_args(argv)
     try:
         if args.version:
-            if args.validate_only or args.input is not None or args.output_dir is not None:
+            if (
+                args.validate_only
+                or args.route_preview
+                or args.input is not None
+                or args.output_dir is not None
+            ):
                 parser.error("--version does not accept input or output paths")
             *_dependencies, version = _load_dependencies()
             print(f"jupedsim {version}")
             return 0
         if args.input is None or args.output_dir is None:
             parser.error("input and output_dir are required")
-        run(args.input, args.output_dir, validate_only=args.validate_only)
+        run(
+            args.input,
+            args.output_dir,
+            validate_only=args.validate_only,
+            route_preview=args.route_preview,
+        )
         return 0
     except NoReachableSelectedExitRunnerError:
         print("runner error: NO_REACHABLE_SELECTED_EXIT", file=sys.stderr)

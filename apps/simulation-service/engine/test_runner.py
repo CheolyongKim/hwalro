@@ -536,6 +536,88 @@ class RoutingValidationModeTest(unittest.TestCase):
             )
 
 
+class RoutePreviewModeTest(unittest.TestCase):
+    """--route-preview writes the planned routes and stops before JuPedSim setup."""
+
+    def test_writes_routes_json_for_every_agent_without_running_the_simulation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(
+                json.dumps(AgentRouteErrorContractTest._payload()), encoding="utf-8"
+            )
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch("runner._create_context") as create_context,
+            ):
+                exit_code = main(["--route-preview", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 0)
+            create_context.assert_not_called()
+            self.assertFalse((output_dir / "result.json").exists())
+            self.assertFalse((output_dir / "timeline").exists())
+            self.assertFalse((output_dir / "heatmap").exists())
+
+            payload = json.loads((output_dir / "routes.json").read_text("utf-8"))
+            self.assertEqual(payload["schemaVersion"], 1)
+            self.assertEqual([route["agentId"] for route in payload["routes"]], [1, 2])
+            for route in payload["routes"]:
+                # Only selected exits may be recommended.
+                self.assertEqual(route["exitId"], 1)
+                self.assertGreaterEqual(len(route["waypoints"]), 1)
+                for waypoint in route["waypoints"]:
+                    self.assertIsInstance(waypoint["x"], float)
+                    self.assertIsInstance(waypoint["y"], float)
+                self.assertIn("x", route["terminalPoint"])
+                self.assertIn("y", route["terminalPoint"])
+
+    def test_route_preview_wins_over_validate_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(
+                json.dumps(AgentRouteErrorContractTest._payload()), encoding="utf-8"
+            )
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch("runner._create_context"),
+            ):
+                exit_code = main(
+                    ["--validate-only", "--route-preview", str(input_path), str(output_dir)]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue((output_dir / "routes.json").exists())
+
+    def test_unreachable_agent_keeps_the_existing_typed_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            input_path.write_text(
+                json.dumps(AgentRouteErrorContractTest._payload()), encoding="utf-8"
+            )
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.GridRouter.plan",
+                    side_effect=AgentRouteUnreachableError("hidden position"),
+                ),
+                patch("route_planner.GridRouter.recommended_position", return_value=None),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = main(["--route-preview", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(
+                json.loads((output_dir / "error.json").read_text("utf-8"))["code"],
+                "AGENT_ROUTE_UNREACHABLE",
+            )
+            self.assertFalse((output_dir / "routes.json").exists())
+
+
 class TerminationDetailTest(unittest.TestCase):
     @staticmethod
     def _context(states, positions, last_progress):

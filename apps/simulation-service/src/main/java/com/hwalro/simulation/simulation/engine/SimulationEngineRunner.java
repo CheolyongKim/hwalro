@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -155,6 +156,87 @@ public class SimulationEngineRunner {
             deleteJobDirectory(jobDirectory);
         }
     }
+
+    /**
+     * 시뮬레이션을 돌리지 않고 계획된 경로만 받아온다. {@link #validateRouting}과 같은 실패 계약(종료 코드 3, {@code error.json})을 쓰며,
+     * 다른 점은 {@code --route-preview} 인자와 {@code routes.json}을 읽는다는 것뿐이다.
+     *
+     * @return 에이전트별 경로. 도달 불가 등 엔진이 거부한 경우 {@link EngineRunException}을 던진다.
+     */
+    public List<PreviewedRoute> previewRoutes(String jobLabel, SimulationSetupResponse setup)
+            throws EngineRunException {
+        Path jobDirectory = null;
+        Process process = null;
+        try {
+            Files.createDirectories(workRoot);
+            jobDirectory = Files.createTempDirectory(workRoot, "route-preview-" + jobLabel + "-")
+                    .toAbsolutePath()
+                    .normalize();
+            Path inputPath = jobDirectory.resolve("input.json");
+            Path outputDirectory = jobDirectory.resolve("output");
+            objectMapper.writeValue(inputPath.toFile(), createInput(setup));
+
+            process = new ProcessBuilder(
+                            pythonCommand,
+                            scriptPath.toString(),
+                            "--route-preview",
+                            inputPath.toString(),
+                            outputDirectory.toString())
+                    .redirectErrorStream(true)
+                    .start();
+            ProcessOutputCapture output = new ProcessOutputCapture(process.getInputStream());
+            if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                stop(process);
+                throw new EngineRunException("ENGINE_TIMEOUT: 대피 경로 계산 시간 제한을 초과했습니다.", true);
+            }
+            String diagnostic = output.await();
+            if (process.exitValue() != 0) {
+                log.warn("Route preview {} failed with exit code {}: {}", jobLabel, process.exitValue(), diagnostic);
+                throw new EngineRunException("ENGINE_ERROR: 대피 경로를 계산하지 못했습니다.", false);
+            }
+            return readPreviewedRoutes(outputDirectory);
+        } catch (IOException exception) {
+            log.warn("Route preview {} I/O failed", jobLabel, exception);
+            throw new EngineRunException("ENGINE_ERROR: 대피 경로 입출력 처리에 실패했습니다.", false, exception);
+        } catch (InterruptedException exception) {
+            if (process != null) {
+                stop(process);
+            }
+            Thread.currentThread().interrupt();
+            throw new EngineRunException("대피 경로 계산이 중단되었습니다.", false, exception);
+        } finally {
+            deleteJobDirectory(jobDirectory);
+        }
+    }
+
+    private List<PreviewedRoute> readPreviewedRoutes(Path outputDirectory) throws IOException {
+        Path routesPath = outputDirectory.resolve("routes.json");
+        if (!Files.exists(routesPath)) {
+            throw new IOException("엔진이 대피 경로를 내놓지 않았습니다.");
+        }
+        JsonNode root = objectMapper.readTree(routesPath.toFile());
+        JsonNode routes = root.get("routes");
+        if (routes == null || !routes.isArray()) {
+            throw new IOException("대피 경로 응답 형식이 올바르지 않습니다.");
+        }
+        List<PreviewedRoute> parsed = new ArrayList<>();
+        for (JsonNode route : routes) {
+            List<PointDto> waypoints = new ArrayList<>();
+            JsonNode waypointNodes = route.get("waypoints");
+            if (waypointNodes != null) {
+                for (JsonNode waypoint : waypointNodes) {
+                    waypoints.add(new PointDto(
+                            waypoint.get("x").decimalValue(), waypoint.get("y").decimalValue()));
+                }
+            }
+            JsonNode exitId = route.get("exitId");
+            parsed.add(new PreviewedRoute(exitId == null || exitId.isNull() ? null : exitId.asLong(), waypoints));
+        }
+        return List.copyOf(parsed);
+    }
+
+    /** 대피 경로 미리보기 결과 한 건. 시뮬레이션 식별자나 지표는 담지 않는다. */
+    public record PreviewedRoute(Long exitId, List<PointDto> waypoints) {}
 
     public EngineRun run(Long simulationId, SimulationSetupResponse setup) throws EngineRunException {
         return run(simulationId, setup, maxSimulationTimeSeconds);
