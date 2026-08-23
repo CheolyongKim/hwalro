@@ -22,6 +22,14 @@ function toFiniteNumber(value: unknown, key: string): number {
   return num;
 }
 
+/**
+ * 서버가 준 식별자만 신뢰한다. 저장 시 이 값으로 기존 행을 갱신하므로, 숫자가 아니거나
+ * 양수가 아니면 "새 요소"로 취급해 서버가 새 ID를 발급하게 한다.
+ */
+function toBackendId(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
+}
+
 function wallNameIndex(name: string): number | null {
   const match = /^벽 (\d+)$/.exec(name);
   return match ? Number(match[1]) : null;
@@ -39,6 +47,7 @@ function exitNameIndex(name: string): number | null {
 
 interface SerializedRect {
   id: string;
+  backendId: number | null;
   name: string;
   startX: number;
   startY: number;
@@ -80,6 +89,7 @@ function parseRects(
     }
     const rect: SerializedRect = {
       id: `${idPrefix}-${i}`,
+      backendId: toBackendId(entry.id),
       name: parsedName ?? '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `${key}[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `${key}[${i}].startY`),
@@ -125,6 +135,7 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       endY: wall.endY,
     })),
     exits: doc.exits.map((exit) => ({
+      id: exit.backendId,
       name: exit.name,
       startX: exit.startX,
       startY: exit.startY,
@@ -140,6 +151,7 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       rotation: pillar.rotation,
     })),
     fabrics: doc.fabrics.map((fabric) => ({
+      id: fabric.backendId,
       name: fabric.name,
       startX: fabric.startX,
       startY: fabric.startY,
@@ -284,6 +296,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     }
     const exit: Exit = {
       id: `loaded-exit-${i}`,
+      backendId: toBackendId(entry.id),
       name: parsedName ?? '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `exits[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `exits[${i}].startY`),
@@ -302,13 +315,17 @@ export function fromSerialized(data: unknown): DrawingDocument {
     exits.splice(order, 0, { ...exit, name: `비상구 ${maxExitIndex}` });
   }
 
+  // 기둥은 참조하는 서버 테이블이 없으므로 backendId를 버린다.
   const pillars: Pillar[] = parseRects(
     data.pillars,
     'pillars',
     /^기둥 (\d+)$/,
     '기둥',
     'loaded-pillar',
-  );
+  ).map(({ backendId, ...pillar }) => {
+    void backendId;
+    return pillar;
+  });
   const fabrics: Fabric[] = parseRects(
     data.fabrics,
     'fabrics',

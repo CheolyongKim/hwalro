@@ -59,6 +59,8 @@ export type EditorAction =
   | { type: 'pillarCommit' }
   | { type: 'fabricStart'; point: Vec2 }
   | { type: 'fabricUpdate'; point: Vec2 }
+  | { type: 'zoneStart'; point: Vec2 }
+  | { type: 'zoneUpdate'; point: Vec2 }
   | { type: 'fabricCommit' }
   | { type: 'textPlace'; point: Vec2 }
   | { type: 'textEditStart'; textId: string }
@@ -370,6 +372,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const exit: Exit = {
         id: uid(),
+        backendId: null,
         name: nextExitName(state.doc),
         startX: round1(start.x),
         startY: round1(start.y),
@@ -416,6 +419,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'fabricUpdate':
       return applyRectDraftUpdate(state, action.point);
 
+    // 구역은 문서가 아니라 서버가 소유한다. 편집기는 그리는 동안의 draft만 갖고,
+    // 확정은 페이지가 API로 보낸다(undo/redo 대상이 아님).
+    case 'zoneStart':
+      return applyRectDraftStart(state, action.point);
+
+    case 'zoneUpdate':
+      return applyRectDraftUpdate(state, action.point);
+
     case 'fabricCommit': {
       if (!state.draft) {
         return state;
@@ -429,6 +440,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const fabric: Fabric = {
         id: uid(),
+        backendId: null,
         name: nextFabricName(state.doc),
         startX: round1(start.x),
         startY: round1(start.y),
