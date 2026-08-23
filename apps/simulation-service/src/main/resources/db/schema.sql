@@ -116,11 +116,19 @@ CREATE TABLE IF NOT EXISTS fabrics (
     end_x DECIMAL(12, 4) NOT NULL,
     end_y DECIMAL(12, 4) NOT NULL,
     rotation DECIMAL(12, 4) NOT NULL DEFAULT 0,
+    movable BOOLEAN NOT NULL DEFAULT TRUE,
+    max_movement_distance DECIMAL(12, 4) NULL,
+    rotation_locked BOOLEAN NOT NULL DEFAULT FALSE,
+    keep_against_wall BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT pk_fabrics PRIMARY KEY (id),
+    -- layout_zone_structures가 (fabric_id, layout_version_id) 복합 FK로 참조한다.
+    CONSTRAINT uk_fabrics_id_version UNIQUE (id, layout_version_id),
     -- 아래→위로 그린 구조물이 start > end로 저장되면 배치 개선안 탐색이 조용히 후보를 버린다
     -- (Java는 좌표 검증 실패, 엔진은 INVALID_GEOMETRY). DrawingService가 저장 시 정규화하며,
     -- 여기서 한 번 더 막아 회귀 시 즉시 실패하게 한다.
     CONSTRAINT ck_fabrics_extent CHECK (start_x < end_x AND start_y < end_y),
+    CONSTRAINT ck_fabrics_max_movement_distance
+        CHECK (max_movement_distance IS NULL OR max_movement_distance > 0),
     CONSTRAINT fk_fabrics_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
@@ -172,6 +180,90 @@ CREATE TABLE IF NOT EXISTS outside_walls (
     end_y DECIMAL(12, 4) NOT NULL,
     CONSTRAINT pk_outside_walls PRIMARY KEY (id),
     CONSTRAINT fk_outside_walls_layout_version
+        FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS layout_zones (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    layout_version_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    zone_type VARCHAR(40) NOT NULL,
+    x DECIMAL(12, 4) NOT NULL,
+    y DECIMAL(12, 4) NOT NULL,
+    width DECIMAL(12, 4) NOT NULL,
+    height DECIMAL(12, 4) NOT NULL,
+    -- auth-service의 사용자 ID. 서비스 경계를 넘지 않기 위해 FK를 만들지 않고
+    -- 배정 시점에 auth-service API로 검증한다.
+    assigned_user_id BIGINT UNSIGNED NULL,
+    default_exit_id BIGINT UNSIGNED NULL,
+    alternate_exit_id BIGINT UNSIGNED NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_layout_zones PRIMARY KEY (id),
+    -- layout_zone_structures가 (zone_id, layout_version_id) 복합 FK로 참조한다.
+    CONSTRAINT uk_layout_zones_id_version UNIQUE (id, layout_version_id),
+    CONSTRAINT uk_layout_zones_version_name UNIQUE (layout_version_id, name),
+    CONSTRAINT ck_layout_zones_extent CHECK (width > 0 AND height > 0),
+    CONSTRAINT ck_layout_zones_alternate_differs
+        CHECK (alternate_exit_id IS NULL
+               OR default_exit_id IS NULL
+               OR alternate_exit_id <> default_exit_id),
+    CONSTRAINT fk_layout_zones_layout_version
+        FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    -- 복합 FK로 다른 도면 버전의 비상구를 참조하지 못하게 막는다. MySQL은 NOT NULL 컬럼이
+    -- 포함된 복합 FK에 SET NULL을 허용하지 않으므로 RESTRICT이며, 비상구 삭제 전에
+    -- DrawingService가 이 참조를 먼저 NULL로 만든다.
+    CONSTRAINT fk_layout_zones_default_exit
+        FOREIGN KEY (default_exit_id, layout_version_id)
+        REFERENCES layout_exits (id, layout_version_id)
+        ON UPDATE RESTRICT
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_layout_zones_alternate_exit
+        FOREIGN KEY (alternate_exit_id, layout_version_id)
+        REFERENCES layout_exits (id, layout_version_id)
+        ON UPDATE RESTRICT
+        ON DELETE RESTRICT,
+    INDEX idx_layout_zones_assigned_user (assigned_user_id)
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS layout_zone_structures (
+    layout_version_id BIGINT UNSIGNED NOT NULL,
+    zone_id BIGINT UNSIGNED NOT NULL,
+    fabric_id BIGINT UNSIGNED NOT NULL,
+    -- PK가 곧 "구조물 하나는 구역 하나에만 속한다" 규칙이다. 멤버십이 없는 구조물은 공용이다.
+    CONSTRAINT pk_layout_zone_structures PRIMARY KEY (layout_version_id, fabric_id),
+    CONSTRAINT fk_layout_zone_structures_zone
+        FOREIGN KEY (zone_id, layout_version_id)
+        REFERENCES layout_zones (id, layout_version_id)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE,
+    CONSTRAINT fk_layout_zone_structures_fabric
+        FOREIGN KEY (fabric_id, layout_version_id)
+        REFERENCES fabrics (id, layout_version_id)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE,
+    INDEX idx_layout_zone_structures_zone (zone_id)
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS layout_placement_exclusions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    layout_version_id BIGINT UNSIGNED NOT NULL,
+    x DECIMAL(12, 4) NOT NULL,
+    y DECIMAL(12, 4) NOT NULL,
+    width DECIMAL(12, 4) NOT NULL,
+    height DECIMAL(12, 4) NOT NULL,
+    CONSTRAINT pk_layout_placement_exclusions PRIMARY KEY (id),
+    CONSTRAINT ck_layout_placement_exclusions_extent CHECK (width > 0 AND height > 0),
+    CONSTRAINT fk_layout_placement_exclusions_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
         ON DELETE CASCADE

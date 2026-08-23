@@ -37,6 +37,28 @@ public interface DrawingMapper {
 
     int insertLayoutExit(LayoutExit layoutExit);
 
+    int insertFabric(Fabric fabric);
+
+    List<Long> findFabricIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    List<Long> findLayoutExitIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    int updateFabricGeometry(Fabric fabric);
+
+    int updateLayoutExitGeometry(LayoutExit layoutExit);
+
+    int deleteFabricsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int deleteLayoutExitsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int nullifyZoneExitReferences(@Param("layoutVersionId") Long layoutVersionId, @Param("exitIds") List<Long> exitIds);
+
+    /** 배치 제약만 갱신한다. 기하 컬럼은 건드리지 않는다(도면 저장과 소유권이 다르다). */
+    int updateFabricConstraints(Fabric fabric);
+
+    /** 도면 복제·개선안 채택에서 구조물을 복사한다. 제약 컬럼까지 함께 옮긴다. */
+    int copyFabrics(@Param("sourceVersionId") Long sourceVersionId, @Param("targetVersionId") Long targetVersionId);
+
     Long lockLayout(@Param("layoutId") Long layoutId);
 
     int findNextLayoutVersionNumber(@Param("layoutId") Long layoutId);
@@ -61,6 +83,14 @@ public interface DrawingMapper {
             @Param("query") String query);
 
     long countLayouts(@Param("createdBy") Long createdBy, @Param("query") String query);
+
+    List<Layout> findLayoutPageAssignedToUser(
+            @Param("offset") int offset,
+            @Param("size") int size,
+            @Param("userId") Long userId,
+            @Param("query") String query);
+
+    long countLayoutsAssignedToUser(@Param("userId") Long userId, @Param("query") String query);
 
     LayoutVersion findLayoutVersionById(@Param("id") Long id);
 

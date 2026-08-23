@@ -49,6 +49,41 @@
         LIMIT #{offset}, #{size}
     </select>
 
+    <!--
+      일반 직원은 "생성자" 축으로 필터할 수 없다. 자기에게 배정된 구역이 현재 버전에 있는 도면만 본다.
+      한 도면에 배정 구역이 여러 개일 수 있으므로 DISTINCT가 필수다(없으면 목록이 중복되고 총건수가 부풀려진다).
+    -->
+    <select id="findLayoutPageAssignedToUser" resultType="com.hwalro.simulation.drawing.domain.Layout">
+        SELECT DISTINCT
+               l.id,
+               l.floor_plan_id,
+               l.created_by,
+               l.current_version_id,
+               l.title,
+               l.description,
+               l.created_at
+        FROM layouts l
+        INNER JOIN layout_zones z
+            ON z.layout_version_id = l.current_version_id
+           AND z.assigned_user_id = #{userId}
+        <if test="query != null and query != ''">
+            WHERE l.title LIKE CONCAT('%', #{query}, '%')
+        </if>
+        ORDER BY l.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countLayoutsAssignedToUser" resultType="long">
+        SELECT COUNT(DISTINCT l.id)
+        FROM layouts l
+        INNER JOIN layout_zones z
+            ON z.layout_version_id = l.current_version_id
+           AND z.assigned_user_id = #{userId}
+        <if test="query != null and query != ''">
+            WHERE l.title LIKE CONCAT('%', #{query}, '%')
+        </if>
+    </select>
+
     <select id="countLayouts" resultType="long">
         SELECT COUNT(*)
         FROM layouts
@@ -118,7 +153,11 @@
                start_y,
                end_x,
                end_y,
-               rotation
+               rotation,
+               movable,
+               max_movement_distance,
+               rotation_locked,
+               keep_against_wall
         FROM fabrics
         WHERE layout_version_id = #{layoutVersionId}
         ORDER BY id ASC
@@ -255,6 +294,98 @@
         INSERT INTO layout_exits (layout_version_id, name, start_x, start_y, end_x, end_y)
         VALUES (#{layoutVersionId}, #{name}, #{startX}, #{startY}, #{endX}, #{endY})
     </insert>
+
+    <insert id="insertFabric" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fabrics (layout_version_id, name, start_x, start_y, end_x, end_y, rotation,
+                             movable, max_movement_distance, rotation_locked, keep_against_wall)
+        VALUES (#{layoutVersionId}, #{name}, #{startX}, #{startY}, #{endX}, #{endY}, #{rotation},
+                COALESCE(#{movable}, TRUE), #{maxMovementDistance},
+                COALESCE(#{rotationLocked}, FALSE), COALESCE(#{keepAgainstWall}, FALSE))
+    </insert>
+
+    <select id="findFabricIdsByVersionId" resultType="java.lang.Long">
+        SELECT id FROM fabrics WHERE layout_version_id = #{layoutVersionId} ORDER BY id ASC
+    </select>
+
+    <select id="findLayoutExitIdsByVersionId" resultType="java.lang.Long">
+        SELECT id FROM layout_exits WHERE layout_version_id = #{layoutVersionId} ORDER BY id ASC
+    </select>
+
+    <!-- 배치 제약 컬럼은 의도적으로 제외한다. 도면 기하 저장이 제약을 덮어쓰면 안 된다. -->
+    <update id="updateFabricGeometry">
+        UPDATE fabrics
+        SET name = #{name},
+            start_x = #{startX},
+            start_y = #{startY},
+            end_x = #{endX},
+            end_y = #{endY},
+            rotation = #{rotation}
+        WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
+    </update>
+
+    <update id="updateLayoutExitGeometry">
+        UPDATE layout_exits
+        SET name = #{name},
+            start_x = #{startX},
+            start_y = #{startY},
+            end_x = #{endX},
+            end_y = #{endY}
+        WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
+    </update>
+
+    <delete id="deleteFabricsByIds">
+        DELETE FROM fabrics
+        WHERE layout_version_id = #{layoutVersionId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteLayoutExitsByIds">
+        DELETE FROM layout_exits
+        WHERE layout_version_id = #{layoutVersionId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- 기하 컬럼은 의도적으로 제외한다. 제약 저장이 도면 기하를 덮어쓰면 안 된다. -->
+    <update id="updateFabricConstraints">
+        UPDATE fabrics
+        SET movable = #{movable},
+            max_movement_distance = #{maxMovementDistance},
+            rotation_locked = #{rotationLocked},
+            keep_against_wall = #{keepAgainstWall}
+        WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
+    </update>
+
+    <insert id="copyFabrics">
+        INSERT INTO fabrics (layout_version_id, name, start_x, start_y, end_x, end_y, rotation,
+                             movable, max_movement_distance, rotation_locked, keep_against_wall)
+        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y, rotation,
+               movable, max_movement_distance, rotation_locked, keep_against_wall
+        FROM fabrics
+        WHERE layout_version_id = #{sourceVersionId}
+        ORDER BY id
+    </insert>
+
+    <!-- layout_zones의 비상구 복합 FK는 RESTRICT다. 비상구를 지우기 전에 참조를 끊는다. -->
+    <update id="nullifyZoneExitReferences">
+        UPDATE layout_zones
+        SET default_exit_id = CASE WHEN default_exit_id IN
+            <foreach collection="exitIds" item="exitId" open="(" separator="," close=")">
+                #{exitId}
+            </foreach>
+            THEN NULL ELSE default_exit_id END,
+            alternate_exit_id = CASE WHEN alternate_exit_id IN
+            <foreach collection="exitIds" item="exitId" open="(" separator="," close=")">
+                #{exitId}
+            </foreach>
+            THEN NULL ELSE alternate_exit_id END
+        WHERE layout_version_id = #{layoutVersionId}
+    </update>
 
     <insert id="copyWalls">
         INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y)

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hwalro.simulation.zone.mapper.LayoutZoneMapper">
+
+    <sql id="zoneColumns">
+        id,
+        layout_version_id,
+        name,
+        zone_type,
+        x,
+        y,
+        width,
+        height,
+        assigned_user_id,
+        default_exit_id,
+        alternate_exit_id,
+        created_at
+    </sql>
+
+    <select id="findZonesByVersionId" resultType="com.hwalro.simulation.zone.domain.LayoutZone">
+        SELECT <include refid="zoneColumns"/>
+        FROM layout_zones
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findZoneById" resultType="com.hwalro.simulation.zone.domain.LayoutZone">
+        SELECT <include refid="zoneColumns"/>
+        FROM layout_zones
+        WHERE id = #{id}
+    </select>
+
+    <!-- 배정 구역은 도면의 현재 버전에 있는 것만 의미가 있다. 과거 버전의 구역은 노출하지 않는다. -->
+    <select id="findAssignedZonesByUserId" resultType="com.hwalro.simulation.zone.dto.AssignedZoneRow">
+        SELECT z.id                AS zoneId,
+               z.name              AS zoneName,
+               z.zone_type         AS zoneType,
+               l.id                AS layoutId,
+               l.title             AS layoutTitle,
+               z.layout_version_id AS layoutVersionId,
+               z.default_exit_id   AS defaultExitId,
+               de.name             AS defaultExitName,
+               z.alternate_exit_id AS alternateExitId,
+               ae.name             AS alternateExitName
+        FROM layout_zones z
+        JOIN layouts l ON l.current_version_id = z.layout_version_id
+        LEFT JOIN layout_exits de ON de.id = z.default_exit_id
+        LEFT JOIN layout_exits ae ON ae.id = z.alternate_exit_id
+        WHERE z.assigned_user_id = #{userId}
+        ORDER BY l.id ASC, z.id ASC
+    </select>
+
+    <select id="countZonesAssignedToUserInVersion" resultType="int">
+        SELECT COUNT(*)
+        FROM layout_zones
+        WHERE layout_version_id = #{layoutVersionId}
+          AND assigned_user_id = #{userId}
+    </select>
+
+    <insert id="insertZone" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO layout_zones (layout_version_id, name, zone_type, x, y, width, height,
+                                  assigned_user_id, default_exit_id, alternate_exit_id)
+        VALUES (#{layoutVersionId}, #{name}, #{zoneType}, #{x}, #{y}, #{width}, #{height},
+                #{assignedUserId}, #{defaultExitId}, #{alternateExitId})
+    </insert>
+
+    <update id="updateZone">
+        UPDATE layout_zones
+        SET name = #{name},
+            zone_type = #{zoneType},
+            x = #{x},
+            y = #{y},
+            width = #{width},
+            height = #{height},
+            assigned_user_id = #{assignedUserId},
+            default_exit_id = #{defaultExitId},
+            alternate_exit_id = #{alternateExitId}
+        WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
+    </update>
+
+    <delete id="deleteZoneById">
+        DELETE FROM layout_zones WHERE id = #{id}
+    </delete>
+
+    <select id="findZoneStructuresByVersionId" resultType="com.hwalro.simulation.zone.domain.LayoutZoneStructure">
+        SELECT layout_version_id, zone_id, fabric_id
+        FROM layout_zone_structures
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY zone_id ASC, fabric_id ASC
+    </select>
+
+    <select id="findZoneIdByFabricId" resultType="java.lang.Long">
+        SELECT zone_id
+        FROM layout_zone_structures
+        WHERE layout_version_id = #{layoutVersionId} AND fabric_id = #{fabricId}
+    </select>
+
+    <delete id="deleteZoneStructuresByZoneId">
+        DELETE FROM layout_zone_structures WHERE zone_id = #{zoneId}
+    </delete>
+
+    <insert id="insertZoneStructures">
+        INSERT INTO layout_zone_structures (layout_version_id, zone_id, fabric_id)
+        VALUES
+        <foreach collection="structures" item="structure" separator=",">
+            (#{structure.layoutVersionId}, #{structure.zoneId}, #{structure.fabricId})
+        </foreach>
+    </insert>
+
+    <select id="findPlacementExclusionsByVersionId"
+            resultType="com.hwalro.simulation.zone.domain.LayoutPlacementExclusion">
+        SELECT id, layout_version_id, x, y, width, height
+        FROM layout_placement_exclusions
+        WHERE layout_version_id = #{layoutVersionId}
+        ORDER BY id ASC
+    </select>
+
+    <delete id="deletePlacementExclusionsByVersionId">
+        DELETE FROM layout_placement_exclusions WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <insert id="insertPlacementExclusions">
+        INSERT INTO layout_placement_exclusions (layout_version_id, x, y, width, height)
+        VALUES
+        <foreach collection="exclusions" item="exclusion" separator=",">
+            (#{exclusion.layoutVersionId}, #{exclusion.x}, #{exclusion.y}, #{exclusion.width}, #{exclusion.height})
+        </foreach>
+    </insert>
+
+    <insert id="copyPlacementExclusions">
+        INSERT INTO layout_placement_exclusions (layout_version_id, x, y, width, height)
+        SELECT #{targetVersionId}, x, y, width, height
+        FROM layout_placement_exclusions
+        WHERE layout_version_id = #{sourceVersionId}
+        ORDER BY id
+    </insert>
+</mapper>
