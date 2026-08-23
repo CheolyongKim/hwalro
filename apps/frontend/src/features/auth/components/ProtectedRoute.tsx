@@ -3,6 +3,7 @@ import { CompletionToastViewport } from '../../../components/notifications/Compl
 import AiReportCompletionNotifier from '../../reports/components/AiReportCompletionNotifier';
 import SimulationCompletionNotifier from '../../simulations/components/SimulationCompletionNotifier';
 import { useAuth } from '../context/AuthContext';
+import { can } from '../capabilities';
 
 function ProtectedRoute() {
   const { user, isInitializing } = useAuth();
@@ -20,11 +21,12 @@ function ProtectedRoute() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
+  // 완료 알림은 그 업무를 볼 수 있는 사용자에게만 붙인다. 일반 직원 화면에서 3초 폴링이 돌 이유가 없다.
   return (
     <>
       <CompletionToastViewport>
-        <SimulationCompletionNotifier userId={user.id} />
-        <AiReportCompletionNotifier />
+        {can(user.roles, 'simulations') && <SimulationCompletionNotifier userId={user.id} />}
+        {can(user.roles, 'reports') && <AiReportCompletionNotifier />}
       </CompletionToastViewport>
       <Outlet />
     </>

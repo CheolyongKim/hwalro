@@ -6,8 +6,10 @@ import WorkspaceLayout from '../layouts/WorkspaceLayout';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
 import SystemManagementPage from '../pages/SystemManagementPage';
-import AdminRoute from '../features/auth/components/AdminRoute';
+import CapabilityRoute from '../features/auth/components/CapabilityRoute';
 import ProtectedRoute from '../features/auth/components/ProtectedRoute';
+import { can, homeRouteFor } from '../features/auth/capabilities';
+import { useAuth } from '../features/auth/context/AuthContext';
 import RegulationsPage from '../pages/RegulationsPage';
 import RiskManagementPage from '../pages/RiskManagementPage';
 import SafetyCheckAreasPage from '../pages/SafetyCheckAreasPage';
@@ -22,6 +24,8 @@ import SimulationSetupPage from '../features/simulations/pages/SimulationSetupPa
 import SimulationListPage from '../features/simulations/pages/SimulationListPage';
 
 const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
+const MyZonesPage = lazy(() => import('../features/zones/pages/MyZonesPage'));
+const EvacuationPage = lazy(() => import('../features/zones/pages/EvacuationPage'));
 const SimulationAnalysisResultPage = lazy(
   () => import('../features/simulationResult/pages/SimulationResultPage'),
 );
@@ -33,6 +37,16 @@ function FullscreenRouteFallback() {
     <div className="flex h-dvh items-center justify-center bg-background text-sm text-text-muted">
       화면을 준비하고 있습니다.
     </div>
+  );
+}
+
+/** 업무 대시보드를 볼 수 없는 사용자는 홈 대신 담당 구역 화면을 본다. */
+function HomeOrMyZones() {
+  const { user } = useAuth();
+  return can(user?.roles, 'simulations') ? (
+    <HomePage />
+  ) : (
+    <Navigate to={homeRouteFor(user?.roles)} replace />
   );
 }
 
@@ -54,67 +68,130 @@ export const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <HomePage />,
-              },
-              { path: 'risk-management', element: <RiskManagementPage /> },
-              { path: 'reports', element: <ReportListPage /> },
-              { path: 'safety-checklists', element: <SafetyCheckAreasPage /> },
-              {
-                path: 'safety-checklists/areas/:areaId',
-                element: <SafetyCheckHistoryPage />,
+                element: <HomeOrMyZones />,
               },
               {
-                path: 'safety-checklists/inspections/:inspectionId',
-                element: <SafetyCheckDetailPage />,
+                element: <CapabilityRoute capability="risks" />,
+                children: [{ path: 'risk-management', element: <RiskManagementPage /> }],
               },
               {
-                path: 'safety-checklists/areas/:areaId/template',
-                element: <SafetyCheckTemplatePage />,
+                element: <CapabilityRoute capability="reports" />,
+                children: [
+                  { path: 'reports', element: <ReportListPage /> },
+                  { path: 'reports/:reportId', element: <ReportDetailPage /> },
+                ],
               },
-              { path: 'reports/:reportId', element: <ReportDetailPage /> },
-              { path: 'drawings', element: <DrawingListPage /> },
-              { path: 'simulations', element: <SimulationListPage /> },
-              { path: 'drawings/new', element: <CreateDrawingPage /> },
-              { path: 'drawings/:drawingId', element: <DrawingEditRedirect /> },
-              { path: 'regulations', element: <RegulationsPage /> },
               {
-                element: <AdminRoute />,
+                element: <CapabilityRoute capability="checklists" />,
+                children: [
+                  { path: 'safety-checklists', element: <SafetyCheckAreasPage /> },
+                  {
+                    path: 'safety-checklists/areas/:areaId',
+                    element: <SafetyCheckHistoryPage />,
+                  },
+                  {
+                    path: 'safety-checklists/inspections/:inspectionId',
+                    element: <SafetyCheckDetailPage />,
+                  },
+                  {
+                    path: 'safety-checklists/areas/:areaId/template',
+                    element: <SafetyCheckTemplatePage />,
+                  },
+                ],
+              },
+              {
+                element: <CapabilityRoute capability="drawings.view" />,
+                children: [
+                  { path: 'drawings', element: <DrawingListPage /> },
+                  { path: 'drawings/:drawingId', element: <DrawingEditRedirect /> },
+                ],
+              },
+              {
+                element: <CapabilityRoute capability="drawings.manage" />,
+                children: [{ path: 'drawings/new', element: <CreateDrawingPage /> }],
+              },
+              {
+                element: <CapabilityRoute capability="simulations" />,
+                children: [{ path: 'simulations', element: <SimulationListPage /> }],
+              },
+              {
+                element: <CapabilityRoute capability="regulations" />,
+                children: [{ path: 'regulations', element: <RegulationsPage /> }],
+              },
+              {
+                element: <CapabilityRoute capability="zones.assigned" />,
+                children: [
+                  {
+                    path: 'my-zones',
+                    element: (
+                      <Suspense fallback={<FullscreenRouteFallback />}>
+                        <MyZonesPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'my-zones/:zoneId/evacuation',
+                    element: (
+                      <Suspense fallback={<FullscreenRouteFallback />}>
+                        <EvacuationPage />
+                      </Suspense>
+                    ),
+                  },
+                ],
+              },
+              {
+                element: <CapabilityRoute capability="systemManagement" />,
                 children: [{ path: 'system-management', element: <SystemManagementPage /> }],
               },
             ],
           },
           {
-            path: 'layout/:drawingId',
-            element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
-                <LayoutPage />
-              </Suspense>
-            ),
-          },
-          { path: 'simulations/:simulationId/setup', element: <SimulationSetupPage /> },
-          {
-            path: 'simulations/:simulationId/results',
-            element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
-                <SimulationAnalysisResultPage />
-              </Suspense>
-            ),
+            element: <CapabilityRoute capability="drawings.view" />,
+            children: [
+              {
+                path: 'layout/:drawingId',
+                element: (
+                  <Suspense fallback={<FullscreenRouteFallback />}>
+                    <LayoutPage />
+                  </Suspense>
+                ),
+              },
+            ],
           },
           {
-            path: 'simulations/:simulationId/layout-search',
-            element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
-                <LayoutSearchPage />
-              </Suspense>
-            ),
+            element: <CapabilityRoute capability="simulations" />,
+            children: [
+              { path: 'simulations/:simulationId/setup', element: <SimulationSetupPage /> },
+              {
+                path: 'simulations/:simulationId/results',
+                element: (
+                  <Suspense fallback={<FullscreenRouteFallback />}>
+                    <SimulationAnalysisResultPage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'simulations/:simulationId/layout-search',
+                element: (
+                  <Suspense fallback={<FullscreenRouteFallback />}>
+                    <LayoutSearchPage />
+                  </Suspense>
+                ),
+              },
+            ],
           },
           {
-            path: 'inspect/:areaId',
-            element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
-                <InspectionMobilePage />
-              </Suspense>
-            ),
+            element: <CapabilityRoute capability="checklists" />,
+            children: [
+              {
+                path: 'inspect/:areaId',
+                element: (
+                  <Suspense fallback={<FullscreenRouteFallback />}>
+                    <InspectionMobilePage />
+                  </Suspense>
+                ),
+              },
+            ],
           },
         ],
       },
