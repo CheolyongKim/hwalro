@@ -29,11 +29,16 @@ import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedExceptio
 import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -59,18 +64,25 @@ public class DrawingService {
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_OPERATOR = "OPERATOR";
     private static final String ROLE_REVIEWER = "SAFETY_REVIEWER";
+    private static final String ROLE_EMPLOYEE = "GENERAL_EMPLOYEE";
 
     private final DrawingMapper drawingMapper;
     private final DefaultDrawingData defaultDrawingData;
     private final LayoutGeometryValidator geometryValidator;
+    private final LayoutMetadataCopier layoutMetadataCopier;
+    private final LayoutZoneMapper layoutZoneMapper;
 
     public DrawingService(
             DrawingMapper drawingMapper,
             DefaultDrawingData defaultDrawingData,
-            LayoutGeometryValidator geometryValidator) {
+            LayoutGeometryValidator geometryValidator,
+            LayoutMetadataCopier layoutMetadataCopier,
+            LayoutZoneMapper layoutZoneMapper) {
         this.drawingMapper = drawingMapper;
         this.defaultDrawingData = defaultDrawingData;
         this.geometryValidator = geometryValidator;
+        this.layoutMetadataCopier = layoutMetadataCopier;
+        this.layoutZoneMapper = layoutZoneMapper;
     }
 
     public DrawingListResponse list(int page, int size, JwtUser user) {
@@ -80,10 +92,20 @@ public class DrawingService {
     public DrawingListResponse list(int page, int size, String query, JwtUser user) {
         validatePage(page, size);
         String normalizedQuery = StringUtils.hasText(query) ? query.trim() : null;
-        Long createdByFilter = resolveCreatedByFilter(user);
-        long totalCount = drawingMapper.countLayouts(createdByFilter, normalizedQuery);
-        List<Layout> layouts = drawingMapper.findLayoutPage((page - 1) * size, size, createdByFilter, normalizedQuery);
-        Map<Long, Integer> simulationCounts = countSimulationsByLayout(layouts);
+        boolean employeeOnly = isEmployeeOnly(user);
+        long totalCount;
+        List<Layout> layouts;
+        if (employeeOnly) {
+            totalCount = drawingMapper.countLayoutsAssignedToUser(user.userId(), normalizedQuery);
+            layouts =
+                    drawingMapper.findLayoutPageAssignedToUser((page - 1) * size, size, user.userId(), normalizedQuery);
+        } else {
+            Long createdByFilter = resolveCreatedByFilter(user);
+            totalCount = drawingMapper.countLayouts(createdByFilter, normalizedQuery);
+            layouts = drawingMapper.findLayoutPage((page - 1) * size, size, createdByFilter, normalizedQuery);
+        }
+        // 시뮬레이션 건수는 운영 정보다. 직원 응답에는 노출하지 않고 조회도 하지 않는다.
+        Map<Long, Integer> simulationCounts = employeeOnly ? Map.of() : countSimulationsByLayout(layouts);
         List<DrawingSummary> items = layouts.stream()
                 .map(layout -> new DrawingSummary(
                         layout.getId(),
@@ -186,20 +208,76 @@ public class DrawingService {
             throw new DrawingConflictException(id);
         }
 
+        // ponytail: 벽·기둥·외각벽·텍스트는 참조하는 테이블이 없어 통째로 지우고 다시 넣는다.
+        // 이들을 ID로 참조하는 기능이 생기면 아래 fabric/exit와 같은 identity sync로 승급한다.
         drawingMapper.deleteWallsByVersionId(version.getId());
         drawingMapper.deletePillarsByVersionId(version.getId());
-        drawingMapper.deleteFabricsByVersionId(version.getId());
         drawingMapper.deleteOutsideWallsByVersionId(version.getId());
         drawingMapper.deleteLayoutTextsByVersionId(version.getId());
-        drawingMapper.deleteLayoutExitsByVersionId(version.getId());
         insertWallsIfPresent(toWalls(request.walls(), version.getId()));
         insertPillarsIfPresent(toPillars(request.pillars(), version.getId()));
-        insertFabricsIfPresent(toFabrics(request.fabrics(), version.getId()));
         insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
-        insertExitsIfPresent(toExits(request.exits(), version.getId()));
+        // 구역 멤버십·배치 제약·구역 비상구 참조가 이 ID들을 가리키므로 삭제 후 재삽입하면 안 된다.
+        syncFabrics(version.getId(), toFabrics(request.fabrics(), version.getId()));
+        syncExits(version.getId(), toExits(request.exits(), version.getId()));
 
         return toResponse(findLayoutOrThrow(id));
+    }
+
+    // package-private: CandidateAdoptionService.changedFabrics와 같은 이유로 테스트에서 직접 호출한다.
+    void syncFabrics(Long layoutVersionId, List<Fabric> requested) {
+        List<Long> existingIds = drawingMapper.findFabricIdsByVersionId(layoutVersionId);
+        Set<Long> keptIds = validateRequestedIds(requested.stream().map(Fabric::getId), existingIds, "구조물");
+        for (Fabric fabric : requested) {
+            if (fabric.getId() == null) {
+                drawingMapper.insertFabric(fabric);
+            } else {
+                // 배치 제약 컬럼은 별도 API가 소유하므로 기하 저장이 덮어쓰지 않는다.
+                drawingMapper.updateFabricGeometry(fabric);
+            }
+        }
+        List<Long> removedIds = existingIds.stream()
+                .filter(existing -> !keptIds.contains(existing))
+                .toList();
+        if (!removedIds.isEmpty()) {
+            drawingMapper.deleteFabricsByIds(layoutVersionId, removedIds);
+        }
+    }
+
+    void syncExits(Long layoutVersionId, List<LayoutExit> requested) {
+        List<Long> existingIds = drawingMapper.findLayoutExitIdsByVersionId(layoutVersionId);
+        Set<Long> keptIds = validateRequestedIds(requested.stream().map(LayoutExit::getId), existingIds, "비상구");
+        for (LayoutExit exit : requested) {
+            if (exit.getId() == null) {
+                drawingMapper.insertLayoutExit(exit);
+            } else {
+                drawingMapper.updateLayoutExitGeometry(exit);
+            }
+        }
+        List<Long> removedIds = existingIds.stream()
+                .filter(existing -> !keptIds.contains(existing))
+                .toList();
+        if (!removedIds.isEmpty()) {
+            // layout_zones의 비상구 복합 FK는 RESTRICT다(MySQL은 NOT NULL 컬럼이 포함된 복합 FK에
+            // SET NULL을 허용하지 않는다). 삭제 전에 구역의 참조를 먼저 끊는다.
+            drawingMapper.nullifyZoneExitReferences(layoutVersionId, removedIds);
+            drawingMapper.deleteLayoutExitsByIds(layoutVersionId, removedIds);
+        }
+    }
+
+    private Set<Long> validateRequestedIds(Stream<Long> requestedIds, List<Long> existingIds, String label) {
+        Set<Long> existing = Set.copyOf(existingIds);
+        Set<Long> kept = new LinkedHashSet<>();
+        requestedIds.filter(Objects::nonNull).forEach(id -> {
+            if (!existing.contains(id)) {
+                throw new IllegalArgumentException("이 도면 버전에 없는 " + label + " ID입니다: " + id);
+            }
+            if (!kept.add(id)) {
+                throw new IllegalArgumentException(label + " ID가 중복되었습니다: " + id);
+            }
+        });
+        return kept;
     }
 
     @Transactional
@@ -235,12 +313,12 @@ public class DrawingService {
                 copyOutsideWalls(drawingMapper.findOutsideWallsByVersionId(sourceVersion.getId()), version.getId()));
         insertPillarsIfPresent(
                 copyPillars(drawingMapper.findPillarsByVersionId(sourceVersion.getId()), version.getId()));
-        insertFabricsIfPresent(
-                copyFabrics(drawingMapper.findFabricsByVersionId(sourceVersion.getId()), version.getId()));
         insertLayoutTextsIfPresent(
                 copyLayoutTexts(drawingMapper.findLayoutTextsByVersionId(sourceVersion.getId()), version.getId()));
-        insertExitsIfPresent(
-                copyExits(drawingMapper.findLayoutExitsByVersionId(sourceVersion.getId()), version.getId()));
+        // 구역·멤버십이 구조물/비상구를 ID로 참조하므로 한 건씩 넣어 원본→대상 ID 맵을 만든다.
+        Map<Long, Long> fabricIdMap = copyFabricsWithIdMap(sourceVersion.getId(), version.getId());
+        Map<Long, Long> exitIdMap = copyExitsWithIdMap(sourceVersion.getId(), version.getId());
+        layoutMetadataCopier.copy(sourceVersion.getId(), version.getId(), exitIdMap, fabricIdMap);
 
         layout.setCurrentVersionId(version.getId());
         drawingMapper.updateLayoutCurrentVersion(layout);
@@ -273,11 +351,36 @@ public class DrawingService {
         throw new ForbiddenException("도면 목록 조회 권한이 없습니다.");
     }
 
+    /**
+     * 권한 있는 역할을 하나라도 가지면 직원 규칙을 적용하지 않는다. 복합 역할에서는 넓은 권한이 이긴다.
+     */
+    public static boolean isPrivileged(JwtUser user) {
+        return user.roles().contains(ROLE_ADMIN)
+                || user.roles().contains(ROLE_REVIEWER)
+                || user.roles().contains(ROLE_OPERATOR);
+    }
+
+    private boolean isEmployeeOnly(JwtUser user) {
+        return !isPrivileged(user) && user.roles().contains(ROLE_EMPLOYEE);
+    }
+
+    /** 구역·제약 API가 도면 접근 규칙을 다시 구현하지 않도록 공개한다. */
+    public void requireAccessible(Long layoutId, JwtUser user) {
+        requireAccessible(findLayoutOrThrow(layoutId), user);
+    }
+
     private void requireAccessible(Layout layout, JwtUser user) {
         if (canSeeAll(user.roles())) {
             return;
         }
         if (user.roles().contains(ROLE_OPERATOR) && user.userId().equals(layout.getCreatedBy())) {
+            return;
+        }
+        // 일반 직원은 소유자가 아니라 "현재 버전에 자기 구역이 있는가"로 판단한다.
+        if (isEmployeeOnly(user)
+                && layout.getCurrentVersionId() != null
+                && layoutZoneMapper.countZonesAssignedToUserInVersion(layout.getCurrentVersionId(), user.userId())
+                        > 0) {
             return;
         }
         throw new ForbiddenException("이 도면에 접근할 권한이 없습니다.");
@@ -317,6 +420,7 @@ public class DrawingService {
                 .toList();
         List<FabricDto> fabrics = drawingMapper.findFabricsByVersionId(version.getId()).stream()
                 .map(fabric -> new FabricDto(
+                        fabric.getId(),
                         fabric.getName(),
                         fabric.getStartX(),
                         fabric.getStartY(),
@@ -336,8 +440,13 @@ public class DrawingService {
                 .map(text -> new LayoutTextDto(text.getText(), text.getX(), text.getY()))
                 .toList();
         List<ExitDto> exits = drawingMapper.findLayoutExitsByVersionId(version.getId()).stream()
-                .map(exit ->
-                        new ExitDto(exit.getName(), exit.getStartX(), exit.getStartY(), exit.getEndX(), exit.getEndY()))
+                .map(exit -> new ExitDto(
+                        exit.getId(),
+                        exit.getName(),
+                        exit.getStartX(),
+                        exit.getStartY(),
+                        exit.getEndX(),
+                        exit.getEndY()))
                 .toList();
         return new DrawingResponse(
                 layout.getId(),
@@ -409,6 +518,7 @@ public class DrawingService {
         return fabrics.stream()
                 .map(fabric -> {
                     Fabric domainFabric = new Fabric();
+                    domainFabric.setId(fabric.id());
                     domainFabric.setLayoutVersionId(layoutVersionId);
                     domainFabric.setName(fabric.name() == null ? "" : fabric.name());
                     domainFabric.setStartX(smaller(fabric.startX(), fabric.endX()));
@@ -540,6 +650,7 @@ public class DrawingService {
         return exits.stream()
                 .map(exit -> {
                     LayoutExit layoutExit = new LayoutExit();
+                    layoutExit.setId(exit.id());
                     layoutExit.setLayoutVersionId(layoutVersionId);
                     layoutExit.setName(exit.name() == null ? "" : exit.name());
                     layoutExit.setStartX(exit.startX());
@@ -614,20 +725,26 @@ public class DrawingService {
                 .toList();
     }
 
-    private List<Fabric> copyFabrics(List<Fabric> sourceFabrics, Long layoutVersionId) {
-        return sourceFabrics.stream()
-                .map(fabric -> {
-                    Fabric copy = new Fabric();
-                    copy.setLayoutVersionId(layoutVersionId);
-                    copy.setName(fabric.getName());
-                    copy.setStartX(fabric.getStartX());
-                    copy.setStartY(fabric.getStartY());
-                    copy.setEndX(fabric.getEndX());
-                    copy.setEndY(fabric.getEndY());
-                    copy.setRotation(fabric.getRotation());
-                    return copy;
-                })
-                .toList();
+    /** 구조물을 제약까지 복사하고 원본→대상 ID 맵을 돌려준다. 구역 멤버십이 이 맵을 쓴다. */
+    private Map<Long, Long> copyFabricsWithIdMap(Long sourceVersionId, Long targetVersionId) {
+        Map<Long, Long> idMap = new LinkedHashMap<>();
+        for (Fabric source : drawingMapper.findFabricsByVersionId(sourceVersionId)) {
+            Fabric copy = new Fabric();
+            copy.setLayoutVersionId(targetVersionId);
+            copy.setName(source.getName());
+            copy.setStartX(source.getStartX());
+            copy.setStartY(source.getStartY());
+            copy.setEndX(source.getEndX());
+            copy.setEndY(source.getEndY());
+            copy.setRotation(source.getRotation());
+            copy.setMovable(source.getMovable());
+            copy.setMaxMovementDistance(source.getMaxMovementDistance());
+            copy.setRotationLocked(source.getRotationLocked());
+            copy.setKeepAgainstWall(source.getKeepAgainstWall());
+            drawingMapper.insertFabric(copy);
+            idMap.put(source.getId(), copy.getId());
+        }
+        return idMap;
     }
 
     private List<LayoutText> copyLayoutTexts(List<LayoutText> sourceLayoutTexts, Long layoutVersionId) {
@@ -643,19 +760,21 @@ public class DrawingService {
                 .toList();
     }
 
-    private List<LayoutExit> copyExits(List<LayoutExit> sourceExits, Long layoutVersionId) {
-        return sourceExits.stream()
-                .map(exit -> {
-                    LayoutExit copy = new LayoutExit();
-                    copy.setLayoutVersionId(layoutVersionId);
-                    copy.setName(exit.getName());
-                    copy.setStartX(exit.getStartX());
-                    copy.setStartY(exit.getStartY());
-                    copy.setEndX(exit.getEndX());
-                    copy.setEndY(exit.getEndY());
-                    return copy;
-                })
-                .toList();
+    /** 비상구를 복사하고 원본→대상 ID 맵을 돌려준다. 구역의 기본·대체 비상구 참조가 이 맵을 쓴다. */
+    private Map<Long, Long> copyExitsWithIdMap(Long sourceVersionId, Long targetVersionId) {
+        Map<Long, Long> idMap = new LinkedHashMap<>();
+        for (LayoutExit source : drawingMapper.findLayoutExitsByVersionId(sourceVersionId)) {
+            LayoutExit copy = new LayoutExit();
+            copy.setLayoutVersionId(targetVersionId);
+            copy.setName(source.getName());
+            copy.setStartX(source.getStartX());
+            copy.setStartY(source.getStartY());
+            copy.setEndX(source.getEndX());
+            copy.setEndY(source.getEndY());
+            drawingMapper.insertLayoutExit(copy);
+            idMap.put(source.getId(), copy.getId());
+        }
+        return idMap;
     }
 
     private void validatePage(int page, int size) {

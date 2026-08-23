@@ -38,9 +38,11 @@ public class DrawingController {
     }
 
     @GetMapping
+    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN", "GENERAL_EMPLOYEE"})
     @Operation(
             summary = "도면 목록 조회",
-            description = "페이지네이션을 지원합니다. 운영 담당자는 본인이 생성한 도면만, 안전 검토자와 관리자는 전체 도면을 조회할 수 있습니다.")
+            description =
+                    "페이지네이션을 지원합니다. 운영 담당자는 본인이 생성한 도면만, 안전 검토자와 관리자는 전체 도면을," + " 일반 직원은 담당 구역이 있는 도면만 조회할 수 있습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "도면 목록 조회 성공"),
         @ApiResponse(responseCode = "400", description = "잘못된 페이지 요청")
@@ -54,6 +56,7 @@ public class DrawingController {
     }
 
     @GetMapping("/{id}")
+    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN", "GENERAL_EMPLOYEE"})
     @Operation(summary = "도면 상세 조회", description = "도면 정보와 벽·텍스트 배치 데이터를 반환합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "도면 상세 조회 성공"),
