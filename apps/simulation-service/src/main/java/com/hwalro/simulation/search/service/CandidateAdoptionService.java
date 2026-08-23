@@ -10,6 +10,7 @@ import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.domain.Pillar;
 import com.hwalro.simulation.drawing.domain.Wall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.drawing.service.LayoutMetadataCopier;
 import com.hwalro.simulation.search.domain.CandidateStatus;
 import com.hwalro.simulation.search.domain.ChangeOp;
 import com.hwalro.simulation.search.domain.ChangeSet;
@@ -50,6 +51,7 @@ public class CandidateAdoptionService {
     private final DrawingMapper drawingMapper;
     private final SimulationMapper simulationMapper;
     private final SimulationService simulationService;
+    private final LayoutMetadataCopier layoutMetadataCopier;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
@@ -58,12 +60,14 @@ public class CandidateAdoptionService {
             DrawingMapper drawingMapper,
             SimulationMapper simulationMapper,
             SimulationService simulationService,
+            LayoutMetadataCopier layoutMetadataCopier,
             ObjectMapper objectMapper,
             TransactionTemplate transactionTemplate) {
         this.layoutStudyMapper = layoutStudyMapper;
         this.drawingMapper = drawingMapper;
         this.simulationMapper = simulationMapper;
         this.simulationService = simulationService;
+        this.layoutMetadataCopier = layoutMetadataCopier;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
     }
@@ -123,6 +127,11 @@ public class CandidateAdoptionService {
         drawingMapper.copyLayoutTexts(sourceVersionId, targetVersion.getId());
         drawingMapper.insertFabrics(changedFabrics(candidate, sourceVersionId, targetVersion.getId()));
         copyExits(sourceVersionId, targetVersion.getId());
+        layoutMetadataCopier.copy(
+                sourceVersionId,
+                targetVersion.getId(),
+                idMapByOrder(sourceVersionId, targetVersion.getId(), true),
+                idMapByOrder(sourceVersionId, targetVersion.getId(), false));
         return targetVersion.getId();
     }
 
@@ -273,30 +282,41 @@ public class CandidateAdoptionService {
         if (selectedSourceIds.isEmpty()) {
             return List.of();
         }
-        List<LayoutExit> targets = drawingMapper.findLayoutExitsByVersionId(targetVersionId);
+        Map<Long, Long> exitIdMap = idMapByOrder(sourceVersionId, targetVersionId, true);
         List<Long> selectedTargets = new ArrayList<>();
-        for (LayoutExit source : drawingMapper.findLayoutExitsByVersionId(sourceVersionId)) {
-            if (!selectedSourceIds.contains(source.getId())) {
-                continue;
+        for (Long sourceId : selectedSourceIds) {
+            Long targetId = exitIdMap.get(sourceId);
+            if (targetId == null) {
+                throw new IllegalStateException("선택 출구를 새 배치 버전에 연결하지 못했습니다: exitId=" + sourceId);
             }
-            LayoutExit target = targets.stream()
-                    .filter(candidate -> sameExit(source, candidate))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("복제된 출구를 찾을 수 없습니다."));
-            selectedTargets.add(target.getId());
-        }
-        if (selectedTargets.size() != selectedSourceIds.size()) {
-            throw new IllegalStateException("선택 출구를 새 배치 버전에 연결하지 못했습니다.");
+            selectedTargets.add(targetId);
         }
         return List.copyOf(selectedTargets);
     }
 
-    private boolean sameExit(LayoutExit left, LayoutExit right) {
-        return left.getName().equals(right.getName())
-                && left.getStartX().compareTo(right.getStartX()) == 0
-                && left.getStartY().compareTo(right.getStartY()) == 0
-                && left.getEndX().compareTo(right.getEndX()) == 0
-                && left.getEndY().compareTo(right.getEndY()) == 0;
+    /**
+     * 원본 버전과 대상 버전의 요소를 순서로 짝지어 ID 맵을 만든다.
+     *
+     * <p>이름이나 좌표로 짝을 찾지 않는다. 이름이 같은 비상구가 둘이면 잘못된 짝을 고르고, 후보가 옮긴
+     * 구조물은 좌표가 아예 다르기 때문이다. 복사는 항상 {@code ORDER BY id ASC}로 읽어 같은 순서로
+     * 삽입하므로 두 목록의 i번째끼리가 같은 요소다. 개수가 어긋나면 그 가정이 깨진 것이므로 즉시 실패한다.
+     */
+    private Map<Long, Long> idMapByOrder(Long sourceVersionId, Long targetVersionId, boolean exits) {
+        List<Long> sourceIds = exits
+                ? drawingMapper.findLayoutExitIdsByVersionId(sourceVersionId)
+                : drawingMapper.findFabricIdsByVersionId(sourceVersionId);
+        List<Long> targetIds = exits
+                ? drawingMapper.findLayoutExitIdsByVersionId(targetVersionId)
+                : drawingMapper.findFabricIdsByVersionId(targetVersionId);
+        if (sourceIds.size() != targetIds.size()) {
+            throw new IllegalStateException((exits ? "출구" : "구조물") + " 복사 결과가 원본과 개수가 다릅니다: source=" + sourceIds.size()
+                    + ", target=" + targetIds.size());
+        }
+        Map<Long, Long> idMap = new LinkedHashMap<>();
+        for (int index = 0; index < sourceIds.size(); index++) {
+            idMap.put(sourceIds.get(index), targetIds.get(index));
+        }
+        return idMap;
     }
 
     private Fabric copyFabric(Fabric source, Long targetVersionId) {
