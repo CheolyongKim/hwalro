@@ -327,14 +327,6 @@
   line-height: 1.3;
 }
 
-.constraint-editor-zone-hint {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 0 6px;
-}
-
 /* --- 하단 플로팅 진행/제어 바 (SearchProgressFloating) --- */
 .search-progress-floating-bar {
   position: absolute;
@@ -471,42 +463,6 @@
 }
 
 /* --- 구조물 제약 설정 컴포넌트 --- */
-.constraint-inspector {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.constraint-inspector__canvas {
-  position: absolute;
-  inset: 0;
-}
-
-.constraint-editor__viewport {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  background: var(--color-background);
-  overscroll-behavior: contain;
-  touch-action: none;
-  user-select: none;
-}
-
-.constraint-editor__viewport.is-select {
-  cursor: default;
-}
-
-.constraint-editor__viewport.is-space {
-  cursor: grab;
-}
-
-.constraint-editor__viewport.is-panning {
-  cursor: grabbing;
-}
-
-.constraint-editor__viewport.is-zone {
-  cursor: crosshair;
-}
 
 .constraint-panel-header {
   display: flex;
@@ -543,51 +499,6 @@
 
 .candidate-panel-close-btn:hover {
   background: rgba(255, 255, 255, 0.2);
-}
-
-.constraint-inspector__panel-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-
-.constraint-inspector__group {
-  margin-bottom: 18px;
-}
-
-.constraint-inspector__group-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 10px;
-  color: var(--color-mint);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-}
-
-.constraint-inspector__group-title small {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 11px;
-}
-
-.constraint-inspector__empty {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 12px;
-}
-
-.constraint-inspector__list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  max-height: 180px;
-  overflow-y: auto;
 }
 
 .constraint-fabric-row {
@@ -629,88 +540,6 @@
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
-}
-
-.constraint-inspector__detail {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 12px;
-}
-
-.constraint-inspector__controls {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.constraint-inspector__label {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.constraint-inspector__slider-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.constraint-inspector__slider-row input[type='range'] {
-  flex: 1;
-  accent-color: var(--color-lime);
-}
-
-.constraint-inspector__slider-value {
-  min-width: 36px;
-  color: var(--color-lime);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: right;
-}
-
-.constraint-inspector__slider-scale {
-  display: flex;
-  justify-content: space-between;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 10px;
-}
-
-.constraint-inspector__check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-white);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.constraint-inspector__check input[type='checkbox'] {
-  accent-color: var(--color-lime);
-}
-
-.constraint-inspector__check.is-disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.constraint-inspector__check-hint {
-  display: block;
-  margin-top: 4px;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.constraint-inspector__note {
-  margin: 12px 0 0;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 11px;
-  line-height: 1.4;
 }
 
 .constraint-zone-list {
@@ -996,37 +825,6 @@
   cursor: not-allowed;
 }
 
-.reject-candidate-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  background: transparent;
-  padding: 10px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-
-.reject-candidate-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.reject-candidate-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.reject-candidate-button__icon {
-  width: 14px;
-  height: 14px;
-}
-
 .preparation-feedback {
   margin: 0;
   font-size: 12px;
@@ -1126,4 +924,52 @@
     width: calc(100vw - 24px);
     padding: 8px 14px;
   }
+}
+
+.search-start-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+}
+
+.search-start-panel__title {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--color-panel-text);
+}
+
+.search-start-panel__description {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-panel-muted);
+}
+
+.search-start-panel__link {
+  align-self: flex-start;
+  border-bottom: 1px solid currentColor;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.search-start-panel__verify {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-panel-text);
+}
+
+.search-start-panel__start {
+  height: 40px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-white);
+}
+
+.search-start-panel__start:disabled {
+  opacity: 0.6;
 }
