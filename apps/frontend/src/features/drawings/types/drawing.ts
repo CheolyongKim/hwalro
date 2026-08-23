@@ -15,6 +15,7 @@ export interface DrawingOutsideWall {
 }
 
 export interface DrawingExit {
+  id: number | null;
   name: string;
   startX: number;
   startY: number;
@@ -32,6 +33,7 @@ export interface DrawingPillar {
 }
 
 export interface DrawingFabric {
+  id: number | null;
   name: string;
   startX: number;
   startY: number;
