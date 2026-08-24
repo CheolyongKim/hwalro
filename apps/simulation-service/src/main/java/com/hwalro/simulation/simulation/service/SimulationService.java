@@ -774,7 +774,8 @@ public class SimulationService {
                 simulation.getFinishedAt(),
                 simulation.getTotalPeople(),
                 simulation.getTerminationReason(),
-                simulation.getIsImprovement());
+                simulation.getIsImprovement(),
+                simulation.getHasLayoutSearch());
     }
 
     private record DrawingSnapshot(

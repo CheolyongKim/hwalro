@@ -105,10 +105,12 @@
                l.id AS layout_id,
                l.title AS layout_title,
                lv.version AS layout_version_number,
-               sr.termination_reason,
-               (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
-                       OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
-                     THEN TRUE ELSE FALSE END) AS is_improvement
+              sr.termination_reason,
+              (CASE WHEN EXISTS (SELECT 1 FROM layout_search_candidates WHERE prepared_simulation_id = s.id)
+                      OR EXISTS (SELECT 1 FROM proposal_simulations WHERE simulation_id = s.id)
+                    THEN TRUE ELSE FALSE END) AS is_improvement,
+              (CASE WHEN EXISTS (SELECT 1 FROM layout_searches WHERE baseline_simulation_id = s.id)
+                    THEN TRUE ELSE FALSE END) AS has_layout_search
         FROM simulations s
         LEFT JOIN simulation_options so ON so.simulation_id = s.id
         LEFT JOIN layout_versions lv ON lv.id = s.layout_version_id
@@ -121,6 +123,8 @@
             <if test="query != null and query != ''">
                 AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
+            AND NOT EXISTS (SELECT 1 FROM layout_search_candidates
+                            WHERE prepared_simulation_id = s.id)
         </where>
         ORDER BY s.created_at DESC, s.id DESC
         LIMIT #{offset}, #{size}
@@ -136,6 +140,8 @@
             <if test="query != null and query != ''">
                 AND s.title LIKE CONCAT('%', #{query}, '%')
             </if>
+            AND NOT EXISTS (SELECT 1 FROM layout_search_candidates
+                            WHERE prepared_simulation_id = s.id)
         </where>
     </select>
 
