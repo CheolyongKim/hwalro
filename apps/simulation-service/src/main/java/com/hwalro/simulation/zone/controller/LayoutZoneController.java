@@ -3,15 +3,18 @@ package com.hwalro.simulation.zone.controller;
 import com.hwalro.simulation.common.jwt.JwtAuthInterceptor;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
+import com.hwalro.simulation.zone.dto.EvacuationRouteResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.LayoutMetadataResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneCreateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneUpdateRequest;
+import com.hwalro.simulation.zone.service.EvacuationPreviewService;
 import com.hwalro.simulation.zone.service.LayoutMetadataService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -38,9 +41,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
 public class LayoutZoneController {
     private final LayoutMetadataService layoutMetadataService;
+    private final EvacuationPreviewService evacuationPreviewService;
 
-    public LayoutZoneController(LayoutMetadataService layoutMetadataService) {
+    public LayoutZoneController(
+            LayoutMetadataService layoutMetadataService, EvacuationPreviewService evacuationPreviewService) {
         this.layoutMetadataService = layoutMetadataService;
+        this.evacuationPreviewService = evacuationPreviewService;
     }
 
     @GetMapping("/drawings/{id}/layout-metadata")
@@ -98,5 +104,15 @@ public class LayoutZoneController {
             @RequestBody StructureConstraintUpdateRequest request,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         layoutMetadataService.updateStructureConstraints(id, fabricId, request, user);
+    }
+
+    @GetMapping("/drawings/{id}/evacuation-routes")
+    @Operation(
+            summary = "도면 전체 대피 경로",
+            description = "도면의 모든 구역에 대한 대피 경로를 반환합니다. 안전 담당자가 대피 계획 전체를 한 번에 검토하는 용도이며, 평상시 기준 정적 경로입니다.")
+    public List<EvacuationRouteResponse> evacuationRoutes(
+            @Parameter(description = "도면 ID") @PathVariable Long id,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return evacuationPreviewService.previewAll(id, user);
     }
 }
