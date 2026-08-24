@@ -287,7 +287,16 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
 
       <CanvasWorkspaceBackButton onClick={() => navigate('/simulations')} />
       <CanvasWorkspaceHeader
-        title={result.title}
+        title={
+          <div className="flex items-center gap-2">
+            <span>{result.title}</span>
+            {result.isImprovement && (
+              <span className="inline-flex shrink-0 items-center rounded bg-primary-soft px-2 py-0.5 text-xs font-bold text-primary">
+                배치 개선안
+              </span>
+            )}
+          </div>
+        }
         subtitle={result.subtitle}
         status="완료"
         statusTone="complete"

@@ -63,6 +63,7 @@ export interface SimulationSetup {
   hazardZones: SimulationHazardZone[];
   selectedExitIds: number[];
   drawing: SimulationDrawing;
+  isImprovement?: boolean;
 }
 
 export type SimulationExecutionStatus =
@@ -183,6 +184,7 @@ export interface SimulationSummary {
   status: string;
   createdAt: string;
   totalPeople: number;
+  isImprovement?: boolean;
 }
 
 export interface SimulationOverview {
@@ -200,6 +202,7 @@ export interface SimulationOverview {
   finishedAt: string | null;
   totalPeople: number;
   terminationReason: SimulationTerminationReason | null;
+  isImprovement?: boolean;
 }
 
 export interface SimulationOverviewPage {

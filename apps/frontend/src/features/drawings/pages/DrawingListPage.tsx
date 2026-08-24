@@ -27,7 +27,7 @@ function DrawingListPage() {
   const debouncedQuery = useDebounce(query, 300);
   const [drawingToDelete, setDrawingToDelete] = useState<DrawingSummary | null>(null);
   const [drawingToBlock, setDrawingToBlock] = useState<DrawingSummary | null>(null);
-  const { items, totalCount, isPending, isError, error } = useDrawingList(
+  const { items, totalCount, isPending, isError, error, nameById } = useDrawingList(
     page,
     PAGE_SIZE,
     debouncedQuery,
@@ -125,6 +125,7 @@ function DrawingListPage() {
                 items={items}
                 onDelete={handleDelete}
                 onDuplicate={handleDuplicate}
+                nameById={nameById}
               />
               <div className="flex flex-col items-center justify-between gap-3 border-t border-line px-5 py-3 sm:flex-row">
                 <p className="text-sm tabular-nums text-text-muted">

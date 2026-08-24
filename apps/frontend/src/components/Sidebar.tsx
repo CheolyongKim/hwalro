@@ -71,6 +71,7 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: '관리자',
   OPERATOR: '운영 담당자',
   SAFETY_REVIEWER: '안전 검토자',
+  GENERAL_EMPLOYEE: '일반 직원',
 };
 
 function Sidebar() {

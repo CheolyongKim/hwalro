@@ -64,6 +64,8 @@ public interface DrawingMapper {
 
     LayoutVersion findLayoutVersionById(@Param("id") Long id);
 
+    List<LayoutVersion> findLayoutVersionsByLayoutId(@Param("layoutId") Long layoutId);
+
     List<Wall> findWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     List<Pillar> findPillarsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
@@ -79,9 +81,6 @@ public interface DrawingMapper {
     int updateLayout(Layout layout);
 
     int updateLayoutCurrentVersion(Layout layout);
-
-    int updateLayoutVersionLock(
-            @Param("id") Long id, @Param("expectedLock") Integer expectedLock, @Param("nextLock") Integer nextLock);
 
     int deleteWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 

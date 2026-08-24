@@ -553,7 +553,16 @@ function SimulationSetupPage() {
         onClick={() => navigate(`/layout/${setup.drawing.layoutId}`)}
       />
       <CanvasWorkspaceHeader
-        title={title.trim() || setup.title || setup.drawing.title}
+        title={
+          <div className="flex items-center gap-2">
+            <span>{title.trim() || setup.title || setup.drawing.title}</span>
+            {setup.isImprovement && (
+              <span className="inline-flex shrink-0 items-center rounded bg-primary-soft px-2 py-0.5 text-xs font-bold text-primary">
+                배치 개선안
+              </span>
+            )}
+          </div>
+        }
         subtitle={`도면: ${setup.drawing.title} · 버전 #${setup.layoutVersionId} · ${setup.modelProfile}`}
         status={editable ? '설정 중' : setup.status}
         statusTone={editable ? 'editing' : 'locked'}

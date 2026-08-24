@@ -87,7 +87,8 @@ public class SimulationResultDetailService {
                 mapper.findHazardZones(simulationId).stream()
                         .map(row -> new HazardZone(row.id(), row.centerX(), row.centerY(), row.radius()))
                         .toList(),
-                bottlenecks);
+                bottlenecks,
+                summary.isImprovement());
     }
 
     public ComparableSimulationPageResponse findComparableSimulations(

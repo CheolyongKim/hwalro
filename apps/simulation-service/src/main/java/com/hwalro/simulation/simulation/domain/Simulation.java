@@ -20,6 +20,7 @@ public class Simulation {
     private String layoutTitle;
     private Integer layoutVersionNumber;
     private String terminationReason;
+    private Boolean isImprovement;
 
     public Long getId() {
         return id;
@@ -155,5 +156,13 @@ public class Simulation {
 
     public void setTerminationReason(String terminationReason) {
         this.terminationReason = terminationReason;
+    }
+
+    public Boolean getIsImprovement() {
+        return isImprovement;
+    }
+
+    public void setIsImprovement(Boolean isImprovement) {
+        this.isImprovement = isImprovement;
     }
 }

@@ -187,9 +187,16 @@ function SimulationListPage() {
     const action = getSimulationListAction(simulation);
     const content = (
       <>
-        <span className="block max-w-64 truncate text-sm font-bold text-ink group-hover:text-primary">
-          {simulation.title || simulation.layoutTitle}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="block max-w-64 truncate text-sm font-bold text-ink group-hover:text-primary">
+            {simulation.title || simulation.layoutTitle}
+          </span>
+          {simulation.isImprovement && (
+            <span className="inline-flex shrink-0 items-center rounded bg-primary-soft px-1.5 py-0.5 text-[11px] font-bold text-primary">
+              배치 개선안
+            </span>
+          )}
+        </div>
         <span className="mt-1 block text-xs tabular-nums text-text-muted">
           도면: {simulation.layoutTitle} · 버전 {simulation.layoutVersionNumber}
         </span>
