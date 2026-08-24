@@ -3,7 +3,12 @@ import { Link } from 'react-router-dom';
 
 import type { LayoutSearch, SearchCandidate } from '../api/layoutSearchApi';
 import { layoutSearchReplies, trialCandidates, type SearchReply } from '../utils/searchFeed';
-import { CANDIDATE_STATUS_LABELS, formatDelta, operatorLabel, SEARCH_STATUS_LABELS } from '../utils/searchLabels';
+import {
+  CANDIDATE_STATUS_LABELS,
+  formatDelta,
+  operatorLabel,
+  SEARCH_STATUS_LABELS,
+} from '../utils/searchLabels';
 
 interface Props {
   search: LayoutSearch;
@@ -39,11 +44,7 @@ function DeltaCell({
   return (
     <span
       className={`font-semibold tabular-nums ${
-        isImproved
-          ? 'text-primary'
-          : isWorsened
-            ? 'text-danger-strong'
-            : 'text-text-muted'
+        isImproved ? 'text-primary' : isWorsened ? 'text-danger-strong' : 'text-text-muted'
       }`}
     >
       {formatDelta(delta)}
@@ -63,13 +64,16 @@ function CandidateRow({
   const prepared = candidate.preparedSimulation;
   const candidateStatus = candidate.status;
   const preparedStatus = prepared?.status ?? null;
-  const isRunning = candidateStatus === 'RUNNING' || preparedStatus === 'RUNNING' || preparedStatus === 'REQUESTED';
+  const isRunning =
+    candidateStatus === 'RUNNING' || preparedStatus === 'RUNNING' || preparedStatus === 'REQUESTED';
   const isEvaluated = candidateStatus === 'EVALUATED';
   const isNotImproved = candidateStatus === 'NOT_IMPROVED';
   const isFailed = candidateStatus === 'FAILED' || preparedStatus === 'FAILED';
 
   const totalTimeDelta = candidate.delta.find(
-    (d) => d.metricType === 'TOTAL_EVACUATION_TIME_SECONDS' || d.metricType === 'SIMULATION_DURATION_SECONDS',
+    (d) =>
+      d.metricType === 'TOTAL_EVACUATION_TIME_SECONDS' ||
+      d.metricType === 'SIMULATION_DURATION_SECONDS',
   );
   const avgTimeDelta = candidate.delta.find(
     (d) => d.metricType === 'AVERAGE_EVACUATION_TIME_SECONDS',
@@ -77,9 +81,7 @@ function CandidateRow({
   const exitImbalanceDelta = candidate.delta.find(
     (d) => d.metricType === 'EXIT_IMBALANCE' || d.metricType === 'EXIT_IMBALANCE_RATIO',
   );
-  const maxDensityDelta = candidate.delta.find(
-    (d) => d.metricType === 'MAX_DENSITY',
-  );
+  const maxDensityDelta = candidate.delta.find((d) => d.metricType === 'MAX_DENSITY');
 
   const { statusLabel, statusBadgeStyle } = (() => {
     if (isRunning) {
@@ -126,7 +128,9 @@ function CandidateRow({
     }
     return {
       statusLabel: CANDIDATE_STATUS_LABELS[candidateStatus] ?? candidateStatus,
-      statusBadgeStyle: CANDIDATE_STATUS_STYLES[candidateStatus] ?? 'bg-soft-gray text-text-muted border border-line',
+      statusBadgeStyle:
+        CANDIDATE_STATUS_STYLES[candidateStatus] ??
+        'bg-soft-gray text-text-muted border border-line',
     };
   })();
 
@@ -274,9 +278,7 @@ export function LayoutSearchReplyThread({
           <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shadow-xs">
             <Sparkles className="h-3 w-3" aria-hidden="true" />
           </div>
-          <span className="text-xs font-bold text-ink">
-            배치 개선안 탐색
-          </span>
+          <span className="text-xs font-bold text-ink">배치 개선안 탐색</span>
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[11px] font-bold ${
               isSearching
@@ -367,5 +369,3 @@ export function LayoutSearchReplyThread({
     </div>
   );
 }
-
-
