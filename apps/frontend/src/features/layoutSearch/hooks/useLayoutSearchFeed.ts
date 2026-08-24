@@ -45,9 +45,16 @@ export function useLayoutSearchFeeds(simulationIds: readonly number[]) {
     void refresh();
   }, [refresh]);
 
-  const active = Object.values(feeds).some(
-    (search) => search !== null && isActiveSearchStatus(search.status),
-  );
+  const active = Object.values(feeds).some((search) => {
+    if (search === null) return false;
+    if (isActiveSearchStatus(search.status)) return true;
+    return [...search.improvedCandidates, ...search.rejectedCandidates].some(
+      (c) =>
+        c.status === 'RUNNING' ||
+        c.preparedSimulation?.status === 'REQUESTED' ||
+        c.preparedSimulation?.status === 'RUNNING',
+    );
+  });
 
   useEffect(() => {
     if (!active) {
