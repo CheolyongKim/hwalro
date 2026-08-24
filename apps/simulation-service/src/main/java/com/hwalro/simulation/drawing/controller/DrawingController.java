@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -90,18 +91,22 @@ public class DrawingController {
         @ApiResponse(responseCode = "403", description = "접근 권한 없음"),
         @ApiResponse(responseCode = "404", description = "도면을 찾을 수 없음")
     })
-    public java.util.List<DrawingVersionSummary> versions(
+    public List<DrawingVersionSummary> versions(
             @Parameter(description = "도면 ID") @PathVariable Long id,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return drawingService.listVersions(id, user);
     }
 
     @PostMapping("/{id}/versions/{versionId}/restore")
-    @Operation(summary = "도면 버전 복원", description = "선택한 버전의 배치 데이터를 복사해 새 초안 버전을 만들고 현재 버전으로 전환합니다. 기존 버전 이력은 유지됩니다.")
+    @Operation(
+            summary = "도면 버전 복원",
+            description = "선택한 버전의 배치 데이터를 복사해 새 초안 버전을 만들고 현재 버전으로 전환합니다. 기존 버전 이력은 유지됩니다."
+                    + " 현재 버전이 잠금(시뮬레이션 사용) 상태이면 복원할 수 없습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "버전 복원 성공"),
         @ApiResponse(responseCode = "403", description = "접근 권한 없음"),
-        @ApiResponse(responseCode = "404", description = "도면 또는 버전을 찾을 수 없음")
+        @ApiResponse(responseCode = "404", description = "도면 또는 버전을 찾을 수 없음"),
+        @ApiResponse(responseCode = "409", description = "현재 버전이 잠금 상태여서 복원할 수 없음")
     })
     public DrawingResponse restoreVersion(
             @Parameter(description = "도면 ID") @PathVariable Long id,

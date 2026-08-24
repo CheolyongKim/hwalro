@@ -21,7 +21,7 @@ import {
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
-import type { ValidationProblem, ValidationProblemKind } from '../types';
+import type { DrawingDocument, ValidationProblem, ValidationProblemKind } from '../types';
 import { CreateSimulationDraftDialog } from '../../simulations/components/CreateSimulationDraftDialog';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
@@ -52,6 +52,10 @@ function parseValidationProblems(data: unknown): ValidationProblem[] {
       typeof (entry as ValidationProblem).name === 'string' &&
       (VALIDATION_KINDS as string[]).includes((entry as ValidationProblem).kind),
   );
+}
+
+function hasUnsavedDocChanges(stateDoc: DrawingDocument, sessionDoc: DrawingDocument): boolean {
+  return JSON.stringify(stateDoc) !== JSON.stringify(sessionDoc);
 }
 
 function LayoutPage() {
@@ -191,7 +195,7 @@ function LayoutPage() {
   const handleOpenDraftDialog = useCallback(async () => {
     const session = sessionRef.current;
     if (session === null || draftPending) return;
-    const hasUnsavedChanges = JSON.stringify(stateRef.current.doc) !== JSON.stringify(session.doc);
+    const hasUnsavedChanges = hasUnsavedDocChanges(stateRef.current.doc, session.doc);
     if (!hasUnsavedChanges || session.layoutVersionStatus === '잠금') {
       setDraftDialogOpen(true);
       return;
@@ -459,6 +463,8 @@ function LayoutPage() {
         <VersionHistoryDialog
           drawingId={drawingId}
           currentVersionId={sessionRef.current.layoutVersionId}
+          locked={readOnly}
+          hasUnsavedChanges={hasUnsavedDocChanges(stateRef.current.doc, sessionRef.current.doc)}
           onClose={() => setHistoryDialogOpen(false)}
           onRestored={handleRestored}
         />

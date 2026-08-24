@@ -32,16 +32,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class DrawingServiceTest {
     private static final long LAYOUT_ID = 1L;
     private static final long FLOOR_PLAN_ID = 10L;
-    private static final long SOURCE_VERSION_ID = 11L;
-    private static final long TARGET_VERSION_ID = 12L;
+    private static final long OTHER_VERSION_ID = 11L;
+    private static final long CURRENT_VERSION_ID = 12L;
+    private static final long NEW_VERSION_ID = 13L;
 
     @Mock
     private DrawingMapper drawingMapper;
@@ -63,15 +61,15 @@ class DrawingServiceTest {
 
     @Test
     void listVersionsMapsVersionRowsToSummariesInMapperOrder() {
-        Layout layout = layout(LAYOUT_ID, TARGET_VERSION_ID);
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
         when(drawingMapper.findLayoutVersionsByLayoutId(LAYOUT_ID))
-                .thenReturn(List.of(version(TARGET_VERSION_ID, 2, "초안"), version(SOURCE_VERSION_ID, 1, "잠금")));
+                .thenReturn(List.of(version(CURRENT_VERSION_ID, 2, "초안"), version(OTHER_VERSION_ID, 1, "잠금")));
 
         List<DrawingVersionSummary> items = service.listVersions(LAYOUT_ID, operator);
 
         assertThat(items).hasSize(2);
-        assertThat(items.get(0).layoutVersionId()).isEqualTo(TARGET_VERSION_ID);
+        assertThat(items.get(0).layoutVersionId()).isEqualTo(CURRENT_VERSION_ID);
         assertThat(items.get(0).version()).isEqualTo(2);
         assertThat(items.get(0).status()).isEqualTo("초안");
         assertThat(items.get(1).status()).isEqualTo("잠금");
@@ -79,7 +77,7 @@ class DrawingServiceTest {
 
     @Test
     void listVersionsRejectsLayoutOwnedByAnotherOperator() {
-        Layout layout = layout(LAYOUT_ID, TARGET_VERSION_ID);
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         layout.setCreatedBy(8L);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
 
@@ -88,18 +86,14 @@ class DrawingServiceTest {
 
     @Test
     void updateCreatesNewDraftVersionPerSaveAndKeepsPreviousSnapshot() {
-        Layout layout = layout(LAYOUT_ID, SOURCE_VERSION_ID);
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
-        when(drawingMapper.findLayoutVersionById(SOURCE_VERSION_ID)).thenReturn(version(SOURCE_VERSION_ID, 1, "초안"));
-        when(drawingMapper.findLayoutVersionById(TARGET_VERSION_ID)).thenReturn(version(TARGET_VERSION_ID, 2, "초안"));
+        when(drawingMapper.findLayoutVersionById(CURRENT_VERSION_ID)).thenReturn(version(CURRENT_VERSION_ID, 1, "초안"));
+        when(drawingMapper.findLayoutVersionById(NEW_VERSION_ID)).thenReturn(version(NEW_VERSION_ID, 2, "초안"));
         when(drawingMapper.lockLayout(LAYOUT_ID)).thenReturn(LAYOUT_ID);
         when(drawingMapper.findNextLayoutVersionNumber(LAYOUT_ID)).thenReturn(2);
         when(drawingMapper.insertLayoutVersion(any())).thenAnswer(invocation -> {
-            invocation.getArgument(0, LayoutVersion.class).setId(TARGET_VERSION_ID);
-            return 1;
-        });
-        when(drawingMapper.updateLayoutCurrentVersion(any())).thenAnswer(invocation -> {
-            layout.setCurrentVersionId(TARGET_VERSION_ID);
+            invocation.getArgument(0, LayoutVersion.class).setId(NEW_VERSION_ID);
             return 1;
         });
         when(drawingMapper.findFloorPlanById(FLOOR_PLAN_ID)).thenReturn(floorPlan());
@@ -136,18 +130,18 @@ class DrawingServiceTest {
         ArgumentCaptor<List<Wall>> wallCaptor = ArgumentCaptor.forClass((Class) List.class);
         verify(drawingMapper).insertWalls(wallCaptor.capture());
         Wall inserted = wallCaptor.getValue().get(0);
-        assertThat(inserted.getLayoutVersionId()).isEqualTo(TARGET_VERSION_ID);
+        assertThat(inserted.getLayoutVersionId()).isEqualTo(NEW_VERSION_ID);
 
-        assertThat(layout.getCurrentVersionId()).isEqualTo(TARGET_VERSION_ID);
-        assertThat(response.layoutVersionId()).isEqualTo(TARGET_VERSION_ID);
+        assertThat(layout.getCurrentVersionId()).isEqualTo(NEW_VERSION_ID);
+        assertThat(response.layoutVersionId()).isEqualTo(NEW_VERSION_ID);
         assertThat(response.layoutVersionNumber()).isEqualTo(2);
     }
 
     @Test
     void updateRejectsStaleExpectedVersionWithoutCreatingSnapshot() {
-        Layout layout = layout(LAYOUT_ID, SOURCE_VERSION_ID);
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
-        when(drawingMapper.findLayoutVersionById(SOURCE_VERSION_ID)).thenReturn(version(SOURCE_VERSION_ID, 1, "초안"));
+        when(drawingMapper.findLayoutVersionById(CURRENT_VERSION_ID)).thenReturn(version(CURRENT_VERSION_ID, 1, "초안"));
         when(drawingMapper.lockLayout(LAYOUT_ID)).thenReturn(LAYOUT_ID);
         DrawingUpdateRequest request = new DrawingUpdateRequest(
                 "수정 제목", null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), 5);
@@ -159,9 +153,9 @@ class DrawingServiceTest {
 
     @Test
     void updateRejectsLockedCurrentVersion() {
-        Layout layout = layout(LAYOUT_ID, SOURCE_VERSION_ID);
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
-        when(drawingMapper.findLayoutVersionById(SOURCE_VERSION_ID)).thenReturn(version(SOURCE_VERSION_ID, 1, "잠금"));
+        when(drawingMapper.findLayoutVersionById(CURRENT_VERSION_ID)).thenReturn(version(CURRENT_VERSION_ID, 1, "잠금"));
         when(drawingMapper.lockLayout(LAYOUT_ID)).thenReturn(LAYOUT_ID);
         DrawingUpdateRequest request = new DrawingUpdateRequest(
                 "수정 제목", null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), 0);
@@ -173,31 +167,20 @@ class DrawingServiceTest {
 
     @Test
     void restoreVersionCreatesNextDraftVersionCopyingShapesAndSwitchesCurrent() {
-        Layout layout = layout(LAYOUT_ID, SOURCE_VERSION_ID);
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
-        when(drawingMapper.findLayoutVersionById(SOURCE_VERSION_ID)).thenReturn(version(SOURCE_VERSION_ID, 1, "잠금"));
-        when(drawingMapper.findLayoutVersionById(TARGET_VERSION_ID)).thenReturn(version(TARGET_VERSION_ID, 3, "초안"));
+        when(drawingMapper.findLayoutVersionById(OTHER_VERSION_ID)).thenReturn(version(OTHER_VERSION_ID, 1, "잠금"));
+        when(drawingMapper.findLayoutVersionById(CURRENT_VERSION_ID)).thenReturn(version(CURRENT_VERSION_ID, 2, "초안"));
+        when(drawingMapper.findLayoutVersionById(NEW_VERSION_ID)).thenReturn(version(NEW_VERSION_ID, 3, "초안"));
         when(drawingMapper.lockLayout(LAYOUT_ID)).thenReturn(LAYOUT_ID);
         when(drawingMapper.findNextLayoutVersionNumber(LAYOUT_ID)).thenReturn(3);
         when(drawingMapper.insertLayoutVersion(any())).thenAnswer(invocation -> {
-            invocation.getArgument(0, LayoutVersion.class).setId(TARGET_VERSION_ID);
-            return 1;
-        });
-
-        Wall sourceWall = wall(SOURCE_VERSION_ID, "북쪽 벽");
-        when(drawingMapper.findWallsByVersionId(SOURCE_VERSION_ID)).thenReturn(List.of(sourceWall));
-        when(drawingMapper.findOutsideWallsByVersionId(SOURCE_VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.findPillarsByVersionId(SOURCE_VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.findFabricsByVersionId(SOURCE_VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.findLayoutTextsByVersionId(SOURCE_VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.findLayoutExitsByVersionId(SOURCE_VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.updateLayoutCurrentVersion(any())).thenAnswer(invocation -> {
-            layout.setCurrentVersionId(TARGET_VERSION_ID);
+            invocation.getArgument(0, LayoutVersion.class).setId(NEW_VERSION_ID);
             return 1;
         });
         when(drawingMapper.findFloorPlanById(FLOOR_PLAN_ID)).thenReturn(floorPlan());
 
-        DrawingResponse response = service.restoreVersion(LAYOUT_ID, SOURCE_VERSION_ID, operator);
+        DrawingResponse response = service.restoreVersion(LAYOUT_ID, OTHER_VERSION_ID, operator);
 
         ArgumentCaptor<LayoutVersion> versionCaptor = ArgumentCaptor.forClass(LayoutVersion.class);
         verify(drawingMapper).insertLayoutVersion(versionCaptor.capture());
@@ -207,40 +190,52 @@ class DrawingServiceTest {
         assertThat(created.getStatus()).isEqualTo("초안");
         assertThat(created.getOptimisticLock()).isEqualTo(1);
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<Wall>> wallCaptor = ArgumentCaptor.forClass((Class) List.class);
-        verify(drawingMapper).insertWalls(wallCaptor.capture());
-        Wall copied = wallCaptor.getValue().get(0);
-        assertThat(copied.getLayoutVersionId()).isEqualTo(TARGET_VERSION_ID);
-        assertThat(copied.getName()).isEqualTo("북쪽 벽");
-        assertThat(copied.getStartX()).isEqualByComparingTo("1.5");
+        verify(drawingMapper).copyWalls(OTHER_VERSION_ID, NEW_VERSION_ID);
+        verify(drawingMapper).copyOutsideWalls(OTHER_VERSION_ID, NEW_VERSION_ID);
+        verify(drawingMapper).copyPillars(OTHER_VERSION_ID, NEW_VERSION_ID);
+        verify(drawingMapper).copyLayoutTexts(OTHER_VERSION_ID, NEW_VERSION_ID);
+        verify(drawingMapper, never()).findWallsByVersionId(OTHER_VERSION_ID);
+        verify(drawingMapper, never()).insertWalls(any());
 
         verify(drawingMapper).updateLayoutCurrentVersion(any());
-        assertThat(layout.getCurrentVersionId()).isEqualTo(TARGET_VERSION_ID);
-        assertThat(response.layoutVersionId()).isEqualTo(TARGET_VERSION_ID);
+        assertThat(layout.getCurrentVersionId()).isEqualTo(NEW_VERSION_ID);
+        assertThat(response.layoutVersionId()).isEqualTo(NEW_VERSION_ID);
         assertThat(response.layoutVersionNumber()).isEqualTo(3);
         assertThat(response.layoutVersionStatus()).isEqualTo("초안");
     }
 
     @Test
-    void restoreVersionRejectsVersionBelongingToAnotherLayout() {
-        Layout layout = layout(LAYOUT_ID, SOURCE_VERSION_ID);
+    void restoreVersionRejectsWhenCurrentVersionIsLocked() {
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
-        LayoutVersion otherLayoutVersion = version(SOURCE_VERSION_ID, 1, "잠금");
-        otherLayoutVersion.setLayoutId(99L);
-        when(drawingMapper.findLayoutVersionById(SOURCE_VERSION_ID)).thenReturn(otherLayoutVersion);
+        when(drawingMapper.findLayoutVersionById(CURRENT_VERSION_ID)).thenReturn(version(CURRENT_VERSION_ID, 2, "잠금"));
+        when(drawingMapper.lockLayout(LAYOUT_ID)).thenReturn(LAYOUT_ID);
 
-        assertThatThrownBy(() -> service.restoreVersion(LAYOUT_ID, SOURCE_VERSION_ID, operator))
+        assertThatThrownBy(() -> service.restoreVersion(LAYOUT_ID, CURRENT_VERSION_ID, operator))
+                .isInstanceOf(DrawingLockedException.class);
+        verify(drawingMapper, never()).insertLayoutVersion(any());
+        verify(drawingMapper, never()).copyWalls(any(), any());
+    }
+
+    @Test
+    void restoreVersionRejectsVersionBelongingToAnotherLayout() {
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
+        when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
+        LayoutVersion otherLayoutVersion = version(OTHER_VERSION_ID, 1, "잠금");
+        otherLayoutVersion.setLayoutId(99L);
+        when(drawingMapper.findLayoutVersionById(OTHER_VERSION_ID)).thenReturn(otherLayoutVersion);
+
+        assertThatThrownBy(() -> service.restoreVersion(LAYOUT_ID, OTHER_VERSION_ID, operator))
                 .isInstanceOf(DrawingNotFoundException.class);
     }
 
     @Test
     void restoreVersionRejectsLayoutOwnedByAnotherOperator() {
-        Layout layout = layout(LAYOUT_ID, SOURCE_VERSION_ID);
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
         layout.setCreatedBy(8L);
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
 
-        assertThatThrownBy(() -> service.restoreVersion(LAYOUT_ID, SOURCE_VERSION_ID, operator))
+        assertThatThrownBy(() -> service.restoreVersion(LAYOUT_ID, OTHER_VERSION_ID, operator))
                 .isInstanceOf(ForbiddenException.class);
     }
 
@@ -274,17 +269,5 @@ class DrawingServiceTest {
         floorPlan.setWidth(BigDecimal.valueOf(20));
         floorPlan.setHeight(BigDecimal.valueOf(30));
         return floorPlan;
-    }
-
-    private Wall wall(Long layoutVersionId, String name) {
-        Wall wall = new Wall();
-        wall.setId(20L);
-        wall.setLayoutVersionId(layoutVersionId);
-        wall.setName(name);
-        wall.setStartX(BigDecimal.valueOf(1.5));
-        wall.setStartY(BigDecimal.valueOf(2.5));
-        wall.setEndX(BigDecimal.valueOf(3.5));
-        wall.setEndY(BigDecimal.valueOf(4.5));
-        return wall;
     }
 }

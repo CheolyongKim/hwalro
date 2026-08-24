@@ -285,6 +285,9 @@ public class DrawingService {
             throw new DrawingNotFoundException(id);
         }
         LayoutVersion currentVersion = findVersionOrThrow(layout.getCurrentVersionId());
+        if (!LAYOUT_STATUS_DRAFT.equals(currentVersion.getStatus())) {
+            throw new DrawingLockedException();
+        }
 
         LayoutVersion targetVersion = new LayoutVersion();
         targetVersion.setLayoutId(layout.getId());
@@ -293,16 +296,12 @@ public class DrawingService {
         targetVersion.setOptimisticLock(currentVersion.getOptimisticLock() + 1);
         drawingMapper.insertLayoutVersion(targetVersion);
 
-        insertWallsIfPresent(
-                copyWalls(drawingMapper.findWallsByVersionId(sourceVersion.getId()), targetVersion.getId()));
-        insertOutsideWallsIfPresent(copyOutsideWalls(
-                drawingMapper.findOutsideWallsByVersionId(sourceVersion.getId()), targetVersion.getId()));
-        insertPillarsIfPresent(
-                copyPillars(drawingMapper.findPillarsByVersionId(sourceVersion.getId()), targetVersion.getId()));
+        drawingMapper.copyWalls(sourceVersion.getId(), targetVersion.getId());
+        drawingMapper.copyOutsideWalls(sourceVersion.getId(), targetVersion.getId());
+        drawingMapper.copyPillars(sourceVersion.getId(), targetVersion.getId());
+        drawingMapper.copyLayoutTexts(sourceVersion.getId(), targetVersion.getId());
         insertFabricsIfPresent(
                 copyFabrics(drawingMapper.findFabricsByVersionId(sourceVersion.getId()), targetVersion.getId()));
-        insertLayoutTextsIfPresent(copyLayoutTexts(
-                drawingMapper.findLayoutTextsByVersionId(sourceVersion.getId()), targetVersion.getId()));
         insertExitsIfPresent(
                 copyExits(drawingMapper.findLayoutExitsByVersionId(sourceVersion.getId()), targetVersion.getId()));
 
