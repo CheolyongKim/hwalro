@@ -2,7 +2,11 @@ import { AxiosError } from 'axios';
 import type { DrawingDocument } from '../types';
 import { fromSerialized, toSerialized } from '../utils/serialization';
 import { drawingApi } from '../../drawings/api/drawingApi';
-import type { DrawingLayoutVersionStatus } from '../../drawings/types/drawing';
+import type {
+  Drawing,
+  DrawingLayoutVersionStatus,
+  DrawingVersionSummary,
+} from '../../drawings/types/drawing';
 
 export interface DrawingSession {
   doc: DrawingDocument;
@@ -13,10 +17,9 @@ export interface DrawingSession {
   layoutVersionStatus: DrawingLayoutVersionStatus;
 }
 
-export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
-  try {
-    const drawing = await drawingApi.get(Number(id));
-    const doc = fromSerialized({
+function toSession(drawing: Drawing): DrawingSession {
+  return {
+    doc: fromSerialized({
       name: drawing.title,
       width: drawing.width,
       height: drawing.height,
@@ -26,15 +29,19 @@ export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
       pillars: drawing.pillars,
       fabrics: drawing.fabrics,
       layoutTexts: drawing.layoutTexts,
-    });
-    return {
-      doc,
-      description: drawing.description,
-      version: drawing.version,
-      layoutVersionId: drawing.layoutVersionId,
-      layoutVersionNumber: drawing.layoutVersionNumber,
-      layoutVersionStatus: drawing.layoutVersionStatus,
-    };
+    }),
+    description: drawing.description,
+    version: drawing.version,
+    layoutVersionId: drawing.layoutVersionId,
+    layoutVersionNumber: drawing.layoutVersionNumber,
+    layoutVersionStatus: drawing.layoutVersionStatus,
+  };
+}
+
+export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
+  try {
+    const drawing = await drawingApi.get(Number(id));
+    return toSession(drawing);
   } catch (error) {
     if (error instanceof AxiosError && error.response?.status === 404) {
       return null;
@@ -43,21 +50,15 @@ export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
   }
 }
 
-/** 저장 응답이 돌려준 서버 ID. 새로 그린 요소가 저장 즉시 구역·제약 대상이 되려면 이 값이 필요하다. */
-export interface SavedIds {
-  walls: Array<number | null>;
-  pillars: Array<number | null>;
-  fabrics: Array<number | null>;
-}
-
-export interface SaveResult {
-  version: number;
-  savedIds: SavedIds;
-}
-
-export async function saveDrawing(id: string, session: DrawingSession): Promise<SaveResult> {
+/**
+ * 도면을 저장하고 서버가 확정한 도면 전체를 돌려준다.
+ *
+ * 응답의 요소 ID는 새로 그린 요소가 저장 즉시 구역·제약 대상이 되기 위해 필요하다.
+ * 호출자가 adoptSavedIds로 편집기 상태에 반영한다.
+ */
+export async function saveDrawing(id: string, session: DrawingSession): Promise<Drawing> {
   const serialized = toSerialized(session.doc);
-  const drawing = await drawingApi.update(Number(id), {
+  return drawingApi.update(Number(id), {
     title: serialized.name,
     description: session.description,
     walls: serialized.walls,
@@ -68,12 +69,16 @@ export async function saveDrawing(id: string, session: DrawingSession): Promise<
     layoutTexts: serialized.layoutTexts,
     expectedVersion: session.version,
   });
-  return {
-    version: drawing.version,
-    savedIds: {
-      walls: drawing.walls.map((wall) => wall.id ?? null),
-      pillars: drawing.pillars.map((pillar) => pillar.id ?? null),
-      fabrics: drawing.fabrics.map((fabric) => fabric.id ?? null),
-    },
-  };
+}
+
+export async function fetchDrawingVersions(id: string): Promise<DrawingVersionSummary[]> {
+  return drawingApi.versions(Number(id));
+}
+
+export async function restoreDrawingVersion(
+  id: string,
+  versionId: number,
+): Promise<DrawingSession> {
+  const drawing = await drawingApi.restoreVersion(Number(id), versionId);
+  return toSession(drawing);
 }

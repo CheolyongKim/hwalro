@@ -21,6 +21,7 @@ import com.hwalro.simulation.drawing.dto.WallDto;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,7 @@ import org.mockito.quality.Strictness;
 class DrawingServiceDisplayOrderTest {
     private static final Long LAYOUT_ID = 802L;
     private static final Long VERSION_ID = 803L;
+    private static final Long NEXT_VERSION_ID = 804L;
     private static final JwtUser OWNER = new JwtUser(7L, Set.of("OPERATOR"));
 
     @Mock
@@ -80,10 +82,23 @@ class DrawingServiceDisplayOrderTest {
         when(drawingMapper.updateLayout(any())).thenReturn(1);
         when(drawingMapper.updateLayoutVersionLock(anyLong(), anyInt(), anyInt()))
                 .thenReturn(1);
-        when(drawingMapper.findWallIdsByVersionId(VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.findPillarIdsByVersionId(VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.findFabricIdsByVersionId(VERSION_ID)).thenReturn(List.of());
-        when(drawingMapper.findLayoutExitIdsByVersionId(VERSION_ID)).thenReturn(List.of());
+        // 저장은 도면을 잠그고 새 초안 버전을 만든 뒤 그 버전에 요소를 넣는다.
+        LayoutVersion nextVersion = new LayoutVersion();
+        nextVersion.setId(NEXT_VERSION_ID);
+        nextVersion.setLayoutId(LAYOUT_ID);
+        nextVersion.setVersion(2);
+        nextVersion.setStatus("초안");
+        nextVersion.setOptimisticLock(4);
+        when(drawingMapper.lockLayout(LAYOUT_ID)).thenReturn(LAYOUT_ID);
+        when(drawingMapper.findNextLayoutVersionNumber(LAYOUT_ID)).thenReturn(2);
+        when(drawingMapper.findLayoutVersionById(NEXT_VERSION_ID)).thenReturn(nextVersion);
+        when(drawingMapper.insertLayoutVersion(any())).thenAnswer(invocation -> {
+            invocation.getArgument(0, LayoutVersion.class).setId(NEXT_VERSION_ID);
+            return 1;
+        });
+
+        // 넣은 만큼 그대로 다시 읽혀야 구역 이월이 원본→대상 ID를 위치로 짝지을 수 있다.
+        stubInsertedIds();
         when(drawingMapper.findWallsByVersionId(anyLong())).thenReturn(List.of());
         when(drawingMapper.findPillarsByVersionId(anyLong())).thenReturn(List.of());
         when(drawingMapper.findFabricsByVersionId(anyLong())).thenReturn(List.of());
@@ -109,18 +124,9 @@ class DrawingServiceDisplayOrderTest {
                                 3),
                         OWNER);
 
-        ArgumentCaptor<Wall> walls = ArgumentCaptor.forClass(Wall.class);
-        verify(drawingMapper, org.mockito.Mockito.times(3)).insertWall(walls.capture());
-        assertThat(walls.getAllValues()).extracting(Wall::getDisplayOrder).containsExactly(0, 1, 2);
-
-        ArgumentCaptor<Fabric> fabrics = ArgumentCaptor.forClass(Fabric.class);
-        verify(drawingMapper, org.mockito.Mockito.times(3)).insertFabric(fabrics.capture());
-        assertThat(fabrics.getAllValues()).extracting(Fabric::getDisplayOrder).containsExactly(0, 1, 2);
-
-        org.mockito.ArgumentCaptor<com.hwalro.simulation.drawing.domain.Pillar> pillars =
-                org.mockito.ArgumentCaptor.forClass(com.hwalro.simulation.drawing.domain.Pillar.class);
-        verify(drawingMapper, org.mockito.Mockito.times(2)).insertPillar(pillars.capture());
-        assertThat(pillars.getAllValues())
+        assertThat(insertedWalls()).extracting(Wall::getDisplayOrder).containsExactly(0, 1, 2);
+        assertThat(insertedFabrics()).extracting(Fabric::getDisplayOrder).containsExactly(0, 1, 2);
+        assertThat(insertedPillars())
                 .extracting(com.hwalro.simulation.drawing.domain.Pillar::getDisplayOrder)
                 .containsExactly(0, 1);
     }
@@ -142,18 +148,61 @@ class DrawingServiceDisplayOrderTest {
                                 3),
                         OWNER);
 
-        ArgumentCaptor<Wall> walls = ArgumentCaptor.forClass(Wall.class);
-        verify(drawingMapper, org.mockito.Mockito.times(2)).insertWall(walls.capture());
-        assertThat(walls.getAllValues()).extracting(Wall::getDisplayOrder).containsExactly(2, 0);
+        assertThat(insertedWalls()).extracting(Wall::getDisplayOrder).containsExactly(2, 0);
+        assertThat(insertedFabrics()).singleElement().satisfies(fabric -> assertThat(fabric.getDisplayOrder())
+                .isEqualTo(1));
 
-        ArgumentCaptor<Fabric> fabrics = ArgumentCaptor.forClass(Fabric.class);
-        verify(drawingMapper).insertFabric(fabrics.capture());
-        assertThat(fabrics.getValue().getDisplayOrder()).isEqualTo(1);
+        assertThat(insertedPillars()).singleElement().satisfies(pillar -> assertThat(pillar.getDisplayOrder())
+                .isEqualTo(3));
+    }
 
-        org.mockito.ArgumentCaptor<com.hwalro.simulation.drawing.domain.Pillar> pillars =
-                org.mockito.ArgumentCaptor.forClass(com.hwalro.simulation.drawing.domain.Pillar.class);
-        verify(drawingMapper).insertPillar(pillars.capture());
-        assertThat(pillars.getValue().getDisplayOrder()).isEqualTo(3);
+    private List<Wall> insertedWalls() {
+        ArgumentCaptor<List<Wall>> captor = batchCaptor();
+        verify(drawingMapper).insertWalls(captor.capture());
+        return captor.getValue();
+    }
+
+    private List<Fabric> insertedFabrics() {
+        ArgumentCaptor<List<Fabric>> captor = batchCaptor();
+        verify(drawingMapper).insertFabrics(captor.capture());
+        return captor.getValue();
+    }
+
+    private List<com.hwalro.simulation.drawing.domain.Pillar> insertedPillars() {
+        ArgumentCaptor<List<com.hwalro.simulation.drawing.domain.Pillar>> captor = batchCaptor();
+        verify(drawingMapper).insertPillars(captor.capture());
+        return captor.getValue();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static <T> ArgumentCaptor<List<T>> batchCaptor() {
+        return (ArgumentCaptor<List<T>>) (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
+    }
+
+    /** 삽입한 개수만큼 ID를 돌려주도록 흉내낸다. 실제 DB가 하는 일이고, 구역 이월이 이 전제 위에 있다. */
+    private void stubInsertedIds() {
+        List<Long> wallIds = new ArrayList<>();
+        List<Long> pillarIds = new ArrayList<>();
+        List<Long> fabricIds = new ArrayList<>();
+        List<Long> exitIds = new ArrayList<>();
+        when(drawingMapper.insertWalls(any())).thenAnswer(collectIds(wallIds, 1000L));
+        when(drawingMapper.insertPillars(any())).thenAnswer(collectIds(pillarIds, 2000L));
+        when(drawingMapper.insertFabrics(any())).thenAnswer(collectIds(fabricIds, 3000L));
+        when(drawingMapper.insertLayoutExits(any())).thenAnswer(collectIds(exitIds, 4000L));
+        when(drawingMapper.findWallIdsByVersionId(any())).thenAnswer(invocation -> List.copyOf(wallIds));
+        when(drawingMapper.findPillarIdsByVersionId(any())).thenAnswer(invocation -> List.copyOf(pillarIds));
+        when(drawingMapper.findFabricIdsByVersionId(any())).thenAnswer(invocation -> List.copyOf(fabricIds));
+        when(drawingMapper.findLayoutExitIdsByVersionId(any())).thenAnswer(invocation -> List.copyOf(exitIds));
+    }
+
+    private static org.mockito.stubbing.Answer<Integer> collectIds(List<Long> sink, long base) {
+        return invocation -> {
+            List<?> inserted = invocation.getArgument(0, List.class);
+            for (int index = 0; index < inserted.size(); index++) {
+                sink.add(base + sink.size());
+            }
+            return inserted.size();
+        };
     }
 
     private DrawingService service() {

@@ -152,6 +152,7 @@ export function useHomeDashboard() {
               : action.type === 'disabled'
                 ? null
                 : '/simulations',
+          isImprovement: item.isImprovement,
         };
       }),
     [recentQuery.data, nameById],

@@ -628,6 +628,13 @@
 /* --- 개선안 상세 패널 (CandidateDetailPanel) --- */
 .candidate-detail-panel-container {
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.candidate-detail-panel-container::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .search-insight-body {
@@ -845,22 +852,6 @@
   gap: 8px;
 }
 
-.continue-comparing-button {
-  width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  background: transparent;
-  padding: 10px;
-  color: var(--color-white);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.continue-comparing-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
 .search-insight-empty {
   padding: 24px;
 }
@@ -959,6 +950,13 @@
   gap: 8px;
   font-size: 13px;
   color: var(--color-panel-text);
+}
+
+.search-start-panel__verify-hint {
+  margin: -4px 0 0 26px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-panel-muted);
 }
 
 .search-start-panel__start {

@@ -17,6 +17,7 @@ import com.hwalro.simulation.drawing.dto.DrawingListResponse;
 import com.hwalro.simulation.drawing.dto.DrawingResponse;
 import com.hwalro.simulation.drawing.dto.DrawingSummary;
 import com.hwalro.simulation.drawing.dto.DrawingUpdateRequest;
+import com.hwalro.simulation.drawing.dto.DrawingVersionSummary;
 import com.hwalro.simulation.drawing.dto.ExitDto;
 import com.hwalro.simulation.drawing.dto.FabricDto;
 import com.hwalro.simulation.drawing.dto.LayoutTextDto;
@@ -196,34 +197,115 @@ public class DrawingService {
         geometryValidator.validate(
                 request.outsideWalls(), request.walls(), request.pillars(), request.fabrics(), request.exits());
 
+        if (drawingMapper.lockLayout(layout.getId()) == null) {
+            throw new DrawingNotFoundException(id);
+        }
         LayoutVersion version = findVersionOrThrow(layout.getCurrentVersionId());
         if (!LAYOUT_STATUS_DRAFT.equals(version.getStatus())) {
             throw new DrawingLockedException();
+        }
+        if (!request.expectedVersion().equals(version.getOptimisticLock())) {
+            throw new DrawingConflictException(id);
         }
 
         layout.setTitle(request.title().trim());
         layout.setDescription(request.description());
         drawingMapper.updateLayout(layout);
 
-        int updated = drawingMapper.updateLayoutVersionLock(
-                version.getId(), request.expectedVersion(), version.getOptimisticLock() + 1);
-        if (updated == 0) {
-            throw new DrawingConflictException(id);
-        }
+        LayoutVersion targetVersion = new LayoutVersion();
+        targetVersion.setLayoutId(layout.getId());
+        targetVersion.setVersion(drawingMapper.findNextLayoutVersionNumber(layout.getId()));
+        targetVersion.setStatus(LAYOUT_STATUS_DRAFT);
+        targetVersion.setOptimisticLock(version.getOptimisticLock() + 1);
+        drawingMapper.insertLayoutVersion(targetVersion);
 
-        // ponytail: 외각벽·텍스트는 참조하는 테이블이 없어 통째로 지우고 다시 넣는다.
-        // 이들을 ID로 참조하는 기능이 생기면 아래 identity sync로 승급한다.
-        drawingMapper.deleteOutsideWallsByVersionId(version.getId());
-        drawingMapper.deleteLayoutTextsByVersionId(version.getId());
-        insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), version.getId()));
-        insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
-        // 구역 멤버십·배치 제약·구역 비상구 참조가 이 ID들을 가리키므로 삭제 후 재삽입하면 안 된다.
-        syncWalls(version.getId(), toWalls(request.walls(), version.getId()));
-        syncPillars(version.getId(), toPillars(request.pillars(), version.getId()));
-        syncFabrics(version.getId(), toFabrics(request.fabrics(), version.getId()));
-        syncExits(version.getId(), toExits(request.exits(), version.getId()));
+        insertWallsIfPresent(toWalls(request.walls(), targetVersion.getId()));
+        insertPillarsIfPresent(toPillars(request.pillars(), targetVersion.getId()));
+        insertFabricsIfPresent(toFabrics(request.fabrics(), targetVersion.getId()));
+        insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), targetVersion.getId()));
+        insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), targetVersion.getId()));
+        insertExitsIfPresent(toExits(request.exits(), targetVersion.getId()));
+
+        // 저장은 새 버전에 요소를 새 ID로 다시 만든다. 구역 소속과 구조물 제약은 이전 버전의 ID를
+        // 가리키므로 여기서 옮겨주지 않으면 저장 한 번에 전부 사라진다.
+        carryLayoutMetadataForward(version.getId(), targetVersion.getId(), request);
+
+        layout.setCurrentVersionId(targetVersion.getId());
+        drawingMapper.updateLayoutCurrentVersion(layout);
 
         return toResponse(findLayoutOrThrow(id));
+    }
+
+    /**
+     * 이전 버전의 구역 메타데이터를 새 버전으로 옮긴다.
+     *
+     * <p>요소는 새 ID로 다시 삽입되므로 원본→대상 ID 맵이 필요하다. 이름이나 좌표로 짝지으면 같은 이름이
+     * 둘일 때 잘못된 짝을 고른다. 요청 배열의 순서와 새 버전을 다시 읽은 순서는 display_order 기준으로
+     * 일치하므로 위치로 짝짓는다.
+     */
+    private void carryLayoutMetadataForward(Long sourceVersionId, Long targetVersionId, DrawingUpdateRequest request) {
+        Map<ZoneElementKind, Map<Long, Long>> elementIdMaps = new EnumMap<>(ZoneElementKind.class);
+        elementIdMaps.put(
+                ZoneElementKind.WALL,
+                pairByPosition(
+                        request.walls().stream().map(WallDto::id).toList(),
+                        drawingMapper.findWallIdsByVersionId(targetVersionId)));
+        elementIdMaps.put(
+                ZoneElementKind.PILLAR,
+                pairByPosition(
+                        request.pillars().stream().map(PillarDto::id).toList(),
+                        drawingMapper.findPillarIdsByVersionId(targetVersionId)));
+        elementIdMaps.put(
+                ZoneElementKind.FABRIC,
+                pairByPosition(
+                        request.fabrics().stream().map(FabricDto::id).toList(),
+                        drawingMapper.findFabricIdsByVersionId(targetVersionId)));
+        Map<Long, Long> exitIdMap = pairByPosition(
+                request.exits().stream().map(ExitDto::id).toList(),
+                drawingMapper.findLayoutExitIdsByVersionId(targetVersionId));
+
+        carryFabricConstraintsForward(sourceVersionId, targetVersionId, elementIdMaps.get(ZoneElementKind.FABRIC));
+        layoutMetadataCopier.copy(sourceVersionId, targetVersionId, exitIdMap, elementIdMaps);
+    }
+
+    /** 배치 제약은 도면 저장 요청에 실려 오지 않는다. 옮기지 않으면 저장할 때마다 기본값으로 되돌아간다. */
+    private void carryFabricConstraintsForward(
+            Long sourceVersionId, Long targetVersionId, Map<Long, Long> fabricIdMap) {
+        if (fabricIdMap.isEmpty()) {
+            return;
+        }
+        for (Fabric source : drawingMapper.findFabricsByVersionId(sourceVersionId)) {
+            Long targetId = fabricIdMap.get(source.getId());
+            if (targetId == null) {
+                continue;
+            }
+            Fabric target = new Fabric();
+            target.setId(targetId);
+            target.setLayoutVersionId(targetVersionId);
+            target.setMovable(source.getMovable());
+            target.setMaxMovementDistance(source.getMaxMovementDistance());
+            target.setRotationLocked(source.getRotationLocked());
+            target.setKeepAgainstWall(source.getKeepAgainstWall());
+            drawingMapper.updateFabricConstraints(target);
+        }
+    }
+
+    /**
+     * 요청 순서와 새로 읽은 ID 순서를 위치로 짝지어 원본→대상 ID 맵을 만든다. 새로 그린 요소는 원본 ID가
+     * 없으므로 건너뛴다.
+     */
+    private static Map<Long, Long> pairByPosition(List<Long> sourceIds, List<Long> targetIds) {
+        if (sourceIds.size() != targetIds.size()) {
+            throw new IllegalStateException("저장한 요소 수가 요청과 다릅니다: 요청 " + sourceIds.size() + ", 저장 " + targetIds.size());
+        }
+        Map<Long, Long> map = new LinkedHashMap<>();
+        for (int index = 0; index < sourceIds.size(); index++) {
+            Long sourceId = sourceIds.get(index);
+            if (sourceId != null) {
+                map.put(sourceId, targetIds.get(index));
+            }
+        }
+        return map;
     }
 
     void syncWalls(Long layoutVersionId, List<Wall> requested) {
@@ -372,6 +454,57 @@ public class DrawingService {
         }
         drawingMapper.deleteLayoutById(id);
         drawingMapper.deleteFloorPlanById(layout.getFloorPlanId());
+    }
+
+    public List<DrawingVersionSummary> listVersions(Long id, JwtUser user) {
+        Layout layout = findLayoutOrThrow(id);
+        requireAccessible(layout, user);
+        return drawingMapper.findLayoutVersionsByLayoutId(layout.getId()).stream()
+                .map(version -> new DrawingVersionSummary(
+                        version.getId(), version.getVersion(), version.getStatus(), version.getCreatedAt()))
+                .toList();
+    }
+
+    @Transactional
+    public DrawingResponse restoreVersion(Long id, Long versionId, JwtUser user) {
+        Layout layout = findLayoutOrThrow(id);
+        requireAccessible(layout, user);
+        LayoutVersion sourceVersion = drawingMapper.findLayoutVersionById(versionId);
+        if (sourceVersion == null || !sourceVersion.getLayoutId().equals(layout.getId())) {
+            throw new DrawingNotFoundException(id);
+        }
+        if (drawingMapper.lockLayout(layout.getId()) == null) {
+            throw new DrawingNotFoundException(id);
+        }
+        LayoutVersion currentVersion = findVersionOrThrow(layout.getCurrentVersionId());
+        if (!LAYOUT_STATUS_DRAFT.equals(currentVersion.getStatus())) {
+            throw new DrawingLockedException();
+        }
+
+        LayoutVersion targetVersion = new LayoutVersion();
+        targetVersion.setLayoutId(layout.getId());
+        targetVersion.setVersion(drawingMapper.findNextLayoutVersionNumber(layout.getId()));
+        targetVersion.setStatus(LAYOUT_STATUS_DRAFT);
+        targetVersion.setOptimisticLock(currentVersion.getOptimisticLock() + 1);
+        drawingMapper.insertLayoutVersion(targetVersion);
+
+        // 복원도 복제와 같다. 구역·멤버십이 요소를 ID로 참조하므로 원본→대상 ID 맵을 만들어 함께 옮긴다.
+        Map<Long, Long> wallIdMap = copyWallsWithIdMap(sourceVersion.getId(), targetVersion.getId());
+        drawingMapper.copyOutsideWalls(sourceVersion.getId(), targetVersion.getId());
+        Map<Long, Long> pillarIdMap = copyPillarsWithIdMap(sourceVersion.getId(), targetVersion.getId());
+        drawingMapper.copyLayoutTexts(sourceVersion.getId(), targetVersion.getId());
+        Map<Long, Long> fabricIdMap = copyFabricsWithIdMap(sourceVersion.getId(), targetVersion.getId());
+        Map<Long, Long> exitIdMap = copyExitsWithIdMap(sourceVersion.getId(), targetVersion.getId());
+        layoutMetadataCopier.copy(
+                sourceVersion.getId(),
+                targetVersion.getId(),
+                exitIdMap,
+                elementIdMaps(wallIdMap, pillarIdMap, fabricIdMap));
+
+        layout.setCurrentVersionId(targetVersion.getId());
+        drawingMapper.updateLayoutCurrentVersion(layout);
+
+        return toResponse(findLayoutOrThrow(layout.getId()));
     }
 
     private boolean canSeeAll(Set<String> roles) {

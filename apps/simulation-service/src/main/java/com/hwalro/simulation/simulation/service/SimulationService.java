@@ -109,7 +109,8 @@ public class SimulationService {
                         simulation.getTitle(),
                         simulation.getStatus(),
                         simulation.getCreatedAt(),
-                        simulation.getTotalPeople()))
+                        simulation.getTotalPeople(),
+                        simulation.getIsImprovement()))
                 .toList();
     }
 
@@ -600,7 +601,8 @@ public class SimulationService {
                                 hazard.getId(), hazard.getCenterX(), hazard.getCenterY(), hazard.getRadius()))
                         .toList(),
                 simulationMapper.findSelectedExitIds(id),
-                drawing);
+                drawing,
+                simulation.getIsImprovement());
     }
 
     private DrawingSnapshot loadDrawing(LayoutSimulationContext context) {
@@ -792,7 +794,9 @@ public class SimulationService {
                 simulation.getStartedAt(),
                 simulation.getFinishedAt(),
                 simulation.getTotalPeople(),
-                simulation.getTerminationReason());
+                simulation.getTerminationReason(),
+                simulation.getIsImprovement(),
+                simulation.getHasLayoutSearch());
     }
 
     private record DrawingSnapshot(

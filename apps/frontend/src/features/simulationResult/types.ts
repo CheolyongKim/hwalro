@@ -128,6 +128,8 @@ export interface SimulationResultSummaryViewModel {
   drawing: SimulationDrawing;
   hazardZones: HazardZone[];
   bottlenecks: DetectedBottleneck[];
+  isImprovement?: boolean;
+  sourceSimulationId?: number;
 }
 
 export interface SimulationResultViewModel extends SimulationResultSummaryViewModel {

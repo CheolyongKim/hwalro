@@ -54,6 +54,8 @@ interface SimulationResultSummaryResponse {
     thresholdValue: number;
     geometry: { x: number; y: number; width: number; height: number };
   }>;
+  isImprovement?: boolean;
+  sourceSimulationId?: number;
 }
 
 function toSummaryViewModel(

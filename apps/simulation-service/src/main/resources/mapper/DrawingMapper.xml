@@ -118,6 +118,18 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findLayoutVersionsByLayoutId" resultType="com.hwalro.simulation.drawing.domain.LayoutVersion">
+        SELECT id,
+               layout_id,
+               version,
+               status,
+               optimistic_lock,
+               created_at
+        FROM layout_versions
+        WHERE layout_id = #{layoutId}
+        ORDER BY version DESC
+    </select>
+
     <select id="findWallsByVersionId" resultType="com.hwalro.simulation.drawing.domain.Wall">
         SELECT id,
                layout_version_id,
@@ -492,6 +504,16 @@
           AND optimistic_lock = #{expectedLock}
           AND status = '초안'
     </update>
+
+    <delete id="deleteWallsByVersionId">
+        DELETE FROM walls
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
+
+    <delete id="deletePillarsByVersionId">
+        DELETE FROM pillars
+        WHERE layout_version_id = #{layoutVersionId}
+    </delete>
 
     <delete id="deleteFabricsByVersionId">
         DELETE FROM fabrics

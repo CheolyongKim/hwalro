@@ -371,6 +371,7 @@ class SimulationEngineRunnerTest {
                         new PointDto(BigDecimal.valueOf(2), BigDecimal.valueOf(3))),
                 List.of(),
                 List.of(501L),
-                drawing);
+                drawing,
+                false);
     }
 }

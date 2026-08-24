@@ -39,6 +39,10 @@ export function SearchStartPanel({ drawingId, onStart, starting }: SearchStartPa
           />
           <span>후보마다 시뮬레이션으로 실측 확인 (정확하지만 오래 걸립니다)</span>
         </label>
+        <p className="search-start-panel__verify-hint">
+          켜면 시작 후 시뮬레이션 목록에서 후보 찾기와 검증 진행을 자동으로 보여줍니다. 끄면 후보만
+          제안하고, 원하는 개선안을 골라 직접 실행할 수 있습니다.
+        </p>
         <button
           type="button"
           className="search-start-panel__start"

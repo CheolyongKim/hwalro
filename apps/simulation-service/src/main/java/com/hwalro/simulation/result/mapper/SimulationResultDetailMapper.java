@@ -40,7 +40,9 @@ public interface SimulationResultDetailMapper {
             String drawingName,
             double drawingWidth,
             double drawingHeight,
-            int totalPeople) {}
+            int totalPeople,
+            Boolean isImprovement,
+            Long sourceSimulationId) {}
 
     record MetricRow(String metricType, double metricValue) {}
 

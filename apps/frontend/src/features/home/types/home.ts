@@ -56,4 +56,5 @@ export interface RecentSimulationRow {
   assigneeName: string | null;
   status: SimulationExecutionStatus;
   path: string | null;
+  isImprovement?: boolean;
 }

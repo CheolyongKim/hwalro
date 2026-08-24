@@ -120,7 +120,9 @@ public class EvacuationPreviewService {
                 List.of(origin),
                 List.of(),
                 List.copyOf(selectedExitIds),
-                drawing);
+                drawing,
+                // 대피 경로 미리보기는 저장되는 시뮬레이션이 아니라 개선안일 수 없다.
+                false);
     }
 
     private EvacuationRouteResponse unreachable(LayoutZone zone, PointDto origin, ExitDto defaultExit) {

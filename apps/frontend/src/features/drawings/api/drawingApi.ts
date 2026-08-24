@@ -4,6 +4,7 @@ import type {
   DrawingCreateRequest,
   DrawingListResponse,
   DrawingUpdateRequest,
+  DrawingVersionSummary,
 } from '../types/drawing';
 
 export const drawingApi = {
@@ -21,4 +22,10 @@ export const drawingApi = {
   update: (id: number, body: DrawingUpdateRequest) =>
     apiClient.put<Drawing>(`/api/drawings/${id}`, body).then((res) => res.data),
   remove: (id: number) => apiClient.delete(`/api/drawings/${id}`),
+  versions: (id: number) =>
+    apiClient.get<DrawingVersionSummary[]>(`/api/drawings/${id}/versions`).then((res) => res.data),
+  restoreVersion: (id: number, versionId: number) =>
+    apiClient
+      .post<Drawing>(`/api/drawings/${id}/versions/${versionId}/restore`)
+      .then((res) => res.data),
 };

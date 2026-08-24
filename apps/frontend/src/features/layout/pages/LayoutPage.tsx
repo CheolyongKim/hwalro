@@ -10,6 +10,7 @@ import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { LayersPanel } from '../components/LayersPanel';
 import { ZonePanel, StructureConstraintPanel } from '../components/ZonePanel';
+import { VersionHistoryDialog } from '../components/VersionHistoryDialog';
 import { InlineTextInput } from '../components/InlineTextInput';
 import { Button } from '../../../components/ui';
 import {
@@ -23,7 +24,8 @@ import {
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
-import type { ValidationProblem, ValidationProblemKind, Vec2 } from '../types';
+import type { Drawing } from '../../drawings/types/drawing';
+import type { DrawingDocument, ValidationProblem, ValidationProblemKind, Vec2 } from '../types';
 import { CreateSimulationDraftDialog } from '../../simulations/components/CreateSimulationDraftDialog';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
@@ -72,6 +74,10 @@ function parseValidationProblems(data: unknown): ValidationProblem[] {
   );
 }
 
+function hasUnsavedDocChanges(stateDoc: DrawingDocument, sessionDoc: DrawingDocument): boolean {
+  return JSON.stringify(stateDoc) !== JSON.stringify(sessionDoc);
+}
+
 function LayoutPage() {
   const { drawingId = '' } = useParams();
   const navigate = useNavigate();
@@ -104,6 +110,7 @@ function LayoutPage() {
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
@@ -196,6 +203,16 @@ function LayoutPage() {
     };
   }, [drawingId, retryCount]);
 
+  /** 새로 그린 요소는 저장 응답에서 서버 ID를 얻는다. 반영하지 않으면 저장 후에도 구역·제약을 걸 수 없다. */
+  const adoptSavedIds = useCallback((drawing: Drawing) => {
+    dispatch({
+      type: 'adoptSavedIds',
+      walls: drawing.walls.map((wall) => wall.id ?? null),
+      pillars: drawing.pillars.map((pillar) => pillar.id ?? null),
+      fabrics: drawing.fabrics.map((fabric) => fabric.id ?? null),
+    });
+  }, []);
+
   const performSave = useCallback(async () => {
     if (saveStatus === 'saving' || loadStatus !== 'ready' || sessionRef.current === null) {
       return;
@@ -209,16 +226,18 @@ function LayoutPage() {
     }
     setSaveStatus('saving');
     try {
-      const { version, savedIds } = await saveDrawing(drawingId, {
+      const drawing = await saveDrawing(drawingId, {
         ...sessionRef.current,
         doc: stateRef.current.doc,
       });
-      // 새로 그린 요소는 이때 서버 ID를 얻는다. 반영하지 않으면 저장 후에도 구역·제약을 걸 수 없다.
-      dispatch({ type: 'adoptSavedIds', ...savedIds });
+      adoptSavedIds(drawing);
       sessionRef.current = {
         ...sessionRef.current,
         doc: stateRef.current.doc,
-        version,
+        version: drawing.version,
+        layoutVersionId: drawing.layoutVersionId,
+        layoutVersionNumber: drawing.layoutVersionNumber,
+        layoutVersionStatus: drawing.layoutVersionStatus,
       };
       dispatch({ type: 'setValidationProblems', problems: [] });
       recordLastActivity('LAYOUT_EDIT', Number(drawingId));
@@ -258,19 +277,23 @@ function LayoutPage() {
   const handleOpenDraftDialog = useCallback(async () => {
     const session = sessionRef.current;
     if (session === null || draftPending) return;
-    const hasUnsavedChanges = JSON.stringify(stateRef.current.doc) !== JSON.stringify(session.doc);
+    const hasUnsavedChanges = hasUnsavedDocChanges(stateRef.current.doc, session.doc);
     if (!hasUnsavedChanges || session.layoutVersionStatus === '잠금') {
       setDraftDialogOpen(true);
       return;
     }
     setDraftPending(true);
     try {
-      const { version, savedIds } = await saveDrawing(drawingId, {
+      const drawing = await saveDrawing(drawingId, { ...session, doc: stateRef.current.doc });
+      adoptSavedIds(drawing);
+      sessionRef.current = {
         ...session,
         doc: stateRef.current.doc,
-      });
-      dispatch({ type: 'adoptSavedIds', ...savedIds });
-      sessionRef.current = { ...session, doc: stateRef.current.doc, version };
+        version: drawing.version,
+        layoutVersionId: drawing.layoutVersionId,
+        layoutVersionNumber: drawing.layoutVersionNumber,
+        layoutVersionStatus: drawing.layoutVersionStatus,
+      };
       recordLastActivity('LAYOUT_EDIT', Number(drawingId));
       setDraftDialogOpen(true);
     } catch (error) {
@@ -366,6 +389,13 @@ function LayoutPage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [performSave, selectedZoneId, zoneRectHistory]);
+
+  const handleRestored = useCallback((session: DrawingSession) => {
+    sessionRef.current = session;
+    dispatch({ type: 'loadDocument', doc: session.doc });
+    setSaveStatus('idle');
+    setHistoryDialogOpen(false);
+  }, []);
 
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
   const employeeNameById = Object.fromEntries(
@@ -749,6 +779,7 @@ function LayoutPage() {
           <LayoutToolbar
             saveStatus={saveStatus}
             onSave={() => void performSave()}
+            onOpenHistory={() => setHistoryDialogOpen(true)}
             onStartSimulation={() => void handleOpenDraftDialog()}
             readOnly={readOnly || !canManageGeometry}
             collapseButtonRef={collapseButtonRef}
@@ -892,6 +923,16 @@ function LayoutPage() {
           pending={draftPending}
           onClose={() => setDraftDialogOpen(false)}
           onConfirm={(parentSimulationId) => void handleCreateDraft(parentSimulationId)}
+        />
+      )}
+      {historyDialogOpen && sessionRef.current !== null && (
+        <VersionHistoryDialog
+          drawingId={drawingId}
+          currentVersionId={sessionRef.current.layoutVersionId}
+          locked={readOnly}
+          hasUnsavedChanges={hasUnsavedDocChanges(stateRef.current.doc, sessionRef.current.doc)}
+          onClose={() => setHistoryDialogOpen(false)}
+          onRestored={handleRestored}
         />
       )}
     </CanvasWorkspace>
