@@ -93,6 +93,12 @@ function DrawingListTable({
                   <div className="flex items-center justify-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                     {canManage ? (
                       <>
+                        <Link
+                          to={`/drawings/${drawing.id}/evacuation-routes`}
+                          className="flex h-8 min-w-[68px] items-center justify-center whitespace-nowrap rounded-lg border border-line bg-white px-2.5 text-xs font-bold text-text-strong transition hover:border-primary hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        >
+                          대피 동선
+                        </Link>
                         <button
                           type="button"
                           onClick={() => onDuplicate(drawing)}

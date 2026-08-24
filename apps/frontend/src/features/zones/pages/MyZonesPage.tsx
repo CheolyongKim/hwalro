@@ -9,6 +9,7 @@ const ZONE_TYPE_LABELS: Record<string, string> = {
   WORK: '작업',
   STORAGE: '보관',
   PASSAGE: '통로',
+  EXCLUSION: '배치 제외',
   OTHER: '기타',
 };
 

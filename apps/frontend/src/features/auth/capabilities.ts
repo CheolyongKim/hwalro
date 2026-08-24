@@ -16,7 +16,9 @@ export type Capability =
   | 'regulations'
   | 'systemManagement'
   | 'zones.manage'
-  | 'zones.assigned';
+  | 'zones.assigned'
+  /** 도면 전체의 대피 동선 검토. 안전 담당 권한만 갖는다. */
+  | 'zones.evacuation.all';
 
 const PRIVILEGED: readonly Capability[] = [
   'drawings.view',
@@ -27,6 +29,7 @@ const PRIVILEGED: readonly Capability[] = [
   'checklists',
   'regulations',
   'zones.manage',
+  'zones.evacuation.all',
 ];
 
 const ROLE_CAPABILITIES: Record<string, readonly Capability[]> = {

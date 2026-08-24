@@ -26,6 +26,7 @@ import SimulationListPage from '../features/simulations/pages/SimulationListPage
 const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
 const MyZonesPage = lazy(() => import('../features/zones/pages/MyZonesPage'));
 const EvacuationPage = lazy(() => import('../features/zones/pages/EvacuationPage'));
+const EvacuationRoutesPage = lazy(() => import('../features/zones/pages/EvacuationRoutesPage'));
 const SimulationAnalysisResultPage = lazy(
   () => import('../features/simulationResult/pages/SimulationResultPage'),
 );
@@ -134,6 +135,19 @@ export const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<FullscreenRouteFallback />}>
                         <EvacuationPage />
+                      </Suspense>
+                    ),
+                  },
+                ],
+              },
+              {
+                element: <CapabilityRoute capability="zones.evacuation.all" />,
+                children: [
+                  {
+                    path: 'drawings/:drawingId/evacuation-routes',
+                    element: (
+                      <Suspense fallback={<FullscreenRouteFallback />}>
+                        <EvacuationRoutesPage />
                       </Suspense>
                     ),
                   },
