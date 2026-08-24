@@ -11,6 +11,7 @@ export function useLayoutSearchFeeds(simulationIds: readonly number[]) {
   const idsKey = simulationIds.join(',');
 
   const refresh = useCallback(async () => {
+    setError(null);
     const ids = idsKey.split(',').filter(Boolean).map(Number);
     if (ids.length === 0) {
       setFeeds({});

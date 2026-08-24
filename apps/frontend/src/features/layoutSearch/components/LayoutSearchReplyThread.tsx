@@ -70,18 +70,19 @@ function CandidateRow({
   const isNotImproved = candidateStatus === 'NOT_IMPROVED';
   const isFailed = candidateStatus === 'FAILED' || preparedStatus === 'FAILED';
 
-  const totalTimeDelta = candidate.delta.find(
+  const deltas = candidate.delta ?? [];
+  const totalTimeDelta = deltas.find(
     (d) =>
       d.metricType === 'TOTAL_EVACUATION_TIME_SECONDS' ||
       d.metricType === 'SIMULATION_DURATION_SECONDS',
   );
-  const avgTimeDelta = candidate.delta.find(
+  const avgTimeDelta = deltas.find(
     (d) => d.metricType === 'AVERAGE_EVACUATION_TIME_SECONDS',
   );
-  const exitImbalanceDelta = candidate.delta.find(
+  const exitImbalanceDelta = deltas.find(
     (d) => d.metricType === 'EXIT_IMBALANCE' || d.metricType === 'EXIT_IMBALANCE_RATIO',
   );
-  const maxDensityDelta = candidate.delta.find((d) => d.metricType === 'MAX_DENSITY');
+  const maxDensityDelta = deltas.find((d) => d.metricType === 'MAX_DENSITY');
 
   const { statusLabel, statusBadgeStyle } = (() => {
     if (isRunning) {
