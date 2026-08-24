@@ -85,15 +85,23 @@ public class CandidateAdoptionService {
             if (!PREPARABLE_STATUSES.contains(candidate.getStatus())) {
                 throw new SimulationConflictException("탐색이 제안한 후보만 시뮬레이션으로 준비할 수 있습니다.");
             }
-            Long targetVersionId = candidate.getAdoptedLayoutVersionId() == null
-                    ? createAdoptedLayout(study.getBaselineLayoutVersionId(), candidate)
-                    : candidate.getAdoptedLayoutVersionId();
-            Long draftSimulationId =
-                    createDraftSimulation(study.getBaselineSimulationId(), targetVersionId, user.userId());
+            AdoptedSimulation adopted = createAdoption(study, candidate, user.userId(), "DRAFT");
             layoutStudyMapper.markCandidatePrepared(
-                    candidateId, targetVersionId, draftSimulationId, LocalDateTime.now());
-            return new PreparedSimulationDto(draftSimulationId, "DRAFT");
+                    candidateId, adopted.layoutVersionId(), adopted.simulationId(), LocalDateTime.now());
+            return new PreparedSimulationDto(adopted.simulationId(), "DRAFT");
         });
+    }
+
+    public record AdoptedSimulation(long layoutVersionId, long simulationId) {}
+
+    public AdoptedSimulation createAdoption(
+            LayoutSearchEntity study, LayoutSearchCandidateEntity candidate, long requestedBy, String derivedStatus) {
+        Long targetVersionId = candidate.getAdoptedLayoutVersionId() == null
+                ? createAdoptedLayout(study.getBaselineLayoutVersionId(), candidate)
+                : candidate.getAdoptedLayoutVersionId();
+        long simulationId =
+                createDerivedSimulation(study.getBaselineSimulationId(), targetVersionId, requestedBy, derivedStatus);
+        return new AdoptedSimulation(targetVersionId, simulationId);
     }
 
     private PreparedSimulationDto preparedSimulation(Long simulationId) {
@@ -194,7 +202,8 @@ public class CandidateAdoptionService {
         }
     }
 
-    private Long createDraftSimulation(Long sourceSimulationId, Long targetVersionId, long requestedBy) {
+    Long createDerivedSimulation(
+            long sourceSimulationId, long targetVersionId, long requestedBy, String initialStatus) {
         Simulation source = simulationMapper.findSimulationById(sourceSimulationId);
         if (source == null) {
             throw new IllegalArgumentException("기준 시뮬레이션을 찾을 수 없습니다.");
@@ -212,7 +221,7 @@ public class CandidateAdoptionService {
         derived.setParentSimulationId(source.getId());
         derived.setCreatedBy(requestedBy);
         derived.setTitle(source.getTitle() != null && !source.getTitle().isBlank() ? source.getTitle() : "개선안 시뮬레이션");
-        derived.setStatus("DRAFT");
+        derived.setStatus(initialStatus);
         simulationMapper.insertSimulation(derived);
 
         SimulationOption option = copyOption(sourceOption, derived.getId());

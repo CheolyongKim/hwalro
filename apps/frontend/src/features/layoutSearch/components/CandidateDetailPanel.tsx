@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Info, Lock } from 'lucide-react';
 import type { SearchCandidate } from '../api/layoutSearchApi';
 import {
@@ -12,7 +13,6 @@ interface Props {
   candidate: SearchCandidate;
   onPrepareSimulation: () => void;
   preparing: boolean;
-  onContinueComparing: () => void;
   previewAvailable: boolean;
   onReject: () => void;
   rejecting: boolean;
@@ -23,7 +23,6 @@ export function CandidateDetailPanel({
   candidate,
   onPrepareSimulation,
   preparing,
-  onContinueComparing,
   previewAvailable,
   onReject,
   rejecting,
@@ -120,19 +119,18 @@ export function CandidateDetailPanel({
               시뮬레이션 준비됨
             </p>
             <div className="preparation-success-actions">
-              <a
+              <Link
                 className="run-simulation-button"
-                href={`/simulations/${preparedSimulation.simulationId}/setup`}
+                to={
+                  preparedSimulation.status === 'COMPLETED'
+                    ? `/simulations/${preparedSimulation.simulationId}/results`
+                    : `/simulations/${preparedSimulation.simulationId}/setup`
+                }
               >
-                시뮬레이션 설정 열기
-              </a>
-              <button
-                type="button"
-                className="continue-comparing-button"
-                onClick={onContinueComparing}
-              >
-                계속 비교
-              </button>
+                {preparedSimulation.status === 'COMPLETED'
+                  ? '시뮬레이션 결과 열기'
+                  : '시뮬레이션 설정 열기'}
+              </Link>
             </div>
           </>
         ) : (
@@ -148,7 +146,7 @@ export function CandidateDetailPanel({
               disabled={preparing || !previewAvailable}
               onClick={onPrepareSimulation}
             >
-              {preparing ? '시뮬레이션 준비 중...' : '이 개선안으로 시뮬레이션 준비'}
+              {preparing ? '시뮬레이션 준비 중...' : '이 개선안으로 시뮬레이션 진행'}
             </button>
           </>
         )}
