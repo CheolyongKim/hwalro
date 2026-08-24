@@ -63,9 +63,7 @@ export interface InspectionDetail {
 export interface InspectionUpdateRequest {
   status: InspectionStatus;
   comment: string | null;
-  items: Array<
-    Pick<InspectionItem, 'id' | 'result' | 'comment' | 'markerX' | 'markerY'>
-  >;
+  items: Array<Pick<InspectionItem, 'id' | 'result' | 'comment' | 'markerX' | 'markerY'>>;
 }
 
 export interface ChecklistTemplateItem {

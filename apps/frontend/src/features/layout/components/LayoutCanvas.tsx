@@ -555,20 +555,20 @@ export function LayoutCanvas({
       : riskMode && !readOnly
         ? 'cursor-crosshair'
         : tool === 'wall'
-        ? 'layout-cursor-wall'
-        : tool === 'outsideWall'
-          ? 'layout-cursor-outside-wall'
-          : tool === 'exit'
-            ? 'layout-cursor-exit'
-            : tool === 'pillar'
-              ? 'layout-cursor-pillar'
-              : tool === 'fabric'
-                ? 'layout-cursor-fabric'
-                : tool === 'erase'
-                  ? 'layout-cursor-erase'
-                  : tool === 'text'
-                    ? 'layout-cursor-text'
-                    : 'layout-cursor-default';
+          ? 'layout-cursor-wall'
+          : tool === 'outsideWall'
+            ? 'layout-cursor-outside-wall'
+            : tool === 'exit'
+              ? 'layout-cursor-exit'
+              : tool === 'pillar'
+                ? 'layout-cursor-pillar'
+                : tool === 'fabric'
+                  ? 'layout-cursor-fabric'
+                  : tool === 'erase'
+                    ? 'layout-cursor-erase'
+                    : tool === 'text'
+                      ? 'layout-cursor-text'
+                      : 'layout-cursor-default';
 
   const viewW = size.w > 0 ? size.w / (camera.zoom * PX_PER_METER) : 1;
   const viewH = size.h > 0 ? size.h / (camera.zoom * PX_PER_METER) : 1;

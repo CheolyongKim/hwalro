@@ -14,7 +14,11 @@ import type {
   InspectionResult,
   InspectionStatus,
 } from '../features/safetyChecks/types';
-import { getMarkerBadgeClass, getSafetyCheckError, RESULT_LABELS } from '../features/safetyChecks/utils';
+import {
+  getMarkerBadgeClass,
+  getSafetyCheckError,
+  RESULT_LABELS,
+} from '../features/safetyChecks/utils';
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from '../components/ui';
 
 const RESULT_ORDER: InspectionResult[] = ['PENDING', 'PASS', 'REVIEW_REQUIRED', 'FAIL'];
@@ -150,9 +154,7 @@ function InspectionMobilePage() {
     const markerX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
     const markerY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
     setItems((current) =>
-      current.map((entry) =>
-        entry.id === pinItemId ? { ...entry, markerX, markerY } : entry,
-      ),
+      current.map((entry) => (entry.id === pinItemId ? { ...entry, markerX, markerY } : entry)),
     );
     setNotice(null);
     setPinItemId(null);

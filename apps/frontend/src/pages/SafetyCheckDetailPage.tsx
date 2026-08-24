@@ -14,7 +14,11 @@ import type {
   InspectionResult,
   InspectionStatus,
 } from '../features/safetyChecks/types';
-import { getSafetyCheckError, getMarkerBadgeClass, RESULT_LABELS } from '../features/safetyChecks/utils';
+import {
+  getSafetyCheckError,
+  getMarkerBadgeClass,
+  RESULT_LABELS,
+} from '../features/safetyChecks/utils';
 import { Badge, Button, Card, ErrorState, Input, Skeleton, Textarea } from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 

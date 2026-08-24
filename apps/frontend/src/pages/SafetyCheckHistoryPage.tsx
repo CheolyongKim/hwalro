@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, ClipboardList, Trash2 } from 'lucide-react';
-import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';import type {
+import { safetyCheckApi } from '../features/safetyChecks/api/safetyCheckApi';
+import type {
   ChecklistTemplate,
   InspectionArea,
   InspectionHistory,

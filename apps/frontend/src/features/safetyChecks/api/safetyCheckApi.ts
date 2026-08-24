@@ -46,7 +46,12 @@ export const safetyCheckApi = {
     apiClient
       .put<InspectionDetail>(`/api/safety-checks/inspections/${inspectionId}`, body)
       .then((response) => response.data),
-  saveSnapshot: (inspectionId: number, image: Blob, layoutVersionId?: number, layoutId?: number) => {
+  saveSnapshot: (
+    inspectionId: number,
+    image: Blob,
+    layoutVersionId?: number,
+    layoutId?: number,
+  ) => {
     const params = {
       ...(layoutVersionId === undefined ? {} : { layoutVersionId }),
       ...(layoutId === undefined ? {} : { layoutId }),

@@ -51,12 +51,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   const deleteMutation = useDeleteRisk();
 
   const zoneBounds = useMemo(() => {
-    if (
-      risk.startX === null ||
-      risk.startY === null ||
-      risk.endX === null ||
-      risk.endY === null
-    ) {
+    if (risk.startX === null || risk.startY === null || risk.endX === null || risk.endY === null) {
       return null;
     }
     return {
@@ -176,10 +171,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
                   }
                   className="block w-full cursor-pointer overflow-hidden rounded-xl border border-line bg-white text-left outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
                 >
-                  <RiskZonePreview
-                    drawing={drawingContextQuery?.data.drawing}
-                    zone={zoneBounds}
-                  />
+                  <RiskZonePreview drawing={drawingContextQuery?.data.drawing} zone={zoneBounds} />
                 </button>
                 <button
                   type="button"

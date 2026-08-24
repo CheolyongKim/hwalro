@@ -67,8 +67,7 @@ public class LayoutDrawingContextService {
             return SimulationGeometry.assembleBoundary(
                             toOutsideWalls(drawing.outsideWalls()), drawing.width(), drawing.height())
                     .stream()
-                    .map(point ->
-                            new Point(point.x().doubleValue(), point.y().doubleValue()))
+                    .map(point -> new Point(point.x().doubleValue(), point.y().doubleValue()))
                     .toList();
         } catch (InvalidSimulationGeometryException exception) {
             // 미리보기·스냅샷 용도라 폐곡선이 아니어도 나머지 지오메트리는 반환한다.

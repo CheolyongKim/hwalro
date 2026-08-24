@@ -226,8 +226,7 @@ function SafetyCheckAreasPage() {
                     onChange={(event) =>
                       setEditor({
                         ...editor,
-                        layoutId:
-                          event.target.value === '' ? null : Number(event.target.value),
+                        layoutId: event.target.value === '' ? null : Number(event.target.value),
                       })
                     }
                     className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -307,7 +306,10 @@ function SafetyCheckAreasPage() {
                         {area.description ?? '구역 설명이 없습니다.'}
                       </p>
                       {area.layoutTitle && (
-                        <p className="mt-2 text-xs font-bold text-primary" title={`도면: ${area.layoutTitle}`}>
+                        <p
+                          className="mt-2 text-xs font-bold text-primary"
+                          title={`도면: ${area.layoutTitle}`}
+                        >
                           도면 연결 · {area.layoutTitle}
                         </p>
                       )}
