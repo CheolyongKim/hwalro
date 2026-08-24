@@ -43,7 +43,19 @@ export async function fetchDrawing(id: string): Promise<DrawingSession | null> {
   }
 }
 
-export async function saveDrawing(id: string, session: DrawingSession): Promise<number> {
+/** 저장 응답이 돌려준 서버 ID. 새로 그린 요소가 저장 즉시 구역·제약 대상이 되려면 이 값이 필요하다. */
+export interface SavedIds {
+  walls: Array<number | null>;
+  pillars: Array<number | null>;
+  fabrics: Array<number | null>;
+}
+
+export interface SaveResult {
+  version: number;
+  savedIds: SavedIds;
+}
+
+export async function saveDrawing(id: string, session: DrawingSession): Promise<SaveResult> {
   const serialized = toSerialized(session.doc);
   const drawing = await drawingApi.update(Number(id), {
     title: serialized.name,
@@ -56,5 +68,12 @@ export async function saveDrawing(id: string, session: DrawingSession): Promise<
     layoutTexts: serialized.layoutTexts,
     expectedVersion: session.version,
   });
-  return drawing.version;
+  return {
+    version: drawing.version,
+    savedIds: {
+      walls: drawing.walls.map((wall) => wall.id ?? null),
+      pillars: drawing.pillars.map((pillar) => pillar.id ?? null),
+      fabrics: drawing.fabrics.map((fabric) => fabric.id ?? null),
+    },
+  };
 }

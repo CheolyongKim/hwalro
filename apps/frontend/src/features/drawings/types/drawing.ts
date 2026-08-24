@@ -1,4 +1,6 @@
 export interface DrawingWall {
+  id: number | null;
+  displayOrder?: number;
   name: string;
   startX: number;
   startY: number;
@@ -24,6 +26,8 @@ export interface DrawingExit {
 }
 
 export interface DrawingPillar {
+  id: number | null;
+  displayOrder?: number;
   name: string;
   startX: number;
   startY: number;
@@ -34,6 +38,7 @@ export interface DrawingPillar {
 
 export interface DrawingFabric {
   id: number | null;
+  displayOrder?: number;
   name: string;
   startX: number;
   startY: number;
