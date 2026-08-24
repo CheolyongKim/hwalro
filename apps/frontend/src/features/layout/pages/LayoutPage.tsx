@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
+import { Minus } from 'lucide-react';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutToolbar } from '../components/LayoutToolbar';
 import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
@@ -22,17 +23,23 @@ import {
 import { createInitialState, editorReducer } from '../state/editorReducer';
 import { fetchDrawing, saveDrawing } from '../api/layoutApi';
 import type { DrawingSession } from '../api/layoutApi';
-import type { ValidationProblem, ValidationProblemKind } from '../types';
+import type { ValidationProblem, ValidationProblemKind, Vec2 } from '../types';
 import { CreateSimulationDraftDialog } from '../../simulations/components/CreateSimulationDraftDialog';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useLayoutMetadata } from '../hooks/useLayoutMetadata';
+import { useZoneRectHistory } from '../hooks/useZoneRectHistory';
 import { zoneOfFabric } from '../utils/zoneMembership';
 import type { LayerElement } from '../utils/zoneMembership';
 import { boundingBoxOf } from '../utils/zoneGeometry';
 import { canEditStructureConstraints } from '../utils/structureConstraintPolicy';
+import { buildLayerMenu, canGroupSelection } from '../utils/layerMenu';
+import { LayerContextMenu } from '../components/LayerContextMenu';
+import type { ElementHit } from '../utils/hitTest';
+import { centerCameraOnPoint } from '../utils/geometry';
+import { reorderRelative, type DropPosition } from '../utils/layerDrop';
 import { authApi } from '../../auth/api/authApi';
 import { useAuth } from '../../auth/context/AuthContext';
 import { can } from '../../auth/capabilities';
@@ -80,7 +87,20 @@ function LayoutPage() {
   const canManageZones = can(user?.roles, 'zones.manage');
   const canManageGeometry = can(user?.roles, 'drawings.manage');
   const metadata = useLayoutMetadata(drawingId);
+  const persistZoneRect = useCallback(
+    (zoneId: number, rect: ZoneRect) =>
+      metadata.updateZone(
+        zoneId,
+        { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        (zone) => ({ ...zone, rect }),
+      ),
+    [metadata.updateZone],
+  );
+  const zoneRectHistory = useZoneRectHistory(drawingId, persistZoneRect);
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
+  const [canvasMenu, setCanvasMenu] = useState<{ anchor: Vec2; element: LayerElement } | null>(
+    null,
+  );
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
@@ -91,6 +111,9 @@ function LayoutPage() {
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
   const restoreButtonRef = useRef<HTMLButtonElement>(null);
   const restorePanelFocusRef = useRef(false);
+  const layersCollapseButtonRef = useRef<HTMLButtonElement>(null);
+  const layersRestoreButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreLayersFocusRef = useRef(false);
 
   useLayoutEffect(() => {
     stateRef.current = state;
@@ -108,6 +131,17 @@ function LayoutPage() {
       restorePanelFocusRef.current = false;
     }
   }, [settingsPanel.isExpanding, settingsPanel.isMinimized]);
+
+  useLayoutEffect(() => {
+    if (!restoreLayersFocusRef.current) return;
+    if (layersPanel.isMinimized) {
+      layersRestoreButtonRef.current?.focus();
+      restoreLayersFocusRef.current = false;
+    } else if (layersPanel.isExpanding) {
+      layersCollapseButtonRef.current?.focus();
+      restoreLayersFocusRef.current = false;
+    }
+  }, [layersPanel.isExpanding, layersPanel.isMinimized]);
 
   useEffect(() => {
     if (!canManageZones) {
@@ -175,10 +209,12 @@ function LayoutPage() {
     }
     setSaveStatus('saving');
     try {
-      const version = await saveDrawing(drawingId, {
+      const { version, savedIds } = await saveDrawing(drawingId, {
         ...sessionRef.current,
         doc: stateRef.current.doc,
       });
+      // 새로 그린 요소는 이때 서버 ID를 얻는다. 반영하지 않으면 저장 후에도 구역·제약을 걸 수 없다.
+      dispatch({ type: 'adoptSavedIds', ...savedIds });
       sessionRef.current = {
         ...sessionRef.current,
         doc: stateRef.current.doc,
@@ -229,7 +265,11 @@ function LayoutPage() {
     }
     setDraftPending(true);
     try {
-      const version = await saveDrawing(drawingId, { ...session, doc: stateRef.current.doc });
+      const { version, savedIds } = await saveDrawing(drawingId, {
+        ...session,
+        doc: stateRef.current.doc,
+      });
+      dispatch({ type: 'adoptSavedIds', ...savedIds });
       sessionRef.current = { ...session, doc: stateRef.current.doc, version };
       recordLastActivity('LAYOUT_EDIT', Number(drawingId));
       setDraftDialogOpen(true);
@@ -293,24 +333,30 @@ function LayoutPage() {
       const mod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
       const locked = sessionRef.current?.layoutVersionStatus === '잠금';
-      if (
-        locked &&
-        ((mod && (key === 's' || key === 'z' || key === 'y')) ||
-          event.key === 'Delete' ||
-          event.key === 'Backspace')
-      ) {
+      if (mod && (key === 'z' || key === 'y')) {
+        event.preventDefault();
+        if (event.repeat || zoneRectHistory.pending) return;
+        const redoRequested = key === 'y' || event.shiftKey;
+        if (selectedZoneId !== null) {
+          if (redoRequested && zoneRectHistory.canRedo) {
+            void zoneRectHistory.redo();
+            return;
+          }
+          if (!redoRequested && zoneRectHistory.canUndo) {
+            void zoneRectHistory.undo();
+            return;
+          }
+        }
+        if (!locked) dispatch({ type: redoRequested ? 'redo' : 'undo' });
+        return;
+      }
+      if (locked && ((mod && key === 's') || event.key === 'Delete' || event.key === 'Backspace')) {
         event.preventDefault();
         return;
       }
       if (mod && key === 's') {
         event.preventDefault();
         void performSave();
-      } else if (mod && key === 'z') {
-        event.preventDefault();
-        dispatch({ type: event.shiftKey ? 'redo' : 'undo' });
-      } else if (mod && key === 'y') {
-        event.preventDefault();
-        dispatch({ type: 'redo' });
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         dispatch({ type: 'deleteSelection' });
       } else if (event.key === 'Escape') {
@@ -319,7 +365,7 @@ function LayoutPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [performSave]);
+  }, [performSave, selectedZoneId, zoneRectHistory]);
 
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
   const employeeNameById = Object.fromEntries(
@@ -397,11 +443,10 @@ function LayoutPage() {
         return;
       }
       const nextMembers = source.members.filter((member) => !isSameMember(member));
-      void metadata.updateZone(
-        source.zoneId,
-        { members: nextMembers },
-        (zone) => ({ ...zone, members: nextMembers }),
-      );
+      void metadata.updateZone(source.zoneId, { members: nextMembers }, (zone) => ({
+        ...zone,
+        members: nextMembers,
+      }));
       return;
     }
 
@@ -413,38 +458,80 @@ function LayoutPage() {
       ...target.members.filter((member) => !isSameMember(member)),
       { kind: element.kind, id: element.backendId },
     ];
-    void metadata.updateZone(
-      targetZoneId,
-      { members: targetMembers },
-      (zone) => ({ ...zone, members: targetMembers }),
-    );
-    if (source) {
-      const sourceMembers = source.members.filter((member) => !isSameMember(member));
-      void metadata.updateZone(
-        source.zoneId,
-        { members: sourceMembers },
-        (zone) => ({ ...zone, members: sourceMembers }),
-      );
-    }
+    // 한 요소는 한 구역에만 속한다(DB UNIQUE). 원래 구역에서 먼저 빼야 대상 구역 저장이 통과한다.
+    void (async () => {
+      if (source) {
+        const sourceMembers = source.members.filter((member) => !isSameMember(member));
+        const removed = await metadata.updateZone(
+          source.zoneId,
+          { members: sourceMembers },
+          (zone) => ({ ...zone, members: sourceMembers }),
+        );
+        if (!removed) return;
+      }
+      await metadata.updateZone(targetZoneId, { members: targetMembers }, (zone) => ({
+        ...zone,
+        members: targetMembers,
+      }));
+    })();
   };
 
-  const handleSwapZoneOrder = (draggedZoneId: number, targetZoneId: number) => {
-    const zones = metadata.metadata.zones;
-    const dragged = zones.find((zone) => zone.zoneId === draggedZoneId);
-    const target = zones.find((zone) => zone.zoneId === targetZoneId);
-    if (!dragged || !target || dragged.displayOrder === target.displayOrder) {
-      return;
-    }
-    void metadata.updateZone(
-      draggedZoneId,
-      { displayOrder: target.displayOrder },
-      (zone) => ({ ...zone, displayOrder: target.displayOrder }),
+  const handleMoveZoneOrder = (
+    draggedZoneId: number,
+    targetZoneId: number,
+    position: DropPosition,
+  ) => {
+    const ordered = [...metadata.metadata.zones].sort(
+      (left, right) => left.displayOrder - right.displayOrder,
     );
-    void metadata.updateZone(
-      targetZoneId,
-      { displayOrder: dragged.displayOrder },
-      (zone) => ({ ...zone, displayOrder: dragged.displayOrder }),
+    const reordered = reorderRelative(
+      ordered,
+      String(draggedZoneId),
+      String(targetZoneId),
+      position,
+      (zone) => String(zone.zoneId),
     );
+    if (reordered === ordered) return;
+    const displayOrders = ordered.map((zone) => zone.displayOrder);
+    void (async () => {
+      for (const [index, zone] of reordered.entries()) {
+        const displayOrder = displayOrders[index];
+        if (zone.displayOrder !== displayOrder) {
+          await metadata.updateZone(zone.zoneId, { displayOrder }, (current) => ({
+            ...current,
+            displayOrder,
+          }));
+        }
+      }
+    })();
+  };
+
+  /** 캔버스에서 우클릭한 요소. 계층 패널과 같은 메뉴를 포인터 위치에 띄운다. */
+  const handleCanvasContextMenu = (anchor: Vec2, hit: ElementHit) => {
+    const { doc } = stateRef.current;
+    const found =
+      (hit.wallId !== null &&
+        doc.walls
+          .filter((wall) => wall.id === hit.wallId)
+          .map((wall) => ({ kind: 'WALL' as const, element: wall }))[0]) ||
+      (hit.pillarId !== null &&
+        doc.pillars
+          .filter((pillar) => pillar.id === hit.pillarId)
+          .map((pillar) => ({ kind: 'PILLAR' as const, element: pillar }))[0]) ||
+      (hit.fabricId !== null &&
+        doc.fabrics
+          .filter((fabric) => fabric.id === hit.fabricId)
+          .map((fabric) => ({ kind: 'FABRIC' as const, element: fabric }))[0]);
+    if (!found) return;
+    setCanvasMenu({
+      anchor,
+      element: {
+        kind: found.kind,
+        id: found.element.id,
+        backendId: found.element.backendId,
+        name: found.element.name,
+      },
+    });
   };
 
   const handleGroupSelectionIntoZone = () => {
@@ -453,10 +540,7 @@ function LayoutPage() {
     const pillars = doc.pillars.filter((pillar) => selection.pillarIds.includes(pillar.id));
     const fabrics = doc.fabrics.filter((fabric) => selection.fabricIds.includes(fabric.id));
     const chosen = [...walls, ...pillars, ...fabrics];
-    if (
-      chosen.length === 0 ||
-      !chosen.every((element) => element.backendId !== null)
-    ) {
+    if (chosen.length === 0 || !chosen.every((element) => element.backendId !== null)) {
       return;
     }
     const box = boundingBoxOf(walls, pillars, fabrics, doc.width, doc.height);
@@ -485,12 +569,23 @@ function LayoutPage() {
       });
   };
 
-  const handleZoneRectCommit = (zoneId: number, rect: ZoneRect) => {
-    void metadata.updateZone(
-      zoneId,
-      { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-      (zone) => ({ ...zone, rect }),
-    );
+  const handleZoneRectCommit = (zoneId: number, previousRect: ZoneRect, nextRect: ZoneRect) => {
+    void zoneRectHistory.commit({ zoneId, before: previousRect, after: nextRect });
+  };
+
+  const handleCenterPoint = (point: { x: number; y: number }) => {
+    if (size.w <= 0 || size.h <= 0) return;
+    dispatch({
+      type: 'setCamera',
+      camera: centerCameraOnPoint(
+        state.camera,
+        point,
+        state.doc.width,
+        state.doc.height,
+        size.w,
+        size.h,
+      ),
+    });
   };
 
   const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
@@ -559,12 +654,30 @@ function LayoutPage() {
         onSelectZone={setSelectedZoneId}
         onZoneRectCommit={handleZoneRectCommit}
         canEditZones={canManageZones}
+        onElementContextMenu={handleCanvasContextMenu}
       />
+      {canvasMenu !== null ? (
+        <LayerContextMenu
+          anchor={canvasMenu.anchor}
+          items={buildLayerMenu({
+            element: canvasMenu.element,
+            zones: metadata.metadata.zones,
+            canGroupSelected: canGroupSelection(stateRef.current),
+            onChangeMembership: handleChangeMembership,
+            onGroupSelectionIntoZone: handleGroupSelectionIntoZone,
+          })}
+          onClose={() => setCanvasMenu(null)}
+        />
+      ) : null}
       {layersPanel.isMinimized ? (
         <CanvasWorkspacePanelRestore
+          ref={layersRestoreButtonRef}
           aria-controls="layout-layers-panel"
           aria-expanded="false"
-          onClick={() => layersPanel.restore()}
+          onClick={() => {
+            restoreLayersFocusRef.current = true;
+            layersPanel.restore();
+          }}
           className="layout-workspace-layers-restore"
         >
           계층 열기
@@ -573,17 +686,27 @@ function LayoutPage() {
         <CanvasWorkspacePanel
           id="layout-layers-panel"
           ariaLabel="도면 계층"
-          className="layout-workspace-layers"
+          animate
+          className={`layout-workspace-layers ${layersPanel.isCollapsing ? 'is-collapsing' : ''} ${layersPanel.isExpanding ? 'is-expanding' : ''}`}
+          onAnimationEnd={(event) => {
+            if (event.currentTarget === event.target) layersPanel.handleAnimationEnd();
+          }}
         >
           <div className="flex items-center justify-between border-b border-panel-divider px-3 py-2">
             <h2 className="text-sm font-bold text-panel-text">계층</h2>
             <button
+              ref={layersCollapseButtonRef}
               type="button"
-              aria-label="계층 접기"
-              onClick={() => layersPanel.collapse()}
-              className="h-7 rounded-md px-2 text-xs font-bold text-panel-muted transition-colors hover:bg-panel-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              aria-controls="layout-layers-panel"
+              aria-expanded="true"
+              aria-label="도면 계층 최소화"
+              onClick={() => {
+                restoreLayersFocusRef.current = true;
+                layersPanel.collapse();
+              }}
+              className="layout-panel-actions__collapse"
             >
-              접기
+              <Minus aria-hidden="true" />
             </button>
           </div>
           <LayersPanel
@@ -596,7 +719,8 @@ function LayoutPage() {
             orderLocked={readOnly}
             onChangeMembership={handleChangeMembership}
             onGroupSelectionIntoZone={handleGroupSelectionIntoZone}
-            onSwapZoneOrder={handleSwapZoneOrder}
+            onMoveZoneOrder={handleMoveZoneOrder}
+            onCenterPoint={handleCenterPoint}
           />
         </CanvasWorkspacePanel>
       )}
@@ -662,10 +786,11 @@ function LayoutPage() {
                     }))
                   }
                   onChangeRect={(patch) =>
-                    void metadata.updateZone(selectedZone.zoneId, patch, (zone) => ({
-                      ...zone,
-                      rect: { ...zone.rect, ...patch },
-                    }))
+                    void zoneRectHistory.commit({
+                      zoneId: selectedZone.zoneId,
+                      before: selectedZone.rect,
+                      after: { ...selectedZone.rect, ...patch },
+                    })
                   }
                   onAssign={(assignedUserId) =>
                     void metadata.updateZone(

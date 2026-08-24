@@ -173,7 +173,10 @@
 .layout-workspace-layers {
   right: auto;
   left: var(--canvas-workspace-panel-right);
+  bottom: 76px;
   width: 268px;
+  max-height: none;
+  transform-origin: 17px 17px;
 }
 
 .layout-workspace-layers-restore {
@@ -187,6 +190,175 @@
   bottom: 24px;
   z-index: 20;
   transform: translateX(-50%);
+}
+
+.layout-layers-panel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.layout-layers-panel::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.layout-layer-row {
+  position: relative;
+}
+
+.layout-layer-group__toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 3px 4px;
+  color: var(--color-panel-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.layout-layer-group__toggle:hover {
+  background: color-mix(in srgb, var(--color-panel-soft) 72%, transparent);
+  color: var(--color-panel-text);
+}
+
+.layout-layer-group__toggle:focus-visible,
+.layout-layer-row__toggle:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.layout-layer-group__toggle svg,
+.layout-layer-row__toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 140ms ease;
+}
+
+/* 종류 아이콘은 이름을 읽기 전에 종류가 먼저 보이도록 고정 폭으로 둔다. */
+.layout-layer-row__icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--color-panel-muted);
+}
+
+.layout-layer-row__button.is-selected .layout-layer-row__icon {
+  color: var(--color-panel-accent);
+}
+
+.layout-layer-group__toggle svg.is-expanded,
+.layout-layer-row__toggle svg.is-expanded {
+  transform: rotate(90deg);
+}
+
+.layout-layer-row__toggle {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  z-index: 3;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-panel-muted);
+  transform: translateY(-50%);
+}
+
+.layout-layer-row__toggle:hover {
+  background: var(--color-panel-soft);
+  color: var(--color-panel-text);
+}
+
+.layout-layer-row__button--toggleable {
+  padding-left: 32px;
+}
+
+.layout-layer-row__button.is-selected {
+  background: color-mix(in srgb, var(--color-panel-accent) 18%, var(--color-panel-soft));
+  box-shadow:
+    inset 3px 0 0 var(--color-panel-accent),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-panel-accent) 46%, transparent);
+  color: var(--color-panel-accent);
+}
+
+.layout-layer-row__button.is-selected:hover {
+  background: color-mix(in srgb, var(--color-panel-accent) 24%, var(--color-panel-soft));
+}
+
+.layout-layer-empty-drop {
+  position: relative;
+  margin-top: 4px;
+  border: 1px dashed var(--color-panel-divider);
+  border-radius: 7px;
+  padding: 9px 8px;
+  color: var(--color-panel-muted);
+  font-size: 11px;
+  text-align: center;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.layout-layer-empty-drop.is-active {
+  border-color: var(--color-panel-accent);
+  background: color-mix(in srgb, var(--color-panel-accent) 12%, transparent);
+  color: var(--color-panel-accent);
+}
+
+.layout-layer-insertion {
+  position: absolute;
+  right: 8px;
+  left: 8px;
+  z-index: 5;
+  height: 3px;
+  background: var(--color-panel-accent);
+  box-shadow:
+    0 0 0 1px var(--color-panel),
+    0 0 8px color-mix(in srgb, var(--color-panel-accent) 72%, transparent);
+  pointer-events: none;
+}
+
+.layout-layer-insertion::before,
+.layout-layer-insertion::after {
+  position: absolute;
+  top: -4px;
+  width: 9px;
+  height: 9px;
+  border-top: 3px solid var(--color-panel-accent);
+  border-right: 3px solid var(--color-panel-accent);
+  filter: drop-shadow(0 0 1px var(--color-panel));
+  content: '';
+}
+
+.layout-layer-insertion::before {
+  left: -1px;
+  transform: rotate(45deg);
+}
+
+.layout-layer-insertion::after {
+  right: -1px;
+  transform: rotate(-135deg);
+}
+
+.layout-layer-insertion--before {
+  top: -1px;
+}
+
+.layout-layer-insertion--after {
+  bottom: -1px;
 }
 
 .layout-tool-toolbar {
@@ -314,6 +486,7 @@
   .layout-workspace-layers {
     right: auto;
     left: var(--canvas-workspace-panel-right);
+    bottom: 128px;
     width: 268px;
   }
 
