@@ -203,6 +203,7 @@ export interface SimulationOverview {
   totalPeople: number;
   terminationReason: SimulationTerminationReason | null;
   isImprovement?: boolean;
+  hasLayoutSearch?: boolean;
 }
 
 export interface SimulationOverviewPage {
