@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutGrid } from 'lucide-react';
+import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
 import { LayoutSearchReplyThread } from '../../layoutSearch/components/LayoutSearchReplyThread';
 import { useLayoutSearchFeeds } from '../../layoutSearch/hooks/useLayoutSearchFeed';
 import { simulationApi } from '../api/simulationApi';
@@ -66,6 +66,7 @@ function SimulationListPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [collapsedSimulationIds, setCollapsedSimulationIds] = useState<Set<number>>(new Set());
   const detailRequestSequenceRef = useRef(0);
   const statusDialogSimulationId = readStatusDialogSimulationId(location.state);
   const layoutSearchSimulationId = readLayoutSearchSimulationId(location.state);
@@ -377,14 +378,51 @@ function SimulationListPage() {
                       const feedSearch = layoutSearchFeedIds.includes(simulation.id)
                         ? layoutSearchFeed.feeds[simulation.id] ?? null
                         : null;
+                      const hasSearchThread = feedSearch !== null;
+                      const isCollapsed = collapsedSimulationIds.has(simulation.id);
+
                       return (
                       <Fragment key={simulation.id}>
                         <tr
                           className={`group transition-colors hover:bg-primary-soft/30${
-                            feedSearch !== null ? ' bg-primary-soft/30' : ''
+                            hasSearchThread && !isCollapsed ? ' bg-primary-soft/20' : ''
                           }`}
                         >
-                          <td className="px-6 py-4">{renderSimulationLink(simulation)}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-start gap-2">
+                              {hasSearchThread && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCollapsedSimulationIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(simulation.id)) {
+                                        next.delete(simulation.id);
+                                      } else {
+                                        next.add(simulation.id);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  aria-label={
+                                    isCollapsed
+                                      ? '배치 개선안 목록 펼치기'
+                                      : '배치 개선안 목록 접기'
+                                  }
+                                  className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-line bg-surface text-text-muted transition hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                >
+                                  {isCollapsed ? (
+                                    <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                  ) : (
+                                    <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                                  )}
+                                </button>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                {renderSimulationLink(simulation)}
+                              </div>
+                            </div>
+                          </td>
                           <td className="px-4 py-4">
                             <span
                               className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[simulation.status]}`}
@@ -432,10 +470,38 @@ function SimulationListPage() {
                             </div>
                           </td>
                         </tr>
-                        {feedSearch !== null && (
+                        {hasSearchThread && !isCollapsed && (
                           <tr>
-                            <td colSpan={6} className="bg-primary-soft/20 px-6 pb-5 pt-1">
-                              <LayoutSearchReplyThread search={feedSearch} />
+                            <td colSpan={6} className="bg-surface/60 px-4 py-3 sm:px-6">
+                              <LayoutSearchReplyThread
+                                search={feedSearch}
+                                deletingSimulationId={deletingId}
+                                onDeleteSimulation={async (targetId) => {
+                                  try {
+                                    const sim = await simulationApi.getOverview(targetId);
+                                    setPendingDeletion(sim);
+                                    setDeleteError(null);
+                                  } catch {
+                                    setPendingDeletion({
+                                      id: targetId,
+                                      title: `개선안 시뮬레이션 #${targetId}`,
+                                      layoutTitle: simulation.layoutTitle,
+                                      layoutVersionId: simulation.layoutVersionId,
+                                      layoutId: simulation.layoutId,
+                                      layoutVersionNumber: simulation.layoutVersionNumber,
+                                      createdBy: simulation.createdBy,
+                                      status: 'DRAFT',
+                                      createdAt: new Date().toISOString(),
+                                      requestedAt: null,
+                                      startedAt: null,
+                                      finishedAt: null,
+                                      totalPeople: simulation.totalPeople,
+                                      terminationReason: null,
+                                    });
+                                    setDeleteError(null);
+                                  }
+                                }}
+                              />
                             </td>
                           </tr>
                         )}
