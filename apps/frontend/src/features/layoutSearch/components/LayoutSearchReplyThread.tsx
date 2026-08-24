@@ -76,9 +76,7 @@ function CandidateRow({
       d.metricType === 'TOTAL_EVACUATION_TIME_SECONDS' ||
       d.metricType === 'SIMULATION_DURATION_SECONDS',
   );
-  const avgTimeDelta = deltas.find(
-    (d) => d.metricType === 'AVERAGE_EVACUATION_TIME_SECONDS',
-  );
+  const avgTimeDelta = deltas.find((d) => d.metricType === 'AVERAGE_EVACUATION_TIME_SECONDS');
   const exitImbalanceDelta = deltas.find(
     (d) => d.metricType === 'EXIT_IMBALANCE' || d.metricType === 'EXIT_IMBALANCE_RATIO',
   );
