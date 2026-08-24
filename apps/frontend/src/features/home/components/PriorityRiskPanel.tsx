@@ -13,8 +13,6 @@ interface PriorityRiskPanelProps {
 
 interface SeverityStyle {
   label: string;
-  borderColor: string;
-  bgColor: string;
   badgeBg: string;
   badgeText: string;
 }
@@ -22,22 +20,16 @@ interface SeverityStyle {
 const SEVERITY_CONFIG: Record<string, SeverityStyle> = {
   높음: {
     label: '긴급',
-    borderColor: 'border-l-danger',
-    bgColor: 'hover:bg-danger-soft/70',
     badgeBg: 'bg-danger/15',
     badgeText: 'text-danger',
   },
   보통: {
     label: '주의',
-    borderColor: 'border-l-warning',
-    bgColor: 'hover:bg-warning-soft/70',
     badgeBg: 'bg-warning/15',
     badgeText: 'text-warning-strong',
   },
   낮음: {
     label: '안내',
-    borderColor: 'border-l-primary',
-    bgColor: 'hover:bg-primary-soft/70',
     badgeBg: 'bg-primary/15',
     badgeText: 'text-primary',
   },
@@ -46,8 +38,6 @@ const SEVERITY_CONFIG: Record<string, SeverityStyle> = {
 function RiskRow({ item }: { item: PriorityRiskItem }) {
   const config = SEVERITY_CONFIG[item.severity] ?? {
     label: item.severity,
-    borderColor: 'border-l-line-strong',
-    bgColor: 'home-priority-risks__row--neutral',
     badgeBg: 'bg-line',
     badgeText: 'text-text-strong',
   };
@@ -56,7 +46,7 @@ function RiskRow({ item }: { item: PriorityRiskItem }) {
     <li>
       <Link
         to={`/risk-management?riskId=${item.id}`}
-        className={`home-priority-risks__row group ${config.borderColor} ${config.bgColor}`}
+        className="home-priority-risks__row group"
       >
         <div className="flex items-center justify-between gap-2">
           <span
@@ -99,8 +89,14 @@ export function PriorityRiskPanel({
       </div>
 
       {isPending ? (
-        <div className="home-dashboard__state">
-          위험 항목을 불러오는 중입니다.
+        <div className="home-priority-risks__skeleton-list" aria-busy="true">
+          <span className="sr-only">위험 항목을 불러오는 중입니다.</span>
+          {[0, 1, 2].map((item) => (
+            <div key={item} aria-hidden="true" className="home-priority-risks__skeleton-row">
+              <span className="home-skeleton home-skeleton--badge" />
+              <span className="home-skeleton home-skeleton--risk-title" />
+            </div>
+          ))}
         </div>
       ) : isError ? (
         <div className="home-dashboard__state home-dashboard__state--stacked">

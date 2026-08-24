@@ -38,8 +38,17 @@ export function ActiveReviewCard({
   if (isPending) {
     return (
       <CardShell>
-        <div className="home-dashboard__state">
-          진행 중인 검토를 불러오는 중입니다.
+        <div className="home-active-review__loading" aria-busy="true">
+          <span className="sr-only">진행 중인 검토를 불러오는 중입니다.</span>
+          <div aria-hidden="true" className="home-active-review__loading-header">
+            <span className="home-skeleton home-skeleton--kicker" />
+            <span className="home-skeleton home-skeleton--title" />
+            <span className="home-skeleton home-skeleton--meta" />
+          </div>
+          <div aria-hidden="true" className="home-active-review__loading-body">
+            <span className="home-skeleton home-skeleton--scene" />
+            <span className="home-skeleton home-skeleton--stage" />
+          </div>
         </div>
       </CardShell>
     );

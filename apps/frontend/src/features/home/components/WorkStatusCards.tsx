@@ -11,16 +11,13 @@ interface WorkStatusCardsProps {
 function StatusCard({
   label,
   count,
-  dotClassName,
 }: {
   label: string;
   count: number;
-  dotClassName: string;
 }) {
   return (
     <div className="home-work-status__item">
       <div className="home-work-status__label">
-        <span aria-hidden="true" className={dotClassName} />
         <p>{label}</p>
       </div>
       <p className="home-work-status__value">
@@ -40,8 +37,18 @@ export function WorkStatusCards({
 }: WorkStatusCardsProps) {
   if (isPending) {
     return (
-      <section aria-label="내 업무 현황" className="home-work-status__state">
-        <p>업무 현황을 불러오는 중입니다.</p>
+      <section
+        aria-label="내 업무 현황"
+        aria-busy="true"
+        className="home-work-status__list home-work-status__skeleton"
+      >
+        <span className="sr-only">업무 현황을 불러오는 중입니다.</span>
+        {[0, 1].map((item) => (
+          <div key={item} aria-hidden="true" className="home-work-status__item">
+            <span className="home-skeleton home-skeleton--label" />
+            <span className="home-skeleton home-skeleton--metric" />
+          </div>
+        ))}
       </section>
     );
   }
@@ -68,16 +75,8 @@ export function WorkStatusCards({
 
   return (
     <section aria-label="내 업무 현황" className="home-work-status__list">
-      <StatusCard
-        label="시뮬레이션 처리 중"
-        count={summary.inProgressCount}
-        dotClassName="bg-info"
-      />
-      <StatusCard
-        label="이번 주 완료"
-        count={summary.completedThisWeekCount}
-        dotClassName="bg-primary"
-      />
+      <StatusCard label="시뮬레이션 처리 중" count={summary.inProgressCount} />
+      <StatusCard label="이번 주 완료" count={summary.completedThisWeekCount} />
     </section>
   );
 }
