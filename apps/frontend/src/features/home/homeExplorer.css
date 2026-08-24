@@ -1,0 +1,35 @@
+.floor-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.floor-label__id {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgb(214 235 228 / 0.62);
+  text-shadow: 0 0 12px rgb(194 232 75 / 0.25);
+  transition: color 0.25s ease;
+}
+
+.floor-label__line {
+  width: 30px;
+  border-top: 1px dashed rgb(214 235 228 / 0.35);
+  transition: border-color 0.25s ease;
+}
+
+.floor-label--active .floor-label__id {
+  color: #d8ff70;
+}
+
+.floor-label--active .floor-label__line {
+  border-color: rgb(216 255 112 / 0.8);
+}
+
+.home-scene-vignette {
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgb(3 8 7 / 0.55) 100%),
+    linear-gradient(to bottom, rgb(3 8 7 / 0.35), transparent 22%, transparent 78%, rgb(3 8 7 / 0.45));
+}
