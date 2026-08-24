@@ -40,14 +40,11 @@ public class VerifiedCandidateMaterializer {
                 if (study == null) {
                     return;
                 }
-                CandidateAdoptionService.AdoptedSimulation adopted = candidateAdoptionService.createAdoption(
-                        study, candidate, study.getRequestedBy(), "RUNNING");
+                CandidateAdoptionService.AdoptedSimulation adopted =
+                        candidateAdoptionService.createAdoption(study, candidate, study.getRequestedBy(), "RUNNING");
                 simulationExecutionService.persistEngineRun(adopted.simulationId(), mutatedSetup, run);
                 layoutStudyMapper.markCandidatePrepared(
-                        candidate.getId(),
-                        adopted.layoutVersionId(),
-                        adopted.simulationId(),
-                        LocalDateTime.now());
+                        candidate.getId(), adopted.layoutVersionId(), adopted.simulationId(), LocalDateTime.now());
             });
         } catch (RuntimeException exception) {
             log.warn("Layout search candidate {} materialization failed", candidate.getId(), exception);

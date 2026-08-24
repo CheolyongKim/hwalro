@@ -95,15 +95,12 @@ public class CandidateAdoptionService {
     public record AdoptedSimulation(long layoutVersionId, long simulationId) {}
 
     public AdoptedSimulation createAdoption(
-            LayoutSearchEntity study,
-            LayoutSearchCandidateEntity candidate,
-            long requestedBy,
-            String derivedStatus) {
+            LayoutSearchEntity study, LayoutSearchCandidateEntity candidate, long requestedBy, String derivedStatus) {
         Long targetVersionId = candidate.getAdoptedLayoutVersionId() == null
                 ? createAdoptedLayout(study.getBaselineLayoutVersionId(), candidate)
                 : candidate.getAdoptedLayoutVersionId();
-        long simulationId = createDerivedSimulation(
-                study.getBaselineSimulationId(), targetVersionId, requestedBy, derivedStatus);
+        long simulationId =
+                createDerivedSimulation(study.getBaselineSimulationId(), targetVersionId, requestedBy, derivedStatus);
         return new AdoptedSimulation(targetVersionId, simulationId);
     }
 
