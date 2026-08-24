@@ -14,7 +14,7 @@ import type {
   InspectionResult,
   InspectionStatus,
 } from '../features/safetyChecks/types';
-import { getSafetyCheckError, RESULT_LABELS } from '../features/safetyChecks/utils';
+import { getSafetyCheckError, getMarkerBadgeClass, RESULT_LABELS } from '../features/safetyChecks/utils';
 import { Badge, Button, Card, ErrorState, Input, Skeleton, Textarea } from '../components/ui';
 import SafetyCheckHeader from './safetyChecks/SafetyCheckHeader';
 
@@ -60,19 +60,6 @@ function getSummaryTitle(failCount: number, reviewCount: number, pendingCount: n
   if (reviewCount > 0) return '확인 필요';
   if (pendingCount > 0) return '점검 진행 중';
   return '점검 항목 적합';
-}
-
-function getMarkerBadgeClass(result: InspectionResult): string {
-  switch (result) {
-    case 'PASS':
-      return 'bg-success-strong text-white';
-    case 'FAIL':
-      return 'bg-danger-strong text-white';
-    case 'REVIEW_REQUIRED':
-      return 'bg-warning-strong text-white';
-    default:
-      return 'bg-text-muted text-white';
-  }
 }
 
 function SafetyCheckDetailPage() {
