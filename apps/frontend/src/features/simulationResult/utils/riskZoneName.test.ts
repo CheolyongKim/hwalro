@@ -70,4 +70,22 @@ describe('generateRiskZoneName', () => {
       }),
     ).toBe('중앙 통로');
   });
+
+  it('구역 안이면 추측 대신 구역 이름을 쓴다', () => {
+    const zones = [{ name: 'MLB', rect: { x: 40, y: 30, width: 20, height: 20 } }];
+    expect(generateRiskZoneName(boundsAt(50, 40), DRAWING, zones)).toBe('MLB');
+  });
+
+  it('구역이 겹치면 더 좁은 쪽이 더 구체적인 장소다', () => {
+    const zones = [
+      { name: '넓은 구역', rect: { x: 0, y: 0, width: 100, height: 80 } },
+      { name: '좁은 구역', rect: { x: 45, y: 35, width: 10, height: 10 } },
+    ];
+    expect(generateRiskZoneName(boundsAt(50, 40), DRAWING, zones)).toBe('좁은 구역');
+  });
+
+  it('구역 밖이면 기존 추측으로 돌아간다', () => {
+    const zones = [{ name: '먼 구역', rect: { x: 0, y: 0, width: 5, height: 5 } }];
+    expect(generateRiskZoneName(boundsAt(50, 40), DRAWING, zones)).toBe('중앙 통로');
+  });
 });

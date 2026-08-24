@@ -10,7 +10,7 @@ import { generateRiskZoneName } from '../utils/riskZoneName';
 
 interface Props {
   bounds: Bounds;
-  drawing: Pick<SimulationDrawing, 'width' | 'height' | 'layoutTexts'>;
+  drawing: Pick<SimulationDrawing, 'width' | 'height' | 'layoutTexts' | 'zones'>;
   simulationResultId: number;
   onCancel: () => void;
   onConfirm: (risk: Risk) => void;
@@ -23,7 +23,16 @@ export function RiskZoneEditorDialog({
   onCancel,
   onConfirm,
 }: Props) {
-  const [zoneName, setZoneName] = useState(() => generateRiskZoneName(bounds, drawing));
+  const [zoneName, setZoneName] = useState(() =>
+    generateRiskZoneName(
+      bounds,
+      drawing,
+      (drawing.zones ?? []).map((zone) => ({
+        name: zone.name,
+        rect: { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
+      })),
+    ),
+  );
   const [severity, setSeverity] = useState('보통');
   const [status, setStatus] = useState('임시저장');
   const [attachedLaws, setAttachedLaws] = useState<AttachedLawRef[]>([]);

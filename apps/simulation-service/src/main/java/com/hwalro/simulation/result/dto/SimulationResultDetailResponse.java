@@ -24,7 +24,11 @@ public record SimulationResultDetailResponse(
             List<Segment> exits,
             List<Rectangle> pillars,
             List<Rectangle> fabrics,
-            List<LayoutText> layoutTexts) {}
+            List<LayoutText> layoutTexts,
+            /** 시뮬레이션 시점의 도면 구역. 위험 구역 이름을 좌표로 추측하지 않고 이 이름을 쓴다. */
+            List<Zone> zones) {}
+
+    public record Zone(String name, double x, double y, double width, double height) {}
 
     public record Point(double x, double y) {}
 

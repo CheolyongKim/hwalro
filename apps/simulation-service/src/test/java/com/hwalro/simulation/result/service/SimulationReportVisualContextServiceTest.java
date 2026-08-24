@@ -78,6 +78,6 @@ class SimulationReportVisualContextServiceTest {
     }
 
     private Drawing drawing(String name) {
-        return new Drawing(name, 20, 10, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        return new Drawing(name, 20, 10, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
     }
 }

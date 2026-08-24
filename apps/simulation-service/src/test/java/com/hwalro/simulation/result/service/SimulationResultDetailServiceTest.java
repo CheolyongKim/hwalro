@@ -35,12 +35,15 @@ class SimulationResultDetailServiceTest {
     @Mock
     private DrawingMapper drawingMapper;
 
+    @Mock
+    private com.hwalro.simulation.zone.mapper.LayoutZoneMapper layoutZoneMapper;
+
     private SimulationResultDetailService service;
 
     @BeforeEach
     void setUp() {
-        service =
-                new SimulationResultDetailService(mapper, drawingMapper, new ObjectMapper(), densityThresholdProvider);
+        service = new SimulationResultDetailService(
+                mapper, drawingMapper, layoutZoneMapper, new ObjectMapper(), densityThresholdProvider);
     }
 
     @Test
