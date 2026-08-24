@@ -1,17 +1,25 @@
 import { useState } from 'react';
-import { AttachedLawChipList } from '../../risks/components/AttachedLawChipList';
-import LawArticlePickerModal from '../../risks/components/LawArticlePickerModal';
-import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../risks/constants/riskOptions';
-import { useCreateRisk } from '../../risks/hooks/useRiskMutations';
-import type { AttachedLawRef, Risk, RiskCreateRequest } from '../../risks/types/risks';
-import { getRiskErrorMessage } from '../../risks/utils/getRiskErrorMessage';
-import type { Bounds, SimulationDrawing } from '../types';
+import { AttachedLawChipList } from './AttachedLawChipList';
+import LawArticlePickerModal from './LawArticlePickerModal';
+import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../constants/riskOptions';
+import { useCreateRisk } from '../hooks/useRiskMutations';
+import type { AttachedLawRef, Risk, RiskCreateRequest } from '../types/risks';
+import { getRiskErrorMessage } from '../utils/getRiskErrorMessage';
+import type { Bounds } from '../utils/riskZoneTypes';
 import { generateRiskZoneName } from '../utils/riskZoneName';
+
+interface DialogDrawing {
+  width: number;
+  height: number;
+  layoutTexts: Array<{ text: string; x: number; y: number }>;
+}
 
 interface Props {
   bounds: Bounds;
-  drawing: Pick<SimulationDrawing, 'width' | 'height' | 'layoutTexts'>;
-  simulationResultId: number;
+  drawing: DialogDrawing;
+  layoutId?: number;
+  layoutVersionId?: number;
+  simulationResultId?: number;
   onCancel: () => void;
   onConfirm: (risk: Risk) => void;
 }
@@ -19,6 +27,8 @@ interface Props {
 export function RiskZoneEditorDialog({
   bounds,
   drawing,
+  layoutId,
+  layoutVersionId,
   simulationResultId,
   onCancel,
   onConfirm,
@@ -44,7 +54,9 @@ export function RiskZoneEditorDialog({
 
   const handleConfirm = () => {
     const body: RiskCreateRequest = {
-      simulationResultId,
+      simulationResultId: simulationResultId ?? null,
+      layoutId: layoutId ?? null,
+      layoutVersionId: layoutVersionId ?? null,
       startX: bounds.x,
       startY: bounds.y,
       endX: bounds.x + bounds.width,

@@ -48,6 +48,23 @@ interface LayoutCanvasProps {
   size: { w: number; h: number };
   onSizeChange: (size: { w: number; h: number }) => void;
   readOnly?: boolean;
+  riskZones?: LayoutRiskZone[];
+  riskMode?: boolean;
+  onRiskZoneDrawn?: (bounds: { x: number; y: number; width: number; height: number }) => void;
+}
+
+export interface LayoutRiskZone {
+  id: number;
+  title: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
+interface RiskRectDraft {
+  start: Vec2;
+  end: Vec2;
 }
 
 interface PanSession {
@@ -76,10 +93,14 @@ export function LayoutCanvas({
   size,
   onSizeChange,
   readOnly = false,
+  riskZones = [],
+  riskMode = false,
+  onRiskZoneDrawn,
 }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const suppressClickRef = useRef(false);
   const [panning, setPanning] = useState(false);
+  const [riskDraft, setRiskDraft] = useState<RiskRectDraft | null>(null);
 
   const { containerRef, spaceDown } = useCanvasListeners({
     dispatch,
@@ -180,6 +201,13 @@ export function LayoutCanvas({
       return;
     }
     if (readOnly) {
+      return;
+    }
+    if (riskMode) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
+      setRiskDraft({ start: world, end: world });
+      event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
@@ -432,6 +460,14 @@ export function LayoutCanvas({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (riskDraft) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setRiskDraft({
+        ...riskDraft,
+        end: screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera),
+      });
+      return;
+    }
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     if (state.draft) {
@@ -482,6 +518,21 @@ export function LayoutCanvas({
   };
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (riskDraft) {
+      const width = Math.abs(riskDraft.end.x - riskDraft.start.x);
+      const height = Math.abs(riskDraft.end.y - riskDraft.start.y);
+      setRiskDraft(null);
+      event.currentTarget.releasePointerCapture(event.pointerId);
+      if (width > 0.5 && height > 0.5) {
+        onRiskZoneDrawn?.({
+          x: Math.min(riskDraft.start.x, riskDraft.end.x),
+          y: Math.min(riskDraft.start.y, riskDraft.end.y),
+          width,
+          height,
+        });
+      }
+      return;
+    }
     if (panRef.current) {
       suppressClickRef.current = true;
       stopPan();
@@ -501,7 +552,9 @@ export function LayoutCanvas({
       ? panning
         ? 'layout-cursor-grabbing'
         : 'layout-cursor-grab'
-      : tool === 'wall'
+      : riskMode && !readOnly
+        ? 'cursor-crosshair'
+        : tool === 'wall'
         ? 'layout-cursor-wall'
         : tool === 'outsideWall'
           ? 'layout-cursor-outside-wall'
@@ -635,6 +688,47 @@ export function LayoutCanvas({
                 zoom={camera.zoom}
               />
             ))}
+            {riskZones.map((zone) => {
+              const x = Math.min(zone.startX, zone.endX);
+              const y = Math.min(zone.startY, zone.endY);
+              const w = Math.abs(zone.endX - zone.startX);
+              const h = Math.abs(zone.endY - zone.startY);
+              const labelWidth = estimateTextWidthPx(zone.title, s(11));
+              return (
+                <Group key={`risk-zone-${zone.id}`}>
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={w}
+                    height={h}
+                    fill="rgba(201, 79, 71, 0.18)"
+                    stroke="#c94f47"
+                    strokeWidth={s(1.5)}
+                  />
+                  <KonvaText
+                    x={x}
+                    y={y - s(14)}
+                    width={labelWidth}
+                    text={zone.title}
+                    fontSize={s(11)}
+                    fill="#c94f47"
+                    fontFamily={FONT_MONO}
+                  />
+                </Group>
+              );
+            })}
+            {riskDraft && (
+              <Rect
+                x={Math.min(riskDraft.start.x, riskDraft.end.x)}
+                y={Math.min(riskDraft.start.y, riskDraft.end.y)}
+                width={Math.abs(riskDraft.end.x - riskDraft.start.x)}
+                height={Math.abs(riskDraft.end.y - riskDraft.start.y)}
+                fill="rgba(201, 79, 71, 0.12)"
+                stroke="#c94f47"
+                strokeWidth={s(1.5)}
+                dash={[s(6), s(4)]}
+              />
+            )}
             {draft && (
               <Group>
                 {isWallDraft ? (

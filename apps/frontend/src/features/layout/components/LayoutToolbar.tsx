@@ -1,5 +1,5 @@
 import type { Ref } from 'react';
-import { History, Minus } from 'lucide-react';
+import { History, Minus, ShieldAlert } from 'lucide-react';
 
 interface LayoutToolbarProps {
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
@@ -7,6 +7,8 @@ interface LayoutToolbarProps {
   onOpenHistory: () => void;
   onStartSimulation: () => void;
   readOnly: boolean;
+  riskMode?: boolean;
+  onToggleRiskMode?: () => void;
   onCollapse: () => void;
   collapseButtonRef?: Ref<HTMLButtonElement>;
 }
@@ -17,6 +19,8 @@ export function LayoutToolbar({
   onOpenHistory,
   onStartSimulation,
   readOnly,
+  riskMode = false,
+  onToggleRiskMode,
   onCollapse,
   collapseButtonRef,
 }: LayoutToolbarProps) {
@@ -78,6 +82,26 @@ export function LayoutToolbar({
         >
           시뮬레이션 배치
         </button>
+        {onToggleRiskMode && (
+          <button
+            type="button"
+            onClick={onToggleRiskMode}
+            aria-pressed={riskMode}
+            title={
+              riskMode
+                ? '도면을 드래그해 위험 구역을 지정하세요. ESC로 종료합니다.'
+                : '도면 위에 위험 예상 항목 구역을 표시합니다.'
+            }
+            className={`flex h-9 items-center justify-center gap-1.5 rounded-lg border text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
+              riskMode
+                ? 'border-danger bg-danger-soft text-danger-strong'
+                : 'border-panel-border bg-panel-soft text-panel-text hover:bg-panel'
+            }`}
+          >
+            <ShieldAlert aria-hidden="true" className="h-4 w-4" />
+            {riskMode ? '위험 구역 지정 중' : '위험 구역'}
+          </button>
+        )}
       </div>
     </div>
   );

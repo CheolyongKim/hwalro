@@ -16,10 +16,14 @@ export const riskApi = {
       .then((res) => res.data),
   listBySimulationResult: (simulationResultId: number) =>
     apiClient.get<Risk[]>(`/api/risks/by-result/${simulationResultId}`).then((res) => res.data),
+  listByLayout: (layoutId: number) =>
+    apiClient.get<Risk[]>(`/api/risks/by-layout/${layoutId}`).then((res) => res.data),
   getDrawingContext: (simulationResultId: number) =>
     apiClient
       .get<RiskDrawingContext>(`/api/risks/by-result/${simulationResultId}/drawing`)
       .then((res) => res.data),
+  getDrawingForRisk: (riskId: number) =>
+    apiClient.get<RiskDrawingContext>(`/api/risks/${riskId}/drawing`).then((res) => res.data),
   get: (id: number) => apiClient.get<Risk>(`/api/risks/${id}`).then((res) => res.data),
   create: (body: RiskCreateRequest) =>
     apiClient.post<Risk>('/api/risks', body).then((res) => res.data),

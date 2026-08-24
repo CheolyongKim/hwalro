@@ -27,6 +27,9 @@ import { simulationApi } from '../../simulations/api/simulationApi';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
+import { riskApi } from '../../risks/api/riskApi';
+import type { Risk } from '../../risks/types/risks';
+import { RiskZoneEditorDialog } from '../../risks/components/RiskZoneEditorDialog';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
@@ -71,8 +74,17 @@ function LayoutPage() {
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [riskMode, setRiskMode] = useState(false);
+  const [risks, setRisks] = useState<Risk[]>([]);
+  const [pendingRiskBounds, setPendingRiskBounds] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
+  const riskModeRef = useRef(false);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
@@ -82,6 +94,13 @@ function LayoutPage() {
   useLayoutEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  const toggleRiskMode = useCallback(() => {
+    setRiskMode((current) => {
+      riskModeRef.current = !current;
+      return !current;
+    });
+  }, []);
 
   useLayoutEffect(() => {
     if (!restorePanelFocusRef.current) {
@@ -294,6 +313,9 @@ function LayoutPage() {
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         dispatch({ type: 'deleteSelection' });
       } else if (event.key === 'Escape') {
+        if (riskModeRef.current) {
+          setRiskMode(false);
+        }
         dispatch({ type: 'escape' });
       }
     };
@@ -307,6 +329,24 @@ function LayoutPage() {
     setSaveStatus('idle');
     setHistoryDialogOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (loadStatus !== 'ready') {
+      return;
+    }
+    let active = true;
+    riskApi
+      .listByLayout(Number(drawingId))
+      .then((items) => {
+        if (active) setRisks(items);
+      })
+      .catch(() => {
+        if (active) setRisks([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadStatus, drawingId]);
 
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
   const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
@@ -369,6 +409,16 @@ function LayoutPage() {
         size={size}
         onSizeChange={onSizeChange}
         readOnly={readOnly}
+        riskZones={risks.map((risk) => ({
+          id: risk.id,
+          title: risk.title,
+          startX: risk.startX ?? 0,
+          startY: risk.startY ?? 0,
+          endX: risk.endX ?? 0,
+          endY: risk.endY ?? 0,
+        }))}
+        riskMode={riskMode && !readOnly}
+        onRiskZoneDrawn={setPendingRiskBounds}
       />
       {settingsPanel.isMinimized ? (
         <CanvasWorkspacePanelRestore
@@ -398,6 +448,8 @@ function LayoutPage() {
             onOpenHistory={() => setHistoryDialogOpen(true)}
             onStartSimulation={() => void handleOpenDraftDialog()}
             readOnly={readOnly}
+            riskMode={riskMode}
+            onToggleRiskMode={toggleRiskMode}
             collapseButtonRef={collapseButtonRef}
             onCollapse={() => {
               restorePanelFocusRef.current = true;
@@ -457,6 +509,29 @@ function LayoutPage() {
           pending={draftPending}
           onClose={() => setDraftDialogOpen(false)}
           onConfirm={(parentSimulationId) => void handleCreateDraft(parentSimulationId)}
+        />
+      )}
+      {pendingRiskBounds && sessionRef.current !== null && (
+        <RiskZoneEditorDialog
+          bounds={pendingRiskBounds}
+          drawing={{
+            width: state.doc.width,
+            height: state.doc.height,
+            layoutTexts: state.doc.layoutTexts.map((text) => ({
+              text: text.text,
+              x: text.x,
+              y: text.y,
+            })),
+          }}
+          layoutId={Number(drawingId)}
+          layoutVersionId={sessionRef.current.layoutVersionId}
+          onCancel={() => setPendingRiskBounds(null)}
+          onConfirm={(risk) => {
+            setRisks((current) => [risk, ...current]);
+            setPendingRiskBounds(null);
+            setRiskMode(false);
+            riskModeRef.current = false;
+          }}
         />
       )}
       {historyDialogOpen && sessionRef.current !== null && (

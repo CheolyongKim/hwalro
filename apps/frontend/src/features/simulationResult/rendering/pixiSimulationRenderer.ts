@@ -399,12 +399,11 @@ function updateBottlenecks(
   }
 }
 
-function updateRiskZones(layer: Graphics, riskZones: RiskZone[], draftZone: Bounds | null) {
+function updateRiskZones(layer: Graphics, riskZones: RiskZone[]) {
   layer.clear();
   for (const zone of riskZones) {
     drawBounds(layer, zone, 0x5c75d9, 0x5c75d9, 0.1);
   }
-  if (draftZone) drawBounds(layer, draftZone, 0x5c75d9, 0x5c75d9, 0.08);
 }
 
 export function updatePixiSimulationScene(
@@ -415,7 +414,6 @@ export function updatePixiSimulationScene(
   selectedBottleneckId: number | null,
   showBottlenecks: boolean,
   riskZones: RiskZone[],
-  draftZone: Bounds | null,
 ) {
   const heatmapFrame = selectFramePair(result.heatmap.frames, currentTimeSeconds).previous;
   if (scene.lastHeatmapTime !== heatmapFrame.timeSeconds) {
@@ -438,7 +436,7 @@ export function updatePixiSimulationScene(
   } else {
     scene.bottleneckLayer.clear();
   }
-  updateRiskZones(scene.riskLayer, riskZones, draftZone);
+  updateRiskZones(scene.riskLayer, riskZones);
   scene.app.render();
 }
 

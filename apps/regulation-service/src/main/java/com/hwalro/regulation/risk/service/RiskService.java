@@ -8,6 +8,7 @@ import com.hwalro.regulation.report.exception.SimulationServiceTimeoutException;
 import com.hwalro.regulation.risk.client.RiskDrawingContextClient;
 import com.hwalro.regulation.risk.domain.Risk;
 import com.hwalro.regulation.risk.dto.AttachedLawRef;
+import com.hwalro.regulation.risk.dto.LayoutDrawingContextResponse;
 import com.hwalro.regulation.risk.dto.RiskAttachedLaw;
 import com.hwalro.regulation.risk.dto.RiskCreateRequest;
 import com.hwalro.regulation.risk.dto.RiskDrawingContextResponse;
@@ -73,12 +74,14 @@ public class RiskService {
                 fetchAttachedLawsByRiskIds(risks.stream().map(Risk::getId).toList());
         Map<Long, String> assigneeNames = findAssigneeNames(risks, authorization);
         Map<Long, String> simulationTitles = findSimulationTitles(risks, authorization);
+        Map<Long, String> layoutTitles = findLayoutTitles(risks, authorization);
         List<RiskResponse> items = risks.stream()
                 .map(risk -> toResponse(
                         risk,
                         attachedLawsByRiskId.getOrDefault(risk.getId(), List.of()),
                         assigneeNames.get(risk.getAssigneeId()),
-                        simulationTitles.get(risk.getSimulationResultId())))
+                        simulationTitles.get(risk.getSimulationResultId()),
+                        layoutTitles.get(risk.getLayoutId())))
                 .toList();
         return new RiskListResponse((int) totalCount, page, size, page * size < totalCount, items);
     }
@@ -94,6 +97,47 @@ public class RiskService {
         return risks.stream()
                 .map(risk -> toResponse(risk, attachedLawsByRiskId.getOrDefault(risk.getId(), List.of())))
                 .toList();
+    }
+
+    public List<RiskResponse> listByLayout(Long layoutId, JwtUser user) {
+        if (layoutId == null || layoutId <= 0) {
+            throw new IllegalArgumentException("도면 ID는 양수여야 합니다.");
+        }
+        Long assigneeFilter = resolveAssigneeFilter(user);
+        List<Risk> risks = riskMapper.findByLayoutId(layoutId, assigneeFilter);
+        Map<Long, List<AttachedLawRef>> attachedLawsByRiskId =
+                fetchAttachedLawsByRiskIds(risks.stream().map(Risk::getId).toList());
+        return risks.stream()
+                .map(risk -> toResponse(risk, attachedLawsByRiskId.getOrDefault(risk.getId(), List.of())))
+                .toList();
+    }
+
+    public RiskDrawingContextResponse getDrawingForRisk(Long id, JwtUser user, String authorization) {
+        if (!StringUtils.hasText(authorization)) {
+            throw new IllegalArgumentException("Authorization 헤더가 필요합니다.");
+        }
+        Risk risk = findByIdOrThrow(id);
+        requireAccessible(risk, user);
+        if (risk.getLayoutId() != null) {
+            try {
+                for (LayoutDrawingContextResponse context :
+                        drawingContextClient.findLayoutContexts(List.of(risk.getLayoutId()), authorization)) {
+                    if (context.layoutId().equals(risk.getLayoutId())) {
+                        return toDrawingResponse(context);
+                    }
+                }
+            } catch (RuntimeException exception) {
+                log.warn("Failed to resolve drawing context by layout. layoutId={}", risk.getLayoutId(), exception);
+            }
+        }
+        if (risk.getSimulationResultId() == null) {
+            throw new SimulationServiceException("위험 항목에 연결된 도면을 조회할 수 없습니다.");
+        }
+        RiskDrawingContextResponse context = drawingContextClient.findOne(risk.getSimulationResultId(), authorization);
+        if (context == null) {
+            throw new SimulationServiceException("시뮬레이션 도면을 조회할 수 없습니다.");
+        }
+        return context;
     }
 
     public RiskDrawingContextResponse getDrawingContext(Long simulationResultId, String authorization) {
@@ -118,14 +162,24 @@ public class RiskService {
     }
 
     @Transactional
-    public RiskResponse create(RiskCreateRequest request, Long assigneeId) {
+    public RiskResponse create(RiskCreateRequest request, Long assigneeId, String authorization) {
         validateFields(request.title(), request.severity(), request.status(), request.description());
         validateSimulationResultId(request.simulationResultId());
+        validateLayoutIds(request.layoutId(), request.layoutVersionId());
+        if (request.simulationResultId() == null && request.layoutId() == null) {
+            throw new IllegalArgumentException("위험 항목은 도면 또는 시뮬레이션 결과 중 하나에 연결되어야 합니다.");
+        }
         validateGeometry(request);
         List<AttachedLawRef> attachedLaws = validateAttachedLaws(request.attachedLaws());
         Risk risk = new Risk();
         risk.setAssigneeId(assigneeId);
         risk.setSimulationResultId(request.simulationResultId());
+        risk.setLayoutId(request.layoutId());
+        risk.setLayoutVersionId(request.layoutVersionId());
+        if (risk.getLayoutId() == null) {
+            // 시뮬레이션 결과에서 생성된 위험도 도면 이력에 쌓이도록 레이아웃을 추정해 저장한다.
+            resolveLayoutFromSimulationResult(risk, authorization);
+        }
         risk.setTitle(request.title().trim());
         risk.setDescription(request.description());
         risk.setStartX(request.startX());
@@ -222,14 +276,20 @@ public class RiskService {
     }
 
     private RiskResponse toResponse(Risk risk, List<AttachedLawRef> attachedLaws) {
-        return toResponse(risk, attachedLaws, null, null);
+        return toResponse(risk, attachedLaws, null, null, null);
     }
 
     private RiskResponse toResponse(
-            Risk risk, List<AttachedLawRef> attachedLaws, String assigneeName, String simulationTitle) {
+            Risk risk,
+            List<AttachedLawRef> attachedLaws,
+            String assigneeName,
+            String simulationTitle,
+            String layoutTitle) {
         return new RiskResponse(
                 risk.getId(),
                 risk.getSimulationResultId(),
+                risk.getLayoutId(),
+                risk.getLayoutVersionId(),
                 risk.getAssigneeId(),
                 assigneeName,
                 risk.getTitle(),
@@ -242,7 +302,108 @@ public class RiskService {
                 risk.getStatus(),
                 risk.getCreatedAt(),
                 attachedLaws,
-                simulationTitle);
+                simulationTitle,
+                layoutTitle);
+    }
+
+    private void resolveLayoutFromSimulationResult(Risk risk, String authorization) {
+        try {
+            RiskDrawingContextResponse context =
+                    drawingContextClient.findOne(risk.getSimulationResultId(), authorization);
+            if (context != null) {
+                risk.setLayoutId(context.layoutId());
+                if (risk.getLayoutVersionId() == null) {
+                    risk.setLayoutVersionId(context.layoutVersionId());
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to resolve layout for simulation result. simulationResultId={}",
+                    risk.getSimulationResultId(),
+                    exception);
+        }
+    }
+
+    private RiskDrawingContextResponse toDrawingResponse(LayoutDrawingContextResponse context) {
+        LayoutDrawingContextResponse.Drawing drawing = context.drawing();
+        return new RiskDrawingContextResponse(
+                null,
+                null,
+                context.layoutId(),
+                context.layoutVersionId(),
+                context.layoutTitle(),
+                context.layoutTitle(),
+                new RiskDrawingContextResponse.Drawing(
+                        drawing.name(),
+                        drawing.width(),
+                        drawing.height(),
+                        drawing.outsideBoundary().stream()
+                                .map(point -> new RiskDrawingContextResponse.Point(point.x(), point.y()))
+                                .toList(),
+                        drawing.walls().stream()
+                                .map(segment -> toSegment(segment))
+                                .toList(),
+                        drawing.exits().stream()
+                                .map(segment -> toSegment(segment))
+                                .toList(),
+                        drawing.pillars().stream()
+                                .map(rect -> toRectangle(rect))
+                                .toList(),
+                        drawing.fabrics().stream()
+                                .map(rect -> toRectangle(rect))
+                                .toList(),
+                        drawing.layoutTexts().stream()
+                                .map(text -> new RiskDrawingContextResponse.LayoutText(text.text(), text.x(), text.y()))
+                                .toList()));
+    }
+
+    private RiskDrawingContextResponse.Segment toSegment(LayoutDrawingContextResponse.Segment segment) {
+        return new RiskDrawingContextResponse.Segment(
+                segment.name(), segment.startX(), segment.startY(), segment.endX(), segment.endY());
+    }
+
+    private RiskDrawingContextResponse.Rectangle toRectangle(LayoutDrawingContextResponse.Rectangle rectangle) {
+        return new RiskDrawingContextResponse.Rectangle(
+                rectangle.name(),
+                rectangle.startX(),
+                rectangle.startY(),
+                rectangle.endX(),
+                rectangle.endY(),
+                rectangle.rotation());
+    }
+
+    private void validateLayoutIds(Long layoutId, Long layoutVersionId) {
+        if (layoutId != null && layoutId <= 0) {
+            throw new IllegalArgumentException("도면 ID는 양수여야 합니다.");
+        }
+        if (layoutVersionId != null && layoutVersionId <= 0) {
+            throw new IllegalArgumentException("도면 버전 ID는 양수여야 합니다.");
+        }
+    }
+
+    private Map<Long, String> findLayoutTitles(List<Risk> risks, String authorization) {
+        List<Long> layoutIds = risks.stream()
+                .map(Risk::getLayoutId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> titles = new HashMap<>();
+        if (layoutIds.isEmpty()) {
+            return titles;
+        }
+        int batchSize = drawingContextClient.maxResultCount() * 3;
+        for (int start = 0; start < layoutIds.size(); start += batchSize) {
+            List<Long> batch = layoutIds.subList(start, Math.min(layoutIds.size(), start + batchSize));
+            try {
+                for (LayoutDrawingContextResponse context :
+                        drawingContextClient.findLayoutContexts(batch, authorization)) {
+                    titles.put(context.layoutId(), context.layoutTitle());
+                }
+            } catch (RuntimeException exception) {
+                log.warn("Failed to resolve layout titles. layoutIds={}", batch, exception);
+            }
+        }
+        return titles;
     }
 
     private Map<Long, String> findSimulationTitles(List<Risk> risks, String authorization) {

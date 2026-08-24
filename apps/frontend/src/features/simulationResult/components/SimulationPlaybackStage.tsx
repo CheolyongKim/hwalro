@@ -9,7 +9,7 @@ import {
   updatePixiSimulationScene,
   type PixiSimulationScene,
 } from '../rendering/pixiSimulationRenderer';
-import type { Bounds, DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
+import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import './SimulationPlaybackStage.css';
 
 interface Props {
@@ -18,9 +18,7 @@ interface Props {
   currentTimeSeconds: number;
   selectedBottleneckId: number | null;
   showBottlenecks: boolean;
-  riskDrawingMode: boolean;
   riskZones: RiskZone[];
-  onRiskZoneCreated: (bounds: Bounds) => void;
   onViewportPan: () => void;
 }
 
@@ -35,11 +33,9 @@ interface PanSession {
 export function SimulationPlaybackStage(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<PixiSimulationScene | null>(null);
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const panSessionRef = useRef<PanSession | null>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [camera, setCamera] = useState({ zoom: 1, panX: 0, panY: 0 });
-  const [draftZone, setDraftZone] = useState<Bounds | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [sceneVersion, setSceneVersion] = useState(0);
   const [sceneError, setSceneError] = useState(false);
@@ -119,10 +115,8 @@ export function SimulationPlaybackStage(props: Props) {
       props.selectedBottleneckId,
       props.showBottlenecks,
       props.riskZones,
-      draftZone,
     );
   }, [
-    draftZone,
     props.bottlenecks,
     props.currentTimeSeconds,
     props.result,
@@ -132,39 +126,20 @@ export function SimulationPlaybackStage(props: Props) {
     sceneVersion,
   ]);
 
-  const pointerPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    return pixiScreenToWorld(event.clientX - rect.left, event.clientY - rect.top, transform);
-  };
-
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (sceneError) return;
-    if (props.riskDrawingMode) {
-      dragStartRef.current = pointerPoint(event);
-    } else {
-      panSessionRef.current = {
-        pointerX: event.clientX,
-        pointerY: event.clientY,
-        panX: camera.panX,
-        panY: camera.panY,
-        notified: false,
-      };
-      setIsPanning(true);
-    }
+    panSessionRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      panX: camera.panX,
+      panY: camera.panY,
+      notified: false,
+    };
+    setIsPanning(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragStartRef.current) {
-      const point = pointerPoint(event);
-      setDraftZone({
-        x: Math.min(point.x, dragStartRef.current.x),
-        y: Math.min(point.y, dragStartRef.current.y),
-        width: Math.abs(point.x - dragStartRef.current.x),
-        height: Math.abs(point.y - dragStartRef.current.y),
-      });
-      return;
-    }
     const session = panSessionRef.current;
     if (!session) return;
     const deltaX = event.clientX - session.pointerX;
@@ -184,13 +159,7 @@ export function SimulationPlaybackStage(props: Props) {
     if (panSessionRef.current) {
       panSessionRef.current = null;
       setIsPanning(false);
-      return;
     }
-    dragStartRef.current = null;
-    if (draftZone && draftZone.width >= 1 && draftZone.height >= 1) {
-      props.onRiskZoneCreated(draftZone);
-    }
-    setDraftZone(null);
   };
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -220,7 +189,7 @@ export function SimulationPlaybackStage(props: Props) {
   return (
     <div
       ref={hostRef}
-      className={`simulation-canvas-wrap simulation-canvas--interactive ${props.riskDrawingMode ? 'is-drawing' : 'is-pannable'} ${isPanning ? 'is-panning' : ''}`}
+      className={`simulation-canvas-wrap simulation-canvas--interactive is-pannable ${isPanning ? 'is-panning' : ''}`}
       role="application"
       aria-label="더현대 서울 지하 2층 PixiJS 시뮬레이션 재생 도면"
       onPointerDown={onPointerDown}

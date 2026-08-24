@@ -6,6 +6,8 @@
     <select id="findById" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
                simulation_result_id,
+               layout_id,
+               layout_version_id,
                assignee_id,
                title,
                description,
@@ -23,6 +25,8 @@
     <select id="findPage" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
                simulation_result_id,
+               layout_id,
+               layout_version_id,
                assignee_id,
                title,
                description,
@@ -62,6 +66,8 @@
     <select id="findBySimulationResultId" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
                simulation_result_id,
+               layout_id,
+               layout_version_id,
                assignee_id,
                title,
                description,
@@ -78,9 +84,32 @@
         ORDER BY id DESC
     </select>
 
+    <select id="findByLayoutId" resultType="com.hwalro.regulation.risk.domain.Risk">
+        SELECT id,
+               simulation_result_id,
+               layout_id,
+               layout_version_id,
+               assignee_id,
+               title,
+               description,
+               start_x,
+               start_y,
+               end_x,
+               end_y,
+               severity,
+               status,
+               created_at
+        FROM risks
+        WHERE layout_id = #{layoutId}
+        <if test="assigneeId != null">AND assignee_id = #{assigneeId}</if>
+        ORDER BY id DESC
+    </select>
+
     <select id="findBySimulationResultIds" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
                simulation_result_id,
+               layout_id,
+               layout_version_id,
                assignee_id,
                title,
                description,
@@ -106,8 +135,8 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO risks (simulation_result_id, assignee_id, title, description, start_x, start_y, end_x, end_y, severity, status)
-        VALUES (#{simulationResultId}, #{assigneeId}, #{title}, #{description}, #{startX}, #{startY}, #{endX}, #{endY}, #{severity}, #{status})
+        INSERT INTO risks (simulation_result_id, layout_id, layout_version_id, assignee_id, title, description, start_x, start_y, end_x, end_y, severity, status)
+        VALUES (#{simulationResultId}, #{layoutId}, #{layoutVersionId}, #{assigneeId}, #{title}, #{description}, #{startX}, #{startY}, #{endX}, #{endY}, #{severity}, #{status})
     </insert>
 
     <update id="update">

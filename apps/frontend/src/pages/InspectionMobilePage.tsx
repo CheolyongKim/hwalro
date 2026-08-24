@@ -122,6 +122,8 @@ function InspectionMobilePage() {
           id: item.id,
           result: item.result,
           comment: item.comment?.trim() || null,
+          markerX: item.markerX,
+          markerY: item.markerY,
         })),
       });
       setInspection(updated);
