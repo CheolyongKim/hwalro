@@ -2,7 +2,11 @@ import { AxiosError } from 'axios';
 import type { DrawingDocument } from '../types';
 import { fromSerialized, toSerialized } from '../utils/serialization';
 import { drawingApi } from '../../drawings/api/drawingApi';
-import type { Drawing, DrawingLayoutVersionStatus, DrawingVersionSummary } from '../../drawings/types/drawing';
+import type {
+  Drawing,
+  DrawingLayoutVersionStatus,
+  DrawingVersionSummary,
+} from '../../drawings/types/drawing';
 
 export interface DrawingSession {
   doc: DrawingDocument;
@@ -65,7 +69,10 @@ export async function fetchDrawingVersions(id: string): Promise<DrawingVersionSu
   return drawingApi.versions(Number(id));
 }
 
-export async function restoreDrawingVersion(id: string, versionId: number): Promise<DrawingSession> {
+export async function restoreDrawingVersion(
+  id: string,
+  versionId: number,
+): Promise<DrawingSession> {
   const drawing = await drawingApi.restoreVersion(Number(id), versionId);
   return toSession(drawing);
 }
