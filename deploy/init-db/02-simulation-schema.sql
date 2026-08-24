@@ -267,23 +267,6 @@ CREATE TABLE IF NOT EXISTS layout_zone_members (
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS layout_placement_exclusions (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    layout_version_id BIGINT UNSIGNED NOT NULL,
-    x DECIMAL(12, 4) NOT NULL,
-    y DECIMAL(12, 4) NOT NULL,
-    width DECIMAL(12, 4) NOT NULL,
-    height DECIMAL(12, 4) NOT NULL,
-    CONSTRAINT pk_layout_placement_exclusions PRIMARY KEY (id),
-    CONSTRAINT ck_layout_placement_exclusions_extent CHECK (width > 0 AND height > 0),
-    CONSTRAINT fk_layout_placement_exclusions_layout_version
-        FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE
-) ENGINE = InnoDB
-  DEFAULT CHARACTER SET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci;
-
 CREATE TABLE IF NOT EXISTS simulations (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     layout_version_id BIGINT UNSIGNED NOT NULL,

@@ -5,6 +5,8 @@ public enum ZoneType {
     WORK,
     STORAGE,
     PASSAGE,
+    /** 배치 개선안 탐색이 구조물을 놓지 못하는 영역. 별도 사각형 편집기를 두지 않고 구역으로 표현한다. */
+    EXCLUSION,
     OTHER;
 
     public static ZoneType from(String value) {

@@ -41,7 +41,6 @@ public class LayoutMetadataCopier {
         if (!sourceZones.isEmpty()) {
             copyZonesAndMemberships(sourceVersionId, targetVersionId, sourceZones, exitIdMap, elementIdMaps);
         }
-        layoutZoneMapper.copyPlacementExclusions(sourceVersionId, targetVersionId);
     }
 
     private void copyZonesAndMemberships(

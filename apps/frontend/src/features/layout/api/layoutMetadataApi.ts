@@ -7,7 +7,8 @@ export interface ZoneRect {
   height: number;
 }
 
-export type ZoneType = 'WORK' | 'STORAGE' | 'PASSAGE' | 'OTHER';
+/** EXCLUSION은 배치 개선안 탐색이 구조물을 놓지 못하는 영역이다. 사각형 편집기를 따로 두지 않고 구역으로 표현한다. */
+export type ZoneType = 'WORK' | 'STORAGE' | 'PASSAGE' | 'EXCLUSION' | 'OTHER';
 
 export type ZoneElementKind = 'WALL' | 'PILLAR' | 'FABRIC';
 
@@ -41,7 +42,6 @@ export interface LayoutMetadata {
   layoutVersionId: number;
   zones: LayoutZone[];
   structureConstraints: StructureConstraint[];
-  placementExclusions: ZoneRect[];
 }
 
 export interface ZoneCreateRequest extends ZoneRect {

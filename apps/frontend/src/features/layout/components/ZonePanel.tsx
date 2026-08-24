@@ -7,6 +7,7 @@ const ZONE_TYPE_LABELS: Record<ZoneType, string> = {
   WORK: '작업',
   STORAGE: '보관',
   PASSAGE: '통로',
+  EXCLUSION: '배치 제외',
   OTHER: '기타',
 };
 
@@ -193,9 +194,7 @@ export function ZonePanel({
       </label>
 
       <div className="mt-4 border-t border-panel-divider pt-3">
-        <h4 className="text-xs font-bold text-panel-text">
-          구성 요소 {zone.members.length}개
-        </h4>
+        <h4 className="text-xs font-bold text-panel-text">구성 요소 {zone.members.length}개</h4>
         <p className="mt-1 text-xs text-panel-muted">
           소속은 왼쪽 계층 패널에서 드래그로 정합니다.
         </p>

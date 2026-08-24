@@ -12,7 +12,7 @@ interface SearchStartPanelProps {
 /**
  * 탐색 시작 패널.
  *
- * 제약 편집 UI는 여기 없다. 구조물 제약과 배치 제외 영역은 도면에 저장되며 도면 편집기에서 관리한다 -
+ * 제약 편집 UI는 여기 없다. 구조물 제약과 배치 제외 구역은 도면에 저장되며 도면 편집기에서 관리한다 -
  * 실행마다 다시 입력하면 같은 값이 두 곳에 살게 된다. 실행마다 달라지는 값은 실측 확인 여부뿐이다.
  */
 export function SearchStartPanel({ drawingId, onStart, starting }: SearchStartPanelProps) {
@@ -23,8 +23,8 @@ export function SearchStartPanel({ drawingId, onStart, starting }: SearchStartPa
       <div className="search-start-panel">
         <h2 className="search-start-panel__title">배치 개선안 탐색</h2>
         <p className="search-start-panel__description">
-          도면에 저장된 구조물 제약과 배치 제외 영역을 그대로 사용합니다. 제약을 바꾸려면 도면
-          편집기에서 수정한 뒤 다시 탐색하세요.
+          도면에 저장된 구조물 제약과 배치 제외 구역을 그대로 사용합니다. 구조물을 놓지 않을 영역은
+          도면 편집기에서 구역을 그린 뒤 유형을 &lsquo;배치 제외&rsquo;로 바꾸면 됩니다.
         </p>
         {drawingId !== null && (
           <Link to={`/layout/${drawingId}`} className="search-start-panel__link">

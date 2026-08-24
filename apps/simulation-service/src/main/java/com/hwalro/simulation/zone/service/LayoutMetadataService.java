@@ -5,14 +5,12 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.zone.client.EmployeeDirectoryClient;
-import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.domain.LayoutZoneMember;
 import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.dto.AssignedZoneRow;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.LayoutMetadataResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.MyZoneResponse;
-import com.hwalro.simulation.zone.dto.LayoutZoneDtos.PlacementExclusionsRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.RectDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
@@ -98,17 +96,10 @@ public class LayoutMetadataService {
                         fabric.getKeepAgainstWall()))
                 .toList();
 
-        // 배치 제외는 탐색 운영 정보라 직원에게는 빈 배열로 준다.
-        List<RectDto> exclusions = privileged
-                ? layoutZoneService.placementExclusions(versionId).stream()
-                        .map(LayoutMetadataService::toRect)
-                        .toList()
-                : List.of();
-
         List<ZoneResponse> zoneResponses = visibleZones.stream()
                 .map(zone -> toZoneResponse(zone, membersByZone.get(zone.getId())))
                 .toList();
-        return new LayoutMetadataResponse(layoutId, versionId, zoneResponses, constraints, exclusions);
+        return new LayoutMetadataResponse(layoutId, versionId, zoneResponses, constraints);
     }
 
     public ZoneResponse createZone(Long layoutId, ZoneCreateRequest request, JwtUser user, String authorization) {
@@ -149,11 +140,6 @@ public class LayoutMetadataService {
         layoutZoneService.updateStructureConstraints(layoutId, fabricId, request);
     }
 
-    public void replacePlacementExclusions(Long layoutId, PlacementExclusionsRequest request, JwtUser user) {
-        drawingService.requireAccessible(layoutId, user);
-        layoutZoneService.replacePlacementExclusions(layoutId, request);
-    }
-
     public List<MyZoneResponse> myZones(JwtUser user) {
         return layoutZoneService.assignedZones(user.userId()).stream()
                 .map(LayoutMetadataService::toMyZone)
@@ -181,10 +167,6 @@ public class LayoutMetadataService {
                 zone.getAssignedUserId(),
                 zone.getDefaultExitId(),
                 members == null ? List.of() : members);
-    }
-
-    private static RectDto toRect(LayoutPlacementExclusion exclusion) {
-        return new RectDto(exclusion.getX(), exclusion.getY(), exclusion.getWidth(), exclusion.getHeight());
     }
 
     private static MyZoneResponse toMyZone(AssignedZoneRow row) {

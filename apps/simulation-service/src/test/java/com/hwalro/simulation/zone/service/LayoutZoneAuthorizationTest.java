@@ -14,7 +14,6 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.zone.client.EmployeeDirectoryClient;
-import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.domain.LayoutZoneMember;
 import com.hwalro.simulation.zone.domain.ZoneElementKind;
@@ -69,6 +68,8 @@ class LayoutZoneAuthorizationTest {
         return new JwtUser(7L, Set.of("OPERATOR"));
     }
 
+    private static final Long EXCLUSION_ZONE_ID = 9301L;
+
     private static LayoutZone zone(Long id, Long assignedUserId) {
         LayoutZone zone = new LayoutZone();
         zone.setId(id);
@@ -102,12 +103,6 @@ class LayoutZoneAuthorizationTest {
                         LayoutZoneMember.of(VERSION_ID, OTHER_ZONE_ID, ZoneElementKind.FABRIC, OTHER_FABRIC_ID)));
         when(layoutZoneService.fabrics(VERSION_ID))
                 .thenReturn(List.of(fabric(MY_FABRIC_ID), fabric(OTHER_FABRIC_ID), fabric(COMMON_FABRIC_ID)));
-        LayoutPlacementExclusion exclusion = new LayoutPlacementExclusion();
-        exclusion.setX(BigDecimal.ONE);
-        exclusion.setY(BigDecimal.ONE);
-        exclusion.setWidth(BigDecimal.TEN);
-        exclusion.setHeight(BigDecimal.TEN);
-        when(layoutZoneService.placementExclusions(VERSION_ID)).thenReturn(List.of(exclusion));
         when(layoutZoneService.zoneIdOfFabric(VERSION_ID, MY_FABRIC_ID)).thenReturn(MINE_ZONE_ID);
         when(layoutZoneService.zoneIdOfFabric(VERSION_ID, OTHER_FABRIC_ID)).thenReturn(OTHER_ZONE_ID);
         when(layoutZoneService.zoneIdOfFabric(VERSION_ID, COMMON_FABRIC_ID)).thenReturn(null);
@@ -150,11 +145,18 @@ class LayoutZoneAuthorizationTest {
     }
 
     @Test
-    void employeeMetadataHidesPlacementExclusions() {
-        assertThat(service.readMetadata(LAYOUT_ID, employee()).placementExclusions())
-                .isEmpty();
-        assertThat(service.readMetadata(LAYOUT_ID, operator()).placementExclusions())
-                .hasSize(1);
+    void employeeMetadataHidesExclusionZones() {
+        // 배치 제외 영역은 EXCLUSION 유형 구역이다. 배정자가 없으므로 직원 시야에 들어오면 안 된다.
+        LayoutZone exclusionZone = zone(EXCLUSION_ZONE_ID, null);
+        exclusionZone.setZoneType("EXCLUSION");
+        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(zone(MINE_ZONE_ID, EMPLOYEE_ID), exclusionZone));
+
+        assertThat(service.readMetadata(LAYOUT_ID, employee()).zones())
+                .extracting(ZoneResponse::zoneId)
+                .containsExactly(MINE_ZONE_ID);
+        assertThat(service.readMetadata(LAYOUT_ID, operator()).zones())
+                .extracting(ZoneResponse::zoneId)
+                .contains(EXCLUSION_ZONE_ID);
     }
 
     @Test

@@ -3,7 +3,8 @@ package com.hwalro.simulation.zone.service;
 import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.search.domain.SearchConstraints;
-import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
+import com.hwalro.simulation.zone.domain.LayoutZone;
+import com.hwalro.simulation.zone.domain.ZoneType;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,8 +44,10 @@ public class SearchConstraintProjector {
             wallAnchored.put(fabric.getId(), Boolean.TRUE.equals(fabric.getKeepAgainstWall()));
         }
 
+        // 배치 제외 영역은 EXCLUSION 유형 구역이다. 사각형을 두 종류로 나눠 관리하지 않는다.
         List<SearchConstraints.ForbiddenZone> forbiddenZones =
-                layoutZoneMapper.findPlacementExclusionsByVersionId(layoutVersionId).stream()
+                layoutZoneMapper.findZonesByVersionId(layoutVersionId).stream()
+                        .filter(zone -> ZoneType.EXCLUSION == ZoneType.from(zone.getZoneType()))
                         .map(SearchConstraintProjector::toForbiddenZone)
                         .toList();
 
@@ -55,11 +58,11 @@ public class SearchConstraintProjector {
                 Map.copyOf(wallAnchored));
     }
 
-    private static SearchConstraints.ForbiddenZone toForbiddenZone(LayoutPlacementExclusion exclusion) {
+    private static SearchConstraints.ForbiddenZone toForbiddenZone(LayoutZone zone) {
         return new SearchConstraints.ForbiddenZone(
-                exclusion.getX().doubleValue(),
-                exclusion.getY().doubleValue(),
-                exclusion.getWidth().doubleValue(),
-                exclusion.getHeight().doubleValue());
+                zone.getX().doubleValue(),
+                zone.getY().doubleValue(),
+                zone.getWidth().doubleValue(),
+                zone.getHeight().doubleValue());
     }
 }

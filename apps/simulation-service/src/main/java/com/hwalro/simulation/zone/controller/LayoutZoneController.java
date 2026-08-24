@@ -4,7 +4,6 @@ import com.hwalro.simulation.common.jwt.JwtAuthInterceptor;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.common.jwt.RequireRole;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.LayoutMetadataResponse;
-import com.hwalro.simulation.zone.dto.LayoutZoneDtos.PlacementExclusionsRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneCreateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneResponse;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -100,15 +98,5 @@ public class LayoutZoneController {
             @RequestBody StructureConstraintUpdateRequest request,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         layoutMetadataService.updateStructureConstraints(id, fabricId, request, user);
-    }
-
-    @PutMapping("/drawings/{id}/placement-exclusions")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "배치 제외 영역 저장", description = "배치 개선안 탐색이 구조물을 놓지 못하는 사각형 목록을 통째로 교체합니다.")
-    public void replaceExclusions(
-            @Parameter(description = "도면 ID") @PathVariable Long id,
-            @RequestBody PlacementExclusionsRequest request,
-            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        layoutMetadataService.replacePlacementExclusions(id, request, user);
     }
 }

@@ -6,14 +6,11 @@ import com.hwalro.simulation.drawing.domain.Layout;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
-import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.domain.LayoutZoneMember;
 import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.domain.ZoneType;
 import com.hwalro.simulation.zone.dto.AssignedZoneRow;
-import com.hwalro.simulation.zone.dto.LayoutZoneDtos.PlacementExclusionsRequest;
-import com.hwalro.simulation.zone.dto.LayoutZoneDtos.RectDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneCreateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneMemberDto;
@@ -41,7 +38,6 @@ import org.springframework.util.StringUtils;
 public class LayoutZoneService {
     private static final int MAX_ZONE_NAME_LENGTH = 200;
     private static final int MAX_ZONES_PER_VERSION = 1_000;
-    private static final int MAX_EXCLUSIONS_PER_VERSION = 1_000;
 
     private final LayoutZoneMapper layoutZoneMapper;
     private final DrawingMapper drawingMapper;
@@ -78,10 +74,6 @@ public class LayoutZoneService {
 
     public List<Fabric> fabrics(Long layoutVersionId) {
         return drawingMapper.findFabricsByVersionId(layoutVersionId);
-    }
-
-    public List<LayoutPlacementExclusion> placementExclusions(Long layoutVersionId) {
-        return layoutZoneMapper.findPlacementExclusionsByVersionId(layoutVersionId);
     }
 
     public List<AssignedZoneRow> assignedZones(Long userId) {
@@ -212,33 +204,6 @@ public class LayoutZoneService {
 
         if (drawingMapper.updateFabricConstraints(fabric) == 0) {
             throw new IllegalStateException("구조물 제약을 갱신하지 못했습니다: fabricId=" + fabricId);
-        }
-    }
-
-    @Transactional
-    public void replacePlacementExclusions(Long layoutId, PlacementExclusionsRequest request) {
-        Long versionId = currentVersionId(layoutId);
-        List<RectDto> rects = request.exclusions() == null ? List.of() : request.exclusions();
-        if (rects.size() > MAX_EXCLUSIONS_PER_VERSION) {
-            throw new IllegalArgumentException("배치 제외 영역이 너무 많습니다.");
-        }
-        FloorPlan floorPlan = floorPlanOf(layoutId);
-        List<LayoutPlacementExclusion> exclusions = rects.stream()
-                .map(rect -> {
-                    validateRect(rect.x(), rect.y(), rect.width(), rect.height(), floorPlan, "배치 제외 영역");
-                    LayoutPlacementExclusion exclusion = new LayoutPlacementExclusion();
-                    exclusion.setLayoutVersionId(versionId);
-                    exclusion.setX(rect.x());
-                    exclusion.setY(rect.y());
-                    exclusion.setWidth(rect.width());
-                    exclusion.setHeight(rect.height());
-                    return exclusion;
-                })
-                .toList();
-
-        layoutZoneMapper.deletePlacementExclusionsByVersionId(versionId);
-        if (!exclusions.isEmpty()) {
-            layoutZoneMapper.insertPlacementExclusions(exclusions);
         }
     }
 

@@ -15,7 +15,6 @@ const EMPTY: LayoutMetadata = {
   layoutVersionId: 0,
   zones: [],
   structureConstraints: [],
-  placementExclusions: [],
 };
 
 /**
@@ -62,9 +61,11 @@ export function useLayoutMetadata(drawingId: string) {
       setErrorMessage(null);
       try {
         await request();
+        return true;
       } catch (error) {
         setMetadata(snapshot);
         setErrorMessage(getDrawingErrorMessage(error));
+        return false;
       }
     },
     [],

@@ -6,7 +6,8 @@ import static org.mockito.Mockito.when;
 import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.search.domain.SearchConstraints;
-import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
+import com.hwalro.simulation.zone.domain.LayoutZone;
+import com.hwalro.simulation.zone.domain.ZoneType;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
 import java.util.List;
@@ -28,9 +29,9 @@ class SearchConstraintProjectorTest {
     @Mock
     private LayoutZoneMapper layoutZoneMapper;
 
-    private SearchConstraints project(List<Fabric> fabrics, List<LayoutPlacementExclusion> exclusions) {
+    private SearchConstraints project(List<Fabric> fabrics, List<LayoutZone> zones) {
         when(drawingMapper.findFabricsByVersionId(VERSION_ID)).thenReturn(fabrics);
-        when(layoutZoneMapper.findPlacementExclusionsByVersionId(VERSION_ID)).thenReturn(exclusions);
+        when(layoutZoneMapper.findZonesByVersionId(VERSION_ID)).thenReturn(zones);
         return new SearchConstraintProjector(drawingMapper, layoutZoneMapper).project(VERSION_ID);
     }
 
@@ -85,17 +86,27 @@ class SearchConstraintProjectorTest {
     }
 
     @Test
-    void placementExclusionsBecomeForbiddenZones() {
-        LayoutPlacementExclusion exclusion = new LayoutPlacementExclusion();
-        exclusion.setX(BigDecimal.valueOf(1.5));
-        exclusion.setY(BigDecimal.valueOf(2.5));
-        exclusion.setWidth(BigDecimal.valueOf(3));
-        exclusion.setHeight(BigDecimal.valueOf(4));
-
-        SearchConstraints constraints = project(List.of(), List.of(exclusion));
+    void exclusionZonesBecomeForbiddenZones() {
+        SearchConstraints constraints = project(
+                List.of(),
+                List.of(
+                        zone(ZoneType.EXCLUSION, 1.5, 2.5, 3, 4),
+                        // 매장 구역은 배치를 막지 않는다. 유형으로만 구분된다.
+                        zone(ZoneType.WORK, 10, 10, 5, 5)));
 
         assertThat(constraints.forbiddenZones())
                 .containsExactly(new SearchConstraints.ForbiddenZone(1.5, 2.5, 3.0, 4.0));
+    }
+
+    private static LayoutZone zone(ZoneType type, double x, double y, double width, double height) {
+        LayoutZone zone = new LayoutZone();
+        zone.setLayoutVersionId(VERSION_ID);
+        zone.setZoneType(type.name());
+        zone.setX(BigDecimal.valueOf(x));
+        zone.setY(BigDecimal.valueOf(y));
+        zone.setWidth(BigDecimal.valueOf(width));
+        zone.setHeight(BigDecimal.valueOf(height));
+        return zone;
     }
 
     @Test

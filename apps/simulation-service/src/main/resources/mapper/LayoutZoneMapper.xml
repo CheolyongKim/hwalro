@@ -110,31 +110,4 @@
         </foreach>
     </insert>
 
-    <select id="findPlacementExclusionsByVersionId"
-            resultType="com.hwalro.simulation.zone.domain.LayoutPlacementExclusion">
-        SELECT id, layout_version_id, x, y, width, height
-        FROM layout_placement_exclusions
-        WHERE layout_version_id = #{layoutVersionId}
-        ORDER BY id ASC
-    </select>
-
-    <delete id="deletePlacementExclusionsByVersionId">
-        DELETE FROM layout_placement_exclusions WHERE layout_version_id = #{layoutVersionId}
-    </delete>
-
-    <insert id="insertPlacementExclusions">
-        INSERT INTO layout_placement_exclusions (layout_version_id, x, y, width, height)
-        VALUES
-        <foreach collection="exclusions" item="exclusion" separator=",">
-            (#{exclusion.layoutVersionId}, #{exclusion.x}, #{exclusion.y}, #{exclusion.width}, #{exclusion.height})
-        </foreach>
-    </insert>
-
-    <insert id="copyPlacementExclusions">
-        INSERT INTO layout_placement_exclusions (layout_version_id, x, y, width, height)
-        SELECT #{targetVersionId}, x, y, width, height
-        FROM layout_placement_exclusions
-        WHERE layout_version_id = #{sourceVersionId}
-        ORDER BY id
-    </insert>
 </mapper>

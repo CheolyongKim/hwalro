@@ -67,14 +67,11 @@ public final class LayoutZoneDtos {
             Boolean rotationLocked,
             Boolean keepAgainstWall) {}
 
-    public record PlacementExclusionsRequest(List<RectDto> exclusions) {}
-
     public record LayoutMetadataResponse(
             Long layoutId,
             Long layoutVersionId,
             List<ZoneResponse> zones,
-            List<StructureConstraintDto> structureConstraints,
-            List<RectDto> placementExclusions) {}
+            List<StructureConstraintDto> structureConstraints) {}
 
     public record MyZoneResponse(
             Long zoneId,
