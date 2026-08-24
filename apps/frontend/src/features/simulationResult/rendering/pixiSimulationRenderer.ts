@@ -84,11 +84,16 @@ function traceBoundary(graphics: Graphics, points: PixiSceneConfig['drawing']['o
   return graphics.closePath();
 }
 
+// 출구·에이전트(청록), 병목(빨강), 위험구역(파랑)과 겹치지 않는 보라색 계열을 쓴다.
+const IMPROVED_FABRIC_FILL = 0xe6dbf7;
+const IMPROVED_FABRIC_STROKE = 0x7a45c9;
+
 function addRotatedRectangle(
   container: Container,
   rectangle: PixiSceneConfig['drawing']['pillars'][number],
   fillColor: number,
   strokeColor: number,
+  strokeWidth = 0.18,
 ) {
   const x = Math.min(rectangle.startX, rectangle.endX);
   const y = Math.min(rectangle.startY, rectangle.endY);
@@ -97,13 +102,13 @@ function addRotatedRectangle(
   const graphic = new Graphics()
     .rect(-width / 2, -height / 2, width, height)
     .fill({ color: fillColor })
-    .stroke({ color: strokeColor, width: 0.18 });
+    .stroke({ color: strokeColor, width: strokeWidth });
   graphic.position.set(x + width / 2, y + height / 2);
   graphic.rotation = ((rectangle.rotation ?? 0) * Math.PI) / 180;
   container.addChild(graphic);
 }
 
-function drawFloorPlan(result: PixiSceneConfig) {
+function drawFloorPlan(result: PixiSceneConfig, improvedFabrics: ReadonlySet<number>) {
   const { drawing } = result;
   const baseLayer = new Graphics();
   const structureLayer = new Container();
@@ -122,9 +127,14 @@ function drawFloorPlan(result: PixiSceneConfig) {
   for (const pillar of drawing.pillars) {
     addRotatedRectangle(structureLayer, pillar, 0xdce5e3, 0x839793);
   }
-  for (const fabric of drawing.fabrics) {
+  drawing.fabrics.forEach((fabric, index) => {
+    if (improvedFabrics.has(index)) {
+      // 개선안에서 이동·추가된 구조물은 기본 구조물과 다르게 강조한다.
+      addRotatedRectangle(structureLayer, fabric, IMPROVED_FABRIC_FILL, IMPROVED_FABRIC_STROKE, 0.45);
+      return;
+    }
     addRotatedRectangle(structureLayer, fabric, 0xe8efed, 0xa0afac);
-  }
+  });
   for (const text of drawing.layoutTexts) {
     const label = new PixiText({
       text: text.text,
@@ -195,6 +205,7 @@ function drawHazardZones(result: PixiSceneConfig) {
 export async function createPixiSimulationScene(
   host: HTMLDivElement,
   result: PixiSceneConfig,
+  improvedFabricIndexes?: readonly number[],
 ): Promise<PixiSimulationScene> {
   const app = new Application();
   await app.init({
@@ -216,7 +227,7 @@ export async function createPixiSimulationScene(
   const hazards = drawHazardZones(result);
   const bottleneckLayer = new Graphics();
   const riskLayer = new Graphics();
-  const floorPlan = drawFloorPlan(result);
+  const floorPlan = drawFloorPlan(result, new Set(improvedFabricIndexes ?? []));
   const agentTexture = createAgentTexture(app);
   const particles = Array.from(
     { length: result.totalPeople },
