@@ -151,8 +151,11 @@ export function useSimulationResultChunks(options: Options) {
 
   // 재생 창과 별개로 전체 청크를 순서대로 받아 시간별 대피 인원 그래프를 완성한다.
   // 토글로 결과를 전환하면 현재 시점 주변 청크만으로는 그래프 앞부분이 잘려 보이므로,
-  // 배경으로 남은 청크의 대피 진행 데이터를 채워 넣는다. 실패해도 주 윈도우와
-  // 스크럽 로딩이 그 데이터를 다시 가져오므로 조용히 건너뛴다.
+  // 배경으로 남은 청크의 대피 진행 데이터를 채워 넣는다. 이때 에이전트 프레임·히트맵 같은
+  // 렌더링 데이터는 진행률만 추출한 뒤 버린다. 전체를 캐시에 담아두면 긴 시뮬레이션에서
+  // 메모리가 청크 수에 비례해 늘어나므로 재요청 방지는 완료 추적 Set으로 충분하다.
+  // 실패한 청크는 추적에 남지 않아 다음 실행에서 재시도하고, 주 윈도우와 스크럽 로딩이
+  // 필요한 시점에 언제든 다시 가져온다.
   useEffect(() => {
     if (chunkCount < 1 || timelineChunkCount !== heatmapChunkCount) return;
     let cancelled = false;
@@ -160,6 +163,8 @@ export function useSimulationResultChunks(options: Options) {
       for (let sequence = 0; sequence < chunkCount; sequence += 1) {
         if (cancelled) return;
         if (cacheRef.current.has(sequence) || prefetchedSequencesRef.current.has(sequence)) {
+          // 재생 창이 캐시에 담은 청크의 진행률도 이미 병합됐으니 같은 완료 추적으로 기록한다.
+          prefetchedSequencesRef.current.add(sequence);
           continue;
         }
         try {
@@ -170,11 +175,10 @@ export function useSimulationResultChunks(options: Options) {
             maxDensity,
           );
           if (cancelled) return;
-          cacheRef.current.set(sequence, data);
           prefetchedSequencesRef.current.add(sequence);
           setProgress((current) => mergeProgressPoints(current, [data]));
         } catch {
-          // 백그라운드 보조 로딩 실패는 무시한다. 완료 추적에 남지 않아 다음 실행에서 재시도한다.
+          // 백그라운드 보조 로딩 실패는 무시한다.
         }
       }
     };
