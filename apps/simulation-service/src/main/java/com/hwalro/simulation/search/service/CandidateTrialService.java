@@ -35,6 +35,7 @@ public class CandidateTrialService {
     private final EngineCapacity engineCapacity;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final VerifiedCandidateMaterializer verifiedCandidateMaterializer;
 
     public CandidateTrialService(
             LayoutSearchMapper layoutStudyMapper,
@@ -42,13 +43,15 @@ public class CandidateTrialService {
             ChangeSetApplier changeSetApplier,
             EngineCapacity engineCapacity,
             ObjectMapper objectMapper,
-            TransactionTemplate transactionTemplate) {
+            TransactionTemplate transactionTemplate,
+            VerifiedCandidateMaterializer verifiedCandidateMaterializer) {
         this.layoutStudyMapper = layoutStudyMapper;
         this.engineRunner = engineRunner;
         this.changeSetApplier = changeSetApplier;
         this.engineCapacity = engineCapacity;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
+        this.verifiedCandidateMaterializer = verifiedCandidateMaterializer;
     }
 
     public TrialOutcome run(
@@ -69,6 +72,9 @@ public class CandidateTrialService {
             CandidateSelector.Judgement judgement =
                     CandidateSelector.judge(trialMetrics, baselineMetrics, improvementMargin);
             recordTrialResult(candidate, run, trialMetrics, baselineMetrics, judgement);
+            if (judgement.improved()) {
+                verifiedCandidateMaterializer.materialize(candidate, mutatedSetup, run);
+            }
             return new TrialOutcome(
                     true, judgement.improved() ? CandidateStatus.EVALUATED : CandidateStatus.NOT_IMPROVED);
         } catch (EngineRunException exception) {
