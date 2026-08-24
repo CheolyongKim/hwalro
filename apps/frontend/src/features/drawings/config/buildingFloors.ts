@@ -81,4 +81,6 @@ export const FLOORS_BY_ID: Record<FloorId, BuildingFloor> = BUILDING_FLOORS.redu
   {} as Record<FloorId, BuildingFloor>,
 );
 
-export const LINKED_DRAWING_ROUTE = '/drawings/new' as const;
+export const LINKED_FLOOR_IDS: ReadonlySet<FloorId> = new Set(
+  BUILDING_FLOORS.filter((floor) => floor.linked).map((floor) => floor.id),
+);

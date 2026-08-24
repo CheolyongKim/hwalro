@@ -6,6 +6,23 @@
   -webkit-user-select: none;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .layout-canvas-wrap {
+    animation: layout-canvas-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes layout-canvas-enter {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .layout-cursor-default {
   cursor: default;
 }
@@ -83,7 +100,6 @@
 }
 
 .layout-workspace-title button:focus-visible,
-.layout-workspace-title-input:focus-visible,
 .layout-panel-actions button:focus-visible,
 .layout-tool-button:focus-visible,
 .layout-zoom-control button:focus-visible {
@@ -94,18 +110,6 @@
 .layout-workspace-title button svg {
   width: 14px;
   height: 14px;
-}
-
-.layout-workspace-title-input {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  padding: 4px 8px;
-  color: var(--color-ink);
-  font: inherit;
-  outline: 0;
 }
 
 .layout-panel-actions {

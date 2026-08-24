@@ -17,11 +17,11 @@ import SafetyCheckTemplatePage from '../pages/SafetyCheckTemplatePage';
 import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
-import CreateDrawingPage from '../features/drawings/pages/CreateDrawingPage';
 import SimulationSetupPage from '../features/simulations/pages/SimulationSetupPage';
 import SimulationListPage from '../features/simulations/pages/SimulationListPage';
 
 const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
+const CreateDrawingPage = lazy(() => import('../features/drawings/pages/CreateDrawingPage'));
 const SimulationAnalysisResultPage = lazy(
   () => import('../features/simulationResult/pages/SimulationResultPage'),
 );
@@ -74,7 +74,6 @@ export const router = createBrowserRouter([
               { path: 'reports/:reportId', element: <ReportDetailPage /> },
               { path: 'drawings', element: <DrawingListPage /> },
               { path: 'simulations', element: <SimulationListPage /> },
-              { path: 'drawings/new', element: <CreateDrawingPage /> },
               { path: 'drawings/:drawingId', element: <DrawingEditRedirect /> },
               { path: 'regulations', element: <RegulationsPage /> },
               {
@@ -82,6 +81,14 @@ export const router = createBrowserRouter([
                 children: [{ path: 'system-management', element: <SystemManagementPage /> }],
               },
             ],
+          },
+          {
+            path: 'drawings/new',
+            element: (
+              <Suspense fallback={<div className="h-[100dvh] w-full bg-background" />}>
+                <CreateDrawingPage />
+              </Suspense>
+            ),
           },
           {
             path: 'layout/:drawingId',

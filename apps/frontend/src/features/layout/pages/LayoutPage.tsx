@@ -308,6 +308,19 @@ function LayoutPage() {
     setHistoryDialogOpen(false);
   }, []);
 
+  const handleUpdateDrawingInfo = useCallback(
+    (info: { title: string; description: string | null }) => {
+      const nextDescription = info.description === '' ? null : info.description;
+      if (sessionRef.current !== null && sessionRef.current.description !== nextDescription) {
+        sessionRef.current = { ...sessionRef.current, description: nextDescription };
+      }
+      if (stateRef.current.doc.name !== info.title) {
+        dispatch({ type: 'renameDoc', name: info.title });
+      }
+    },
+    [],
+  );
+
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
   const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
   const draftInitialText =
@@ -360,8 +373,9 @@ function LayoutPage() {
       <CanvasWorkspaceBackButton onClick={() => navigate('/drawings')} />
       <LayoutWorkspaceHeader
         name={state.doc.name}
+        description={sessionRef.current?.description ?? null}
         readOnly={readOnly}
-        onRename={(name) => dispatch({ type: 'renameDoc', name })}
+        onUpdateInfo={handleUpdateDrawingInfo}
       />
       <LayoutCanvas
         state={state}
