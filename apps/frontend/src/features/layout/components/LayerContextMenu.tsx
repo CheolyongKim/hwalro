@@ -19,7 +19,6 @@ interface LayerContextMenuProps {
   onClose: () => void;
 }
 
-/** 계층 패널 행의 앵커드 컨텍스트 메뉴. 우클릭·⋯ 버튼·Shift+F10으로 열고 Escape/바깥 클릭으로 닫는다. */
 export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [openSubmenu, setOpenSubmenu] = useState<number | null>(null);
@@ -38,11 +37,40 @@ export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuPro
   }, [anchor]);
 
   useEffect(() => {
+    const enabledItems = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ??
+        [],
+    );
+    enabledItems[0]?.focus();
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         event.stopPropagation();
         onClose();
+        return;
       }
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        return;
+      }
+      const activeItems = Array.from(
+        menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ??
+          [],
+      );
+      if (activeItems.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      const currentIndex = activeItems.indexOf(document.activeElement as HTMLButtonElement);
+      const nextIndex =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? activeItems.length - 1
+            : event.key === 'ArrowDown'
+              ? (currentIndex + 1 + activeItems.length) % activeItems.length
+              : (currentIndex - 1 + activeItems.length) % activeItems.length;
+      activeItems[nextIndex]?.focus();
     };
     const onPointerDown = (event: PointerEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -51,9 +79,11 @@ export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuPro
     };
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('scroll', onClose, true);
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('scroll', onClose, true);
     };
   }, [onClose]);
 
@@ -68,20 +98,14 @@ export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuPro
       {items.map((item, index) => {
         if ('children' in item) {
           return (
-            <div
-              key={item.label}
-              className="relative"
-              onMouseEnter={() => setOpenSubmenu(index)}
-            >
+            <div key={item.label} className="relative" onMouseEnter={() => setOpenSubmenu(index)}>
               <button
                 type="button"
                 role="menuitem"
                 aria-haspopup="menu"
                 aria-expanded={openSubmenu === index}
-                onClick={() =>
-                  setOpenSubmenu((current) => (current === index ? null : index))
-                }
-                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-panel-text hover:bg-panel-soft focus-visible:bg-panel-soft focus-visible:outline-none"
+                onClick={() => setOpenSubmenu((current) => (current === index ? null : index))}
+                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-text-strong hover:bg-panel-soft focus-visible:bg-panel-soft focus-visible:outline-none"
               >
                 <span>{item.label}</span>
                 <span aria-hidden>▸</span>
@@ -102,7 +126,7 @@ export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuPro
                         child.onSelect();
                         onClose();
                       }}
-                      className="block w-full px-3 py-1.5 text-left text-xs text-panel-text enabled:hover:bg-panel-soft disabled:text-text-muted/60 focus-visible:bg-panel-soft focus-visible:outline-none"
+                      className="block w-full px-3 py-1.5 text-left text-xs text-text-strong enabled:hover:bg-panel-soft disabled:text-text-muted/60 focus-visible:bg-panel-soft focus-visible:outline-none"
                     >
                       {child.label}
                     </button>
@@ -122,7 +146,7 @@ export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuPro
               item.onSelect();
               onClose();
             }}
-            className="block w-full px-3 py-1.5 text-left text-xs text-panel-text enabled:hover:bg-panel-soft disabled:text-text-muted/60 focus-visible:bg-panel-soft focus-visible:outline-none"
+            className="block w-full px-3 py-1.5 text-left text-xs text-text-strong enabled:hover:bg-panel-soft disabled:text-text-muted/60 focus-visible:bg-panel-soft focus-visible:outline-none"
           >
             {item.label}
           </button>
