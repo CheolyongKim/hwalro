@@ -10,7 +10,12 @@ import java.util.List;
  * <p>시뮬레이션 식별자·지표는 담지 않는다. 직원에게 운영 정보를 흘리지 않기 위함이다.
  *
  * @param status {@code AVAILABLE} | {@code UNREACHABLE} | {@code NOT_CONFIGURED}
- * @param origin 구역 중심점. 엔진이 걸을 수 있는 곳으로 밀어냈더라도 요청한 중심점 그대로다.
+ * @param origin 구역 중심점. 걸을 수 없는 자리라 출발점을 옮겼더라도 요청한 중심점 그대로다.
+ * @param defaultExit 구역에 배정된 비상구. 배정이 없으면 null이다.
+ * @param recommendedExitId 실제로 안내하는 비상구. 배정이 있으면 그것이고, 없으면 걸어서 가장 가까운 곳이다.
+ * @param exitChoice {@code ASSIGNED}(배정된 비상구) | {@code NEAREST}(걸어서 가장 가까운 비상구)
+ * @param distanceMeters 안내 경로를 따라 걷는 거리(m)
+ * @param narrowestMeters 경로에서 가장 좁은 지점의 통로 반폭(m). 작을수록 사람이 몰렸을 때 막히기 쉽다.
  */
 public record EvacuationRouteResponse(
         Long zoneId,
@@ -19,4 +24,8 @@ public record EvacuationRouteResponse(
         String status,
         ExitDto defaultExit,
         Long recommendedExitId,
+        String recommendedExitName,
+        String exitChoice,
+        double distanceMeters,
+        double narrowestMeters,
         List<PointDto> waypoints) {}

@@ -2,11 +2,6 @@ package com.hwalro.simulation.zone.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hwalro.simulation.common.jwt.ForbiddenException;
@@ -14,11 +9,7 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
-import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
-import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
-import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
-import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
-import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.PreviewedRoute;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SegmentDto;
 import com.hwalro.simulation.simulation.service.SimulationService;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.dto.EvacuationRouteResponse;
@@ -28,7 +19,6 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -38,8 +28,11 @@ import org.mockito.quality.Strictness;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class EvacuationPreviewServiceTest {
     private static final Long ZONE_ID = 30L;
+    private static final Long LAYOUT_ID = 802L;
     private static final Long VERSION_ID = 803L;
     private static final Long EMPLOYEE_ID = 9L;
+    private static final Long NEAR_EXIT_ID = 910L;
+    private static final Long FAR_EXIT_ID = 911L;
 
     @Mock
     private LayoutZoneService layoutZoneService;
@@ -50,13 +43,18 @@ class EvacuationPreviewServiceTest {
     @Mock
     private SimulationService simulationService;
 
-    @Mock
-    private SimulationEngineRunner engineRunner;
-
     private EvacuationPreviewService service;
 
     private static JwtUser employee() {
         return new JwtUser(EMPLOYEE_ID, Set.of("GENERAL_EMPLOYEE"));
+    }
+
+    private static JwtUser reviewer() {
+        return new JwtUser(1L, Set.of("SAFETY_REVIEWER"));
+    }
+
+    private static BigDecimal m(double value) {
+        return BigDecimal.valueOf(value);
     }
 
     /** 구역은 (10,20)에서 20x10이므로 중심점은 (20,25)다. */
@@ -65,45 +63,64 @@ class EvacuationPreviewServiceTest {
         zone.setId(ZONE_ID);
         zone.setLayoutVersionId(VERSION_ID);
         zone.setName("작업 구역");
-        zone.setX(BigDecimal.valueOf(10));
-        zone.setY(BigDecimal.valueOf(20));
-        zone.setWidth(BigDecimal.valueOf(20));
-        zone.setHeight(BigDecimal.valueOf(10));
+        zone.setX(m(10));
+        zone.setY(m(20));
+        zone.setWidth(m(20));
+        zone.setHeight(m(10));
         zone.setAssignedUserId(assignedUserId);
         zone.setDefaultExitId(defaultExitId);
         return zone;
     }
 
-    private static DrawingGeometryDto drawing() {
+    /** 비상구 910은 구역 바로 옆, 911은 도면 반대편이다. 사이를 막는 벽은 없다. */
+    private static DrawingGeometryDto drawing(List<ExitDto> exits) {
         return new DrawingGeometryDto(
-                802L,
-                "도면",
-                BigDecimal.valueOf(100),
-                BigDecimal.valueOf(100),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(
-                        new ExitDto(910L, "비상구 1", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO),
-                        new ExitDto(
-                                911L,
-                                "비상구 2",
-                                BigDecimal.TEN,
-                                BigDecimal.ZERO,
-                                BigDecimal.valueOf(11),
-                                BigDecimal.ZERO)));
+                LAYOUT_ID, "도면", m(60), m(40), List.of(), List.of(), List.of(), List.of(), List.of(), exits);
+    }
+
+    private static DrawingGeometryDto drawing() {
+        return drawing(List.of(
+                new ExitDto(NEAR_EXIT_ID, "가까운 비상구", m(34), m(24), m(34), m(26)),
+                new ExitDto(FAR_EXIT_ID, "먼 비상구", m(2), m(2), m(2), m(4))));
     }
 
     @BeforeEach
     void setUp() {
         when(simulationService.layoutGeometry(VERSION_ID)).thenReturn(drawing());
-        service = new EvacuationPreviewService(layoutZoneService, drawingService, simulationService, engineRunner);
+        service = new EvacuationPreviewService(layoutZoneService, drawingService, simulationService);
     }
 
     @Test
-    void doesNotCallTheEngineWhenNoExitIsConfigured() throws Exception {
+    void 배정된_비상구가_있으면_그곳으로_안내한다() {
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(FAR_EXIT_ID, EMPLOYEE_ID));
+
+        EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
+
+        assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE);
+        assertThat(response.exitChoice()).isEqualTo(EvacuationPreviewService.CHOICE_ASSIGNED);
+        // 더 가까운 비상구가 있어도 배정된 곳을 지킨다.
+        assertThat(response.recommendedExitId()).isEqualTo(FAR_EXIT_ID);
+        assertThat(response.defaultExit().id()).isEqualTo(FAR_EXIT_ID);
+        assertThat(response.waypoints()).isNotEmpty();
+        assertThat(response.distanceMeters()).isGreaterThan(0.0);
+    }
+
+    @Test
+    void 배정된_비상구가_없으면_걸어서_가장_가까운_곳으로_안내한다() {
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(null, EMPLOYEE_ID));
+
+        EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
+
+        assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE);
+        assertThat(response.exitChoice()).isEqualTo(EvacuationPreviewService.CHOICE_NEAREST);
+        assertThat(response.recommendedExitId()).isEqualTo(NEAR_EXIT_ID);
+        assertThat(response.defaultExit()).isNull();
+        assertThat(response.recommendedExitName()).isEqualTo("가까운 비상구");
+    }
+
+    @Test
+    void 도면에_비상구가_하나도_없으면_안내할_것이_없다() {
+        when(simulationService.layoutGeometry(VERSION_ID)).thenReturn(drawing(List.of()));
         when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(null, EMPLOYEE_ID));
 
         EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
@@ -111,82 +128,69 @@ class EvacuationPreviewServiceTest {
         assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_NOT_CONFIGURED);
         assertThat(response.waypoints()).isEmpty();
         assertThat(response.recommendedExitId()).isNull();
-        verifyNoInteractions(engineRunner);
     }
 
     @Test
-    void returnsTheRouteAndTheRecommendedExitOnSuccess() throws Exception {
-        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(910L, EMPLOYEE_ID));
-        when(engineRunner.previewRoutes(anyString(), any()))
-                .thenReturn(List.of(new PreviewedRoute(
-                        911L,
-                        List.of(
-                                new PointDto(BigDecimal.valueOf(20), BigDecimal.valueOf(25)),
-                                new PointDto(BigDecimal.TEN, BigDecimal.ZERO)))));
-
-        EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
-
-        assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE);
-        assertThat(response.recommendedExitId()).isEqualTo(911L);
-        assertThat(response.waypoints()).hasSize(2);
-        assertThat(response.defaultExit().id()).isEqualTo(910L);
-    }
-
-    @Test
-    void sendsOneAgentAtTheZoneCentroidWithOnlyTheConfiguredExits() throws Exception {
-        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(910L, EMPLOYEE_ID));
-        when(engineRunner.previewRoutes(anyString(), any())).thenReturn(List.of(new PreviewedRoute(910L, List.of())));
-
-        service.preview(ZONE_ID, employee());
-
-        ArgumentCaptor<SimulationSetupResponse> setup = ArgumentCaptor.forClass(SimulationSetupResponse.class);
-        verify(engineRunner).previewRoutes(anyString(), setup.capture());
-        assertThat(setup.getValue().agentPositions()).hasSize(1);
-        assertThat(setup.getValue().agentPositions().get(0).x()).isEqualByComparingTo(BigDecimal.valueOf(20));
-        assertThat(setup.getValue().agentPositions().get(0).y()).isEqualByComparingTo(BigDecimal.valueOf(25));
-        assertThat(setup.getValue().selectedExitIds()).containsExactly(910L);
-        assertThat(setup.getValue().hazardZones()).isEmpty();
-        assertThat(setup.getValue().simulationId()).isNull();
-        // 엔진 상수와 일치해야 한다.
-        assertThat(setup.getValue().modelProfile()).isEqualTo("SFM_DEFAULT_V2");
-        assertThat(setup.getValue().routingProfile()).isEqualTo("HAZARD_RADIAL_EXP_V3");
-    }
-
-    @Test
-    void reportsUnreachableWhenTheEngineRefuses() throws Exception {
-        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(910L, EMPLOYEE_ID));
-        when(engineRunner.previewRoutes(anyString(), any()))
-                .thenThrow(new EngineRunException("ENGINE_ERROR: 대피 경로를 계산하지 못했습니다.", false));
+    void 벽으로_완전히_갇힌_구역은_도달_불가로_알린다() {
+        DrawingGeometryDto boxed = new DrawingGeometryDto(
+                LAYOUT_ID,
+                "도면",
+                m(60),
+                m(40),
+                List.of(),
+                List.of(
+                        new SegmentDto("벽", m(8), m(18), m(32), m(18)),
+                        new SegmentDto("벽", m(32), m(18), m(32), m(32)),
+                        new SegmentDto("벽", m(32), m(32), m(8), m(32)),
+                        new SegmentDto("벽", m(8), m(32), m(8), m(18))),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new ExitDto(NEAR_EXIT_ID, "가까운 비상구", m(50), m(24), m(50), m(26))));
+        when(simulationService.layoutGeometry(VERSION_ID)).thenReturn(boxed);
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(null, EMPLOYEE_ID));
 
         EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
 
         assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_UNREACHABLE);
         assertThat(response.waypoints()).isEmpty();
-        assertThat(response.recommendedExitId()).isNull();
-        // 실패해도 지정된 비상구는 계속 보여준다.
-        assertThat(response.defaultExit().id()).isEqualTo(910L);
     }
 
     @Test
-    void keepsTheRequestedCentroidEvenIfTheEngineRelocatedTheAgent() throws Exception {
-        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(910L, EMPLOYEE_ID));
-        when(engineRunner.previewRoutes(anyString(), any()))
-                .thenReturn(List.of(new PreviewedRoute(
-                        910L, List.of(new PointDto(BigDecimal.valueOf(31), BigDecimal.valueOf(41))))));
+    void 출발점은_요청한_구역_중심점_그대로_돌려준다() {
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(NEAR_EXIT_ID, EMPLOYEE_ID));
 
         EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
 
-        assertThat(response.origin().x()).isEqualByComparingTo(BigDecimal.valueOf(20));
-        assertThat(response.origin().y()).isEqualByComparingTo(BigDecimal.valueOf(25));
+        assertThat(response.origin().x()).isEqualByComparingTo(m(20));
+        assertThat(response.origin().y()).isEqualByComparingTo(m(25));
     }
 
     @Test
-    void employeeCannotReadAnotherPersonsZone() throws Exception {
-        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(910L, 99L));
+    void 직원은_남의_구역_경로를_볼_수_없다() {
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(NEAR_EXIT_ID, 99L));
 
         assertThatThrownBy(() -> service.preview(ZONE_ID, employee()))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("담당 구역");
-        verify(engineRunner, never()).previewRoutes(anyString(), any());
+    }
+
+    @Test
+    void 안전_담당자는_도면_전체의_대피_경로를_받는다() {
+        when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
+        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(zone(null, EMPLOYEE_ID), zone(NEAR_EXIT_ID, 99L)));
+
+        List<EvacuationRouteResponse> routes = service.previewAll(LAYOUT_ID, reviewer());
+
+        assertThat(routes).hasSize(2);
+        assertThat(routes)
+                .allSatisfy(route -> assertThat(route.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE));
+    }
+
+    @Test
+    void 일반_직원은_도면_전체의_대피_경로를_받을_수_없다() {
+        assertThatThrownBy(() -> service.previewAll(LAYOUT_ID, employee()))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("안전 담당자");
     }
 }
