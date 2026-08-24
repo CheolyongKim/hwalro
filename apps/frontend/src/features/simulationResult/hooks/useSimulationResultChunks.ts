@@ -76,6 +76,9 @@ export function useSimulationResultChunks(options: Options) {
   );
   const sequenceKey = sequences.join(',');
   const cacheRef = useRef(new Map<number, SimulationPlaybackChunkData>());
+  // 백그라운드 프리페치가 끝낸 청크를 추적한다. 캐시는 재생 창 이동 시 지워지므로,
+  // 이펙트가 다시 실행돼도 이미 받은 청크를 다시 요청하지 않게 하는 기준은 여기다.
+  const prefetchedSequencesRef = useRef(new Set<number>());
   const requestVersionRef = useRef(0);
   const [windowData, setWindowData] = useState<PlaybackWindow | null>(null);
   const [progress, setProgress] = useState<EvacuationPoint[]>([]);
@@ -85,6 +88,7 @@ export function useSimulationResultChunks(options: Options) {
 
   useEffect(() => {
     cacheRef.current.clear();
+    prefetchedSequencesRef.current.clear();
     requestVersionRef.current += 1;
     setWindowData(null);
     setProgress([]);
@@ -155,7 +159,12 @@ export function useSimulationResultChunks(options: Options) {
     const run = async () => {
       for (let sequence = 0; sequence < chunkCount; sequence += 1) {
         if (cancelled) return;
-        if (cacheRef.current.has(sequence)) continue;
+        if (
+          cacheRef.current.has(sequence) ||
+          prefetchedSequencesRef.current.has(sequence)
+        ) {
+          continue;
+        }
         try {
           const data = await simulationResultProvider.getPlaybackChunk(
             simulationId,
@@ -164,9 +173,11 @@ export function useSimulationResultChunks(options: Options) {
             maxDensity,
           );
           if (cancelled) return;
+          cacheRef.current.set(sequence, data);
+          prefetchedSequencesRef.current.add(sequence);
           setProgress((current) => mergeProgressPoints(current, [data]));
         } catch {
-          // 백그라운드 보조 로딩 실패는 무시한다.
+          // 백그라운드 보조 로딩 실패는 무시한다. 완료 추적에 남지 않아 다음 실행에서 재시도한다.
         }
       }
     };
