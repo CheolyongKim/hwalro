@@ -10,6 +10,7 @@ import type {
   WallHandle,
 } from '../types';
 import type { LayoutZone } from '../api/layoutMetadataApi';
+import { orderedElements } from './elementOrder';
 import {
   distanceToSegment,
   estimateTextWidthPx,
@@ -133,26 +134,24 @@ export function hitTestElements(
       return emptyHit({ textId: text.id });
     }
   }
-  for (let i = fabrics.length - 1; i >= 0; i--) {
-    const fabric = fabrics[i];
-    if (hitTestFabric(point, fabric, zoom)) {
-      return emptyHit({ fabricId: fabric.id });
-    }
-  }
-  for (let i = pillars.length - 1; i >= 0; i--) {
-    const pillar = pillars[i];
-    if (hitTestPillar(point, pillar, zoom)) {
-      return emptyHit({ pillarId: pillar.id });
-    }
-  }
+  // 비상구는 항상 맨 위에 그리므로 먼저 검사한다.
   for (const exit of exits) {
     if (hitTestExit(point, exit, zoom)) {
       return emptyHit({ exitId: exit.id });
     }
   }
-  for (const wall of walls) {
-    if (hitTestWall(point, wall, zoom)) {
-      return emptyHit({ wallId: wall.id });
+  // 벽·기둥·구조물은 단일 순서 축을 공유한다. 위에 그려진 것부터 검사해야 화면과 일치한다.
+  const merged = orderedElements(walls, pillars, fabrics);
+  for (let i = merged.length - 1; i >= 0; i--) {
+    const { kind, element } = merged[i];
+    if (kind === 'fabric' && hitTestFabric(point, element as Fabric, zoom)) {
+      return emptyHit({ fabricId: element.id });
+    }
+    if (kind === 'pillar' && hitTestPillar(point, element as Pillar, zoom)) {
+      return emptyHit({ pillarId: element.id });
+    }
+    if (kind === 'wall' && hitTestWall(point, element as Wall, zoom)) {
+      return emptyHit({ wallId: element.id });
     }
   }
   for (const wall of outsideWalls) {

@@ -14,6 +14,8 @@ import type {
   LayoutText,
 } from '../types';
 import { round1 } from '../utils/geometry';
+import { orderedElements, withAssignedOrder } from '../utils/elementOrder';
+import { reorderRelative, type DropPosition } from '../utils/layerDrop';
 import type { ElementHit } from '../utils/hitTest';
 import { docSnapSources, snapPoint } from '../utils/snapping';
 import { clampLineDraft, clampRectDraft, isInsideObstacleRect } from '../utils/collision';
@@ -78,11 +80,11 @@ export type EditorAction =
     }
   | { type: 'dragStartMove'; point: Vec2 }
   | {
+      /** 벽·기둥·구조물은 단일 순서 축을 공유한다. 종류는 순서에 영향을 주지 않는다. */
       type: 'reorderElements';
-      draggedKind: 'wall' | 'pillar' | 'fabric';
       draggedId: string;
-      targetKind: 'wall' | 'pillar' | 'fabric';
       targetId: string;
+      position: DropPosition;
     }
   | {
       type: 'reshapeStart';
@@ -114,6 +116,13 @@ export type EditorAction =
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'commit'; prev: DrawingDocument; next: DrawingDocument }
+  | {
+      /** 저장 응답의 서버 ID를 받아들인다. 사용자 편집이 아니므로 실행 취소 이력에 남기지 않는다. */
+      type: 'adoptSavedIds';
+      walls: Array<number | null>;
+      pillars: Array<number | null>;
+      fabrics: Array<number | null>;
+    }
   | { type: 'replaceDoc'; doc: DrawingDocument }
   | { type: 'loadDocument'; doc: DrawingDocument }
   | { type: 'renameDoc'; name: string }
@@ -526,26 +535,50 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'selectAt':
       return applySelectAt(state, action);
 
+    case 'adoptSavedIds': {
+      // 저장 요청 도중 요소가 추가·삭제됐다면 위치가 어긋난다. 다음 저장이 바로잡도록 건너뛴다.
+      if (
+        action.walls.length !== state.doc.walls.length ||
+        action.pillars.length !== state.doc.pillars.length ||
+        action.fabrics.length !== state.doc.fabrics.length
+      ) {
+        return state;
+      }
+      const adopt = <T extends { backendId: number | null }>(
+        elements: T[],
+        ids: Array<number | null>,
+      ): T[] =>
+        elements.map((element, index) =>
+          element.backendId === ids[index] ? element : { ...element, backendId: ids[index] },
+        );
+      return {
+        ...state,
+        doc: {
+          ...state.doc,
+          walls: adopt(state.doc.walls, action.walls),
+          pillars: adopt(state.doc.pillars, action.pillars),
+          fabrics: adopt(state.doc.fabrics, action.fabrics),
+        },
+      };
+    }
+
     case 'reorderElements': {
-      if (action.draggedKind !== action.targetKind || action.draggedId === action.targetId) {
+      if (action.draggedId === action.targetId) {
         return state;
       }
-      const listKey =
-        action.draggedKind === 'wall'
-          ? 'walls'
-          : action.draggedKind === 'pillar'
-            ? 'pillars'
-            : 'fabrics';
-      const list = state.doc[listKey];
-      const from = list.findIndex((element) => element.id === action.draggedId);
-      const to = list.findIndex((element) => element.id === action.targetId);
-      if (from < 0 || to < 0) {
+      // 벽·기둥·구조물은 단일 순서 축을 공유하므로 종류가 달라도 자유롭게 배치할 수 있다.
+      const merged = orderedElements(state.doc.walls, state.doc.pillars, state.doc.fabrics);
+      const reordered = reorderRelative(
+        merged,
+        action.draggedId,
+        action.targetId,
+        action.position,
+        (entry) => entry.element.id,
+      );
+      if (reordered === merged) {
         return state;
       }
-      const reordered = list.slice();
-      const [moved] = reordered.splice(from, 1);
-      reordered.splice(to, 0, moved);
-      return commit(state, state.doc, { ...state.doc, [listKey]: reordered });
+      return commit(state, state.doc, { ...state.doc, ...withAssignedOrder(reordered) });
     }
 
     case 'dragStartMove':

@@ -8,11 +8,15 @@ import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'reac
 import type {
   Camera,
   EditorState,
+  Fabric,
+  Pillar,
   RectHandle,
   ValidationProblem,
   ValidationProblemKind,
   Vec2,
+  Wall,
 } from '../types';
+import { orderedElements } from '../utils/elementOrder';
 import type { EditorAction } from '../state/editorReducer';
 import {
   clampPan,
@@ -62,8 +66,10 @@ interface LayoutCanvasProps {
   /**
    * Zone 드래그·리사이즈 확정. 잠긴 버전에서도 구역 메타데이터는 수정 가능하다는 기존 결정에 따라 readOnly와 무관하다.
    */
-  onZoneRectCommit?: (zoneId: number, rect: ZoneRect) => void;
+  onZoneRectCommit?: (zoneId: number, previousRect: ZoneRect, nextRect: ZoneRect) => void;
   canEditZones?: boolean;
+  /** 캔버스에서 요소를 우클릭했을 때. 계층 패널과 같은 메뉴를 화면 좌표에 연다. */
+  onElementContextMenu?: (anchor: Vec2, hit: ElementHit) => void;
 }
 
 function ZoneView({
@@ -143,6 +149,7 @@ export function LayoutCanvas({
   onSelectZone,
   onZoneRectCommit,
   canEditZones = false,
+  onElementContextMenu,
 }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const suppressClickRef = useRef(false);
@@ -269,6 +276,35 @@ export function LayoutCanvas({
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     dispatch({ type: 'textPlace', point: world });
+  };
+
+  const onContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onElementContextMenu) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const hit = hitAt(screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera));
+    if (hit.wallId === null && hit.pillarId === null && hit.fabricId === null) {
+      return;
+    }
+    event.preventDefault();
+    // 이미 선택된 요소를 우클릭하면 다중 선택을 유지한다. 아니면 그 요소만 선택한다.
+    const inSelection =
+      (hit.wallId !== null && selection.wallIds.includes(hit.wallId)) ||
+      (hit.pillarId !== null && selection.pillarIds.includes(hit.pillarId)) ||
+      (hit.fabricId !== null && selection.fabricIds.includes(hit.fabricId));
+    if (!inSelection) {
+      dispatch({
+        type: 'selectAt',
+        wallId: hit.wallId,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: hit.pillarId,
+        fabricId: hit.fabricId,
+        additive: false,
+      });
+      onSelectZone?.(null);
+    }
+    onElementContextMenu({ x: event.clientX, y: event.clientY }, hit);
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -683,7 +719,7 @@ export function LayoutCanvas({
           rounded.width !== origin.width ||
           rounded.height !== origin.height)
       ) {
-        onZoneRectCommit?.(session.zoneId, rounded);
+        onZoneRectCommit?.(session.zoneId, origin, rounded);
       }
     }
     dispatch({ type: 'dragEnd' });
@@ -744,6 +780,7 @@ export function LayoutCanvas({
       role="application"
       aria-label="도면 캔버스"
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
       onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -824,15 +861,6 @@ export function LayoutCanvas({
                     </Group>
                   );
                 })}
-            {doc.walls.map((wall) => (
-              <WallView
-                key={wall.id}
-                wall={wall}
-                selected={selection.wallIds.includes(wall.id)}
-                problem={problemNames.wall.has(wall.name)}
-                s={s}
-              />
-            ))}
             {doc.outsideWalls.map((wall) => (
               <OutsideWallView
                 key={wall.id}
@@ -842,30 +870,50 @@ export function LayoutCanvas({
                 s={s}
               />
             ))}
+            {/* 벽·기둥·구조물은 종류가 아니라 사용자가 정한 단일 순서대로 겹쳐 그린다. */}
+            {orderedElements(doc.walls, doc.pillars, doc.fabrics).map(({ kind, element }) => {
+              if (kind === 'wall') {
+                const wall = element as Wall;
+                return (
+                  <WallView
+                    key={wall.id}
+                    wall={wall}
+                    selected={selection.wallIds.includes(wall.id)}
+                    problem={problemNames.wall.has(wall.name)}
+                    s={s}
+                  />
+                );
+              }
+              if (kind === 'pillar') {
+                const pillar = element as Pillar;
+                return (
+                  <PillarView
+                    key={pillar.id}
+                    pillar={pillar}
+                    selected={selection.pillarIds.includes(pillar.id)}
+                    problem={problemNames.pillar.has(pillar.name)}
+                    s={s}
+                  />
+                );
+              }
+              const fabric = element as Fabric;
+              return (
+                <FabricView
+                  key={fabric.id}
+                  fabric={fabric}
+                  selected={selection.fabricIds.includes(fabric.id)}
+                  problem={problemNames.fabric.has(fabric.name)}
+                  s={s}
+                />
+              );
+            })}
+            {/* 비상구는 안전 표시라 항상 위에 보이도록 고정한다. */}
             {doc.exits.map((exit) => (
               <ExitView
                 key={exit.id}
                 exit={exit}
                 selected={selection.exitIds.includes(exit.id)}
                 problem={problemNames.exit.has(exit.name)}
-                s={s}
-              />
-            ))}
-            {doc.pillars.map((pillar) => (
-              <PillarView
-                key={pillar.id}
-                pillar={pillar}
-                selected={selection.pillarIds.includes(pillar.id)}
-                problem={problemNames.pillar.has(pillar.name)}
-                s={s}
-              />
-            ))}
-            {doc.fabrics.map((fabric) => (
-              <FabricView
-                key={fabric.id}
-                fabric={fabric}
-                selected={selection.fabricIds.includes(fabric.id)}
-                problem={problemNames.fabric.has(fabric.name)}
                 s={s}
               />
             ))}

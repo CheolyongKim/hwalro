@@ -1,5 +1,6 @@
 import type { LayoutZone, ZoneElementKind, ZoneMember } from '../api/layoutMetadataApi';
 import type { Fabric, Pillar, Wall } from '../types';
+import { orderedElements, type OrderedKind } from './elementOrder';
 
 export interface LayerElement {
   kind: ZoneElementKind;
@@ -20,17 +21,11 @@ export interface GroupedElements {
   common: LayerElement[];
 }
 
-function toLayerElements(
-  kind: ZoneElementKind,
-  elements: Array<Fabric | Pillar | Wall>,
-): LayerElement[] {
-  return elements.map((element) => ({
-    kind,
-    id: element.id,
-    backendId: element.backendId,
-    name: element.name,
-  }));
-}
+const KIND_BY_ORDERED: Record<OrderedKind, ZoneElementKind> = {
+  wall: 'WALL',
+  pillar: 'PILLAR',
+  fabric: 'FABRIC',
+};
 
 /**
  * 벽·기둥·구조물을 구역별로 묶는다.
@@ -56,11 +51,14 @@ export function groupElementsByZone(
 
   const byZone = new Map<number, LayerElement[]>(zones.map((zone) => [zone.zoneId, []]));
   const common: LayerElement[] = [];
-  for (const element of [
-    ...toLayerElements('WALL', walls),
-    ...toLayerElements('PILLAR', pillars),
-    ...toLayerElements('FABRIC', fabrics),
-  ]) {
+  // 계층 목록은 캔버스와 같은 순서 축을 쓴다. 기존 목록과 같이 아래(먼저 그려짐)부터 나열한다.
+  const merged = orderedElements(walls, pillars, fabrics).map(({ kind, element }) => ({
+    kind: KIND_BY_ORDERED[kind],
+    id: element.id,
+    backendId: element.backendId,
+    name: element.name,
+  }));
+  for (const element of merged) {
     const zoneId = zoneKeyByMember.get(`${element.kind}:${element.backendId}`);
     if (zoneId === undefined) {
       common.push(element);

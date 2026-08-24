@@ -449,7 +449,8 @@ public class DrawingService {
                         wall.getStartX(),
                         wall.getStartY(),
                         wall.getEndX(),
-                        wall.getEndY()))
+                        wall.getEndY(),
+                        wall.getDisplayOrder()))
                 .toList();
         List<PillarDto> pillars = drawingMapper.findPillarsByVersionId(version.getId()).stream()
                 .map(pillar -> new PillarDto(
@@ -459,7 +460,8 @@ public class DrawingService {
                         pillar.getStartY(),
                         pillar.getEndX(),
                         pillar.getEndY(),
-                        pillar.getRotation()))
+                        pillar.getRotation(),
+                        pillar.getDisplayOrder()))
                 .toList();
         List<FabricDto> fabrics = drawingMapper.findFabricsByVersionId(version.getId()).stream()
                 .map(fabric -> new FabricDto(
@@ -469,7 +471,8 @@ public class DrawingService {
                         fabric.getStartY(),
                         fabric.getEndX(),
                         fabric.getEndY(),
-                        fabric.getRotation()))
+                        fabric.getRotation(),
+                        fabric.getDisplayOrder()))
                 .toList();
         List<OutsideWallDto> outsideWalls = drawingMapper.findOutsideWallsByVersionId(version.getId()).stream()
                 .map(outsideWall -> new OutsideWallDto(
@@ -538,7 +541,7 @@ public class DrawingService {
                     domainWall.setStartY(wall.startY());
                     domainWall.setEndX(wall.endX());
                     domainWall.setEndY(wall.endY());
-                    domainWall.setDisplayOrder(index);
+                    domainWall.setDisplayOrder(wall.displayOrder() == null ? index : wall.displayOrder());
                     return domainWall;
                 })
                 .toList();
@@ -557,7 +560,7 @@ public class DrawingService {
                     domainPillar.setEndX(larger(pillar.startX(), pillar.endX()));
                     domainPillar.setEndY(larger(pillar.startY(), pillar.endY()));
                     domainPillar.setRotation(pillar.rotation());
-                    domainPillar.setDisplayOrder(index);
+                    domainPillar.setDisplayOrder(pillar.displayOrder() == null ? index : pillar.displayOrder());
                     return domainPillar;
                 })
                 .toList();
@@ -576,7 +579,7 @@ public class DrawingService {
                     domainFabric.setEndX(larger(fabric.startX(), fabric.endX()));
                     domainFabric.setEndY(larger(fabric.startY(), fabric.endY()));
                     domainFabric.setRotation(fabric.rotation());
-                    domainFabric.setDisplayOrder(index);
+                    domainFabric.setDisplayOrder(fabric.displayOrder() == null ? index : fabric.displayOrder());
                     return domainFabric;
                 })
                 .toList();

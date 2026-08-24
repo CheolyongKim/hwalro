@@ -12,4 +12,5 @@ public record PillarDto(
         BigDecimal startY,
         BigDecimal endX,
         BigDecimal endY,
-        BigDecimal rotation) {}
+        BigDecimal rotation,
+        Integer displayOrder) {}

@@ -12,6 +12,8 @@ export interface Wall {
   startY: number;
   endX: number;
   endY: number;
+  /** 도면 버전 전체를 아우르는 표시 순서. 클수록 위에 그려진다. 아직 저장되지 않은 요소는 undefined(맨 위)다. */
+  displayOrder?: number;
 }
 
 export interface OutsideWall {
@@ -44,6 +46,8 @@ export interface Pillar {
   endX: number;
   endY: number;
   rotation: number;
+  /** 도면 버전 전체를 아우르는 표시 순서. 클수록 위에 그려진다. 아직 저장되지 않은 요소는 undefined(맨 위)다. */
+  displayOrder?: number;
 }
 
 export interface Fabric {
@@ -56,6 +60,8 @@ export interface Fabric {
   endX: number;
   endY: number;
   rotation: number;
+  /** 도면 버전 전체를 아우르는 표시 순서. 클수록 위에 그려진다. 아직 저장되지 않은 요소는 undefined(맨 위)다. */
+  displayOrder?: number;
 }
 
 export interface LayoutText {
@@ -216,6 +222,7 @@ export interface SerializedWall {
   startY: number;
   endX: number;
   endY: number;
+  displayOrder?: number;
 }
 
 export interface SerializedOutsideWall {
@@ -243,6 +250,7 @@ export interface SerializedPillar {
   endX: number;
   endY: number;
   rotation: number;
+  displayOrder?: number;
 }
 
 export interface SerializedFabric {
@@ -253,6 +261,7 @@ export interface SerializedFabric {
   endX: number;
   endY: number;
   rotation: number;
+  displayOrder?: number;
 }
 
 export interface SerializedText {

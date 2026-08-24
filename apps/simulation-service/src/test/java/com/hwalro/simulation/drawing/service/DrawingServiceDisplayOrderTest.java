@@ -125,20 +125,79 @@ class DrawingServiceDisplayOrderTest {
                 .containsExactly(0, 1);
     }
 
+    @Test
+    void explicitDisplayOrderIsStoredAcrossKinds() {
+        service()
+                .update(
+                        LAYOUT_ID,
+                        new DrawingUpdateRequest(
+                                "도면",
+                                null,
+                                List.of(wallDto(null, 2), wallDto(null, 0)),
+                                List.of(),
+                                List.of(pillarDto(null, 3)),
+                                List.of(fabricDto(null, 1)),
+                                List.of(),
+                                List.of(),
+                                3),
+                        OWNER);
+
+        ArgumentCaptor<Wall> walls = ArgumentCaptor.forClass(Wall.class);
+        verify(drawingMapper, org.mockito.Mockito.times(2)).insertWall(walls.capture());
+        assertThat(walls.getAllValues()).extracting(Wall::getDisplayOrder).containsExactly(2, 0);
+
+        ArgumentCaptor<Fabric> fabrics = ArgumentCaptor.forClass(Fabric.class);
+        verify(drawingMapper).insertFabric(fabrics.capture());
+        assertThat(fabrics.getValue().getDisplayOrder()).isEqualTo(1);
+
+        org.mockito.ArgumentCaptor<com.hwalro.simulation.drawing.domain.Pillar> pillars =
+                org.mockito.ArgumentCaptor.forClass(com.hwalro.simulation.drawing.domain.Pillar.class);
+        verify(drawingMapper).insertPillar(pillars.capture());
+        assertThat(pillars.getValue().getDisplayOrder()).isEqualTo(3);
+    }
+
     private DrawingService service() {
         return new DrawingService(
                 drawingMapper, defaultDrawingData, geometryValidator, layoutMetadataCopier, layoutZoneMapper);
     }
 
     private static WallDto wallDto(Long id) {
-        return new WallDto(id, "", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE);
+        return wallDto(id, null);
+    }
+
+    private static WallDto wallDto(Long id, Integer displayOrder) {
+        return new WallDto(id, "", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, displayOrder);
     }
 
     private static PillarDto pillarDto(Long id) {
-        return new PillarDto(id, "", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO);
+        return pillarDto(id, null);
+    }
+
+    private static PillarDto pillarDto(Long id, Integer displayOrder) {
+        return new PillarDto(
+                id,
+                "",
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ONE,
+                BigDecimal.ONE,
+                BigDecimal.ZERO,
+                displayOrder);
     }
 
     private static FabricDto fabricDto(Long id) {
-        return new FabricDto(id, "", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO);
+        return fabricDto(id, null);
+    }
+
+    private static FabricDto fabricDto(Long id, Integer displayOrder) {
+        return new FabricDto(
+                id,
+                "",
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ONE,
+                BigDecimal.ONE,
+                BigDecimal.ZERO,
+                displayOrder);
     }
 }
