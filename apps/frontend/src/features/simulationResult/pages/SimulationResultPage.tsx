@@ -317,7 +317,6 @@ function ResultView({
         improvedFabricIndexes={
           viewingOrigin ? improvedFabricDiff.originIndexes : improvedFabricDiff.improvedIndexes
         }
-        onRiskZoneCreated={handleRiskZoneCreated}
         onViewportPan={handleViewportPan}
       />
 

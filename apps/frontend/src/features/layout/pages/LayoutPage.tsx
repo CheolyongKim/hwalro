@@ -61,10 +61,16 @@ function hasUnsavedDocChanges(stateDoc: DrawingDocument, sessionDoc: DrawingDocu
   return JSON.stringify(stateDoc) !== JSON.stringify(sessionDoc);
 }
 
+function parseLayoutId(value: string | undefined): number | null {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 function LayoutPage() {
   const { drawingId = '' } = useParams();
   const navigate = useNavigate();
   const recordLastActivity = useRecordLastActivity();
+  const layoutId = parseLayoutId(drawingId);
   const [state, dispatch] = useReducer(editorReducer, undefined, createInitialState);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -177,7 +183,9 @@ function LayoutPage() {
         layoutVersionStatus: drawing.layoutVersionStatus,
       };
       dispatch({ type: 'setValidationProblems', problems: [] });
-      recordLastActivity('LAYOUT_EDIT', Number(drawingId));
+      if (layoutId !== null) {
+        recordLastActivity('LAYOUT_EDIT', layoutId);
+      }
       setSaveStatus('saved');
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -209,7 +217,7 @@ function LayoutPage() {
         saveTimerRef.current = null;
       }, 2000);
     }
-  }, [saveStatus, loadStatus, drawingId, recordLastActivity]);
+  }, [saveStatus, loadStatus, drawingId, layoutId, recordLastActivity]);
 
   const handleOpenDraftDialog = useCallback(async () => {
     const session = sessionRef.current;
@@ -230,14 +238,16 @@ function LayoutPage() {
         layoutVersionNumber: drawing.layoutVersionNumber,
         layoutVersionStatus: drawing.layoutVersionStatus,
       };
-      recordLastActivity('LAYOUT_EDIT', Number(drawingId));
+      if (layoutId !== null) {
+        recordLastActivity('LAYOUT_EDIT', layoutId);
+      }
       setDraftDialogOpen(true);
     } catch (error) {
       dispatch({ type: 'setError', message: getSimulationErrorMessage(error) });
     } finally {
       setDraftPending(false);
     }
-  }, [draftPending, drawingId, recordLastActivity]);
+  }, [draftPending, drawingId, layoutId, recordLastActivity]);
 
   const handleCreateDraft = useCallback(
     async (parentSimulationId?: number) => {
@@ -331,12 +341,12 @@ function LayoutPage() {
   }, []);
 
   useEffect(() => {
-    if (loadStatus !== 'ready') {
+    if (loadStatus !== 'ready' || layoutId === null) {
       return;
     }
     let active = true;
     riskApi
-      .listByLayout(Number(drawingId))
+      .listByLayout(layoutId)
       .then((items) => {
         if (active) setRisks(items);
       })
@@ -346,7 +356,7 @@ function LayoutPage() {
     return () => {
       active = false;
     };
-  }, [loadStatus, drawingId]);
+  }, [loadStatus, layoutId]);
 
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
   const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
@@ -511,7 +521,7 @@ function LayoutPage() {
           onConfirm={(parentSimulationId) => void handleCreateDraft(parentSimulationId)}
         />
       )}
-      {pendingRiskBounds && sessionRef.current !== null && (
+      {pendingRiskBounds && layoutId !== null && sessionRef.current !== null && (
         <RiskZoneEditorDialog
           bounds={pendingRiskBounds}
           drawing={{
@@ -523,7 +533,7 @@ function LayoutPage() {
               y: text.y,
             })),
           }}
-          layoutId={Number(drawingId)}
+          layoutId={layoutId}
           layoutVersionId={sessionRef.current.layoutVersionId}
           onCancel={() => setPendingRiskBounds(null)}
           onConfirm={(risk) => {

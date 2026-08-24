@@ -20,7 +20,6 @@ interface Props {
   showBottlenecks: boolean;
   riskZones: RiskZone[];
   improvedFabricIndexes?: readonly number[];
-  onRiskZoneCreated: (bounds: Bounds) => void;
   onViewportPan: () => void;
 }
 
