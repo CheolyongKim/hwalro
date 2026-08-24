@@ -1,12 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
 import { LayoutSearchReplyThread } from '../../layoutSearch/components/LayoutSearchReplyThread';
@@ -376,136 +369,136 @@ function SimulationListPage() {
                   <tbody className="divide-y divide-line">
                     {items.map((simulation) => {
                       const feedSearch = layoutSearchFeedIds.includes(simulation.id)
-                        ? layoutSearchFeed.feeds[simulation.id] ?? null
+                        ? (layoutSearchFeed.feeds[simulation.id] ?? null)
                         : null;
                       const hasSearchThread = feedSearch !== null;
                       const isCollapsed = collapsedSimulationIds.has(simulation.id);
 
                       return (
-                      <Fragment key={simulation.id}>
-                        <tr
-                          className={`group transition-colors hover:bg-primary-soft/30${
-                            hasSearchThread && !isCollapsed ? ' bg-primary-soft/20' : ''
-                          }`}
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-start gap-2">
-                              {hasSearchThread && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setCollapsedSimulationIds((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(simulation.id)) {
-                                        next.delete(simulation.id);
-                                      } else {
-                                        next.add(simulation.id);
-                                      }
-                                      return next;
-                                    });
-                                  }}
-                                  aria-label={
-                                    isCollapsed
-                                      ? '배치 개선안 목록 펼치기'
-                                      : '배치 개선안 목록 접기'
-                                  }
-                                  className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-line bg-surface text-text-muted transition hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                                >
-                                  {isCollapsed ? (
-                                    <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                                  ) : (
-                                    <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                                  )}
-                                </button>
-                              )}
-                              <div className="min-w-0 flex-1">
-                                {renderSimulationLink(simulation)}
+                        <Fragment key={simulation.id}>
+                          <tr
+                            className={`group transition-colors hover:bg-primary-soft/30${
+                              hasSearchThread && !isCollapsed ? ' bg-primary-soft/20' : ''
+                            }`}
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-start gap-2">
+                                {hasSearchThread && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCollapsedSimulationIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(simulation.id)) {
+                                          next.delete(simulation.id);
+                                        } else {
+                                          next.add(simulation.id);
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                    aria-label={
+                                      isCollapsed
+                                        ? '배치 개선안 목록 펼치기'
+                                        : '배치 개선안 목록 접기'
+                                    }
+                                    className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-line bg-surface text-text-muted transition hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                  >
+                                    {isCollapsed ? (
+                                      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                    ) : (
+                                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                                    )}
+                                  </button>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  {renderSimulationLink(simulation)}
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[simulation.status]}`}
-                            >
-                              {STATUS_LABELS[simulation.status]}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-sm tabular-nums text-text-strong">
-                            {simulation.totalPeople.toLocaleString()}명
-                          </td>
-                          <td className="px-4 py-4 text-sm text-text-strong">
-                            {resultLabel(simulation)}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-4 text-sm tabular-nums text-text-strong">
-                            {formatDateTime(simulation.startedAt ?? simulation.createdAt)}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <div className="flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                              {simulation.status === 'REQUESTED' ||
-                              simulation.status === 'RUNNING' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPendingCancellation(simulation);
-                                    setCancelError(null);
-                                  }}
-                                  disabled={cancellingId !== null || deletingId !== null}
-                                  className="h-8 min-w-[73px] whitespace-nowrap rounded-lg border border-danger/25 bg-white px-3 text-xs font-bold text-danger-strong transition hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  {cancellingId === simulation.id ? '취소 중…' : '실행 취소'}
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPendingDeletion(simulation);
-                                    setDeleteError(null);
-                                  }}
-                                  disabled={cancellingId !== null || deletingId !== null}
-                                  className="h-8 min-w-[52px] whitespace-nowrap rounded-lg border border-line bg-white px-2.5 text-xs font-bold text-text-muted transition hover:border-danger/40 hover:bg-danger-soft hover:text-danger-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  {deletingId === simulation.id ? '삭제 중…' : '삭제'}
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        {hasSearchThread && !isCollapsed && (
-                          <tr>
-                            <td colSpan={6} className="bg-surface/60 px-4 py-3 sm:px-6">
-                              <LayoutSearchReplyThread
-                                search={feedSearch}
-                                deletingSimulationId={deletingId}
-                                onDeleteSimulation={async (targetId) => {
-                                  try {
-                                    const sim = await simulationApi.getOverview(targetId);
-                                    setPendingDeletion(sim);
-                                    setDeleteError(null);
-                                  } catch {
-                                    setPendingDeletion({
-                                      id: targetId,
-                                      title: `개선안 시뮬레이션 #${targetId}`,
-                                      layoutTitle: simulation.layoutTitle,
-                                      layoutVersionId: simulation.layoutVersionId,
-                                      layoutId: simulation.layoutId,
-                                      layoutVersionNumber: simulation.layoutVersionNumber,
-                                      createdBy: simulation.createdBy,
-                                      status: 'DRAFT',
-                                      createdAt: new Date().toISOString(),
-                                      requestedAt: null,
-                                      startedAt: null,
-                                      finishedAt: null,
-                                      totalPeople: simulation.totalPeople,
-                                      terminationReason: null,
-                                    });
-                                    setDeleteError(null);
-                                  }
-                                }}
-                              />
+                            </td>
+                            <td className="px-4 py-4">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[simulation.status]}`}
+                              >
+                                {STATUS_LABELS[simulation.status]}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-sm tabular-nums text-text-strong">
+                              {simulation.totalPeople.toLocaleString()}명
+                            </td>
+                            <td className="px-4 py-4 text-sm text-text-strong">
+                              {resultLabel(simulation)}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-4 text-sm tabular-nums text-text-strong">
+                              {formatDateTime(simulation.startedAt ?? simulation.createdAt)}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <div className="flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
+                                {simulation.status === 'REQUESTED' ||
+                                simulation.status === 'RUNNING' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPendingCancellation(simulation);
+                                      setCancelError(null);
+                                    }}
+                                    disabled={cancellingId !== null || deletingId !== null}
+                                    className="h-8 min-w-[73px] whitespace-nowrap rounded-lg border border-danger/25 bg-white px-3 text-xs font-bold text-danger-strong transition hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {cancellingId === simulation.id ? '취소 중…' : '실행 취소'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPendingDeletion(simulation);
+                                      setDeleteError(null);
+                                    }}
+                                    disabled={cancellingId !== null || deletingId !== null}
+                                    className="h-8 min-w-[52px] whitespace-nowrap rounded-lg border border-line bg-white px-2.5 text-xs font-bold text-text-muted transition hover:border-danger/40 hover:bg-danger-soft hover:text-danger-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {deletingId === simulation.id ? '삭제 중…' : '삭제'}
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
-                        )}
-                      </Fragment>
+                          {hasSearchThread && !isCollapsed && (
+                            <tr>
+                              <td colSpan={6} className="bg-surface/60 px-4 py-3 sm:px-6">
+                                <LayoutSearchReplyThread
+                                  search={feedSearch}
+                                  deletingSimulationId={deletingId}
+                                  onDeleteSimulation={async (targetId) => {
+                                    try {
+                                      const sim = await simulationApi.getOverview(targetId);
+                                      setPendingDeletion(sim);
+                                      setDeleteError(null);
+                                    } catch {
+                                      setPendingDeletion({
+                                        id: targetId,
+                                        title: `개선안 시뮬레이션 #${targetId}`,
+                                        layoutTitle: simulation.layoutTitle,
+                                        layoutVersionId: simulation.layoutVersionId,
+                                        layoutId: simulation.layoutId,
+                                        layoutVersionNumber: simulation.layoutVersionNumber,
+                                        createdBy: simulation.createdBy,
+                                        status: 'DRAFT',
+                                        createdAt: new Date().toISOString(),
+                                        requestedAt: null,
+                                        startedAt: null,
+                                        finishedAt: null,
+                                        totalPeople: simulation.totalPeople,
+                                        terminationReason: null,
+                                      });
+                                      setDeleteError(null);
+                                    }
+                                  }}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>

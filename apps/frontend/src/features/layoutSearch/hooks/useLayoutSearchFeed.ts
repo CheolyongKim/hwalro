@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
-import {
-  layoutSearchApi,
-  type LayoutSearch,
-} from '../api/layoutSearchApi';
-import {
-  isActiveSearchStatus,
-  isNotFoundError,
-  POLL_INTERVAL_MS,
-} from './useLayoutSearch';
+import { layoutSearchApi, type LayoutSearch } from '../api/layoutSearchApi';
+import { isActiveSearchStatus, isNotFoundError, POLL_INTERVAL_MS } from './useLayoutSearch';
 
 export type LayoutSearchFeeds = Record<number, LayoutSearch | null>;
 

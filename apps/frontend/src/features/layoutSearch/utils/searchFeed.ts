@@ -89,9 +89,19 @@ function findingReply(search: LayoutSearch, trials: SearchCandidate[]): SearchRe
 function summaryReply(search: LayoutSearch): SearchReply | null {
   switch (search.status) {
     case 'COMPLETED':
-      return { key: 'summary', tone: 'done', text: '배치 개선안 찾기가 완료되었습니다', simulationId: null };
+      return {
+        key: 'summary',
+        tone: 'done',
+        text: '배치 개선안 찾기가 완료되었습니다',
+        simulationId: null,
+      };
     case 'NO_IMPROVEMENT':
-      return { key: 'summary', tone: 'done', text: '개선된 배치를 찾지 못했습니다', simulationId: null };
+      return {
+        key: 'summary',
+        tone: 'done',
+        text: '개선된 배치를 찾지 못했습니다',
+        simulationId: null,
+      };
     case 'CANCELLED':
       return { key: 'summary', tone: 'done', text: '탐색이 취소되었습니다', simulationId: null };
     case 'FAILED':
