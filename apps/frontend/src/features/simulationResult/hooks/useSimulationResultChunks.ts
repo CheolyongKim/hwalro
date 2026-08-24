@@ -47,6 +47,17 @@ function mergeWindow(chunks: SimulationPlaybackChunkData[]): PlaybackWindow {
   };
 }
 
+function mergeProgressPoints(
+  current: EvacuationPoint[],
+  chunks: SimulationPlaybackChunkData[],
+) {
+  const points = new Map(current.map((point) => [point.timeSeconds, point]));
+  for (const chunk of chunks) {
+    for (const point of chunk.evacuationProgress) points.set(point.timeSeconds, point);
+  }
+  return [...points.values()].sort((left, right) => left.timeSeconds - right.timeSeconds);
+}
+
 export function useSimulationResultChunks(options: Options) {
   const {
     simulationId,
@@ -112,13 +123,7 @@ export function useSimulationResultChunks(options: Options) {
       for (const chunk of loaded) cacheRef.current.set(chunk.sequence, chunk);
       const nextWindow = mergeWindow(loaded);
       setWindowData(nextWindow);
-      setProgress((current) => {
-        const points = new Map(current.map((point) => [point.timeSeconds, point]));
-        for (const chunk of loaded) {
-          for (const point of chunk.evacuationProgress) points.set(point.timeSeconds, point);
-        }
-        return [...points.values()].sort((left, right) => left.timeSeconds - right.timeSeconds);
-      });
+      setProgress((current) => mergeProgressPoints(current, loaded));
       const retained = new Set(sequences);
       for (const cachedSequence of cacheRef.current.keys()) {
         if (!retained.has(cachedSequence)) cacheRef.current.delete(cachedSequence);
@@ -138,6 +143,45 @@ export function useSimulationResultChunks(options: Options) {
     retryVersion,
     sequenceKey,
     sequences,
+    simulationId,
+    timelineChunkCount,
+    totalPeople,
+  ]);
+
+  // 재생 창과 별개로 전체 청크를 순서대로 받아 시간별 대피 인원 그래프를 완성한다.
+  // 토글로 결과를 전환하면 현재 시점 주변 청크만으로는 그래프 앞부분이 잘려 보이므로,
+  // 배경으로 남은 청크의 대피 진행 데이터를 채워 넣는다. 실패해도 주 윈도우와
+  // 스크럽 로딩이 그 데이터를 다시 가져오므로 조용히 건너뛴다.
+  useEffect(() => {
+    if (chunkCount < 1 || timelineChunkCount !== heatmapChunkCount) return;
+    let cancelled = false;
+    const run = async () => {
+      for (let sequence = 0; sequence < chunkCount; sequence += 1) {
+        if (cancelled) return;
+        if (cacheRef.current.has(sequence)) continue;
+        try {
+          const data = await simulationResultProvider.getPlaybackChunk(
+            simulationId,
+            sequence,
+            totalPeople,
+            maxDensity,
+          );
+          if (cancelled) return;
+          setProgress((current) => mergeProgressPoints(current, [data]));
+        } catch {
+          // 백그라운드 보조 로딩 실패는 무시한다.
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    chunkCount,
+    heatmapChunkCount,
+    maxDensity,
+    retryVersion,
     simulationId,
     timelineChunkCount,
     totalPeople,

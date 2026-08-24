@@ -22,6 +22,7 @@ export interface SimulationPlaybackStageProps {
   riskDrawingMode: boolean;
   riskZones: RiskZone[];
   viewMode: SimulationViewMode;
+  improvedFabricIndexes?: readonly number[];
   onRiskZoneCreated: (bounds: Bounds) => void;
   onViewportPan: () => void;
 }
@@ -110,7 +111,7 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
     let disposed = false;
     let createdScene: PixiSimulationScene | null = null;
     setSceneError(false);
-    void createPixiSimulationScene(host, props.result)
+    void createPixiSimulationScene(host, props.result, props.improvedFabricIndexes)
       .then((scene) => {
         if (disposed) {
           destroyPixiSimulationScene(scene);
@@ -131,6 +132,7 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       if (sceneRef.current === createdScene) sceneRef.current = null;
     };
   }, [
+    props.improvedFabricIndexes,
     props.result.drawing,
     props.result.hazardZones,
     props.result.simulationId,

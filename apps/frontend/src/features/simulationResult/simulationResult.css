@@ -1331,7 +1331,6 @@
   background: var(--color-surface);
   transform: none;
 }
-
 /* 프로젝터 발표용 light-first 결과 패널 대비 보강 */
 .summary-header {
   border-bottom-color: var(--color-line);
@@ -1445,4 +1444,57 @@
 .improvement-action p {
   margin-top: 8px;
   line-height: 1.55;
+}
+
+.result-top-left {
+  position: absolute;
+  left: var(--canvas-workspace-gutter);
+  top: calc(var(--canvas-workspace-top) + 2px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.result-top-left .canvas-workspace-back {
+  position: static;
+}
+.origin-toggle {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-line-strong) 72%, transparent);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-raised);
+  backdrop-filter: blur(14px);
+}
+.origin-toggle button {
+  padding: 7px 14px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+.origin-toggle button.is-active {
+  background: color-mix(in srgb, var(--color-primary) 94%, transparent);
+  color: var(--color-white);
+}
+.origin-toggle button:not(.is-active):hover {
+  color: var(--color-text-strong);
+}
+.origin-fabric-badge {
+  border: 1px solid color-mix(in srgb, #7a45c9 35%, transparent);
+  border-radius: 999px;
+  background: #f3edfd;
+  padding: 7px 12px;
+  color: #6b34b8;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .origin-toggle button {
+    transition-duration: 1ms;
+  }
 }

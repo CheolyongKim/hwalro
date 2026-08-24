@@ -14,7 +14,8 @@ public record SimulationResultDetailResponse(
         Drawing drawing,
         List<HazardZone> hazardZones,
         List<Bottleneck> bottlenecks,
-        Boolean isImprovement) {
+        Boolean isImprovement,
+        Long sourceSimulationId) {
 
     public record Drawing(
             String name,
