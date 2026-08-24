@@ -95,8 +95,7 @@ function ResultView({
   const [viewingOrigin, setViewingOrigin] = useState(false);
   const originReady = originState.status === 'ready';
   // 재생바와 시간은 그대로 두고 화면에 보이는 시뮬레이션 결과만 바꾼다.
-  const summary =
-    viewingOrigin && originReady ? originState.result.summary : currentSummary;
+  const summary = viewingOrigin && originReady ? originState.result.summary : currentSummary;
   const executionResult =
     viewingOrigin && originReady ? originState.result.executionResult : currentExecution;
   const playback = useSimulationPlayback(summary.durationSeconds);
@@ -600,5 +599,7 @@ export default function SimulationResultPage() {
       />
     );
   }
-  return <ResultView summary={summary} executionResult={executionResult} originState={originState} />;
+  return (
+    <ResultView summary={summary} executionResult={executionResult} originState={originState} />
+  );
 }

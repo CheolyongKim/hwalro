@@ -130,7 +130,13 @@ function drawFloorPlan(result: PixiSceneConfig, improvedFabrics: ReadonlySet<num
   drawing.fabrics.forEach((fabric, index) => {
     if (improvedFabrics.has(index)) {
       // 개선안에서 이동·추가된 구조물은 기본 구조물과 다르게 강조한다.
-      addRotatedRectangle(structureLayer, fabric, IMPROVED_FABRIC_FILL, IMPROVED_FABRIC_STROKE, 0.45);
+      addRotatedRectangle(
+        structureLayer,
+        fabric,
+        IMPROVED_FABRIC_FILL,
+        IMPROVED_FABRIC_STROKE,
+        0.45,
+      );
       return;
     }
     addRotatedRectangle(structureLayer, fabric, 0xe8efed, 0xa0afac);

@@ -47,10 +47,7 @@ function mergeWindow(chunks: SimulationPlaybackChunkData[]): PlaybackWindow {
   };
 }
 
-function mergeProgressPoints(
-  current: EvacuationPoint[],
-  chunks: SimulationPlaybackChunkData[],
-) {
+function mergeProgressPoints(current: EvacuationPoint[], chunks: SimulationPlaybackChunkData[]) {
   const points = new Map(current.map((point) => [point.timeSeconds, point]));
   for (const chunk of chunks) {
     for (const point of chunk.evacuationProgress) points.set(point.timeSeconds, point);
