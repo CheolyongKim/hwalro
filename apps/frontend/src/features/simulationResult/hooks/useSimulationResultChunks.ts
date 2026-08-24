@@ -159,10 +159,7 @@ export function useSimulationResultChunks(options: Options) {
     const run = async () => {
       for (let sequence = 0; sequence < chunkCount; sequence += 1) {
         if (cancelled) return;
-        if (
-          cacheRef.current.has(sequence) ||
-          prefetchedSequencesRef.current.has(sequence)
-        ) {
+        if (cacheRef.current.has(sequence) || prefetchedSequencesRef.current.has(sequence)) {
           continue;
         }
         try {
