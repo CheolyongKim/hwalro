@@ -102,8 +102,8 @@ function SimulationListPage() {
           if (alive) setPage(1);
           return;
         }
-        const lastPage = Math.min(Math.ceil(firstPage.totalCount / PAGE_SIZE), 200);
-        for (let pageNumber = 2; pageNumber <= lastPage && alive; pageNumber += 1) {
+        const maxScanPages = Math.min(Math.ceil(firstPage.totalCount / PAGE_SIZE), 5);
+        for (let pageNumber = 2; pageNumber <= maxScanPages && alive; pageNumber += 1) {
           const pageData = await simulationApi.listOverview(pageNumber, PAGE_SIZE);
           if (pageData.items.some((item) => item.id === layoutSearchSimulationId)) {
             if (alive) setPage(pageNumber);
