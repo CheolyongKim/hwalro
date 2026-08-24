@@ -17,6 +17,7 @@ import com.hwalro.simulation.drawing.dto.DrawingListResponse;
 import com.hwalro.simulation.drawing.dto.DrawingResponse;
 import com.hwalro.simulation.drawing.dto.DrawingSummary;
 import com.hwalro.simulation.drawing.dto.DrawingUpdateRequest;
+import com.hwalro.simulation.drawing.dto.DrawingVersionSummary;
 import com.hwalro.simulation.drawing.dto.ExitDto;
 import com.hwalro.simulation.drawing.dto.FabricDto;
 import com.hwalro.simulation.drawing.dto.LayoutTextDto;
@@ -171,33 +172,37 @@ public class DrawingService {
         geometryValidator.validate(
                 request.outsideWalls(), request.walls(), request.pillars(), request.fabrics(), request.exits());
 
+        if (drawingMapper.lockLayout(layout.getId()) == null) {
+            throw new DrawingNotFoundException(id);
+        }
         LayoutVersion version = findVersionOrThrow(layout.getCurrentVersionId());
         if (!LAYOUT_STATUS_DRAFT.equals(version.getStatus())) {
             throw new DrawingLockedException();
+        }
+        if (!request.expectedVersion().equals(version.getOptimisticLock())) {
+            throw new DrawingConflictException(id);
         }
 
         layout.setTitle(request.title().trim());
         layout.setDescription(request.description());
         drawingMapper.updateLayout(layout);
 
-        int updated = drawingMapper.updateLayoutVersionLock(
-                version.getId(), request.expectedVersion(), version.getOptimisticLock() + 1);
-        if (updated == 0) {
-            throw new DrawingConflictException(id);
-        }
+        LayoutVersion targetVersion = new LayoutVersion();
+        targetVersion.setLayoutId(layout.getId());
+        targetVersion.setVersion(drawingMapper.findNextLayoutVersionNumber(layout.getId()));
+        targetVersion.setStatus(LAYOUT_STATUS_DRAFT);
+        targetVersion.setOptimisticLock(version.getOptimisticLock() + 1);
+        drawingMapper.insertLayoutVersion(targetVersion);
 
-        drawingMapper.deleteWallsByVersionId(version.getId());
-        drawingMapper.deletePillarsByVersionId(version.getId());
-        drawingMapper.deleteFabricsByVersionId(version.getId());
-        drawingMapper.deleteOutsideWallsByVersionId(version.getId());
-        drawingMapper.deleteLayoutTextsByVersionId(version.getId());
-        drawingMapper.deleteLayoutExitsByVersionId(version.getId());
-        insertWallsIfPresent(toWalls(request.walls(), version.getId()));
-        insertPillarsIfPresent(toPillars(request.pillars(), version.getId()));
-        insertFabricsIfPresent(toFabrics(request.fabrics(), version.getId()));
-        insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), version.getId()));
-        insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
-        insertExitsIfPresent(toExits(request.exits(), version.getId()));
+        insertWallsIfPresent(toWalls(request.walls(), targetVersion.getId()));
+        insertPillarsIfPresent(toPillars(request.pillars(), targetVersion.getId()));
+        insertFabricsIfPresent(toFabrics(request.fabrics(), targetVersion.getId()));
+        insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), targetVersion.getId()));
+        insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), targetVersion.getId()));
+        insertExitsIfPresent(toExits(request.exits(), targetVersion.getId()));
+
+        layout.setCurrentVersionId(targetVersion.getId());
+        drawingMapper.updateLayoutCurrentVersion(layout);
 
         return toResponse(findLayoutOrThrow(id));
     }
@@ -257,6 +262,54 @@ public class DrawingService {
         }
         drawingMapper.deleteLayoutById(id);
         drawingMapper.deleteFloorPlanById(layout.getFloorPlanId());
+    }
+
+    public List<DrawingVersionSummary> listVersions(Long id, JwtUser user) {
+        Layout layout = findLayoutOrThrow(id);
+        requireAccessible(layout, user);
+        return drawingMapper.findLayoutVersionsByLayoutId(layout.getId()).stream()
+                .map(version -> new DrawingVersionSummary(
+                        version.getId(), version.getVersion(), version.getStatus(), version.getCreatedAt()))
+                .toList();
+    }
+
+    @Transactional
+    public DrawingResponse restoreVersion(Long id, Long versionId, JwtUser user) {
+        Layout layout = findLayoutOrThrow(id);
+        requireAccessible(layout, user);
+        LayoutVersion sourceVersion = drawingMapper.findLayoutVersionById(versionId);
+        if (sourceVersion == null || !sourceVersion.getLayoutId().equals(layout.getId())) {
+            throw new DrawingNotFoundException(id);
+        }
+        if (drawingMapper.lockLayout(layout.getId()) == null) {
+            throw new DrawingNotFoundException(id);
+        }
+        LayoutVersion currentVersion = findVersionOrThrow(layout.getCurrentVersionId());
+
+        LayoutVersion targetVersion = new LayoutVersion();
+        targetVersion.setLayoutId(layout.getId());
+        targetVersion.setVersion(drawingMapper.findNextLayoutVersionNumber(layout.getId()));
+        targetVersion.setStatus(LAYOUT_STATUS_DRAFT);
+        targetVersion.setOptimisticLock(currentVersion.getOptimisticLock() + 1);
+        drawingMapper.insertLayoutVersion(targetVersion);
+
+        insertWallsIfPresent(
+                copyWalls(drawingMapper.findWallsByVersionId(sourceVersion.getId()), targetVersion.getId()));
+        insertOutsideWallsIfPresent(copyOutsideWalls(
+                drawingMapper.findOutsideWallsByVersionId(sourceVersion.getId()), targetVersion.getId()));
+        insertPillarsIfPresent(
+                copyPillars(drawingMapper.findPillarsByVersionId(sourceVersion.getId()), targetVersion.getId()));
+        insertFabricsIfPresent(
+                copyFabrics(drawingMapper.findFabricsByVersionId(sourceVersion.getId()), targetVersion.getId()));
+        insertLayoutTextsIfPresent(copyLayoutTexts(
+                drawingMapper.findLayoutTextsByVersionId(sourceVersion.getId()), targetVersion.getId()));
+        insertExitsIfPresent(
+                copyExits(drawingMapper.findLayoutExitsByVersionId(sourceVersion.getId()), targetVersion.getId()));
+
+        layout.setCurrentVersionId(targetVersion.getId());
+        drawingMapper.updateLayoutCurrentVersion(layout);
+
+        return toResponse(findLayoutOrThrow(layout.getId()));
     }
 
     private boolean canSeeAll(Set<String> roles) {

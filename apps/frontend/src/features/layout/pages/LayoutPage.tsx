@@ -7,6 +7,7 @@ import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
 import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { VersionHistoryDialog } from '../components/VersionHistoryDialog';
 import { InlineTextInput } from '../components/InlineTextInput';
 import { Button } from '../../../components/ui';
 import {
@@ -65,6 +66,7 @@ function LayoutPage() {
   const settingsPanel = useCollapsibleWorkspacePanel();
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
@@ -139,14 +141,17 @@ function LayoutPage() {
     }
     setSaveStatus('saving');
     try {
-      const version = await saveDrawing(drawingId, {
+      const drawing = await saveDrawing(drawingId, {
         ...sessionRef.current,
         doc: stateRef.current.doc,
       });
       sessionRef.current = {
         ...sessionRef.current,
         doc: stateRef.current.doc,
-        version,
+        version: drawing.version,
+        layoutVersionId: drawing.layoutVersionId,
+        layoutVersionNumber: drawing.layoutVersionNumber,
+        layoutVersionStatus: drawing.layoutVersionStatus,
       };
       dispatch({ type: 'setValidationProblems', problems: [] });
       recordLastActivity('LAYOUT_EDIT', Number(drawingId));
@@ -193,8 +198,15 @@ function LayoutPage() {
     }
     setDraftPending(true);
     try {
-      const version = await saveDrawing(drawingId, { ...session, doc: stateRef.current.doc });
-      sessionRef.current = { ...session, doc: stateRef.current.doc, version };
+      const drawing = await saveDrawing(drawingId, { ...session, doc: stateRef.current.doc });
+      sessionRef.current = {
+        ...session,
+        doc: stateRef.current.doc,
+        version: drawing.version,
+        layoutVersionId: drawing.layoutVersionId,
+        layoutVersionNumber: drawing.layoutVersionNumber,
+        layoutVersionStatus: drawing.layoutVersionStatus,
+      };
       recordLastActivity('LAYOUT_EDIT', Number(drawingId));
       setDraftDialogOpen(true);
     } catch (error) {
@@ -285,6 +297,13 @@ function LayoutPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [performSave]);
 
+  const handleRestored = useCallback((session: DrawingSession) => {
+    sessionRef.current = session;
+    dispatch({ type: 'loadDocument', doc: session.doc });
+    setSaveStatus('idle');
+    setHistoryDialogOpen(false);
+  }, []);
+
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
   const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
   const draftInitialText =
@@ -372,6 +391,7 @@ function LayoutPage() {
           <LayoutToolbar
             saveStatus={saveStatus}
             onSave={() => void performSave()}
+            onOpenHistory={() => setHistoryDialogOpen(true)}
             onStartSimulation={() => void handleOpenDraftDialog()}
             readOnly={readOnly}
             collapseButtonRef={collapseButtonRef}
@@ -433,6 +453,14 @@ function LayoutPage() {
           pending={draftPending}
           onClose={() => setDraftDialogOpen(false)}
           onConfirm={(parentSimulationId) => void handleCreateDraft(parentSimulationId)}
+        />
+      )}
+      {historyDialogOpen && sessionRef.current !== null && (
+        <VersionHistoryDialog
+          drawingId={drawingId}
+          currentVersionId={sessionRef.current.layoutVersionId}
+          onClose={() => setHistoryDialogOpen(false)}
+          onRestored={handleRestored}
         />
       )}
     </CanvasWorkspace>

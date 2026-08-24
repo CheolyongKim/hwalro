@@ -1,9 +1,10 @@
 import type { Ref } from 'react';
-import { Minus } from 'lucide-react';
+import { History, Minus } from 'lucide-react';
 
 interface LayoutToolbarProps {
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   onSave: () => void;
+  onOpenHistory: () => void;
   onStartSimulation: () => void;
   readOnly: boolean;
   onCollapse: () => void;
@@ -13,6 +14,7 @@ interface LayoutToolbarProps {
 export function LayoutToolbar({
   saveStatus,
   onSave,
+  onOpenHistory,
   onStartSimulation,
   readOnly,
   onCollapse,
@@ -61,6 +63,14 @@ export function LayoutToolbar({
             시뮬레이션에 사용된 버전으로, 도면 편집이 잠겨 있습니다.
           </p>
         )}
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-panel-border bg-panel-soft text-sm font-bold text-panel-text transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        >
+          <History aria-hidden="true" className="h-4 w-4" />
+          버전 이력
+        </button>
         <button
           type="button"
           onClick={onStartSimulation}
