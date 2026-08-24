@@ -19,6 +19,8 @@ interface Props {
   selectedBottleneckId: number | null;
   showBottlenecks: boolean;
   riskZones: RiskZone[];
+  improvedFabricIndexes?: readonly number[];
+  onRiskZoneCreated: (bounds: Bounds) => void;
   onViewportPan: () => void;
 }
 
@@ -72,7 +74,7 @@ export function SimulationPlaybackStage(props: Props) {
     let disposed = false;
     let createdScene: PixiSimulationScene | null = null;
     setSceneError(false);
-    void createPixiSimulationScene(host, props.result)
+    void createPixiSimulationScene(host, props.result, props.improvedFabricIndexes)
       .then((scene) => {
         if (disposed) {
           destroyPixiSimulationScene(scene);
@@ -93,6 +95,7 @@ export function SimulationPlaybackStage(props: Props) {
       if (sceneRef.current === createdScene) sceneRef.current = null;
     };
   }, [
+    props.improvedFabricIndexes,
     props.result.drawing,
     props.result.hazardZones,
     props.result.simulationId,
