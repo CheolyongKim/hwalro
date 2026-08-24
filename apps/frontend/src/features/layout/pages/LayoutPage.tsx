@@ -203,15 +203,33 @@ function LayoutPage() {
     };
   }, [drawingId, retryCount]);
 
-  /** 새로 그린 요소는 저장 응답에서 서버 ID를 얻는다. 반영하지 않으면 저장 후에도 구역·제약을 걸 수 없다. */
-  const adoptSavedIds = useCallback((drawing: Drawing) => {
-    dispatch({
-      type: 'adoptSavedIds',
-      walls: drawing.walls.map((wall) => wall.id ?? null),
-      pillars: drawing.pillars.map((pillar) => pillar.id ?? null),
-      fabrics: drawing.fabrics.map((fabric) => fabric.id ?? null),
-    });
-  }, []);
+  /**
+   * 저장 결과를 편집기에 반영한다.
+   *
+   * 저장은 새 도면 버전에 요소를 새 ID로 다시 만든다. 요소의 서버 ID를 갱신하고 구역 메타데이터도
+   * 다시 읽어야 한다. 둘 중 하나만 하면 구역과 요소가 서로 다른 버전의 ID를 가리켜 소속이 통째로
+   * 사라진 것처럼 보인다.
+   */
+  // 저장은 구역도 새 ID로 다시 만든다. 사라진 구역을 계속 선택해 두면 우측 패널이 빈 채로 남는다.
+  useEffect(() => {
+    if (selectedZoneId === null) return;
+    if (!metadata.metadata.zones.some((zone) => zone.zoneId === selectedZoneId)) {
+      setSelectedZoneId(null);
+    }
+  }, [metadata.metadata.zones, selectedZoneId]);
+
+  const adoptSavedDrawing = useCallback(
+    (drawing: Drawing) => {
+      dispatch({
+        type: 'adoptSavedIds',
+        walls: drawing.walls.map((wall) => wall.id ?? null),
+        pillars: drawing.pillars.map((pillar) => pillar.id ?? null),
+        fabrics: drawing.fabrics.map((fabric) => fabric.id ?? null),
+      });
+      void metadata.reload();
+    },
+    [metadata.reload],
+  );
 
   const performSave = useCallback(async () => {
     if (saveStatus === 'saving' || loadStatus !== 'ready' || sessionRef.current === null) {
@@ -230,7 +248,7 @@ function LayoutPage() {
         ...sessionRef.current,
         doc: stateRef.current.doc,
       });
-      adoptSavedIds(drawing);
+      adoptSavedDrawing(drawing);
       sessionRef.current = {
         ...sessionRef.current,
         doc: stateRef.current.doc,
@@ -285,7 +303,7 @@ function LayoutPage() {
     setDraftPending(true);
     try {
       const drawing = await saveDrawing(drawingId, { ...session, doc: stateRef.current.doc });
-      adoptSavedIds(drawing);
+      adoptSavedDrawing(drawing);
       sessionRef.current = {
         ...session,
         doc: stateRef.current.doc,
