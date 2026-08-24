@@ -3,6 +3,7 @@ package com.hwalro.regulation.law.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hwalro.regulation.law.exception.LawApiConfigurationException;
 import java.time.Duration;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -30,8 +31,9 @@ public class LawApiClient {
     /**
      * 현재 시행 중인 법령만 검색한다.
      *
-     * <p>{@code nw=3}은 현행 법령만 요청하는 국가법령정보센터 목록 API 파라미터다.
+     * <p>{@code nw=3}은 현행 법령만 요청하는 국가법령정보센터 목록 API 파라미터다. 외부 응답은 동일 검색어·페이지에 대해 캐싱한다.
      */
+    @Cacheable("lawSearch")
     public JsonNode searchCurrentLaws(String query, int page, int size) {
         requireAuthenticationValue();
         return restClient
@@ -54,18 +56,21 @@ public class LawApiClient {
     /**
      * 목록 API가 반환한 법령일련번호(MST)로 현행 법령 본문을 조회한다.
      *
-     * <p>상세 조회에는 목록 전용 파라미터인 {@code nw}를 보내지 않는다.
+     * <p>상세 조회에는 목록 전용 파라미터인 {@code nw}를 보내지 않는다. 법령 본문은 개정 전까지 불변이므로 캐싱한다.
      */
+    @Cacheable("lawDetailBySerialNumber")
     public JsonNode getCurrentLaw(String serialNumber) {
         return getCurrentLaw("MST", serialNumber);
     }
 
-    /** 국가법령정보센터의 법령 ID로 현행 법령 본문을 조회한다. */
+    /** 국가법령정보센터의 법령 ID로 현행 법령 본문을 조회한다. 법령 ID 기준 캐시는 일련번호 기준 캐시와 키 충돌을 피하기 위해 분리한다. */
+    @Cacheable("lawDetailByLawId")
     public JsonNode getCurrentLawById(String lawId) {
         return getCurrentLaw("ID", lawId);
     }
 
     /** 선택 법령과 국가법령정보센터가 공식적으로 연결한 법령 목록을 조회한다. */
+    @Cacheable("lawRelated")
     public JsonNode searchRelatedLaws(String lawId) {
         requireAuthenticationValue();
         return restClient
