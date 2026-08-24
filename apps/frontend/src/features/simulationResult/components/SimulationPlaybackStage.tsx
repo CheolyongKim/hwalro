@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import {
   applyPixiCamera,
@@ -9,10 +9,11 @@ import {
   updatePixiSimulationScene,
   type PixiSimulationScene,
 } from '../rendering/pixiSimulationRenderer';
+import type { SimulationViewMode } from '../rendering/simulationViewMode';
 import type { Bounds, DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import './SimulationPlaybackStage.css';
 
-interface Props {
+export interface SimulationPlaybackStageProps {
   result: SimulationResultViewModel;
   bottlenecks: DetectedBottleneck[];
   currentTimeSeconds: number;
@@ -20,9 +21,14 @@ interface Props {
   showBottlenecks: boolean;
   riskDrawingMode: boolean;
   riskZones: RiskZone[];
+  viewMode: SimulationViewMode;
   onRiskZoneCreated: (bounds: Bounds) => void;
   onViewportPan: () => void;
 }
+
+const ThreeSimulationStage = lazy(() =>
+  import('./ThreeSimulationStage').then((module) => ({ default: module.ThreeSimulationStage })),
+);
 
 interface PanSession {
   pointerX: number;
@@ -32,7 +38,29 @@ interface PanSession {
   notified: boolean;
 }
 
-export function SimulationPlaybackStage(props: Props) {
+export function SimulationPlaybackStage(props: SimulationPlaybackStageProps) {
+  if (props.viewMode === 'three') {
+    return (
+      <Suspense
+        fallback={<div className="simulation-three-loading">3D 공간을 준비하고 있습니다.</div>}
+      >
+        <ThreeSimulationStage
+          result={props.result}
+          bottlenecks={props.bottlenecks}
+          currentTimeSeconds={props.currentTimeSeconds}
+          selectedBottleneckId={props.selectedBottleneckId}
+          showBottlenecks={props.showBottlenecks}
+          riskZones={props.riskZones}
+          onViewportPan={props.onViewportPan}
+        />
+      </Suspense>
+    );
+  }
+
+  return <PixiSimulationStage {...props} />;
+}
+
+function PixiSimulationStage(props: SimulationPlaybackStageProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<PixiSimulationScene | null>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -222,7 +250,7 @@ export function SimulationPlaybackStage(props: Props) {
       ref={hostRef}
       className={`simulation-canvas-wrap simulation-canvas--interactive ${props.riskDrawingMode ? 'is-drawing' : 'is-pannable'} ${isPanning ? 'is-panning' : ''}`}
       role="application"
-      aria-label="더현대 서울 지하 2층 PixiJS 시뮬레이션 재생 도면"
+      aria-label="시뮬레이션 재생 도면, 2D 보기"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

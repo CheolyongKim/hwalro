@@ -58,7 +58,10 @@ class SimulationResultDetailServiceTest {
         when(mapper.findWalls(9100L))
                 .thenReturn(List.of(new SimulationResultDetailMapper.SegmentRow("벽", 0, 0, 10, 0, 0)));
         when(mapper.findExits(9100L))
-                .thenReturn(List.of(new SimulationResultDetailMapper.SegmentRow("출구", 10, 0, 10, 2, 0)));
+                .thenReturn(List.of(
+                        new SimulationResultDetailMapper.ExitRow(41L, "활성 출구", 10, 0, 10, 2),
+                        new SimulationResultDetailMapper.ExitRow(42L, "비활성 출구", 0, 2, 0, 4)));
+        when(mapper.findSelectedExitIds(simulationId)).thenReturn(List.of(41L));
         when(mapper.findPillars(9100L)).thenReturn(List.of());
         when(mapper.findFabrics(9100L)).thenReturn(List.of());
         when(mapper.findHazardZones(simulationId))
@@ -84,6 +87,9 @@ class SimulationResultDetailServiceTest {
                 .extracting(point -> point.x() + "," + point.y())
                 .containsExactly("0.0,0.0", "0.0,10.0", "20.0,10.0", "20.0,0.0");
         assertThat(result.drawing().walls()).hasSize(1);
+        assertThat(result.drawing().exits())
+                .extracting(exit -> exit.id() + ":" + exit.active())
+                .containsExactly("41:true", "42:false");
         assertThat(result.hazardZones()).singleElement().satisfies(hazard -> {
             assertThat(hazard.id()).isEqualTo(31L);
             assertThat(hazard.centerX()).isEqualTo(7.5);

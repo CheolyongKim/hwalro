@@ -23,6 +23,7 @@ import { ReportDraftDialog } from '../components/ReportDraftDialog';
 import { ResultSummaryPanel } from '../components/ResultSummaryPanel';
 import { RiskZoneEditorDialog } from '../components/RiskZoneEditorDialog';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
+import { SimulationViewToggle } from '../components/SimulationViewToggle';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
 import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
@@ -39,6 +40,7 @@ import {
 } from '../utils/bottleneckDisplay';
 import { calculateEvacuationRate } from '../utils/evacuationRate';
 import { selectFramePair } from '../utils/playback';
+import type { SimulationViewMode } from '../rendering/simulationViewMode';
 import '../simulationResult.css';
 import '../simulationResultMotion.css';
 
@@ -119,6 +121,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     rankedBottlenecks[0]?.id ?? null,
   );
   const [riskDrawingMode, setRiskDrawingMode] = useState(false);
+  const [viewMode, setViewMode] = useState<SimulationViewMode>('plan');
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
   const [pendingBounds, setPendingBounds] = useState<Bounds | null>(null);
   const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
@@ -178,6 +181,11 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
   const handleRiskZoneCreated = (bounds: Bounds) => {
     setPendingBounds(bounds);
     setRiskDrawingMode(false);
+  };
+
+  const handleViewModeChange = (mode: SimulationViewMode) => {
+    setViewMode(mode);
+    if (mode === 'three') setRiskDrawingMode(false);
   };
 
   useEffect(() => {
@@ -272,6 +280,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         showBottlenecks={bottlenecksVisible}
         riskDrawingMode={riskDrawingMode}
         riskZones={riskZones}
+        viewMode={viewMode}
         onRiskZoneCreated={handleRiskZoneCreated}
         onViewportPan={handleViewportPan}
       />
@@ -284,15 +293,24 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         statusTone="complete"
       />
 
+      <SimulationViewToggle mode={viewMode} onChange={handleViewModeChange} />
+
       <div className="risk-zone-control">
         <button
           type="button"
           className={`risk-zone-button ${riskDrawingMode ? 'is-active' : ''}`}
           aria-pressed={riskDrawingMode}
+          aria-describedby={viewMode === 'three' ? 'three-risk-edit-note' : undefined}
+          disabled={viewMode === 'three'}
           onClick={() => setRiskDrawingMode((value) => !value)}
         >
           {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 항목 설정'}
         </button>
+        {viewMode === 'three' && (
+          <p id="three-risk-edit-note" className="three-risk-edit-note">
+            위험 구역 편집은 2D에서 사용할 수 있습니다.
+          </p>
+        )}
         {riskLoadError && <p className="risk-zone-load-error">{riskLoadError}</p>}
       </div>
 

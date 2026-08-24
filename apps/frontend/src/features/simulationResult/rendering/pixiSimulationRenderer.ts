@@ -20,6 +20,7 @@ import type {
 import { interpolatePositions, selectFramePair } from '../utils/playback';
 import { FLOOR_LABEL_SOURCE_FONT_SIZE, getFloorLabelPresentation } from './floorLabelPresentation';
 import { composeHeatmapTrail } from './heatmapTrail';
+import { getExitPresentation } from './exitPresentation';
 
 export interface PixiCameraTransform {
   scale: number;
@@ -141,10 +142,11 @@ function drawFloorPlan(result: PixiSceneConfig) {
   }
   const exitLayer = new Graphics();
   for (const exit of drawing.exits) {
+    const presentation = getExitPresentation(exit.active);
     exitLayer
       .moveTo(exit.startX, exit.startY)
       .lineTo(exit.endX, exit.endY)
-      .stroke({ color: 0x078f7e, width: 1, cap: 'round' });
+      .stroke({ color: presentation.color, width: 1, cap: 'round' });
   }
   structureLayer.addChild(exitLayer);
   return { baseLayer, structureLayer, labels };
