@@ -436,7 +436,8 @@ export function ConstraintInspector({ drawing, constraints, onChange, onStart, s
               <span>개선안마다 시뮬레이션으로 확인</span>
             </label>
             <p className="constraint-inspector__check-hint">
-              개선 폭을 실측으로 확인하지만 탐색이 훨씬 오래 걸립니다. 끄면 후보만 제안하고, 원하는
+              개선 폭을 실측으로 확인하지만 탐색이 훨씬 오래 걸립니다. 켜면 시작 후 시뮬레이션
+              목록에서 후보 찾기와 검증 진행을 자동으로 보여줍니다. 끄면 후보만 제안하고, 원하는
               개선안을 골라 직접 실행할 수 있습니다.
             </p>
             <p className="constraint-inspector__note">
