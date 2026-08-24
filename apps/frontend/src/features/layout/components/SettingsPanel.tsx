@@ -380,7 +380,7 @@ export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
             value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
           />
           <InfoRow label="벽" value={`${doc.walls.length}개`} />
-          <InfoRow label="외각벽" value={`${doc.outsideWalls.length}개`} />
+          <InfoRow label="외곽벽" value={`${doc.outsideWalls.length}개`} />
           <InfoRow label="비상구" value={`${doc.exits.length}개`} />
           <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
           <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />

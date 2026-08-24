@@ -697,7 +697,7 @@ public class DrawingService {
             throw new IllegalArgumentException("벽 데이터가 필요합니다.");
         }
         if (outsideWalls == null) {
-            throw new IllegalArgumentException("외각벽 데이터가 필요합니다.");
+            throw new IllegalArgumentException("외곽벽 데이터가 필요합니다.");
         }
         if (pillars == null) {
             throw new IllegalArgumentException("기둥 데이터가 필요합니다.");
@@ -715,7 +715,7 @@ public class DrawingService {
             throw new IllegalArgumentException("벽은 최대 5000개까지 저장할 수 있습니다.");
         }
         if (outsideWalls.size() > MAX_OUTSIDE_WALLS) {
-            throw new IllegalArgumentException("외각벽은 최대 5000개까지 저장할 수 있습니다.");
+            throw new IllegalArgumentException("외곽벽은 최대 5000개까지 저장할 수 있습니다.");
         }
         if (pillars.size() > MAX_PILLARS) {
             throw new IllegalArgumentException("기둥은 최대 5000개까지 저장할 수 있습니다.");
@@ -743,15 +743,15 @@ public class DrawingService {
         }
         for (OutsideWallDto outsideWall : outsideWalls) {
             if (outsideWall == null) {
-                throw new IllegalArgumentException("외각벽 데이터가 누락되었습니다.");
+                throw new IllegalArgumentException("외곽벽 데이터가 누락되었습니다.");
             }
             if (outsideWall.name() != null && outsideWall.name().length() > MAX_WALL_NAME_LENGTH) {
-                throw new IllegalArgumentException("외각벽 이름은 200자 이하여야 합니다.");
+                throw new IllegalArgumentException("외곽벽 이름은 200자 이하여야 합니다.");
             }
-            validateCoordinate(outsideWall.startX(), "외각벽 시작 X");
-            validateCoordinate(outsideWall.startY(), "외각벽 시작 Y");
-            validateCoordinate(outsideWall.endX(), "외각벽 끝 X");
-            validateCoordinate(outsideWall.endY(), "외각벽 끝 Y");
+            validateCoordinate(outsideWall.startX(), "외곽벽 시작 X");
+            validateCoordinate(outsideWall.startY(), "외곽벽 시작 Y");
+            validateCoordinate(outsideWall.endX(), "외곽벽 끝 X");
+            validateCoordinate(outsideWall.endY(), "외곽벽 끝 Y");
         }
         for (PillarDto pillar : pillars) {
             if (pillar == null) {

@@ -148,7 +148,7 @@ function SafetyCheckAreasPage() {
         <section className="mt-5" aria-labelledby="inspection-area-title">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 id="inspection-area-title" className="text-xl font-black text-ink">
+              <h2 id="inspection-area-title" className="text-xl font-bold text-ink">
                 점검 구역
               </h2>
               <p className="mt-2 text-sm text-text-muted">
@@ -170,7 +170,7 @@ function SafetyCheckAreasPage() {
               className="mt-5 rounded-xl border border-line bg-primary-soft p-5 shadow-card"
             >
               <div className="flex items-center justify-between gap-4">
-                <h3 className="text-lg font-black text-ink">
+                <h3 className="text-lg font-bold text-ink">
                   {editor.id === null ? '점검 구역 추가' : '점검 구역 수정'}
                 </h3>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setEditor(null)}>
@@ -262,7 +262,7 @@ function SafetyCheckAreasPage() {
                           점검 {area.inspectionCount}회
                         </Badge>
                       </div>
-                      <h3 className="mt-5 text-xl font-black text-ink group-hover:text-primary">
+                      <h3 className="mt-5 text-xl font-bold text-ink group-hover:text-primary">
                         {area.name}
                       </h3>
                       <p className="mt-2 min-h-10 text-sm leading-5 text-text-muted">

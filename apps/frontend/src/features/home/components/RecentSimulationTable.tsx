@@ -24,7 +24,7 @@ function CardShell({ children }: { children: React.ReactNode }) {
   return (
     <section
       aria-label="최근 시뮬레이션"
-      className="flex min-h-80 flex-col rounded-2xl border border-line bg-white shadow-sm shadow-ink/5"
+      className="flex min-h-80 flex-col rounded-xl border border-line bg-surface"
     >
       {children}
     </section>
@@ -41,7 +41,7 @@ export function RecentSimulationTable({
   return (
     <CardShell>
       <div className="flex items-center justify-between px-6 py-5">
-        <h2 className="text-lg font-black tracking-tight text-ink">최근 시뮬레이션</h2>
+        <h2 className="text-lg font-bold tracking-tight text-ink">최근 시뮬레이션</h2>
         <Link to="/simulations" className="text-xs font-bold text-text-muted hover:text-primary">
           전체보기 ›
         </Link>

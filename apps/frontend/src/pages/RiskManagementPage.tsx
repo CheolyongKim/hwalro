@@ -120,7 +120,7 @@ function RiskManagementPage() {
         <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
           <Card padded={false} className="flex min-h-[500px] flex-col overflow-hidden">
             <div className="border-b border-line px-5 py-4 sm:px-7">
-              <h2 className="text-xl font-black text-ink">위험 예상 목록</h2>
+              <h2 className="text-xl font-bold text-ink">위험 예상 목록</h2>
             </div>
             <div className="flex min-h-0 flex-1 flex-col">
               {isPending ? (
@@ -176,7 +176,7 @@ function RiskManagementPage() {
           </Card>
 
           <Card padded={false} className="flex min-h-[500px] flex-col p-6">
-            <h2 className="text-xl font-black text-ink">위험 상세</h2>
+            <h2 className="text-xl font-bold text-ink">위험 상세</h2>
             <div className="mt-5">
               {isLinkedRiskPending ? (
                 <div className="space-y-4">

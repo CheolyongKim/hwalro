@@ -11,7 +11,7 @@ function HomePage() {
   const { activeReview, workSummary, recentSimulations, priorityRisks } = useHomeDashboard();
 
   return (
-    <div className="mx-auto w-full max-w-[1360px] px-1 pb-10 sm:px-4">
+    <div className="mx-auto w-full max-w-[1360px] pb-10">
       <h1 className="sr-only">홈</h1>
 
       <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
@@ -29,7 +29,7 @@ function HomePage() {
         </div>
       </div>
 
-      <h2 className="mt-8 text-lg font-black tracking-tight text-ink">내 업무 현황</h2>
+      <h2 className="mt-8 text-lg font-bold tracking-tight text-ink">내 업무 현황</h2>
       <div className="mt-4">
         <WorkStatusCards
           summary={workSummary.data}

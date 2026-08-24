@@ -18,12 +18,12 @@ function StatusCard({
   dotClassName: string;
 }) {
   return (
-    <div className="min-w-56 flex-1 rounded-2xl border border-line bg-white p-5 shadow-sm shadow-ink/5 sm:max-w-72">
+    <div className="min-w-56 flex-1 border-b border-line p-5 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
       <div className="flex items-center gap-2.5">
         <span aria-hidden="true" className={`h-3 w-3 rounded-full ${dotClassName}`} />
         <p className="text-sm font-bold text-text-strong">{label}</p>
       </div>
-      <p className="mt-4 text-3xl font-black tabular-nums text-ink">
+      <p className="mt-4 text-3xl font-bold tabular-nums text-ink">
         {count.toLocaleString()}
         <span className="ml-1.5 text-sm font-medium text-text-muted">건</span>
       </p>
@@ -67,7 +67,10 @@ export function WorkStatusCards({
   }
 
   return (
-    <section aria-label="내 업무 현황" className="flex flex-wrap gap-4">
+    <section
+      aria-label="내 업무 현황"
+      className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface sm:flex-row"
+    >
       <StatusCard
         label="시뮬레이션 처리 중"
         count={summary.inProgressCount}

@@ -110,7 +110,7 @@ function drawFloorPlan(result: PixiSceneConfig) {
   const structureLayer = new Container();
   const lineLayer = new Graphics();
   const labels: PixiText[] = [];
-  baseLayer.rect(0, 0, drawing.width, drawing.height).fill({ color: 0xf3f7f6 });
+  baseLayer.rect(0, 0, drawing.width, drawing.height).fill({ color: 0xdfe6e3 });
   traceBoundary(baseLayer, drawing.outsideBoundary).fill({ color: 0xffffff });
   traceBoundary(lineLayer, drawing.outsideBoundary).stroke({ color: 0x355b55, width: 0.45 });
   for (const wall of drawing.walls) {
@@ -255,7 +255,6 @@ export async function createPixiSimulationScene(
     riskLayer,
   );
   app.stage.addChild(world);
-
   return {
     app,
     world,

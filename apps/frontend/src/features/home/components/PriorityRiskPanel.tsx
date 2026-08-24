@@ -89,10 +89,10 @@ export function PriorityRiskPanel({
   return (
     <section
       aria-label="우선 확인할 항목"
-      className="flex h-full min-h-80 flex-col rounded-2xl border border-line bg-white p-6 shadow-sm shadow-ink/5"
+      className="flex h-full min-h-80 flex-col rounded-xl border border-line bg-surface p-6"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-black tracking-tight text-ink">우선 확인할 항목</h2>
+        <h2 className="text-lg font-bold tracking-tight text-ink">우선 확인할 항목</h2>
         {!isPending && !isError && displayCount > 0 && (
           <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-danger-soft px-2.5 text-xs font-bold tabular-nums text-danger">
             {displayCount}
@@ -135,12 +135,12 @@ export function PriorityRiskPanel({
       <div className="mt-auto pt-4">
         <Link
           to="/risk-management"
-          className="flex items-center justify-between gap-3 rounded-xl bg-ink px-5 py-3.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+          className="flex items-center justify-between gap-3 rounded-lg bg-primary px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
         >
           모든 위험 항목 확인
           <span
             aria-hidden="true"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-lime text-ink"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/15 text-white"
           >
             <svg
               className="h-3.5 w-3.5"

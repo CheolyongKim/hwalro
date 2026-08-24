@@ -9,7 +9,10 @@
 }
 
 .simulation-result-page .risk-zone-control {
+  position: absolute;
   top: 132px;
+  left: 22px;
+  z-index: 8;
 }
 
 .simulation-view-toggle {
@@ -80,6 +83,7 @@
 
   .simulation-result-page .risk-zone-control {
     top: 116px;
+    left: 12px;
   }
 
   .simulation-view-control > span {

@@ -28,8 +28,12 @@ function wallNameIndex(name: string): number | null {
 }
 
 function outsideWallNameIndex(name: string): number | null {
-  const match = /^외각벽 (\d+)$/.exec(name);
+  const match = /^외(?:곽|각)벽 (\d+)$/.exec(name);
   return match ? Number(match[1]) : null;
+}
+
+function normalizeOutsideWallName(name: string): string {
+  return name.replace(/^외각벽(?=\s|$)/, '외곽벽');
 }
 
 function exitNameIndex(name: string): number | null {
@@ -248,7 +252,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     }
     const wall: OutsideWall = {
       id: `loaded-outside-wall-${i}`,
-      name: parsedName ?? '',
+      name: parsedName ? normalizeOutsideWallName(parsedName) : '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `outsideWalls[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `outsideWalls[${i}].startY`),
       endX: toFiniteNumber(entry.endX ?? entry.end_x, `outsideWalls[${i}].endX`),
@@ -263,7 +267,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
 
   for (const { wall, order } of unnamedOutsideWalls) {
     maxOutsideWallIndex += 1;
-    outsideWalls.splice(order, 0, { ...wall, name: `외각벽 ${maxOutsideWallIndex}` });
+    outsideWalls.splice(order, 0, { ...wall, name: `외곽벽 ${maxOutsideWallIndex}` });
   }
 
   const rawExits = (data.exits ?? []) as unknown[];

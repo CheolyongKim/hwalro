@@ -24,7 +24,7 @@ function CardShell({ children }: { children: React.ReactNode }) {
   return (
     <section
       aria-label="진행 중인 안전 검토"
-      className="flex min-h-64 flex-col rounded-2xl border border-line bg-white p-6 shadow-sm shadow-ink/5"
+      className="flex min-h-64 flex-col rounded-xl border border-line bg-surface p-6"
     >
       {children}
     </section>
@@ -90,7 +90,7 @@ export function ActiveReviewCard({
   return (
     <CardShell>
       <p className="text-xs font-bold tracking-wide text-primary">진행 중인 안전 검토</p>
-      <h2 className="mt-2 truncate text-2xl font-black tracking-tight text-ink">{review.title}</h2>
+      <h2 className="mt-2 truncate text-2xl font-bold tracking-tight text-ink">{review.title}</h2>
       <p className="mt-2 text-sm text-text-muted">
         {review.subtitle} · 최근 작업 {formatDateTime(review.occurredAt)}
       </p>
@@ -110,7 +110,7 @@ export function ActiveReviewCard({
 
         <div className="shrink-0 rounded-xl bg-surface p-4 lg:w-56">
           <p className="text-xs font-bold text-text-muted">현재 단계</p>
-          <p className="mt-2 text-lg font-black text-ink">{review.currentStageLabel}</p>
+          <p className="mt-2 text-lg font-bold text-ink">{review.currentStageLabel}</p>
         </div>
       </div>
     </CardShell>
