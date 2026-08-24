@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 
 class CandidateSelectorTest {
     private static final double MARGIN = 0.02;
+    /** 시스템 공통 밀집도 안전 기준(density_threshold_settings)의 실제 설정값이다. */
+    private static final double SAFETY_THRESHOLD = 3.0;
 
     private static List<Metric> metrics(double totalSeconds, double averageSeconds, double maxDensity) {
         return List.of(
@@ -24,7 +26,9 @@ class CandidateSelectorTest {
         List<Metric> baseline = metrics(59.6, 24.0, 4.0);
         List<Metric> trial = metrics(59.6, 22.0, 4.0);
 
-        assertThat(CandidateSelector.judge(trial, baseline, MARGIN).improved()).isTrue();
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isTrue();
     }
 
     @Test
@@ -32,7 +36,9 @@ class CandidateSelectorTest {
         List<Metric> baseline = metrics(59.6, 24.0, 4.0);
         List<Metric> trial = metrics(55.0, 24.0, 4.0);
 
-        assertThat(CandidateSelector.judge(trial, baseline, MARGIN).improved()).isTrue();
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isTrue();
     }
 
     @Test
@@ -43,7 +49,9 @@ class CandidateSelectorTest {
         List<Metric> baseline = metrics(59.6, 24.0, 4.0);
         List<Metric> trial = metrics(59.6, 23.81, 3.0);
 
-        assertThat(CandidateSelector.judge(trial, baseline, MARGIN).improved()).isTrue();
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isTrue();
     }
 
     @Test
@@ -53,7 +61,9 @@ class CandidateSelectorTest {
         List<Metric> baseline = metrics(59.29, 22.92, 4.0);
         List<Metric> trial = metrics(70.0, 27.0, 3.0);
 
-        assertThat(CandidateSelector.judge(trial, baseline, MARGIN).improved()).isFalse();
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isFalse();
     }
 
     @Test
@@ -61,7 +71,9 @@ class CandidateSelectorTest {
         List<Metric> baseline = metrics(59.6, 24.0, 4.0);
         List<Metric> trial = metrics(59.6, 22.0, 5.0);
 
-        assertThat(CandidateSelector.judge(trial, baseline, MARGIN).improved()).isFalse();
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isFalse();
     }
 
     @Test
@@ -72,7 +84,9 @@ class CandidateSelectorTest {
         List<Metric> baseline = metrics(59.6, 23.90747, 4.0);
         List<Metric> trial = metrics(58.72, 23.67508, 4.0);
 
-        assertThat(CandidateSelector.judge(trial, baseline, MARGIN).improved()).isFalse();
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isFalse();
     }
 
     @Test
@@ -80,6 +94,65 @@ class CandidateSelectorTest {
         List<Metric> baseline = metrics(0.0, 0.0, 0.0);
         List<Metric> trial = metrics(0.0, 0.0, 0.0);
 
-        assertThat(CandidateSelector.judge(trial, baseline, MARGIN).improved()).isFalse();
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isFalse();
+    }
+
+    @Test
+    void a_much_faster_layout_is_still_rejected_when_peak_crowding_rises() {
+        // 탐색 2번 후보 1의 실측값이다. 총 대피시간 -29.4%, 평균 -39.6%로 크게 좋아졌지만 최대 밀집도가
+        // 3.0에서 4.0으로 올랐다. 화면에는 이 +1이 "비상구 편중도 / 밀집도" 칸에 떠서 편중도가 나빠진
+        // 것처럼 보였지만, 실제로는 밀집도이며 거부 사유도 밀집도다.
+        List<Metric> baseline = metrics(53.35, 38.032947, 3.0);
+        List<Metric> trial = metrics(37.68, 22.957474, 4.0);
+
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isFalse();
+    }
+
+    @Test
+    void a_faster_layout_that_leaves_crowding_untouched_is_an_improvement() {
+        // 같은 탐색의 후보 2다. 밀집도가 그대로라 속도 개선이 그대로 인정된다.
+        List<Metric> baseline = metrics(53.35, 38.032947, 3.0);
+        List<Metric> trial = metrics(44.3, 25.037158, 3.0);
+
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isTrue();
+    }
+
+    @Test
+    void a_density_rise_that_stays_below_the_safety_threshold_does_not_block_a_faster_layout() {
+        // 최대 밀집도는 1m 격자 한 칸이 가장 붐빈 순간의 값이라 정수로 튄다. 안전 기준(3.0) 아래에서의
+        // 상승까지 거부하면 대피시간을 크게 줄인 배치가 노이즈 수준의 차이로 버려진다.
+        List<Metric> baseline = metrics(59.6, 24.0, 1.0);
+        List<Metric> trial = metrics(40.0, 16.0, 2.0);
+
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isTrue();
+    }
+
+    @Test
+    void a_density_rise_that_crosses_the_safety_threshold_blocks_even_a_much_faster_layout() {
+        List<Metric> baseline = metrics(59.6, 24.0, 3.0);
+        List<Metric> trial = metrics(40.0, 16.0, 3.5);
+
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isFalse();
+    }
+
+    @Test
+    void thinning_crowding_that_is_still_above_the_threshold_counts_as_improved() {
+        // 기준을 넘은 상태에서 조금이라도 내려오는 것은 안전상 분명한 개선이다.
+        List<Metric> baseline = metrics(59.6, 24.0, 5.0);
+        List<Metric> trial = metrics(59.6, 24.0, 4.0);
+
+        assertThat(CandidateSelector.judge(trial, baseline, MARGIN, SAFETY_THRESHOLD)
+                        .improved())
+                .isTrue();
     }
 }
