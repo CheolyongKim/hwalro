@@ -552,7 +552,11 @@ export default function SimulationResultPage() {
   }, [navigate, numericSimulationId, retry, simulationId, recordLastActivity]);
 
   useEffect(() => {
-    if (!summary?.isImprovement || !summary.sourceSimulationId) return;
+    // 개선안이 아니면 기존 시뮬레이션 비교 자체가 없으므로 loading에 머물지 않게 정리한다.
+    if (!summary?.isImprovement || !summary.sourceSimulationId) {
+      setOriginState({ status: 'unavailable' });
+      return;
+    }
     let active = true;
     setOriginState({ status: 'loading' });
     const sourceSimulationId = summary.sourceSimulationId;
