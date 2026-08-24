@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Info, Lock } from 'lucide-react';
 import type { SearchCandidate } from '../api/layoutSearchApi';
 import {
@@ -118,9 +119,9 @@ export function CandidateDetailPanel({
               시뮬레이션 준비됨
             </p>
             <div className="preparation-success-actions">
-              <a
+              <Link
                 className="run-simulation-button"
-                href={
+                to={
                   preparedSimulation.status === 'COMPLETED'
                     ? `/simulations/${preparedSimulation.simulationId}/results`
                     : `/simulations/${preparedSimulation.simulationId}/setup`
@@ -129,7 +130,7 @@ export function CandidateDetailPanel({
                 {preparedSimulation.status === 'COMPLETED'
                   ? '시뮬레이션 결과 열기'
                   : '시뮬레이션 설정 열기'}
-              </a>
+              </Link>
             </div>
           </>
         ) : (
