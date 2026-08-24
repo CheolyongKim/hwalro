@@ -9,7 +9,7 @@ import { layoutMetadataApi, type LayoutZone } from '../../layout/api/layoutMetad
 import { CANVAS_COLORS } from '../../layout/utils/colors';
 import { fitCamera, PX_PER_METER } from '../../layout/utils/geometry';
 import { zoneApi, type EvacuationRoute, type MyZone } from '../api/zoneApi';
-import { evacuationStatusPresentation } from '../utils/evacuationStatus';
+import { evacuationStatusPresentation, narrowPassageWarning } from '../utils/evacuationStatus';
 
 const VIEW_HEIGHT = 460;
 
@@ -192,11 +192,10 @@ function EvacuationPage() {
     };
   }, [zoneId]);
 
-  const presentation = data === null ? null : evacuationStatusPresentation(data.route.status);
-  const recommendedName =
-    data === null || data.route.recommendedExitId === null
-      ? null
-      : (data.route.defaultExit?.name ?? null);
+  const presentation =
+    data === null ? null : evacuationStatusPresentation(data.route.status, data.route.exitChoice);
+  const recommendedName = data?.route.recommendedExitName ?? null;
+  const narrowWarning = data === null ? null : narrowPassageWarning(data.route.narrowestMeters);
 
   return (
     <main className="bg-background">
@@ -242,18 +241,38 @@ function EvacuationPage() {
               {presentation.message}
             </p>
 
+            {narrowWarning !== null ? (
+              <p className="mt-3 rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 text-sm font-medium text-danger-strong">
+                {narrowWarning}
+              </p>
+            ) : null}
+
             <Card className="mt-4">
-              <dl className="grid gap-3 sm:grid-cols-2">
+              <dl className="grid gap-3 sm:grid-cols-4">
                 <div>
-                  <dt className="text-xs text-text-muted">권장 비상구</dt>
+                  <dt className="text-xs text-text-muted">안내 비상구</dt>
                   <dd className="mt-1 text-sm font-bold text-text-strong">
                     {recommendedName ?? '없음'}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-text-muted">기본 비상구</dt>
+                  <dt className="text-xs text-text-muted">담당 비상구</dt>
                   <dd className="mt-1 text-sm font-medium text-text-strong">
                     {data.route.defaultExit?.name ?? '지정 안 함'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-text-muted">이동 거리</dt>
+                  <dd className="mt-1 text-sm font-medium tabular-nums text-text-strong">
+                    {presentation.hasRoute ? `약 ${Math.round(data.route.distanceMeters)}m` : '-'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-text-muted">가장 좁은 구간</dt>
+                  <dd className="mt-1 text-sm font-medium tabular-nums text-text-strong">
+                    {presentation.hasRoute
+                      ? `약 ${(data.route.narrowestMeters * 2).toFixed(1)}m 폭`
+                      : '-'}
                   </dd>
                 </div>
               </dl>

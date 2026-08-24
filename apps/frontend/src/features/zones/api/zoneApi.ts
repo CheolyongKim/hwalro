@@ -27,6 +27,9 @@ export interface RouteExit {
 
 export type EvacuationStatus = 'AVAILABLE' | 'UNREACHABLE' | 'NOT_CONFIGURED';
 
+/** ASSIGNED: 구역에 배정된 비상구. NEAREST: 배정이 없어 걸어서 가장 가까운 곳을 고른 경우. */
+export type ExitChoice = 'ASSIGNED' | 'NEAREST';
+
 export interface EvacuationRoute {
   zoneId: number;
   zoneName: string;
@@ -34,6 +37,12 @@ export interface EvacuationRoute {
   status: EvacuationStatus;
   defaultExit: RouteExit | null;
   recommendedExitId: number | null;
+  recommendedExitName: string | null;
+  exitChoice: ExitChoice | null;
+  /** 안내 경로를 따라 걷는 거리(m). */
+  distanceMeters: number;
+  /** 경로에서 가장 좁은 지점의 통로 반폭(m). 작을수록 사람이 몰렸을 때 막히기 쉽다. */
+  narrowestMeters: number;
   waypoints: RoutePoint[];
 }
 
@@ -43,5 +52,11 @@ export const zoneApi = {
   evacuationRoute: (zoneId: number) =>
     apiClient
       .get<EvacuationRoute>(`/api/my-zones/${zoneId}/evacuation-route`)
+      .then((response) => response.data),
+
+  /** 도면의 모든 구역 대피 경로. 안전 담당 권한에서만 조회된다. */
+  evacuationRoutes: (drawingId: number) =>
+    apiClient
+      .get<EvacuationRoute[]>(`/api/drawings/${drawingId}/evacuation-routes`)
       .then((response) => response.data),
 };
