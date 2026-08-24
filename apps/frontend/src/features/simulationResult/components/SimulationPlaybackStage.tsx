@@ -38,11 +38,19 @@ interface PanSession {
   notified: boolean;
 }
 
+export function ThreeSimulationLoading() {
+  return (
+    <div className="simulation-canvas-wrap simulation-three-loading" role="status">
+      3D 공간을 준비하고 있습니다.
+    </div>
+  );
+}
+
 export function SimulationPlaybackStage(props: SimulationPlaybackStageProps) {
   if (props.viewMode === 'three') {
     return (
       <Suspense
-        fallback={<div className="simulation-three-loading">3D 공간을 준비하고 있습니다.</div>}
+        fallback={<ThreeSimulationLoading />}
       >
         <ThreeSimulationStage
           result={props.result}

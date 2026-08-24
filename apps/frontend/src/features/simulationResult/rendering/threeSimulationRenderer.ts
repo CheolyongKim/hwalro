@@ -20,10 +20,12 @@ import {
   escalatorRunElevation,
   exitPortalPlacement,
   isEscalatorLabel,
+  projectExitsToBoundarySegments,
   segmentTransform,
-  splitBoundarySegmentsAtExits,
+  splitBoundarySegmentsAtActiveExits,
   worldToScene,
 } from './threeSimulationGeometry';
+import { configureThreeSimulationControls } from './threeSimulationControls';
 import { getExitPresentation, type ExitPresentation } from './exitPresentation';
 
 export interface ThreeSimulationScene {
@@ -303,10 +305,9 @@ function createStructures(result: SimulationResultViewModel) {
     );
   }
 
-  const outsideWalls = splitBoundarySegmentsAtExits(
-    createBoundarySegments(drawing.outsideBoundary),
-    drawing.exits,
-  );
+  const boundarySegments = createBoundarySegments(drawing.outsideBoundary);
+  const boundaryExits = projectExitsToBoundarySegments(boundarySegments, drawing.exits);
+  const outsideWalls = splitBoundarySegmentsAtActiveExits(boundarySegments, boundaryExits);
   for (const wall of outsideWalls) {
     addBoxForSegment(group, wall, drawing.width, drawing.height, 3.2, 0.34, outsideWallMaterial);
   }
@@ -354,7 +355,7 @@ function createStructures(result: SimulationResultViewModel) {
   for (const fabric of drawing.fabrics.filter((fabric) => !replacedStructures.has(fabric))) {
     addRectStructure(group, fabric, drawing.width, drawing.height, 1.55, fabricMaterial);
   }
-  for (const exit of drawing.exits) {
+  for (const exit of boundaryExits) {
     const presentation = getExitPresentation(exit.active);
     const material = exitMaterials.get(exit.active);
     if (!material) continue;
@@ -456,11 +457,7 @@ export function createThreeSimulationScene(
     const initialTarget = new THREE.Vector3(0, 0, 0);
     camera.position.copy(initialPosition);
     controls.target.copy(initialTarget);
-    controls.enableDamping = false;
-    controls.screenSpacePanning = true;
-    controls.minDistance = span * 0.22;
-    controls.maxDistance = span * 2.8;
-    controls.maxPolarAngle = Math.PI * 0.47;
+    configureThreeSimulationControls(controls, span);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xa6b9b3, 2.25));
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);

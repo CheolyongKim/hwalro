@@ -1,4 +1,4 @@
-import type { Bounds, DrawingRect, DrawingSegment, Point } from '../types';
+import type { Bounds, DrawingExit, DrawingRect, DrawingSegment, Point } from '../types';
 
 export interface ScenePoint {
   x: number;
@@ -160,19 +160,76 @@ function isParallelToSegment(first: DrawingSegment, second: DrawingSegment) {
   return Math.abs((firstX * secondX + firstY * secondY) / (firstLength * secondLength)) >= 0.9;
 }
 
-function overlapsSegmentProjection(exit: DrawingSegment, segment: DrawingSegment) {
+function segmentProjectionOverlapLength(exit: DrawingSegment, segment: DrawingSegment) {
   const deltaX = segment.endX - segment.startX;
   const deltaY = segment.endY - segment.startY;
   const lengthSquared = deltaX * deltaX + deltaY * deltaY;
-  if (lengthSquared === 0) return false;
+  if (lengthSquared === 0) return 0;
   const project = (x: number, y: number) =>
     ((x - segment.startX) * deltaX + (y - segment.startY) * deltaY) / lengthSquared;
   const start = Math.min(project(exit.startX, exit.startY), project(exit.endX, exit.endY));
   const end = Math.max(project(exit.startX, exit.startY), project(exit.endX, exit.endY));
-  return Math.min(1, end) - Math.max(0, start) > 0.001;
+  return Math.max(0, Math.min(1, end) - Math.max(0, start)) * Math.sqrt(lengthSquared);
 }
 
 const MAX_BOUNDARY_EXIT_OFFSET = 2;
+
+function findNearestBoundarySegment(segments: DrawingSegment[], exit: DrawingSegment) {
+  const midpoint = {
+    x: (exit.startX + exit.endX) / 2,
+    y: (exit.startY + exit.endY) / 2,
+  };
+  const nearestCandidate = segments
+    .filter((segment) => isParallelToSegment(exit, segment))
+    .map((segment) => ({
+      segment,
+      distance: pointDistanceToLine(midpoint, segment),
+      overlapLength: segmentProjectionOverlapLength(exit, segment),
+    }))
+    .filter(
+      (candidate) =>
+        candidate.overlapLength > 0.001 && candidate.distance <= MAX_BOUNDARY_EXIT_OFFSET,
+    )
+    .sort((first, second) => {
+      const overlapDifference = second.overlapLength - first.overlapLength;
+      if (Math.abs(overlapDifference) > 0.000001) return overlapDifference;
+      return first.distance - second.distance;
+    })[0];
+  return nearestCandidate?.segment ?? null;
+}
+
+function projectPointToSegmentLine(point: Point, segment: DrawingSegment) {
+  const deltaX = segment.endX - segment.startX;
+  const deltaY = segment.endY - segment.startY;
+  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+  if (lengthSquared === 0) return point;
+  const ratio =
+    ((point.x - segment.startX) * deltaX + (point.y - segment.startY) * deltaY) /
+    lengthSquared;
+  return {
+    x: segment.startX + deltaX * ratio,
+    y: segment.startY + deltaY * ratio,
+  };
+}
+
+export function projectExitsToBoundarySegments<T extends DrawingSegment>(
+  segments: DrawingSegment[],
+  exits: T[],
+): T[] {
+  return exits.map((exit) => {
+    const segment = findNearestBoundarySegment(segments, exit);
+    if (!segment) return exit;
+    const start = projectPointToSegmentLine({ x: exit.startX, y: exit.startY }, segment);
+    const end = projectPointToSegmentLine({ x: exit.endX, y: exit.endY }, segment);
+    return {
+      ...exit,
+      startX: start.x,
+      startY: start.y,
+      endX: end.x,
+      endY: end.y,
+    };
+  });
+}
 
 export function splitBoundarySegmentsAtExits(
   segments: DrawingSegment[],
@@ -180,19 +237,9 @@ export function splitBoundarySegmentsAtExits(
 ) {
   const exitsBySegment = new Map<DrawingSegment, DrawingSegment[]>();
 
-  for (const exit of exits) {
-    const midpoint = {
-      x: (exit.startX + exit.endX) / 2,
-      y: (exit.startY + exit.endY) / 2,
-    };
-    const nearestCandidate = segments
-      .filter(
-        (segment) => isParallelToSegment(exit, segment) && overlapsSegmentProjection(exit, segment),
-      )
-      .map((segment) => ({ segment, distance: pointDistanceToLine(midpoint, segment) }))
-      .sort((first, second) => first.distance - second.distance)[0];
-    if (!nearestCandidate || nearestCandidate.distance > MAX_BOUNDARY_EXIT_OFFSET) continue;
-    const nearestSegment = nearestCandidate.segment;
+  for (const exit of projectExitsToBoundarySegments(segments, exits)) {
+    const nearestSegment = findNearestBoundarySegment(segments, exit);
+    if (!nearestSegment) continue;
     const assignedExits = exitsBySegment.get(nearestSegment) ?? [];
     assignedExits.push(exit);
     exitsBySegment.set(nearestSegment, assignedExits);
@@ -204,6 +251,16 @@ export function splitBoundarySegmentsAtExits(
       exitsBySegment.get(segment) ?? [],
       MAX_BOUNDARY_EXIT_OFFSET,
     ),
+  );
+}
+
+export function splitBoundarySegmentsAtActiveExits(
+  segments: DrawingSegment[],
+  exits: DrawingExit[],
+) {
+  return splitBoundarySegmentsAtExits(
+    segments,
+    exits.filter((exit) => exit.active),
   );
 }
 

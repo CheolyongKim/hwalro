@@ -7,8 +7,10 @@ import {
   escalatorRunElevation,
   exitPortalPlacement,
   isEscalatorLabel,
+  projectExitsToBoundarySegments,
   segmentTransform,
   splitBoundarySegmentAtExits,
+  splitBoundarySegmentsAtActiveExits,
   splitBoundarySegmentsAtExits,
   worldToScene,
 } from './threeSimulationGeometry';
@@ -152,6 +154,37 @@ describe('threeSimulationGeometry', () => {
     ]);
   });
 
+  it('활성 비상구만 외곽벽을 뚫고 비활성 비상구 뒤는 막아 둔다', () => {
+    const walls = splitBoundarySegmentsAtActiveExits(
+      [{ name: 'outside', startX: 0, startY: 0, endX: 10, endY: 0 }],
+      [
+        {
+          id: 1,
+          name: 'active-exit',
+          startX: 2,
+          startY: 0,
+          endX: 4,
+          endY: 0,
+          active: true,
+        },
+        {
+          id: 2,
+          name: 'inactive-exit',
+          startX: 6,
+          startY: 0,
+          endX: 8,
+          endY: 0,
+          active: false,
+        },
+      ],
+    );
+
+    expect(walls).toEqual([
+      { name: 'outside-part-0', startX: 0, startY: 0, endX: 2, endY: 0 },
+      { name: 'outside-part-1', startX: 4, startY: 0, endX: 10, endY: 0 },
+    ]);
+  });
+
   it('외곽벽에서 떨어진 출구를 가장 가까운 평행 벽에 투영해 개구부를 만든다', () => {
     const walls = splitBoundarySegmentsAtExits(
       [
@@ -165,6 +198,115 @@ describe('threeSimulationGeometry', () => {
       { name: 'top-part-0', startX: 0, startY: 0, endX: 4, endY: 0 },
       { name: 'top-part-1', startX: 6, startY: 0, endX: 10, endY: 0 },
       { name: 'bottom-part-0', startX: 10, startY: 10, endX: 0, endY: 10 },
+    ]);
+  });
+
+  it('외곽벽에서 떨어진 우측 비상구 문틀도 개구부와 같은 벽 평면으로 옮긴다', () => {
+    const [projected] = projectExitsToBoundarySegments(
+      [{ name: 'right-wall', startX: 146.183, startY: 43.2, endX: 146.183, endY: 46.18 }],
+      [
+        {
+          name: '비상구 2',
+          startX: 145.2819,
+          startY: 43.2,
+          endX: 145.2819,
+          endY: 46.2,
+        },
+      ],
+    );
+
+    expect(projected.startX).toBeCloseTo(146.183);
+    expect(projected.endX).toBeCloseTo(146.183);
+    expect(projected.startY).toBeCloseTo(43.2);
+    expect(projected.endY).toBeCloseTo(46.2);
+  });
+
+  it('연속된 동일 선상의 외곽벽 중 비상구와 가장 많이 겹치는 벽을 뚫는다', () => {
+    const walls = splitBoundarySegmentsAtExits(
+      [
+        {
+          name: 'right-upper-wall',
+          startX: 146.183,
+          startY: 64.04,
+          endX: 146.183,
+          endY: 46.18,
+        },
+        {
+          name: 'right-exit-wall',
+          startX: 146.183,
+          startY: 46.18,
+          endX: 146.183,
+          endY: 43.2,
+        },
+      ],
+      [
+        {
+          name: '비상구 2',
+          startX: 145.2819,
+          startY: 43.2,
+          endX: 145.2819,
+          endY: 46.2,
+        },
+      ],
+    );
+
+    expect(walls).toEqual([
+      {
+        name: 'right-upper-wall-part-0',
+        startX: 146.183,
+        startY: 64.04,
+        endX: 146.183,
+        endY: 46.18,
+      },
+    ]);
+  });
+
+  it('높이가 다른 외곽벽 모서리에서도 좌상단 비상구와 가장 많이 겹치는 벽을 뚫는다', () => {
+    const walls = splitBoundarySegmentsAtActiveExits(
+      [
+        {
+          name: 'upper-long-wall',
+          startX: 42.177,
+          startY: 5.87,
+          endX: 70.924,
+          endY: 5.87,
+        },
+        {
+          name: 'upper-exit-wall',
+          startX: 42.177,
+          startY: 5.44,
+          endX: 34.901,
+          endY: 5.44,
+        },
+      ],
+      [
+        {
+          id: 3,
+          name: '비상구 3',
+          startX: 40,
+          startY: 6.358,
+          endX: 42.2,
+          endY: 6.358,
+          active: true,
+        },
+      ],
+    );
+
+    expect(walls).toEqual([
+      {
+        name: 'upper-long-wall-part-0',
+        startX: 42.177,
+        startY: 5.87,
+        endX: 70.924,
+        endY: 5.87,
+      },
+      {
+        name: 'upper-exit-wall-part-0',
+        startX: 40,
+        startY: 5.44,
+        endX: 34.901,
+        endY: 5.44,
+      },
     ]);
   });
 

@@ -41,9 +41,7 @@
 
 .simulation-three-loading {
   display: grid;
-  min-height: 520px;
   place-items: center;
-  border-radius: 18px;
   background: var(--color-canvas-surround, #dfe6e3);
   color: var(--color-text-muted);
   font-size: 13px;
