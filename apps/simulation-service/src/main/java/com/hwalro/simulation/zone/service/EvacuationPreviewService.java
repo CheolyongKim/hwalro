@@ -66,34 +66,23 @@ public class EvacuationPreviewService {
 
         DrawingGeometryDto drawing = simulationService.layoutGeometry(zone.getLayoutVersionId());
         ExitDto defaultExit = findExit(drawing, zone.getDefaultExitId());
-        ExitDto alternateExit = findExit(drawing, zone.getAlternateExitId());
         PointDto origin = new PointDto(zone.centerX(), zone.centerY());
 
         List<Long> selectedExitIds = new ArrayList<>();
         if (defaultExit != null) {
             selectedExitIds.add(defaultExit.id());
         }
-        if (alternateExit != null) {
-            selectedExitIds.add(alternateExit.id());
-        }
         if (selectedExitIds.isEmpty()) {
             // 엔진을 부르지 않는다. 비상구가 없으면 계산할 것도 없고, 사용자를 32초 기다리게 할 이유도 없다.
             return new EvacuationRouteResponse(
-                    zone.getId(),
-                    zone.getName(),
-                    origin,
-                    STATUS_NOT_CONFIGURED,
-                    defaultExit,
-                    alternateExit,
-                    null,
-                    List.of());
+                    zone.getId(), zone.getName(), origin, STATUS_NOT_CONFIGURED, defaultExit, null, List.of());
         }
 
         try {
             List<PreviewedRoute> routes = engineRunner.previewRoutes(
                     "zone-" + zoneId, syntheticSetup(zone, drawing, origin, selectedExitIds));
             if (routes.isEmpty()) {
-                return unreachable(zone, origin, defaultExit, alternateExit);
+                return unreachable(zone, origin, defaultExit);
             }
             PreviewedRoute route = routes.get(0);
             return new EvacuationRouteResponse(
@@ -103,12 +92,11 @@ public class EvacuationPreviewService {
                     origin,
                     STATUS_AVAILABLE,
                     defaultExit,
-                    alternateExit,
                     route.exitId(),
                     route.waypoints());
         } catch (EngineRunException exception) {
             log.info("구역 {}의 대피 경로를 계산하지 못했습니다: {}", zoneId, exception.getMessage());
-            return unreachable(zone, origin, defaultExit, alternateExit);
+            return unreachable(zone, origin, defaultExit);
         }
     }
 
@@ -135,10 +123,9 @@ public class EvacuationPreviewService {
                 drawing);
     }
 
-    private EvacuationRouteResponse unreachable(
-            LayoutZone zone, PointDto origin, ExitDto defaultExit, ExitDto alternateExit) {
+    private EvacuationRouteResponse unreachable(LayoutZone zone, PointDto origin, ExitDto defaultExit) {
         return new EvacuationRouteResponse(
-                zone.getId(), zone.getName(), origin, STATUS_UNREACHABLE, defaultExit, alternateExit, null, List.of());
+                zone.getId(), zone.getName(), origin, STATUS_UNREACHABLE, defaultExit, null, List.of());
     }
 
     private void requireAccessible(LayoutZone zone, JwtUser user) {

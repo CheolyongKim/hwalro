@@ -5,6 +5,8 @@ export interface Vec2 {
 
 export interface Wall {
   id: string;
+  /** 서버가 소유한 walls.id. 구역 멤버십이 이 값을 참조한다. 새로 그린 벽은 저장 전까지 null이다. */
+  backendId: number | null;
   name: string;
   startX: number;
   startY: number;
@@ -34,6 +36,8 @@ export interface Exit {
 
 export interface Pillar {
   id: string;
+  /** 서버가 소유한 pillars.id. 구역 멤버십이 이 값을 참조한다. 새로 그린 기둥은 저장 전까지 null이다. */
+  backendId: number | null;
   name: string;
   startX: number;
   startY: number;
@@ -206,6 +210,7 @@ export interface EditorState {
 }
 
 export interface SerializedWall {
+  id: number | null;
   name: string;
   startX: number;
   startY: number;
@@ -231,6 +236,7 @@ export interface SerializedExit {
 }
 
 export interface SerializedPillar {
+  id: number | null;
   name: string;
   startX: number;
   startY: number;

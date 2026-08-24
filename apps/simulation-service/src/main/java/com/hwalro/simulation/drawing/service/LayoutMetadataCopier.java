@@ -1,8 +1,11 @@
 package com.hwalro.simulation.drawing.service;
 
 import com.hwalro.simulation.zone.domain.LayoutZone;
-import com.hwalro.simulation.zone.domain.LayoutZoneStructure;
+import com.hwalro.simulation.zone.domain.LayoutZoneMember;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -10,8 +13,8 @@ import org.springframework.stereotype.Component;
 /**
  * 도면 복제와 개선안 채택이 공유하는 구역 메타데이터 복사기.
  *
- * <p>두 경로 모두 새 도면 버전에 구조물과 비상구를 새 ID로 다시 만든다. 구역의 비상구 참조와 멤버십의 구조물 참조는 그 새 ID를 가리켜야 하므로, 호출자가 만든
- * 원본→대상 ID 맵을 받아 치환한다. 이름이나 좌표로 짝을 찾지 않는다 — 이름이 같은 비상구가 둘이면 잘못된 짝을 고를 수 있다.
+ * <p>두 경로 모두 새 도면 버전에 벽·기둥·구조물과 비상구를 새 ID로 다시 만든다. 구역의 비상구 참조와 멤버십의 요소 참조는 그 새 ID를 가리켜야 하므로, 호출자가
+ * 만든 원본→대상 ID 맵을 받아 치환한다. 이름이나 좌표로 짝을 찾지 않는다 — 이름이 같은 요소가 둘이면 잘못된 짝을 고를 수 있다.
  */
 @Component
 public class LayoutMetadataCopier {
@@ -27,13 +30,16 @@ public class LayoutMetadataCopier {
      * <p>담당 직원 배정은 그대로 복사한다. 복사본이 원본과 같은 것이 가장 덜 놀라운 동작이다.
      *
      * @param exitIdMap 원본 비상구 ID → 대상 비상구 ID
-     * @param fabricIdMap 원본 구조물 ID → 대상 구조물 ID
+     * @param elementIdMaps 종류별 원본 요소 ID → 대상 요소 ID. 멤버십은 벽·기둥·구조물의 ID가 서로 겹치므로 종류로 키를 나눈 맵으로만 짝지울 수 있다.
      */
     public void copy(
-            Long sourceVersionId, Long targetVersionId, Map<Long, Long> exitIdMap, Map<Long, Long> fabricIdMap) {
+            Long sourceVersionId,
+            Long targetVersionId,
+            Map<Long, Long> exitIdMap,
+            Map<ZoneElementKind, Map<Long, Long>> elementIdMaps) {
         List<LayoutZone> sourceZones = layoutZoneMapper.findZonesByVersionId(sourceVersionId);
         if (!sourceZones.isEmpty()) {
-            copyZonesAndMemberships(sourceVersionId, targetVersionId, sourceZones, exitIdMap, fabricIdMap);
+            copyZonesAndMemberships(sourceVersionId, targetVersionId, sourceZones, exitIdMap, elementIdMaps);
         }
         layoutZoneMapper.copyPlacementExclusions(sourceVersionId, targetVersionId);
     }
@@ -43,8 +49,8 @@ public class LayoutMetadataCopier {
             Long targetVersionId,
             List<LayoutZone> sourceZones,
             Map<Long, Long> exitIdMap,
-            Map<Long, Long> fabricIdMap) {
-        Map<Long, Long> zoneIdMap = new java.util.LinkedHashMap<>();
+            Map<ZoneElementKind, Map<Long, Long>> elementIdMaps) {
+        Map<Long, Long> zoneIdMap = new LinkedHashMap<>();
         for (LayoutZone source : sourceZones) {
             LayoutZone target = new LayoutZone();
             target.setLayoutVersionId(targetVersionId);
@@ -56,20 +62,37 @@ public class LayoutMetadataCopier {
             target.setHeight(source.getHeight());
             target.setAssignedUserId(source.getAssignedUserId());
             target.setDefaultExitId(remap(exitIdMap, source.getDefaultExitId(), "비상구"));
-            target.setAlternateExitId(remap(exitIdMap, source.getAlternateExitId(), "비상구"));
+            target.setDisplayOrder(source.getDisplayOrder());
             layoutZoneMapper.insertZone(target);
             zoneIdMap.put(source.getId(), target.getId());
         }
 
-        List<LayoutZoneStructure> memberships = layoutZoneMapper.findZoneStructuresByVersionId(sourceVersionId).stream()
-                .map(source -> new LayoutZoneStructure(
-                        targetVersionId,
-                        remap(zoneIdMap, source.getZoneId(), "구역"),
-                        remap(fabricIdMap, source.getFabricId(), "구조물")))
-                .toList();
-        if (!memberships.isEmpty()) {
-            layoutZoneMapper.insertZoneStructures(memberships);
+        List<LayoutZoneMember> members = new ArrayList<>();
+        for (LayoutZoneMember source : layoutZoneMapper.findZoneMembersByVersionId(sourceVersionId)) {
+            ZoneElementKind kind = source.getKind();
+            Long targetElementId = remap(elementIdMap(elementIdMaps, kind), source.elementId(), kindLabel(kind));
+            members.add(LayoutZoneMember.of(
+                    targetVersionId, remap(zoneIdMap, source.getZoneId(), "구역"), kind, targetElementId));
         }
+        if (!members.isEmpty()) {
+            layoutZoneMapper.insertZoneMembers(members);
+        }
+    }
+
+    private Map<Long, Long> elementIdMap(Map<ZoneElementKind, Map<Long, Long>> elementIdMaps, ZoneElementKind kind) {
+        Map<Long, Long> idMap = elementIdMaps.get(kind);
+        if (idMap == null) {
+            throw new IllegalStateException("복사에 필요한 " + kindLabel(kind) + " ID 맵이 없습니다.");
+        }
+        return idMap;
+    }
+
+    private String kindLabel(ZoneElementKind kind) {
+        return switch (kind) {
+            case WALL -> "벽";
+            case PILLAR -> "기둥";
+            case FABRIC -> "구조물";
+        };
     }
 
     /** 매핑되지 않은 참조는 조용히 NULL로 만들지 않고 즉시 실패시킨다. 복사본이 원본과 다른 곳을 가리키는 것이 더 나쁘다. */

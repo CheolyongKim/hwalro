@@ -9,8 +9,6 @@ export interface MyZone {
   layoutVersionId: number;
   defaultExitId: number | null;
   defaultExitName: string | null;
-  alternateExitId: number | null;
-  alternateExitName: string | null;
 }
 
 export interface RoutePoint {
@@ -35,7 +33,6 @@ export interface EvacuationRoute {
   origin: RoutePoint;
   status: EvacuationStatus;
   defaultExit: RouteExit | null;
-  alternateExit: RouteExit | null;
   recommendedExitId: number | null;
   waypoints: RoutePoint[];
 }

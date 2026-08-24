@@ -30,13 +30,16 @@ import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import com.hwalro.simulation.simulation.service.AgentPositions;
 import com.hwalro.simulation.simulation.service.SimulationGeometry;
 import com.hwalro.simulation.simulation.service.SimulationService;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -122,17 +125,31 @@ public class CandidateAdoptionService {
         drawingMapper.insertLayoutVersion(targetVersion);
 
         drawingMapper.copyWalls(sourceVersionId, targetVersion.getId());
-        drawingMapper.copyPillars(sourceVersionId, targetVersion.getId());
         drawingMapper.copyOutsideWalls(sourceVersionId, targetVersion.getId());
         drawingMapper.copyLayoutTexts(sourceVersionId, targetVersion.getId());
+        drawingMapper.copyPillars(sourceVersionId, targetVersion.getId());
         drawingMapper.insertFabrics(changedFabrics(candidate, sourceVersionId, targetVersion.getId()));
         copyExits(sourceVersionId, targetVersion.getId());
         layoutMetadataCopier.copy(
                 sourceVersionId,
                 targetVersion.getId(),
-                idMapByOrder(sourceVersionId, targetVersion.getId(), true),
-                idMapByOrder(sourceVersionId, targetVersion.getId(), false));
+                exitIdMapByOrder(sourceVersionId, targetVersion.getId()),
+                elementIdMaps(
+                        idMapByOrder(
+                                drawingMapper::findWallIdsByVersionId, sourceVersionId, targetVersion.getId(), "벽"),
+                        idMapByOrder(
+                                drawingMapper::findPillarIdsByVersionId, sourceVersionId, targetVersion.getId(), "기둥"),
+                        fabricIdMapByOrder(sourceVersionId, targetVersion.getId())));
         return targetVersion.getId();
+    }
+
+    private Map<ZoneElementKind, Map<Long, Long>> elementIdMaps(
+            Map<Long, Long> wallIdMap, Map<Long, Long> pillarIdMap, Map<Long, Long> fabricIdMap) {
+        Map<ZoneElementKind, Map<Long, Long>> elementIdMaps = new EnumMap<>(ZoneElementKind.class);
+        elementIdMaps.put(ZoneElementKind.WALL, wallIdMap);
+        elementIdMaps.put(ZoneElementKind.PILLAR, pillarIdMap);
+        elementIdMaps.put(ZoneElementKind.FABRIC, fabricIdMap);
+        return elementIdMaps;
     }
 
     List<Fabric> changedFabrics(LayoutSearchCandidateEntity candidate, Long sourceVersionId, Long targetVersionId) {
@@ -282,7 +299,7 @@ public class CandidateAdoptionService {
         if (selectedSourceIds.isEmpty()) {
             return List.of();
         }
-        Map<Long, Long> exitIdMap = idMapByOrder(sourceVersionId, targetVersionId, true);
+        Map<Long, Long> exitIdMap = exitIdMapByOrder(sourceVersionId, targetVersionId);
         List<Long> selectedTargets = new ArrayList<>();
         for (Long sourceId : selectedSourceIds) {
             Long targetId = exitIdMap.get(sourceId);
@@ -298,25 +315,31 @@ public class CandidateAdoptionService {
      * 원본 버전과 대상 버전의 요소를 순서로 짝지어 ID 맵을 만든다.
      *
      * <p>이름이나 좌표로 짝을 찾지 않는다. 이름이 같은 비상구가 둘이면 잘못된 짝을 고르고, 후보가 옮긴
-     * 구조물은 좌표가 아예 다르기 때문이다. 복사는 항상 {@code ORDER BY id ASC}로 읽어 같은 순서로
-     * 삽입하므로 두 목록의 i번째끼리가 같은 요소다. 개수가 어긋나면 그 가정이 깨진 것이므로 즉시 실패한다.
+     * 구조물은 좌표가 아예 다르기 때문이다. 복사와 조회가 모두 {@code ORDER BY display_order ASC, id ASC}를
+     * 유지하므로 두 목록의 i번째끼리가 같은 요소다(비상구는 표시 순서가 없어 {@code ORDER BY id ASC}). 개수가
+     * 어긋나면 그 가정이 깨진 것이므로 즉시 실패한다.
      */
-    private Map<Long, Long> idMapByOrder(Long sourceVersionId, Long targetVersionId, boolean exits) {
-        List<Long> sourceIds = exits
-                ? drawingMapper.findLayoutExitIdsByVersionId(sourceVersionId)
-                : drawingMapper.findFabricIdsByVersionId(sourceVersionId);
-        List<Long> targetIds = exits
-                ? drawingMapper.findLayoutExitIdsByVersionId(targetVersionId)
-                : drawingMapper.findFabricIdsByVersionId(targetVersionId);
+    private Map<Long, Long> idMapByOrder(
+            Function<Long, List<Long>> findIdsByVersionId, Long sourceVersionId, Long targetVersionId, String label) {
+        List<Long> sourceIds = findIdsByVersionId.apply(sourceVersionId);
+        List<Long> targetIds = findIdsByVersionId.apply(targetVersionId);
         if (sourceIds.size() != targetIds.size()) {
-            throw new IllegalStateException((exits ? "출구" : "구조물") + " 복사 결과가 원본과 개수가 다릅니다: source=" + sourceIds.size()
-                    + ", target=" + targetIds.size());
+            throw new IllegalStateException(
+                    label + " 복사 결과가 원본과 개수가 다릅니다: source=" + sourceIds.size() + ", target=" + targetIds.size());
         }
         Map<Long, Long> idMap = new LinkedHashMap<>();
         for (int index = 0; index < sourceIds.size(); index++) {
             idMap.put(sourceIds.get(index), targetIds.get(index));
         }
         return idMap;
+    }
+
+    private Map<Long, Long> exitIdMapByOrder(Long sourceVersionId, Long targetVersionId) {
+        return idMapByOrder(drawingMapper::findLayoutExitIdsByVersionId, sourceVersionId, targetVersionId, "비상구");
+    }
+
+    private Map<Long, Long> fabricIdMapByOrder(Long sourceVersionId, Long targetVersionId) {
+        return idMapByOrder(drawingMapper::findFabricIdsByVersionId, sourceVersionId, targetVersionId, "구조물");
     }
 
     private Fabric copyFabric(Fabric source, Long targetVersionId) {
@@ -328,6 +351,7 @@ public class CandidateAdoptionService {
         target.setEndX(source.getEndX());
         target.setEndY(source.getEndY());
         target.setRotation(source.getRotation());
+        target.setDisplayOrder(source.getDisplayOrder());
         return target;
     }
 

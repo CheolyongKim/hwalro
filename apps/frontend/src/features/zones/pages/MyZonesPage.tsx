@@ -85,12 +85,6 @@ function MyZonesPage() {
                         {zone.defaultExitName ?? '지정 안 함'}
                       </dd>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="shrink-0 text-text-muted">대체 비상구</dt>
-                      <dd className="truncate font-medium text-text-strong">
-                        {zone.alternateExitName ?? '지정 안 함'}
-                      </dd>
-                    </div>
                   </dl>
 
                   <div className="mt-5 flex gap-2">

@@ -16,11 +16,13 @@ import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.zone.client.EmployeeDirectoryClient;
 import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
 import com.hwalro.simulation.zone.domain.LayoutZone;
-import com.hwalro.simulation.zone.domain.LayoutZoneStructure;
+import com.hwalro.simulation.zone.domain.LayoutZoneMember;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.LayoutMetadataResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneCreateRequest;
+import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneMemberDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneResponse;
 import java.math.BigDecimal;
 import java.util.List;
@@ -96,8 +98,8 @@ class LayoutZoneAuthorizationTest {
                 .thenReturn(List.of(zone(MINE_ZONE_ID, EMPLOYEE_ID), zone(OTHER_ZONE_ID, 99L)));
         when(layoutZoneService.memberships(VERSION_ID))
                 .thenReturn(List.of(
-                        new LayoutZoneStructure(VERSION_ID, MINE_ZONE_ID, MY_FABRIC_ID),
-                        new LayoutZoneStructure(VERSION_ID, OTHER_ZONE_ID, OTHER_FABRIC_ID)));
+                        LayoutZoneMember.of(VERSION_ID, MINE_ZONE_ID, ZoneElementKind.FABRIC, MY_FABRIC_ID),
+                        LayoutZoneMember.of(VERSION_ID, OTHER_ZONE_ID, ZoneElementKind.FABRIC, OTHER_FABRIC_ID)));
         when(layoutZoneService.fabrics(VERSION_ID))
                 .thenReturn(List.of(fabric(MY_FABRIC_ID), fabric(OTHER_FABRIC_ID), fabric(COMMON_FABRIC_ID)));
         LayoutPlacementExclusion exclusion = new LayoutPlacementExclusion();
@@ -120,7 +122,7 @@ class LayoutZoneAuthorizationTest {
         LayoutMetadataResponse response = service.readMetadata(LAYOUT_ID, employee());
 
         assertThat(response.zones()).extracting(ZoneResponse::zoneId).containsExactly(MINE_ZONE_ID);
-        assertThat(response.zones().get(0).structureFabricIds()).containsExactly(MY_FABRIC_ID);
+        assertThat(response.zones().get(0).members()).containsExactly(new ZoneMemberDto("FABRIC", MY_FABRIC_ID));
     }
 
     @Test
@@ -130,6 +132,21 @@ class LayoutZoneAuthorizationTest {
         assertThat(response.structureConstraints())
                 .extracting(StructureConstraintDto::fabricId)
                 .containsExactly(MY_FABRIC_ID);
+    }
+
+    @Test
+    void wallMembershipWithTheSameNumericIdNeverAttachesToStructureConstraints() {
+        when(layoutZoneService.memberships(VERSION_ID))
+                .thenReturn(List.of(
+                        LayoutZoneMember.of(VERSION_ID, MINE_ZONE_ID, ZoneElementKind.FABRIC, MY_FABRIC_ID),
+                        LayoutZoneMember.of(VERSION_ID, OTHER_ZONE_ID, ZoneElementKind.WALL, MY_FABRIC_ID)));
+
+        LayoutMetadataResponse response = service.readMetadata(LAYOUT_ID, operator());
+
+        assertThat(response.structureConstraints())
+                .filteredOn(constraint -> constraint.fabricId().equals(MY_FABRIC_ID))
+                .singleElement()
+                .satisfies(constraint -> assertThat(constraint.zoneId()).isEqualTo(MINE_ZONE_ID));
     }
 
     @Test
@@ -195,7 +212,6 @@ class LayoutZoneAuthorizationTest {
                 BigDecimal.TEN,
                 BigDecimal.TEN,
                 EMPLOYEE_ID,
-                null,
                 null,
                 null);
 

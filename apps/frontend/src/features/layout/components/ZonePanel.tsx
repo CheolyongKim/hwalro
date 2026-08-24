@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { LayoutZone, StructureConstraint, ZoneType } from '../api/layoutMetadataApi';
-import type { Exit, Fabric } from '../types';
+import type { Exit } from '../types';
 import { round1 } from '../utils/geometry';
 
 const ZONE_TYPE_LABELS: Record<ZoneType, string> = {
@@ -63,14 +63,11 @@ interface ZonePanelProps {
   exits: Exit[];
   employees: Array<{ id: number; name: string }>;
   readOnly: boolean;
-  /** 현재 선택된 구조물. 구역에 넣거나 뺄 대상이다. */
-  selectedFabric: Fabric | null;
   onRename: (name: string) => void;
   onChangeType: (zoneType: ZoneType) => void;
   onChangeRect: (patch: { x?: number; y?: number; width?: number; height?: number }) => void;
   onAssign: (userId: number | null) => void;
-  onChangeExit: (which: 'default' | 'alternate', exitBackendId: number | null) => void;
-  onToggleMembership: (fabricBackendId: number, add: boolean) => void;
+  onChangeExit: (exitBackendId: number | null) => void;
   onDelete: () => void;
 }
 
@@ -79,21 +76,16 @@ export function ZonePanel({
   exits,
   employees,
   readOnly,
-  selectedFabric,
   onRename,
   onChangeType,
   onChangeRect,
   onAssign,
   onChangeExit,
-  onToggleMembership,
   onDelete,
 }: ZonePanelProps) {
   const [nameDraft, setNameDraft] = useState(zone.name);
   useEffect(() => setNameDraft(zone.name), [zone.name, zone.zoneId]);
 
-  const selectedBackendId = selectedFabric?.backendId ?? null;
-  const selectedIsMember =
-    selectedBackendId !== null && zone.structureFabricIds.includes(selectedBackendId);
   const savedExits = exits.filter((exit) => exit.backendId !== null);
 
   return (
@@ -187,7 +179,7 @@ export function ZonePanel({
           value={zone.defaultExitId ?? ''}
           disabled={readOnly}
           onChange={(event) =>
-            onChangeExit('default', event.target.value === '' ? null : Number(event.target.value))
+            onChangeExit(event.target.value === '' ? null : Number(event.target.value))
           }
           className={controlClassName}
         >
@@ -200,50 +192,13 @@ export function ZonePanel({
         </select>
       </label>
 
-      <label className="mt-3 block">
-        <span className={fieldLabelClassName}>대체 비상구</span>
-        <select
-          value={zone.alternateExitId ?? ''}
-          disabled={readOnly}
-          onChange={(event) =>
-            onChangeExit('alternate', event.target.value === '' ? null : Number(event.target.value))
-          }
-          className={controlClassName}
-        >
-          <option value="">지정 안 함</option>
-          {savedExits
-            .filter((exit) => exit.backendId !== zone.defaultExitId)
-            .map((exit) => (
-              <option key={exit.id} value={exit.backendId ?? undefined}>
-                {exit.name}
-              </option>
-            ))}
-        </select>
-      </label>
-
       <div className="mt-4 border-t border-panel-divider pt-3">
         <h4 className="text-xs font-bold text-panel-text">
-          구성 구조물 {zone.structureFabricIds.length}개
+          구성 요소 {zone.members.length}개
         </h4>
-        {readOnly ? null : selectedFabric === null ? (
-          <p className="mt-1 text-xs text-panel-muted">
-            구조물을 선택하면 이 구역에 넣거나 뺄 수 있습니다.
-          </p>
-        ) : selectedBackendId === null ? (
-          <p className="mt-1 text-xs text-panel-muted">
-            새로 그린 구조물입니다. 도면을 저장한 뒤 구역에 넣을 수 있습니다.
-          </p>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onToggleMembership(selectedBackendId, !selectedIsMember)}
-            className="mt-2 flex h-8 w-full items-center justify-center rounded-md border border-panel-divider bg-panel-soft text-xs font-bold text-panel-text transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-          >
-            {selectedIsMember
-              ? `${selectedFabric.name} 이 구역에서 빼기`
-              : `${selectedFabric.name} 이 구역에 넣기`}
-          </button>
-        )}
+        <p className="mt-1 text-xs text-panel-muted">
+          소속은 왼쪽 계층 패널에서 드래그로 정합니다.
+        </p>
       </div>
 
       {readOnly ? null : (

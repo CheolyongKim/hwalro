@@ -29,8 +29,10 @@ import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedExceptio
 import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -38,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -208,21 +211,55 @@ public class DrawingService {
             throw new DrawingConflictException(id);
         }
 
-        // ponytail: 벽·기둥·외각벽·텍스트는 참조하는 테이블이 없어 통째로 지우고 다시 넣는다.
-        // 이들을 ID로 참조하는 기능이 생기면 아래 fabric/exit와 같은 identity sync로 승급한다.
-        drawingMapper.deleteWallsByVersionId(version.getId());
-        drawingMapper.deletePillarsByVersionId(version.getId());
+        // ponytail: 외각벽·텍스트는 참조하는 테이블이 없어 통째로 지우고 다시 넣는다.
+        // 이들을 ID로 참조하는 기능이 생기면 아래 identity sync로 승급한다.
         drawingMapper.deleteOutsideWallsByVersionId(version.getId());
         drawingMapper.deleteLayoutTextsByVersionId(version.getId());
-        insertWallsIfPresent(toWalls(request.walls(), version.getId()));
-        insertPillarsIfPresent(toPillars(request.pillars(), version.getId()));
         insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), version.getId()));
         insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), version.getId()));
         // 구역 멤버십·배치 제약·구역 비상구 참조가 이 ID들을 가리키므로 삭제 후 재삽입하면 안 된다.
+        syncWalls(version.getId(), toWalls(request.walls(), version.getId()));
+        syncPillars(version.getId(), toPillars(request.pillars(), version.getId()));
         syncFabrics(version.getId(), toFabrics(request.fabrics(), version.getId()));
         syncExits(version.getId(), toExits(request.exits(), version.getId()));
 
         return toResponse(findLayoutOrThrow(id));
+    }
+
+    void syncWalls(Long layoutVersionId, List<Wall> requested) {
+        List<Long> existingIds = drawingMapper.findWallIdsByVersionId(layoutVersionId);
+        Set<Long> keptIds = validateRequestedIds(requested.stream().map(Wall::getId), existingIds, "벽");
+        for (Wall wall : requested) {
+            if (wall.getId() == null) {
+                drawingMapper.insertWall(wall);
+            } else {
+                drawingMapper.updateWallGeometry(wall);
+            }
+        }
+        List<Long> removedIds = existingIds.stream()
+                .filter(existing -> !keptIds.contains(existing))
+                .toList();
+        if (!removedIds.isEmpty()) {
+            drawingMapper.deleteWallsByIds(layoutVersionId, removedIds);
+        }
+    }
+
+    void syncPillars(Long layoutVersionId, List<Pillar> requested) {
+        List<Long> existingIds = drawingMapper.findPillarIdsByVersionId(layoutVersionId);
+        Set<Long> keptIds = validateRequestedIds(requested.stream().map(Pillar::getId), existingIds, "기둥");
+        for (Pillar pillar : requested) {
+            if (pillar.getId() == null) {
+                drawingMapper.insertPillar(pillar);
+            } else {
+                drawingMapper.updatePillarGeometry(pillar);
+            }
+        }
+        List<Long> removedIds = existingIds.stream()
+                .filter(existing -> !keptIds.contains(existing))
+                .toList();
+        if (!removedIds.isEmpty()) {
+            drawingMapper.deletePillarsByIds(layoutVersionId, removedIds);
+        }
     }
 
     // package-private: CandidateAdoptionService.changedFabrics와 같은 이유로 테스트에서 직접 호출한다.
@@ -308,17 +345,17 @@ public class DrawingService {
         version.setOptimisticLock(0);
         drawingMapper.insertLayoutVersion(version);
 
-        insertWallsIfPresent(copyWalls(drawingMapper.findWallsByVersionId(sourceVersion.getId()), version.getId()));
+        Map<Long, Long> wallIdMap = copyWallsWithIdMap(sourceVersion.getId(), version.getId());
         insertOutsideWallsIfPresent(
                 copyOutsideWalls(drawingMapper.findOutsideWallsByVersionId(sourceVersion.getId()), version.getId()));
-        insertPillarsIfPresent(
-                copyPillars(drawingMapper.findPillarsByVersionId(sourceVersion.getId()), version.getId()));
+        Map<Long, Long> pillarIdMap = copyPillarsWithIdMap(sourceVersion.getId(), version.getId());
         insertLayoutTextsIfPresent(
                 copyLayoutTexts(drawingMapper.findLayoutTextsByVersionId(sourceVersion.getId()), version.getId()));
-        // 구역·멤버십이 구조물/비상구를 ID로 참조하므로 한 건씩 넣어 원본→대상 ID 맵을 만든다.
+        // 구역·멤버십이 벽·기둥·구조물/비상구를 ID로 참조하므로 한 건씩 넣어 원본→대상 ID 맵을 만든다.
         Map<Long, Long> fabricIdMap = copyFabricsWithIdMap(sourceVersion.getId(), version.getId());
         Map<Long, Long> exitIdMap = copyExitsWithIdMap(sourceVersion.getId(), version.getId());
-        layoutMetadataCopier.copy(sourceVersion.getId(), version.getId(), exitIdMap, fabricIdMap);
+        layoutMetadataCopier.copy(
+                sourceVersion.getId(), version.getId(), exitIdMap, elementIdMaps(wallIdMap, pillarIdMap, fabricIdMap));
 
         layout.setCurrentVersionId(version.getId());
         drawingMapper.updateLayoutCurrentVersion(layout);
@@ -406,11 +443,17 @@ public class DrawingService {
         FloorPlan floorPlan = drawingMapper.findFloorPlanById(layout.getFloorPlanId());
         LayoutVersion version = findVersionOrThrow(layout.getCurrentVersionId());
         List<WallDto> walls = drawingMapper.findWallsByVersionId(version.getId()).stream()
-                .map(wall ->
-                        new WallDto(wall.getName(), wall.getStartX(), wall.getStartY(), wall.getEndX(), wall.getEndY()))
+                .map(wall -> new WallDto(
+                        wall.getId(),
+                        wall.getName(),
+                        wall.getStartX(),
+                        wall.getStartY(),
+                        wall.getEndX(),
+                        wall.getEndY()))
                 .toList();
         List<PillarDto> pillars = drawingMapper.findPillarsByVersionId(version.getId()).stream()
                 .map(pillar -> new PillarDto(
+                        pillar.getId(),
                         pillar.getName(),
                         pillar.getStartX(),
                         pillar.getStartY(),
@@ -484,39 +527,46 @@ public class DrawingService {
     }
 
     private List<Wall> toWalls(List<WallDto> walls, Long layoutVersionId) {
-        return walls.stream()
-                .map(wall -> {
+        return IntStream.range(0, walls.size())
+                .mapToObj(index -> {
+                    WallDto wall = walls.get(index);
                     Wall domainWall = new Wall();
                     domainWall.setLayoutVersionId(layoutVersionId);
+                    domainWall.setId(wall.id());
                     domainWall.setName(wall.name() == null ? "" : wall.name());
                     domainWall.setStartX(wall.startX());
                     domainWall.setStartY(wall.startY());
                     domainWall.setEndX(wall.endX());
                     domainWall.setEndY(wall.endY());
+                    domainWall.setDisplayOrder(index);
                     return domainWall;
                 })
                 .toList();
     }
 
     private List<Pillar> toPillars(List<PillarDto> pillars, Long layoutVersionId) {
-        return pillars.stream()
-                .map(pillar -> {
+        return IntStream.range(0, pillars.size())
+                .mapToObj(index -> {
+                    PillarDto pillar = pillars.get(index);
                     Pillar domainPillar = new Pillar();
                     domainPillar.setLayoutVersionId(layoutVersionId);
+                    domainPillar.setId(pillar.id());
                     domainPillar.setName(pillar.name() == null ? "" : pillar.name());
                     domainPillar.setStartX(smaller(pillar.startX(), pillar.endX()));
                     domainPillar.setStartY(smaller(pillar.startY(), pillar.endY()));
                     domainPillar.setEndX(larger(pillar.startX(), pillar.endX()));
                     domainPillar.setEndY(larger(pillar.startY(), pillar.endY()));
                     domainPillar.setRotation(pillar.rotation());
+                    domainPillar.setDisplayOrder(index);
                     return domainPillar;
                 })
                 .toList();
     }
 
     private List<Fabric> toFabrics(List<FabricDto> fabrics, Long layoutVersionId) {
-        return fabrics.stream()
-                .map(fabric -> {
+        return IntStream.range(0, fabrics.size())
+                .mapToObj(index -> {
+                    FabricDto fabric = fabrics.get(index);
                     Fabric domainFabric = new Fabric();
                     domainFabric.setId(fabric.id());
                     domainFabric.setLayoutVersionId(layoutVersionId);
@@ -526,6 +576,7 @@ public class DrawingService {
                     domainFabric.setEndX(larger(fabric.startX(), fabric.endX()));
                     domainFabric.setEndY(larger(fabric.startY(), fabric.endY()));
                     domainFabric.setRotation(fabric.rotation());
+                    domainFabric.setDisplayOrder(index);
                     return domainFabric;
                 })
                 .toList();
@@ -679,21 +730,6 @@ public class DrawingService {
         return base + suffix;
     }
 
-    private List<Wall> copyWalls(List<Wall> sourceWalls, Long layoutVersionId) {
-        return sourceWalls.stream()
-                .map(wall -> {
-                    Wall copy = new Wall();
-                    copy.setLayoutVersionId(layoutVersionId);
-                    copy.setName(wall.getName());
-                    copy.setStartX(wall.getStartX());
-                    copy.setStartY(wall.getStartY());
-                    copy.setEndX(wall.getEndX());
-                    copy.setEndY(wall.getEndY());
-                    return copy;
-                })
-                .toList();
-    }
-
     private List<OutsideWall> copyOutsideWalls(List<OutsideWall> sourceOutsideWalls, Long layoutVersionId) {
         return sourceOutsideWalls.stream()
                 .map(outsideWall -> {
@@ -704,22 +740,6 @@ public class DrawingService {
                     copy.setStartY(outsideWall.getStartY());
                     copy.setEndX(outsideWall.getEndX());
                     copy.setEndY(outsideWall.getEndY());
-                    return copy;
-                })
-                .toList();
-    }
-
-    private List<Pillar> copyPillars(List<Pillar> sourcePillars, Long layoutVersionId) {
-        return sourcePillars.stream()
-                .map(pillar -> {
-                    Pillar copy = new Pillar();
-                    copy.setLayoutVersionId(layoutVersionId);
-                    copy.setName(pillar.getName());
-                    copy.setStartX(pillar.getStartX());
-                    copy.setStartY(pillar.getStartY());
-                    copy.setEndX(pillar.getEndX());
-                    copy.setEndY(pillar.getEndY());
-                    copy.setRotation(pillar.getRotation());
                     return copy;
                 })
                 .toList();
@@ -741,7 +761,52 @@ public class DrawingService {
             copy.setMaxMovementDistance(source.getMaxMovementDistance());
             copy.setRotationLocked(source.getRotationLocked());
             copy.setKeepAgainstWall(source.getKeepAgainstWall());
+            copy.setDisplayOrder(source.getDisplayOrder());
             drawingMapper.insertFabric(copy);
+            idMap.put(source.getId(), copy.getId());
+        }
+        return idMap;
+    }
+
+    private Map<Long, Long> copyWallsWithIdMap(Long sourceVersionId, Long targetVersionId) {
+        Map<Long, Long> idMap = new LinkedHashMap<>();
+        for (Wall source : drawingMapper.findWallsByVersionId(sourceVersionId)) {
+            Wall copy = new Wall();
+            copy.setLayoutVersionId(targetVersionId);
+            copy.setName(source.getName());
+            copy.setStartX(source.getStartX());
+            copy.setStartY(source.getStartY());
+            copy.setEndX(source.getEndX());
+            copy.setEndY(source.getEndY());
+            copy.setDisplayOrder(source.getDisplayOrder());
+            drawingMapper.insertWall(copy);
+            idMap.put(source.getId(), copy.getId());
+        }
+        return idMap;
+    }
+
+    private Map<ZoneElementKind, Map<Long, Long>> elementIdMaps(
+            Map<Long, Long> wallIdMap, Map<Long, Long> pillarIdMap, Map<Long, Long> fabricIdMap) {
+        Map<ZoneElementKind, Map<Long, Long>> elementIdMaps = new EnumMap<>(ZoneElementKind.class);
+        elementIdMaps.put(ZoneElementKind.WALL, wallIdMap);
+        elementIdMaps.put(ZoneElementKind.PILLAR, pillarIdMap);
+        elementIdMaps.put(ZoneElementKind.FABRIC, fabricIdMap);
+        return elementIdMaps;
+    }
+
+    private Map<Long, Long> copyPillarsWithIdMap(Long sourceVersionId, Long targetVersionId) {
+        Map<Long, Long> idMap = new LinkedHashMap<>();
+        for (Pillar source : drawingMapper.findPillarsByVersionId(sourceVersionId)) {
+            Pillar copy = new Pillar();
+            copy.setLayoutVersionId(targetVersionId);
+            copy.setName(source.getName());
+            copy.setStartX(source.getStartX());
+            copy.setStartY(source.getStartY());
+            copy.setEndX(source.getEndX());
+            copy.setEndY(source.getEndY());
+            copy.setRotation(source.getRotation());
+            copy.setDisplayOrder(source.getDisplayOrder());
+            drawingMapper.insertPillar(copy);
             idMap.put(source.getId(), copy.getId());
         }
         return idMap;

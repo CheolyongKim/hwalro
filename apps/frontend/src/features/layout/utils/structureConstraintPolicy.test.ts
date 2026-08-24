@@ -10,8 +10,8 @@ function zone(assignedUserId: number | null): LayoutZone {
     rect: { x: 0, y: 0, width: 10, height: 10 },
     assignedUserId,
     defaultExitId: null,
-    alternateExitId: null,
-    structureFabricIds: [],
+    displayOrder: 0,
+    members: [],
   };
 }
 

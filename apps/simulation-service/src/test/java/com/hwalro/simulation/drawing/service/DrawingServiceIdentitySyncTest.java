@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 import com.hwalro.simulation.drawing.DefaultDrawingData;
 import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.domain.LayoutExit;
+import com.hwalro.simulation.drawing.domain.Pillar;
+import com.hwalro.simulation.drawing.domain.Wall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import java.math.BigDecimal;
 import java.util.List;
@@ -139,6 +141,106 @@ class DrawingServiceIdentitySyncTest {
         assertThat(updated.getValue().getRotationLocked()).isNull();
         assertThat(updated.getValue().getKeepAgainstWall()).isNull();
         verify(drawingMapper, never()).deleteFabricsByVersionId(eq(VERSION_ID));
+    }
+
+    @Test
+    void keepsPersistedWallIdentityInsteadOfReinserting() {
+        when(drawingMapper.findWallIdsByVersionId(VERSION_ID)).thenReturn(List.of(30L, 31L));
+
+        service().syncWalls(VERSION_ID, List.of(wall(30L, "벽 1"), wall(31L, "벽 2")));
+
+        verify(drawingMapper, never()).insertWall(any());
+        verify(drawingMapper, never()).deleteWallsByIds(anyLong(), any());
+        ArgumentCaptor<Wall> updated = ArgumentCaptor.forClass(Wall.class);
+        verify(drawingMapper, org.mockito.Mockito.times(2)).updateWallGeometry(updated.capture());
+        assertThat(updated.getAllValues()).extracting(Wall::getId).containsExactly(30L, 31L);
+    }
+
+    @Test
+    void insertsOnlyWallsWithoutIdentity() {
+        when(drawingMapper.findWallIdsByVersionId(VERSION_ID)).thenReturn(List.of(30L));
+
+        service().syncWalls(VERSION_ID, List.of(wall(30L, "벽 1"), wall(null, "벽 2")));
+
+        ArgumentCaptor<Wall> inserted = ArgumentCaptor.forClass(Wall.class);
+        verify(drawingMapper).insertWall(inserted.capture());
+        assertThat(inserted.getValue().getName()).isEqualTo("벽 2");
+        verify(drawingMapper).updateWallGeometry(any());
+        verify(drawingMapper, never()).deleteWallsByIds(anyLong(), any());
+    }
+
+    @Test
+    void deletesWallsMissingFromTheRequest() {
+        when(drawingMapper.findWallIdsByVersionId(VERSION_ID)).thenReturn(List.of(30L, 31L, 32L));
+
+        service().syncWalls(VERSION_ID, List.of(wall(31L, "벽 2")));
+
+        verify(drawingMapper).deleteWallsByIds(VERSION_ID, List.of(30L, 32L));
+    }
+
+    @Test
+    void rejectsDuplicateWallIdentity() {
+        when(drawingMapper.findWallIdsByVersionId(VERSION_ID)).thenReturn(List.of(30L));
+
+        assertThatThrownBy(() -> service().syncWalls(VERSION_ID, List.of(wall(30L, "벽 1"), wall(30L, "벽 1 사본"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("중복");
+    }
+
+    @Test
+    void rejectsWallIdentityThatDoesNotBelongToThisLayoutVersion() {
+        when(drawingMapper.findWallIdsByVersionId(VERSION_ID)).thenReturn(List.of(30L));
+
+        assertThatThrownBy(() -> service().syncWalls(VERSION_ID, List.of(wall(999L, "다른 버전 벽"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("없는");
+    }
+
+    @Test
+    void keepsPersistedPillarIdentityInsteadOfReinserting() {
+        when(drawingMapper.findPillarIdsByVersionId(VERSION_ID)).thenReturn(List.of(40L, 41L));
+
+        service().syncPillars(VERSION_ID, List.of(pillar(40L), pillar(41L)));
+
+        verify(drawingMapper, never()).insertPillar(any());
+        verify(drawingMapper, never()).deletePillarsByIds(anyLong(), any());
+        ArgumentCaptor<Pillar> updated = ArgumentCaptor.forClass(Pillar.class);
+        verify(drawingMapper, org.mockito.Mockito.times(2)).updatePillarGeometry(updated.capture());
+        assertThat(updated.getAllValues()).extracting(Pillar::getId).containsExactly(40L, 41L);
+    }
+
+    @Test
+    void deletesPillarsMissingFromTheRequest() {
+        when(drawingMapper.findPillarIdsByVersionId(VERSION_ID)).thenReturn(List.of(40L, 41L));
+
+        service().syncPillars(VERSION_ID, List.of(pillar(41L)));
+
+        verify(drawingMapper).deletePillarsByIds(VERSION_ID, List.of(40L));
+    }
+
+    private static Wall wall(Long id, String name) {
+        Wall wall = new Wall();
+        wall.setId(id);
+        wall.setLayoutVersionId(VERSION_ID);
+        wall.setName(name);
+        wall.setStartX(BigDecimal.ZERO);
+        wall.setStartY(BigDecimal.ZERO);
+        wall.setEndX(BigDecimal.ONE);
+        wall.setEndY(BigDecimal.TEN);
+        return wall;
+    }
+
+    private static Pillar pillar(Long id) {
+        Pillar pillar = new Pillar();
+        pillar.setId(id);
+        pillar.setLayoutVersionId(VERSION_ID);
+        pillar.setName("기둥");
+        pillar.setStartX(BigDecimal.ZERO);
+        pillar.setStartY(BigDecimal.ZERO);
+        pillar.setEndX(BigDecimal.ONE);
+        pillar.setEndY(BigDecimal.ONE);
+        pillar.setRotation(BigDecimal.ZERO);
+        return pillar;
     }
 
     private static Fabric fabric(Long id, String name) {

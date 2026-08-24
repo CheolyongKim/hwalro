@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 도면 버전이 소유하는 운영 구역. 축 정렬 직사각형이며 담당 직원 0~1명과 기본·대체 비상구를 가진다.
+ * 도면 버전이 소유하는 운영 구역. 축 정렬 직사각형이며 담당 직원 0~1명과 기본 비상구를 가진다.
  *
  * <p>{@code assignedUserId}는 auth-service의 사용자 ID다. 서비스 경계를 넘지 않기 위해 DB FK를 만들지 않고 배정 시점에 auth-service API로 검증한다.
  */
@@ -19,7 +19,7 @@ public class LayoutZone {
     private BigDecimal height;
     private Long assignedUserId;
     private Long defaultExitId;
-    private Long alternateExitId;
+    private Integer displayOrder;
     private LocalDateTime createdAt;
 
     public LayoutZone() {}
@@ -104,20 +104,20 @@ public class LayoutZone {
         this.defaultExitId = defaultExitId;
     }
 
-    public Long getAlternateExitId() {
-        return alternateExitId;
-    }
-
-    public void setAlternateExitId(Long alternateExitId) {
-        this.alternateExitId = alternateExitId;
-    }
-
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+
+    public void setDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
     }
 
     /** 대피 경로 미리보기의 출발점. 직원 위치 개념이 없으므로 구역 중심점을 쓴다. */

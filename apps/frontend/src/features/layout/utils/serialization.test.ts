@@ -49,14 +49,16 @@ describe('backendId round-trip', () => {
     expect(doc.fabrics.map((fabric) => fabric.backendId)).toEqual([null, null, null]);
   });
 
-  it('기둥은 backendId를 갖지 않는다', () => {
+  it('기둥·벽의 ID도 왕복시킨다', () => {
     const doc = fromSerialized({
       ...base,
+      walls: [{ id: 5, name: '벽 1', startX: 0, startY: 0, endX: 3, endY: 0 }],
       pillars: [{ id: 9, name: '기둥 1', startX: 1, startY: 1, endX: 2, endY: 2, rotation: 0 }],
     });
 
-    expect(doc.pillars[0].name).toBe('기둥 1');
-    expect('backendId' in doc.pillars[0]).toBe(false);
-    expect('id' in toSerialized(doc).pillars[0]).toBe(false);
+    expect(doc.walls[0].backendId).toBe(5);
+    expect(doc.pillars[0].backendId).toBe(9);
+    expect(toSerialized(doc).walls[0].id).toBe(5);
+    expect(toSerialized(doc).pillars[0].id).toBe(9);
   });
 });

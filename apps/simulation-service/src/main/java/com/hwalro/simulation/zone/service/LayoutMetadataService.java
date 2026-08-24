@@ -7,7 +7,8 @@ import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.zone.client.EmployeeDirectoryClient;
 import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
 import com.hwalro.simulation.zone.domain.LayoutZone;
-import com.hwalro.simulation.zone.domain.LayoutZoneStructure;
+import com.hwalro.simulation.zone.domain.LayoutZoneMember;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.dto.AssignedZoneRow;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.LayoutMetadataResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.MyZoneResponse;
@@ -16,6 +17,7 @@ import com.hwalro.simulation.zone.dto.LayoutZoneDtos.RectDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneCreateRequest;
+import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneMemberDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneUpdateRequest;
 import java.util.LinkedHashMap;
@@ -59,7 +61,7 @@ public class LayoutMetadataService {
         drawingService.requireAccessible(layoutId, user);
 
         List<LayoutZone> zones = layoutZoneService.zones(versionId);
-        List<LayoutZoneStructure> memberships = layoutZoneService.memberships(versionId);
+        List<LayoutZoneMember> memberships = layoutZoneService.memberships(versionId);
         List<Fabric> fabrics = layoutZoneService.fabrics(versionId);
 
         List<LayoutZone> visibleZones = privileged
@@ -69,14 +71,18 @@ public class LayoutMetadataService {
                         .toList();
         Set<Long> visibleZoneIds = visibleZones.stream().map(LayoutZone::getId).collect(Collectors.toSet());
 
-        Map<Long, List<Long>> fabricIdsByZone = new LinkedHashMap<>();
+        Map<Long, List<ZoneMemberDto>> membersByZone = new LinkedHashMap<>();
+        // 벽·기둥·구조물의 ID는 서로 겹치는 독립 AUTO_INCREMENT다. 구조물 제약 투영은 반드시
+        // fabric 종류 멤버십으로만 만든 맵을 써야 한다. 그렇지 않으면 벽 7번의 구역이
+        // 구조물 7번의 제약에 붙고, 직원에게는 그게 가시성 필터가 된다.
         Map<Long, Long> zoneIdByFabric = new LinkedHashMap<>();
-        for (LayoutZoneStructure membership : memberships) {
-            zoneIdByFabric.put(membership.getFabricId(), membership.getZoneId());
-            if (visibleZoneIds.contains(membership.getZoneId())) {
-                fabricIdsByZone
-                        .computeIfAbsent(membership.getZoneId(), key -> new java.util.ArrayList<>())
-                        .add(membership.getFabricId());
+        for (LayoutZoneMember membership : memberships) {
+            Long elementId = membership.elementId();
+            membersByZone
+                    .computeIfAbsent(membership.getZoneId(), key -> new java.util.ArrayList<>())
+                    .add(new ZoneMemberDto(membership.getKind().name(), elementId));
+            if (membership.getKind() == ZoneElementKind.FABRIC && visibleZoneIds.contains(membership.getZoneId())) {
+                zoneIdByFabric.put(elementId, membership.getZoneId());
             }
         }
 
@@ -100,7 +106,7 @@ public class LayoutMetadataService {
                 : List.of();
 
         List<ZoneResponse> zoneResponses = visibleZones.stream()
-                .map(zone -> toZoneResponse(zone, fabricIdsByZone.getOrDefault(zone.getId(), List.of())))
+                .map(zone -> toZoneResponse(zone, membersByZone.get(zone.getId())))
                 .toList();
         return new LayoutMetadataResponse(layoutId, versionId, zoneResponses, constraints, exclusions);
     }
@@ -109,7 +115,7 @@ public class LayoutMetadataService {
         drawingService.requireAccessible(layoutId, user);
         employeeDirectoryClient.requireEmployee(request.assignedUserId(), authorization);
         LayoutZone zone = layoutZoneService.createZone(layoutId, request);
-        return toZoneResponse(zone, request.structureFabricIds() == null ? List.of() : request.structureFabricIds());
+        return toZoneResponse(zone, request.members() == null ? List.of() : request.members());
     }
 
     public ZoneResponse updateZone(
@@ -120,11 +126,11 @@ public class LayoutMetadataService {
         }
         LayoutZone zone = layoutZoneService.updateZone(layoutId, zoneId, request);
         Long versionId = zone.getLayoutVersionId();
-        List<Long> fabricIds = layoutZoneService.memberships(versionId).stream()
+        List<ZoneMemberDto> members = layoutZoneService.memberships(versionId).stream()
                 .filter(membership -> membership.getZoneId().equals(zoneId))
-                .map(LayoutZoneStructure::getFabricId)
+                .map(membership -> new ZoneMemberDto(membership.getKind().name(), membership.elementId()))
                 .toList();
-        return toZoneResponse(zone, fabricIds);
+        return toZoneResponse(zone, members);
     }
 
     public void deleteZone(Long layoutId, Long zoneId, JwtUser user) {
@@ -166,7 +172,7 @@ public class LayoutMetadataService {
         }
     }
 
-    private static ZoneResponse toZoneResponse(LayoutZone zone, List<Long> fabricIds) {
+    private static ZoneResponse toZoneResponse(LayoutZone zone, List<ZoneMemberDto> members) {
         return new ZoneResponse(
                 zone.getId(),
                 zone.getName(),
@@ -174,8 +180,7 @@ public class LayoutMetadataService {
                 new RectDto(zone.getX(), zone.getY(), zone.getWidth(), zone.getHeight()),
                 zone.getAssignedUserId(),
                 zone.getDefaultExitId(),
-                zone.getAlternateExitId(),
-                fabricIds);
+                members == null ? List.of() : members);
     }
 
     private static RectDto toRect(LayoutPlacementExclusion exclusion) {
@@ -191,8 +196,6 @@ public class LayoutMetadataService {
                 row.layoutTitle(),
                 row.layoutVersionId(),
                 row.defaultExitId(),
-                row.defaultExitName(),
-                row.alternateExitId(),
-                row.alternateExitName());
+                row.defaultExitName());
     }
 }

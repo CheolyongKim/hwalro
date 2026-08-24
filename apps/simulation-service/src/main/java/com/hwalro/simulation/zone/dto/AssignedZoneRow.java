@@ -9,6 +9,4 @@ public record AssignedZoneRow(
         String layoutTitle,
         Long layoutVersionId,
         Long defaultExitId,
-        String defaultExitName,
-        Long alternateExitId,
-        String alternateExitName) {}
+        String defaultExitName) {}

@@ -121,6 +121,7 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
     width: doc.width,
     height: doc.height,
     walls: doc.walls.map((wall) => ({
+      id: wall.backendId,
       name: wall.name,
       startX: wall.startX,
       startY: wall.startY,
@@ -143,6 +144,7 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       endY: exit.endY,
     })),
     pillars: doc.pillars.map((pillar) => ({
+      id: pillar.backendId,
       name: pillar.name,
       startX: pillar.startX,
       startY: pillar.startY,
@@ -224,6 +226,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     }
     const wall: Wall = {
       id: `loaded-wall-${i}`,
+      backendId: toBackendId(entry.id),
       name: parsedName ?? '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `walls[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `walls[${i}].startY`),
@@ -315,17 +318,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     exits.splice(order, 0, { ...exit, name: `비상구 ${maxExitIndex}` });
   }
 
-  // 기둥은 참조하는 서버 테이블이 없으므로 backendId를 버린다.
-  const pillars: Pillar[] = parseRects(
-    data.pillars,
-    'pillars',
-    /^기둥 (\d+)$/,
-    '기둥',
-    'loaded-pillar',
-  ).map(({ backendId, ...pillar }) => {
-    void backendId;
-    return pillar;
-  });
+  const pillars: Pillar[] = parseRects(data.pillars, 'pillars', /^기둥 (\d+)$/, '기둥', 'loaded-pillar');
   const fabrics: Fabric[] = parseRects(
     data.fabrics,
     'fabrics',

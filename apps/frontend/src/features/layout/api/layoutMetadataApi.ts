@@ -9,6 +9,13 @@ export interface ZoneRect {
 
 export type ZoneType = 'WORK' | 'STORAGE' | 'PASSAGE' | 'OTHER';
 
+export type ZoneElementKind = 'WALL' | 'PILLAR' | 'FABRIC';
+
+export interface ZoneMember {
+  kind: ZoneElementKind;
+  id: number;
+}
+
 export interface LayoutZone {
   zoneId: number;
   name: string;
@@ -16,8 +23,8 @@ export interface LayoutZone {
   rect: ZoneRect;
   assignedUserId: number | null;
   defaultExitId: number | null;
-  alternateExitId: number | null;
-  structureFabricIds: number[];
+  displayOrder: number;
+  members: ZoneMember[];
 }
 
 export interface StructureConstraint {
@@ -42,8 +49,7 @@ export interface ZoneCreateRequest extends ZoneRect {
   zoneType: ZoneType;
   assignedUserId: number | null;
   defaultExitId: number | null;
-  alternateExitId: number | null;
-  structureFabricIds: number[] | null;
+  members: ZoneMember[] | null;
 }
 
 /**
@@ -60,9 +66,8 @@ export interface ZoneUpdateRequest {
   clearAssignedUser?: boolean;
   defaultExitId?: number | null;
   clearDefaultExit?: boolean;
-  alternateExitId?: number | null;
-  clearAlternateExit?: boolean;
-  structureFabricIds?: number[];
+  displayOrder?: number;
+  members?: ZoneMember[];
 }
 
 export interface StructureConstraintUpdateRequest {

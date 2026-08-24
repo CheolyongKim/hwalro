@@ -2,7 +2,7 @@ package com.hwalro.simulation.zone.mapper;
 
 import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
 import com.hwalro.simulation.zone.domain.LayoutZone;
-import com.hwalro.simulation.zone.domain.LayoutZoneStructure;
+import com.hwalro.simulation.zone.domain.LayoutZoneMember;
 import com.hwalro.simulation.zone.dto.AssignedZoneRow;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
@@ -25,13 +25,13 @@ public interface LayoutZoneMapper {
 
     int deleteZoneById(@Param("id") Long id);
 
-    List<LayoutZoneStructure> findZoneStructuresByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+    List<LayoutZoneMember> findZoneMembersByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     Long findZoneIdByFabricId(@Param("layoutVersionId") Long layoutVersionId, @Param("fabricId") Long fabricId);
 
-    int deleteZoneStructuresByZoneId(@Param("zoneId") Long zoneId);
+    int deleteZoneMembersByZoneId(@Param("zoneId") Long zoneId);
 
-    int insertZoneStructures(@Param("structures") List<LayoutZoneStructure> structures);
+    int insertZoneMembers(@Param("members") List<LayoutZoneMember> members);
 
     List<LayoutPlacementExclusion> findPlacementExclusionsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 

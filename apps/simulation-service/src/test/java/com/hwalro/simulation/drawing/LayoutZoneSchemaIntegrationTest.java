@@ -34,9 +34,11 @@ class LayoutZoneSchemaIntegrationTest {
     void resetFixture() throws SQLException {
         try (Connection connection = connection();
                 Statement statement = connection.createStatement()) {
-            statement.executeUpdate("DELETE FROM layout_zone_structures");
+            statement.executeUpdate("DELETE FROM layout_zone_members");
             statement.executeUpdate("DELETE FROM layout_placement_exclusions");
             statement.executeUpdate("DELETE FROM layout_zones");
+            statement.executeUpdate("DELETE FROM walls");
+            statement.executeUpdate("DELETE FROM pillars");
             statement.executeUpdate("DELETE FROM fabrics");
             statement.executeUpdate("DELETE FROM layout_exits");
             statement.executeUpdate("DELETE FROM layout_versions");
@@ -51,6 +53,12 @@ class LayoutZoneSchemaIntegrationTest {
             statement.executeUpdate("INSERT INTO layout_exits "
                     + "(id, layout_version_id, name, start_x, start_y, end_x, end_y) VALUES "
                     + "(805, 803, 'exit-a', 0, 0, 1, 0), (806, 804, 'exit-other-version', 0, 0, 1, 0)");
+            statement.executeUpdate("INSERT INTO walls "
+                    + "(id, layout_version_id, name, start_x, start_y, end_x, end_y) VALUES "
+                    + "(811, 803, 'wall-a', 1, 1, 2, 2)");
+            statement.executeUpdate("INSERT INTO pillars "
+                    + "(id, layout_version_id, name, start_x, start_y, end_x, end_y) VALUES "
+                    + "(812, 803, 'pillar-a', 1, 1, 2, 2)");
             statement.executeUpdate("INSERT INTO fabrics "
                     + "(id, layout_version_id, name, start_x, start_y, end_x, end_y) VALUES "
                     + "(807, 803, 'fabric-a', 1, 1, 2, 2), (808, 803, 'fabric-b', 3, 3, 4, 4)");
@@ -64,12 +72,74 @@ class LayoutZoneSchemaIntegrationTest {
     void oneStructureBelongsToAtMostOneZone() throws SQLException {
         try (Connection connection = connection();
                 Statement statement = connection.createStatement()) {
-            statement.executeUpdate("INSERT INTO layout_zone_structures (layout_version_id, zone_id, fabric_id) "
-                    + "VALUES (803, 809, 807)");
+            statement.executeUpdate(
+                    "INSERT INTO layout_zone_members (layout_version_id, zone_id, fabric_id) VALUES (803, 809, 807)");
 
-            assertThatThrownBy(() -> statement.executeUpdate("INSERT INTO layout_zone_structures "
-                            + "(layout_version_id, zone_id, fabric_id) VALUES (803, 810, 807)"))
+            assertThatThrownBy(
+                            () -> statement.executeUpdate(
+                                    "INSERT INTO layout_zone_members (layout_version_id, zone_id, fabric_id) VALUES (803, 810, 807)"))
                     .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void oneWallBelongsToAtMostOneZone() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate(
+                    "INSERT INTO layout_zone_members (layout_version_id, zone_id, wall_id) VALUES (803, 809, 811)");
+
+            assertThatThrownBy(
+                            () -> statement.executeUpdate(
+                                    "INSERT INTO layout_zone_members (layout_version_id, zone_id, wall_id) VALUES (803, 810, 811)"))
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void memberRequiresExactlyOneElementColumn() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "INSERT INTO layout_zone_members (layout_version_id, zone_id, wall_id, pillar_id) "
+                                    + "VALUES (803, 809, 811, 812)"))
+                    .isInstanceOf(SQLException.class);
+
+            assertThatThrownBy(() -> statement.executeUpdate(
+                            "INSERT INTO layout_zone_members (layout_version_id, zone_id) VALUES (803, 809)"))
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void memberCannotReferenceWallFromAnotherLayoutVersion() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO walls "
+                    + "(id, layout_version_id, name, start_x, start_y, end_x, end_y) VALUES "
+                    + "(813, 804, 'wall-other-version', 1, 1, 2, 2)");
+
+            assertThatThrownBy(
+                            () -> statement.executeUpdate(
+                                    "INSERT INTO layout_zone_members (layout_version_id, zone_id, wall_id) VALUES (803, 809, 813)"))
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void deletingWallRemovesMembershipButKeepsZone() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate(
+                    "INSERT INTO layout_zone_members (layout_version_id, zone_id, wall_id) VALUES (803, 809, 811)");
+
+            statement.executeUpdate("DELETE FROM walls WHERE id = 811");
+
+            assertThat(count(statement, "SELECT COUNT(*) FROM layout_zone_members WHERE wall_id = 811"))
+                    .isZero();
+            assertThat(count(statement, "SELECT COUNT(*) FROM layout_zones WHERE id = 809"))
+                    .isEqualTo(1);
         }
     }
 
@@ -102,12 +172,12 @@ class LayoutZoneSchemaIntegrationTest {
     void deletingZoneRemovesMembershipButKeepsStructure() throws SQLException {
         try (Connection connection = connection();
                 Statement statement = connection.createStatement()) {
-            statement.executeUpdate("INSERT INTO layout_zone_structures (layout_version_id, zone_id, fabric_id) "
-                    + "VALUES (803, 809, 807)");
+            statement.executeUpdate(
+                    "INSERT INTO layout_zone_members (layout_version_id, zone_id, fabric_id) VALUES (803, 809, 807)");
 
             statement.executeUpdate("DELETE FROM layout_zones WHERE id = 809");
 
-            assertThat(count(statement, "SELECT COUNT(*) FROM layout_zone_structures WHERE zone_id = 809"))
+            assertThat(count(statement, "SELECT COUNT(*) FROM layout_zone_members WHERE zone_id = 809"))
                     .isZero();
             assertThat(count(statement, "SELECT COUNT(*) FROM fabrics WHERE id = 807"))
                     .isEqualTo(1);

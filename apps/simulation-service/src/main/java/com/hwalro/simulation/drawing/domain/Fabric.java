@@ -16,6 +16,7 @@ public class Fabric {
     private BigDecimal maxMovementDistance;
     private Boolean rotationLocked;
     private Boolean keepAgainstWall;
+    private Integer displayOrder;
 
     public Fabric() {}
 
@@ -113,5 +114,13 @@ public class Fabric {
 
     public void setKeepAgainstWall(Boolean keepAgainstWall) {
         this.keepAgainstWall = keepAgainstWall;
+    }
+
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+
+    public void setDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
     }
 }

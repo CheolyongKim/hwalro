@@ -97,9 +97,7 @@ function EvacuationCanvas({ data, width }: { data: LoadedEvacuation; width: numb
         ) : null}
         {drawing.exits.map((exit, index) => {
           const isRecommended = exit.id !== null && exit.id === route.recommendedExitId;
-          const isConfigured =
-            exit.id !== null &&
-            (exit.id === route.defaultExit?.id || exit.id === route.alternateExit?.id);
+          const isConfigured = exit.id !== null && exit.id === route.defaultExit?.id;
           return (
             <Line
               key={`exit-${index}`}
@@ -198,9 +196,7 @@ function EvacuationPage() {
   const recommendedName =
     data === null || data.route.recommendedExitId === null
       ? null
-      : ((data.route.defaultExit?.id === data.route.recommendedExitId
-          ? data.route.defaultExit?.name
-          : data.route.alternateExit?.name) ?? null);
+      : (data.route.defaultExit?.name ?? null);
 
   return (
     <main className="bg-background">
@@ -247,7 +243,7 @@ function EvacuationPage() {
             </p>
 
             <Card className="mt-4">
-              <dl className="grid gap-3 sm:grid-cols-3">
+              <dl className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <dt className="text-xs text-text-muted">권장 비상구</dt>
                   <dd className="mt-1 text-sm font-bold text-text-strong">
@@ -258,12 +254,6 @@ function EvacuationPage() {
                   <dt className="text-xs text-text-muted">기본 비상구</dt>
                   <dd className="mt-1 text-sm font-medium text-text-strong">
                     {data.route.defaultExit?.name ?? '지정 안 함'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-muted">대체 비상구</dt>
-                  <dd className="mt-1 text-sm font-medium text-text-strong">
-                    {data.route.alternateExit?.name ?? '지정 안 함'}
                   </dd>
                 </div>
               </dl>

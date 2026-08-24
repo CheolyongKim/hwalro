@@ -8,18 +8,22 @@ import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.zone.domain.LayoutPlacementExclusion;
 import com.hwalro.simulation.zone.domain.LayoutZone;
-import com.hwalro.simulation.zone.domain.LayoutZoneStructure;
+import com.hwalro.simulation.zone.domain.LayoutZoneMember;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.domain.ZoneType;
 import com.hwalro.simulation.zone.dto.AssignedZoneRow;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.PlacementExclusionsRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.RectDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneCreateRequest;
+import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneMemberDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneUpdateRequest;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,8 +72,8 @@ public class LayoutZoneService {
         return layoutZoneMapper.findZonesByVersionId(layoutVersionId);
     }
 
-    public List<LayoutZoneStructure> memberships(Long layoutVersionId) {
-        return layoutZoneMapper.findZoneStructuresByVersionId(layoutVersionId);
+    public List<LayoutZoneMember> memberships(Long layoutVersionId) {
+        return layoutZoneMapper.findZoneMembersByVersionId(layoutVersionId);
     }
 
     public List<Fabric> fabrics(Long layoutVersionId) {
@@ -110,11 +114,11 @@ public class LayoutZoneService {
         zone.setZoneType(ZoneType.from(request.zoneType()).name());
         applyRect(zone, request.x(), request.y(), request.width(), request.height(), layoutId);
         zone.setAssignedUserId(request.assignedUserId());
-        applyExits(zone, request.defaultExitId(), request.alternateExitId(), versionId);
+        applyExits(zone, request.defaultExitId(), versionId);
         layoutZoneMapper.insertZone(zone);
 
-        if (request.structureFabricIds() != null) {
-            replaceMemberships(versionId, zone.getId(), request.structureFabricIds());
+        if (request.members() != null) {
+            replaceMembers(versionId, zone.getId(), request.members());
         }
         return zone;
     }
@@ -146,20 +150,20 @@ public class LayoutZoneService {
         } else if (request.assignedUserId() != null) {
             zone.setAssignedUserId(request.assignedUserId());
         }
+        if (request.displayOrder() != null) {
+            zone.setDisplayOrder(request.displayOrder());
+        }
 
         Long nextDefault = request.clearDefaultExit()
                 ? null
                 : (request.defaultExitId() == null ? zone.getDefaultExitId() : request.defaultExitId());
-        Long nextAlternate = request.clearAlternateExit()
-                ? null
-                : (request.alternateExitId() == null ? zone.getAlternateExitId() : request.alternateExitId());
-        applyExits(zone, nextDefault, nextAlternate, versionId);
+        applyExits(zone, nextDefault, versionId);
 
         if (layoutZoneMapper.updateZone(zone) == 0) {
             throw new IllegalStateException("구역을 갱신하지 못했습니다. 다시 불러온 뒤 시도해 주세요: zoneId=" + zoneId);
         }
-        if (request.structureFabricIds() != null) {
-            replaceMemberships(versionId, zoneId, request.structureFabricIds());
+        if (request.members() != null) {
+            replaceMembers(versionId, zoneId, request.members());
         }
         return zone;
     }
@@ -238,36 +242,73 @@ public class LayoutZoneService {
         }
     }
 
-    private void replaceMemberships(Long versionId, Long zoneId, List<Long> fabricIds) {
-        Set<Long> requested = new LinkedHashSet<>();
-        for (Long fabricId : fabricIds) {
-            if (fabricId == null) {
-                throw new IllegalArgumentException("구조물 ID가 비어 있습니다.");
+    private void replaceMembers(Long versionId, Long zoneId, List<ZoneMemberDto> members) {
+        Set<String> requestedKeys = new LinkedHashSet<>();
+        Map<ZoneElementKind, Set<Long>> requestedIdsByKind = new HashMap<>();
+        for (ZoneMemberDto member : members) {
+            ZoneElementKind kind = ZoneElementKind.from(member.kind());
+            if (member.id() == null) {
+                throw new IllegalArgumentException(kindLabel(kind) + " ID가 비어 있습니다.");
             }
-            if (!requested.add(fabricId)) {
-                throw new IllegalArgumentException("구조물 ID가 중복되었습니다: " + fabricId);
+            if (!requestedKeys.add(kind + ":" + member.id())) {
+                throw new IllegalArgumentException("구역 구성원이 중복되었습니다: " + kindLabel(kind) + " " + member.id());
             }
+            requestedIdsByKind
+                    .computeIfAbsent(kind, key -> new java.util.LinkedHashSet<>())
+                    .add(member.id());
         }
-        Set<Long> versionFabricIds = Set.copyOf(drawingMapper.findFabricIdsByVersionId(versionId));
-        for (Long fabricId : requested) {
-            if (!versionFabricIds.contains(fabricId)) {
-                throw new IllegalArgumentException("이 도면 버전에 없는 구조물입니다: " + fabricId);
-            }
-        }
-        // 다른 구역이 이미 가진 구조물인지 확인한다. DB PK도 같은 규칙을 막지만, 사용자에게는
-        // 제약 위반 대신 어느 구조물이 문제인지 알려주는 편이 낫다.
-        for (LayoutZoneStructure existing : layoutZoneMapper.findZoneStructuresByVersionId(versionId)) {
-            if (!existing.getZoneId().equals(zoneId) && requested.contains(existing.getFabricId())) {
-                throw new IllegalArgumentException("이미 다른 구역에 속한 구조물입니다: " + existing.getFabricId());
-            }
-        }
+        validateMembersExistInVersion(versionId, requestedIdsByKind);
+        validateMembersNotOwnedByOtherZones(versionId, zoneId, requestedIdsByKind);
 
-        layoutZoneMapper.deleteZoneStructuresByZoneId(zoneId);
-        if (!requested.isEmpty()) {
-            layoutZoneMapper.insertZoneStructures(requested.stream()
-                    .map(fabricId -> new LayoutZoneStructure(versionId, zoneId, fabricId))
-                    .toList());
+        layoutZoneMapper.deleteZoneMembersByZoneId(zoneId);
+        if (!requestedKeys.isEmpty()) {
+            List<LayoutZoneMember> rows = members.stream()
+                    .map(member ->
+                            LayoutZoneMember.of(versionId, zoneId, ZoneElementKind.from(member.kind()), member.id()))
+                    .toList();
+            layoutZoneMapper.insertZoneMembers(rows);
         }
+    }
+
+    private void validateMembersExistInVersion(Long versionId, Map<ZoneElementKind, Set<Long>> requestedIdsByKind) {
+        for (Map.Entry<ZoneElementKind, Set<Long>> entry : requestedIdsByKind.entrySet()) {
+            Set<Long> versionElementIds =
+                    switch (entry.getKey()) {
+                        case WALL -> Set.copyOf(drawingMapper.findWallIdsByVersionId(versionId));
+                        case PILLAR -> Set.copyOf(drawingMapper.findPillarIdsByVersionId(versionId));
+                        case FABRIC -> Set.copyOf(drawingMapper.findFabricIdsByVersionId(versionId));
+                    };
+            for (Long elementId : entry.getValue()) {
+                if (!versionElementIds.contains(elementId)) {
+                    throw new IllegalArgumentException(
+                            "이 도면 버전에 없는 " + kindLabel(entry.getKey()) + "입니다: " + elementId);
+                }
+            }
+        }
+    }
+
+    private void validateMembersNotOwnedByOtherZones(
+            Long versionId, Long zoneId, Map<ZoneElementKind, Set<Long>> requestedIdsByKind) {
+        // 다른 구역이 이미 가진 요소인지 확인한다. DB 유니크 인덱스도 같은 규칙을 막지만, 사용자에게는
+        // 제약 위반 대신 어느 요소가 문제인지 알려주는 편이 낫다.
+        for (LayoutZoneMember existing : layoutZoneMapper.findZoneMembersByVersionId(versionId)) {
+            if (existing.getZoneId().equals(zoneId)) {
+                continue;
+            }
+            Set<Long> requested = requestedIdsByKind.get(existing.getKind());
+            if (requested != null && requested.contains(existing.elementId())) {
+                throw new IllegalArgumentException(
+                        "이미 다른 구역에 속한 " + kindLabel(existing.getKind()) + "입니다: " + existing.elementId());
+            }
+        }
+    }
+
+    private String kindLabel(ZoneElementKind kind) {
+        return switch (kind) {
+            case WALL -> "벽";
+            case PILLAR -> "기둥";
+            case FABRIC -> "구조물";
+        };
     }
 
     private String validateName(String rawName, List<LayoutZone> existing, Long selfZoneId) {
@@ -311,24 +352,16 @@ public class LayoutZoneService {
         }
     }
 
-    private void applyExits(LayoutZone zone, Long defaultExitId, Long alternateExitId, Long versionId) {
-        if (defaultExitId == null && alternateExitId == null) {
+    private void applyExits(LayoutZone zone, Long defaultExitId, Long versionId) {
+        if (defaultExitId == null) {
             zone.setDefaultExitId(null);
-            zone.setAlternateExitId(null);
             return;
         }
-        if (defaultExitId != null && defaultExitId.equals(alternateExitId)) {
-            throw new IllegalArgumentException("기본 비상구와 대체 비상구는 서로 달라야 합니다.");
-        }
         Set<Long> versionExitIds = Set.copyOf(drawingMapper.findLayoutExitIdsByVersionId(versionId));
-        if (defaultExitId != null && !versionExitIds.contains(defaultExitId)) {
+        if (!versionExitIds.contains(defaultExitId)) {
             throw new IllegalArgumentException("이 도면 버전에 없는 비상구입니다: " + defaultExitId);
         }
-        if (alternateExitId != null && !versionExitIds.contains(alternateExitId)) {
-            throw new IllegalArgumentException("이 도면 버전에 없는 비상구입니다: " + alternateExitId);
-        }
         zone.setDefaultExitId(defaultExitId);
-        zone.setAlternateExitId(alternateExitId);
     }
 
     private void requireSameVersion(LayoutZone zone, Long versionId) {

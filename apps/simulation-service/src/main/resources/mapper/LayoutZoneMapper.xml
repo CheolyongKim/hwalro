@@ -14,7 +14,7 @@
         height,
         assigned_user_id,
         default_exit_id,
-        alternate_exit_id,
+        display_order,
         created_at
     </sql>
 
@@ -22,7 +22,7 @@
         SELECT <include refid="zoneColumns"/>
         FROM layout_zones
         WHERE layout_version_id = #{layoutVersionId}
-        ORDER BY id ASC
+        ORDER BY display_order ASC, id ASC
     </select>
 
     <select id="findZoneById" resultType="com.hwalro.simulation.zone.domain.LayoutZone">
@@ -40,13 +40,10 @@
                l.title             AS layoutTitle,
                z.layout_version_id AS layoutVersionId,
                z.default_exit_id   AS defaultExitId,
-               de.name             AS defaultExitName,
-               z.alternate_exit_id AS alternateExitId,
-               ae.name             AS alternateExitName
+               de.name             AS defaultExitName
         FROM layout_zones z
         JOIN layouts l ON l.current_version_id = z.layout_version_id
         LEFT JOIN layout_exits de ON de.id = z.default_exit_id
-        LEFT JOIN layout_exits ae ON ae.id = z.alternate_exit_id
         WHERE z.assigned_user_id = #{userId}
         ORDER BY l.id ASC, z.id ASC
     </select>
@@ -60,9 +57,9 @@
 
     <insert id="insertZone" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO layout_zones (layout_version_id, name, zone_type, x, y, width, height,
-                                  assigned_user_id, default_exit_id, alternate_exit_id)
+                                  assigned_user_id, default_exit_id, display_order)
         VALUES (#{layoutVersionId}, #{name}, #{zoneType}, #{x}, #{y}, #{width}, #{height},
-                #{assignedUserId}, #{defaultExitId}, #{alternateExitId})
+                #{assignedUserId}, #{defaultExitId}, COALESCE(#{displayOrder}, 0))
     </insert>
 
     <update id="updateZone">
@@ -75,7 +72,7 @@
             height = #{height},
             assigned_user_id = #{assignedUserId},
             default_exit_id = #{defaultExitId},
-            alternate_exit_id = #{alternateExitId}
+            display_order = COALESCE(#{displayOrder}, 0)
         WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
     </update>
 
@@ -83,28 +80,33 @@
         DELETE FROM layout_zones WHERE id = #{id}
     </delete>
 
-    <select id="findZoneStructuresByVersionId" resultType="com.hwalro.simulation.zone.domain.LayoutZoneStructure">
-        SELECT layout_version_id, zone_id, fabric_id
-        FROM layout_zone_structures
+    <select id="findZoneMembersByVersionId" resultType="com.hwalro.simulation.zone.domain.LayoutZoneMember">
+        SELECT id,
+               layout_version_id,
+               zone_id,
+               wall_id,
+               pillar_id,
+               fabric_id
+        FROM layout_zone_members
         WHERE layout_version_id = #{layoutVersionId}
-        ORDER BY zone_id ASC, fabric_id ASC
+        ORDER BY zone_id ASC, id ASC
     </select>
 
     <select id="findZoneIdByFabricId" resultType="java.lang.Long">
         SELECT zone_id
-        FROM layout_zone_structures
+        FROM layout_zone_members
         WHERE layout_version_id = #{layoutVersionId} AND fabric_id = #{fabricId}
     </select>
 
-    <delete id="deleteZoneStructuresByZoneId">
-        DELETE FROM layout_zone_structures WHERE zone_id = #{zoneId}
+    <delete id="deleteZoneMembersByZoneId">
+        DELETE FROM layout_zone_members WHERE zone_id = #{zoneId}
     </delete>
 
-    <insert id="insertZoneStructures">
-        INSERT INTO layout_zone_structures (layout_version_id, zone_id, fabric_id)
+    <insert id="insertZoneMembers">
+        INSERT INTO layout_zone_members (layout_version_id, zone_id, wall_id, pillar_id, fabric_id)
         VALUES
-        <foreach collection="structures" item="structure" separator=",">
-            (#{structure.layoutVersionId}, #{structure.zoneId}, #{structure.fabricId})
+        <foreach collection="members" item="member" separator=",">
+            (#{member.layoutVersionId}, #{member.zoneId}, #{member.wallId}, #{member.pillarId}, #{member.fabricId})
         </foreach>
     </insert>
 

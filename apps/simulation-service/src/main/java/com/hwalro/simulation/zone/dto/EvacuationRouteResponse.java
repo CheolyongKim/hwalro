@@ -18,6 +18,5 @@ public record EvacuationRouteResponse(
         PointDto origin,
         String status,
         ExitDto defaultExit,
-        ExitDto alternateExit,
         Long recommendedExitId,
         List<PointDto> waypoints) {}

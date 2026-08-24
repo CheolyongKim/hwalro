@@ -26,6 +26,7 @@ import com.hwalro.simulation.simulation.domain.SimulationOption;
 import com.hwalro.simulation.simulation.exception.InvalidSimulationGeometryException;
 import com.hwalro.simulation.simulation.mapper.SimulationMapper;
 import com.hwalro.simulation.simulation.service.SimulationService;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -202,8 +203,12 @@ class CandidateAdoptionServiceTest {
 
         service.prepare(STUDY_ID, CANDIDATE_ID, user);
 
-        verify(layoutMetadataCopier)
-                .copy(BASELINE_VERSION_ID, TARGET_VERSION_ID, Map.of(910L, 950L), Map.of(FABRIC_ID, 70L));
+        Map<ZoneElementKind, Map<Long, Long>> elementIdMaps = new java.util.EnumMap<>(ZoneElementKind.class);
+        elementIdMaps.put(ZoneElementKind.WALL, Map.of());
+        elementIdMaps.put(ZoneElementKind.PILLAR, Map.of());
+        elementIdMaps.put(ZoneElementKind.FABRIC, Map.of(FABRIC_ID, 70L));
+
+        verify(layoutMetadataCopier).copy(BASELINE_VERSION_ID, TARGET_VERSION_ID, Map.of(910L, 950L), elementIdMaps);
     }
 
     private List<List<BigDecimal>> capturedAgents() {

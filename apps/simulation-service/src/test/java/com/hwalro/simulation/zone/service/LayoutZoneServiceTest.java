@@ -2,6 +2,7 @@ package com.hwalro.simulation.zone.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,9 +13,11 @@ import com.hwalro.simulation.drawing.domain.FloorPlan;
 import com.hwalro.simulation.drawing.domain.Layout;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.zone.domain.LayoutZone;
-import com.hwalro.simulation.zone.domain.LayoutZoneStructure;
+import com.hwalro.simulation.zone.domain.LayoutZoneMember;
+import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneCreateRequest;
+import com.hwalro.simulation.zone.dto.LayoutZoneDtos.ZoneMemberDto;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
 import java.util.List;
@@ -56,25 +59,31 @@ class LayoutZoneServiceTest {
         when(drawingMapper.findFloorPlanById(801L)).thenReturn(floorPlan);
         when(drawingMapper.findLayoutExitIdsByVersionId(VERSION_ID)).thenReturn(List.of(910L, 911L));
         when(drawingMapper.findFabricIdsByVersionId(VERSION_ID)).thenReturn(List.of(20L, 21L));
+        when(drawingMapper.findWallIdsByVersionId(VERSION_ID)).thenReturn(List.of(10L, 11L));
+        when(drawingMapper.findPillarIdsByVersionId(VERSION_ID)).thenReturn(List.of(15L));
         when(layoutZoneMapper.findZonesByVersionId(VERSION_ID)).thenReturn(List.of());
-        when(layoutZoneMapper.findZoneStructuresByVersionId(VERSION_ID)).thenReturn(List.of());
+        when(layoutZoneMapper.findZoneMembersByVersionId(VERSION_ID)).thenReturn(List.of());
 
         service = new LayoutZoneService(layoutZoneMapper, drawingMapper);
     }
 
     private ZoneCreateRequest zone(
-            String name, BigDecimal x, BigDecimal y, BigDecimal w, BigDecimal h, Long defaultExit, Long altExit) {
-        return new ZoneCreateRequest(name, "WORK", x, y, w, h, null, defaultExit, altExit, null);
+            String name, BigDecimal x, BigDecimal y, BigDecimal w, BigDecimal h, Long defaultExit) {
+        return new ZoneCreateRequest(name, "WORK", x, y, w, h, null, defaultExit, null);
+    }
+
+    private static ZoneMemberDto fabric() {
+        return new ZoneMemberDto("FABRIC", 20L);
     }
 
     @Test
     void rejectsBlankAndOverlongZoneNames() {
-        ZoneCreateRequest blank = zone("   ", ten(), ten(), ten(), ten(), null, null);
+        ZoneCreateRequest blank = zone("   ", ten(), ten(), ten(), ten(), null);
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, blank))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("이름");
 
-        ZoneCreateRequest tooLong = zone("가".repeat(201), ten(), ten(), ten(), ten(), null, null);
+        ZoneCreateRequest tooLong = zone("가".repeat(201), ten(), ten(), ten(), ten(), null);
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, tooLong))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("깁니다");
@@ -87,7 +96,7 @@ class LayoutZoneServiceTest {
         existing.setName("작업 구역");
         when(layoutZoneMapper.findZonesByVersionId(VERSION_ID)).thenReturn(List.of(existing));
 
-        ZoneCreateRequest request = zone("작업 구역", ten(), ten(), ten(), ten(), null, null);
+        ZoneCreateRequest request = zone("작업 구역", ten(), ten(), ten(), ten(), null);
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("이미 있는");
@@ -95,28 +104,20 @@ class LayoutZoneServiceTest {
 
     @Test
     void rejectsRectangleOutsideTheFloorPlan() {
-        ZoneCreateRequest outside = zone("작업 구역", BigDecimal.valueOf(95), ten(), ten(), ten(), null, null);
+        ZoneCreateRequest outside = zone("작업 구역", BigDecimal.valueOf(95), ten(), ten(), ten(), null);
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, outside))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("벗어");
 
-        ZoneCreateRequest zeroWidth = zone("작업 구역", ten(), ten(), BigDecimal.ZERO, ten(), null, null);
+        ZoneCreateRequest zeroWidth = zone("작업 구역", ten(), ten(), BigDecimal.ZERO, ten(), null);
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, zeroWidth))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("0보다");
     }
 
     @Test
-    void rejectsIdenticalDefaultAndAlternateExits() {
-        ZoneCreateRequest request = zone("작업 구역", ten(), ten(), ten(), ten(), 910L, 910L);
-        assertThatThrownBy(() -> service.createZone(LAYOUT_ID, request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("서로 달라야");
-    }
-
-    @Test
     void rejectsExitFromAnotherLayoutVersion() {
-        ZoneCreateRequest request = zone("작업 구역", ten(), ten(), ten(), ten(), 999L, null);
+        ZoneCreateRequest request = zone("작업 구역", ten(), ten(), ten(), ten(), 999L);
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("없는 비상구");
@@ -124,10 +125,10 @@ class LayoutZoneServiceTest {
 
     @Test
     void rejectsStructureAlreadyOwnedByAnotherZone() {
-        when(layoutZoneMapper.findZoneStructuresByVersionId(VERSION_ID))
-                .thenReturn(List.of(new LayoutZoneStructure(VERSION_ID, 900L, 20L)));
+        when(layoutZoneMapper.findZoneMembersByVersionId(VERSION_ID))
+                .thenReturn(List.of(LayoutZoneMember.of(VERSION_ID, 900L, ZoneElementKind.FABRIC, 20L)));
         ZoneCreateRequest request =
-                new ZoneCreateRequest("작업 구역", "WORK", ten(), ten(), ten(), ten(), null, null, null, List.of(20L));
+                new ZoneCreateRequest("작업 구역", "WORK", ten(), ten(), ten(), ten(), null, null, List.of(fabric()));
 
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -136,12 +137,57 @@ class LayoutZoneServiceTest {
 
     @Test
     void rejectsStructureFromAnotherLayoutVersion() {
-        ZoneCreateRequest request =
-                new ZoneCreateRequest("작업 구역", "WORK", ten(), ten(), ten(), ten(), null, null, null, List.of(999L));
+        ZoneCreateRequest request = new ZoneCreateRequest(
+                "작업 구역", "WORK", ten(), ten(), ten(), ten(), null, null, List.of(new ZoneMemberDto("FABRIC", 999L)));
 
         assertThatThrownBy(() -> service.createZone(LAYOUT_ID, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("없는 구조물");
+    }
+
+    @Test
+    void rejectsWallFromAnotherLayoutVersion() {
+        ZoneCreateRequest request = new ZoneCreateRequest(
+                "작업 구역", "WORK", ten(), ten(), ten(), ten(), null, null, List.of(new ZoneMemberDto("WALL", 999L)));
+
+        assertThatThrownBy(() -> service.createZone(LAYOUT_ID, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("없는 벽");
+    }
+
+    @Test
+    void rejectsUnknownMemberKind() {
+        ZoneCreateRequest request = new ZoneCreateRequest(
+                "작업 구역", "WORK", ten(), ten(), ten(), ten(), null, null, List.of(new ZoneMemberDto("EXIT", 910L)));
+
+        assertThatThrownBy(() -> service.createZone(LAYOUT_ID, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("알 수 없는 구역 구성원 종류");
+    }
+
+    @Test
+    void storesMixedKindMembers() {
+        ZoneCreateRequest request = new ZoneCreateRequest(
+                "작업 구역",
+                "WORK",
+                ten(),
+                ten(),
+                ten(),
+                ten(),
+                null,
+                null,
+                List.of(new ZoneMemberDto("WALL", 10L), new ZoneMemberDto("PILLAR", 15L), fabric()));
+
+        service.createZone(LAYOUT_ID, request);
+
+        ArgumentCaptor<List<LayoutZoneMember>> saved = ArgumentCaptor.captor();
+        verify(layoutZoneMapper).insertZoneMembers(saved.capture());
+        assertThat(saved.getValue())
+                .extracting(LayoutZoneMember::getKind, LayoutZoneMember::elementId)
+                .containsExactlyInAnyOrder(
+                        tuple(ZoneElementKind.WALL, 10L),
+                        tuple(ZoneElementKind.PILLAR, 15L),
+                        tuple(ZoneElementKind.FABRIC, 20L));
     }
 
     @Test

@@ -78,6 +78,13 @@ export type EditorAction =
     }
   | { type: 'dragStartMove'; point: Vec2 }
   | {
+      type: 'reorderElements';
+      draggedKind: 'wall' | 'pillar' | 'fabric';
+      draggedId: string;
+      targetKind: 'wall' | 'pillar' | 'fabric';
+      targetId: string;
+    }
+  | {
       type: 'reshapeStart';
       elementKind: 'wall' | 'outsideWall' | 'pillar' | 'fabric';
       elementId: string;
@@ -212,8 +219,8 @@ function applyDraftUpdate(
   };
 }
 
-function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
-  if (isInsideObstacleRect(point, state.doc)) {
+function applyRectDraftStart(state: EditorState, point: Vec2, collide = true): EditorState {
+  if (collide && isInsideObstacleRect(point, state.doc)) {
     return {
       ...state,
       draft: null,
@@ -231,7 +238,7 @@ function applyRectDraftStart(state: EditorState, point: Vec2): EditorState {
   };
 }
 
-function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
+function applyRectDraftUpdate(state: EditorState, point: Vec2, collide = true): EditorState {
   if (!state.draft) {
     return state;
   }
@@ -243,7 +250,7 @@ function applyRectDraftUpdate(state: EditorState, point: Vec2): EditorState {
     state.camera.zoom,
     false,
   );
-  const end = clampRectDraft(state.draft.start, snapped.point, state.doc);
+  const end = collide ? clampRectDraft(state.draft.start, snapped.point, state.doc) : snapped.point;
   return { ...state, draft: { ...state.draft, end } };
 }
 
@@ -314,6 +321,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const wall: Wall = {
         id: uid(),
+        backendId: null,
         name: nextWallName(state.doc),
         startX: round1(start.x),
         startY: round1(start.y),
@@ -402,6 +410,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       const pillar: Pillar = {
         id: uid(),
+        backendId: null,
         name: nextPillarName(state.doc),
         startX: round1(start.x),
         startY: round1(start.y),
@@ -422,10 +431,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     // 구역은 문서가 아니라 서버가 소유한다. 편집기는 그리는 동안의 draft만 갖고,
     // 확정은 페이지가 API로 보낸다(undo/redo 대상이 아님).
     case 'zoneStart':
-      return applyRectDraftStart(state, action.point);
+      return applyRectDraftStart(state, action.point, false);
 
     case 'zoneUpdate':
-      return applyRectDraftUpdate(state, action.point);
+      return applyRectDraftUpdate(state, action.point, false);
 
     case 'fabricCommit': {
       if (!state.draft) {
@@ -516,6 +525,28 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'selectAt':
       return applySelectAt(state, action);
+
+    case 'reorderElements': {
+      if (action.draggedKind !== action.targetKind || action.draggedId === action.targetId) {
+        return state;
+      }
+      const listKey =
+        action.draggedKind === 'wall'
+          ? 'walls'
+          : action.draggedKind === 'pillar'
+            ? 'pillars'
+            : 'fabrics';
+      const list = state.doc[listKey];
+      const from = list.findIndex((element) => element.id === action.draggedId);
+      const to = list.findIndex((element) => element.id === action.targetId);
+      if (from < 0 || to < 0) {
+        return state;
+      }
+      const reordered = list.slice();
+      const [moved] = reordered.splice(from, 1);
+      reordered.splice(to, 0, moved);
+      return commit(state, state.doc, { ...state.doc, [listKey]: reordered });
+    }
 
     case 'dragStartMove':
       return { ...state, drag: { kind: 'move', origin: action.point, originDoc: state.doc } };

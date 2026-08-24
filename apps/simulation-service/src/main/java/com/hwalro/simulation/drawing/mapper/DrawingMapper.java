@@ -35,6 +35,10 @@ public interface DrawingMapper {
 
     int insertLayoutExits(List<LayoutExit> layoutExits);
 
+    int insertWall(Wall wall);
+
+    int insertPillar(Pillar pillar);
+
     int insertLayoutExit(LayoutExit layoutExit);
 
     int insertFabric(Fabric fabric);
@@ -43,11 +47,23 @@ public interface DrawingMapper {
 
     List<Long> findLayoutExitIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
+    List<Long> findWallIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    List<Long> findPillarIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
     int updateFabricGeometry(Fabric fabric);
 
     int updateLayoutExitGeometry(LayoutExit layoutExit);
 
+    int updateWallGeometry(Wall wall);
+
+    int updatePillarGeometry(Pillar pillar);
+
     int deleteFabricsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int deleteWallsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int deletePillarsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
 
     int deleteLayoutExitsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
 
@@ -55,9 +71,6 @@ public interface DrawingMapper {
 
     /** 배치 제약만 갱신한다. 기하 컬럼은 건드리지 않는다(도면 저장과 소유권이 다르다). */
     int updateFabricConstraints(Fabric fabric);
-
-    /** 도면 복제·개선안 채택에서 구조물을 복사한다. 제약 컬럼까지 함께 옮긴다. */
-    int copyFabrics(@Param("sourceVersionId") Long sourceVersionId, @Param("targetVersionId") Long targetVersionId);
 
     Long lockLayout(@Param("layoutId") Long layoutId);
 
@@ -112,10 +125,6 @@ public interface DrawingMapper {
 
     int updateLayoutVersionLock(
             @Param("id") Long id, @Param("expectedLock") Integer expectedLock, @Param("nextLock") Integer nextLock);
-
-    int deleteWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
-
-    int deletePillarsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 
     int deleteFabricsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 

@@ -79,7 +79,9 @@ CREATE TABLE IF NOT EXISTS walls (
     start_y DECIMAL(12, 4) NOT NULL,
     end_x DECIMAL(12, 4) NOT NULL,
     end_y DECIMAL(12, 4) NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
     CONSTRAINT pk_walls PRIMARY KEY (id),
+    CONSTRAINT uk_walls_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT fk_walls_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
@@ -97,7 +99,9 @@ CREATE TABLE IF NOT EXISTS pillars (
     end_x DECIMAL(12, 4) NOT NULL,
     end_y DECIMAL(12, 4) NOT NULL,
     rotation DECIMAL(12, 4) NOT NULL DEFAULT 0,
+    display_order INT NOT NULL DEFAULT 0,
     CONSTRAINT pk_pillars PRIMARY KEY (id),
+    CONSTRAINT uk_pillars_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT ck_pillars_extent CHECK (start_x < end_x AND start_y < end_y),
     CONSTRAINT fk_pillars_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
@@ -120,8 +124,9 @@ CREATE TABLE IF NOT EXISTS fabrics (
     max_movement_distance DECIMAL(12, 4) NULL,
     rotation_locked BOOLEAN NOT NULL DEFAULT FALSE,
     keep_against_wall BOOLEAN NOT NULL DEFAULT FALSE,
+    display_order INT NOT NULL DEFAULT 0,
     CONSTRAINT pk_fabrics PRIMARY KEY (id),
-    -- layout_zone_structures가 (fabric_id, layout_version_id) 복합 FK로 참조한다.
+    -- layout_zone_members가 (fabric_id, layout_version_id) 복합 FK로 참조한다.
     CONSTRAINT uk_fabrics_id_version UNIQUE (id, layout_version_id),
     -- 아래→위로 그린 구조물이 start > end로 저장되면 배치 개선안 탐색이 조용히 후보를 버린다
     -- (Java는 좌표 검증 실패, 엔진은 INVALID_GEOMETRY). DrawingService가 저장 시 정규화하며,
@@ -200,17 +205,13 @@ CREATE TABLE IF NOT EXISTS layout_zones (
     -- 배정 시점에 auth-service API로 검증한다.
     assigned_user_id BIGINT UNSIGNED NULL,
     default_exit_id BIGINT UNSIGNED NULL,
-    alternate_exit_id BIGINT UNSIGNED NULL,
+    display_order INT NOT NULL DEFAULT 0,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_layout_zones PRIMARY KEY (id),
-    -- layout_zone_structures가 (zone_id, layout_version_id) 복합 FK로 참조한다.
+    -- layout_zone_members가 (zone_id, layout_version_id) 복합 FK로 참조한다.
     CONSTRAINT uk_layout_zones_id_version UNIQUE (id, layout_version_id),
     CONSTRAINT uk_layout_zones_version_name UNIQUE (layout_version_id, name),
     CONSTRAINT ck_layout_zones_extent CHECK (width > 0 AND height > 0),
-    CONSTRAINT ck_layout_zones_alternate_differs
-        CHECK (alternate_exit_id IS NULL
-               OR default_exit_id IS NULL
-               OR alternate_exit_id <> default_exit_id),
     CONSTRAINT fk_layout_zones_layout_version
         FOREIGN KEY (layout_version_id) REFERENCES layout_versions (id)
         ON UPDATE CASCADE
@@ -223,33 +224,45 @@ CREATE TABLE IF NOT EXISTS layout_zones (
         REFERENCES layout_exits (id, layout_version_id)
         ON UPDATE RESTRICT
         ON DELETE RESTRICT,
-    CONSTRAINT fk_layout_zones_alternate_exit
-        FOREIGN KEY (alternate_exit_id, layout_version_id)
-        REFERENCES layout_exits (id, layout_version_id)
-        ON UPDATE RESTRICT
-        ON DELETE RESTRICT,
     INDEX idx_layout_zones_assigned_user (assigned_user_id)
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS layout_zone_structures (
+CREATE TABLE IF NOT EXISTS layout_zone_members (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     layout_version_id BIGINT UNSIGNED NOT NULL,
     zone_id BIGINT UNSIGNED NOT NULL,
-    fabric_id BIGINT UNSIGNED NOT NULL,
-    -- PK가 곧 "구조물 하나는 구역 하나에만 속한다" 규칙이다. 멤버십이 없는 구조물은 공용이다.
-    CONSTRAINT pk_layout_zone_structures PRIMARY KEY (layout_version_id, fabric_id),
-    CONSTRAINT fk_layout_zone_structures_zone
+    wall_id BIGINT UNSIGNED NULL,
+    pillar_id BIGINT UNSIGNED NULL,
+    fabric_id BIGINT UNSIGNED NULL,
+    CONSTRAINT pk_layout_zone_members PRIMARY KEY (id),
+    CONSTRAINT uk_layout_zone_members_wall UNIQUE (wall_id, layout_version_id),
+    CONSTRAINT uk_layout_zone_members_pillar UNIQUE (pillar_id, layout_version_id),
+    CONSTRAINT uk_layout_zone_members_fabric UNIQUE (fabric_id, layout_version_id),
+    CONSTRAINT ck_layout_zone_members_exactly_one
+        CHECK ((wall_id IS NOT NULL) + (pillar_id IS NOT NULL) + (fabric_id IS NOT NULL) = 1),
+    CONSTRAINT fk_layout_zone_members_zone
         FOREIGN KEY (zone_id, layout_version_id)
         REFERENCES layout_zones (id, layout_version_id)
         ON UPDATE RESTRICT
         ON DELETE CASCADE,
-    CONSTRAINT fk_layout_zone_structures_fabric
+    CONSTRAINT fk_layout_zone_members_wall
+        FOREIGN KEY (wall_id, layout_version_id)
+        REFERENCES walls (id, layout_version_id)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE,
+    CONSTRAINT fk_layout_zone_members_pillar
+        FOREIGN KEY (pillar_id, layout_version_id)
+        REFERENCES pillars (id, layout_version_id)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE,
+    CONSTRAINT fk_layout_zone_members_fabric
         FOREIGN KEY (fabric_id, layout_version_id)
         REFERENCES fabrics (id, layout_version_id)
         ON UPDATE RESTRICT
         ON DELETE CASCADE,
-    INDEX idx_layout_zone_structures_zone (zone_id)
+    INDEX idx_layout_zone_members_zone (zone_id, layout_version_id)
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

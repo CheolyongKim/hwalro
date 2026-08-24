@@ -30,6 +30,8 @@ import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMess
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useLayoutMetadata } from '../hooks/useLayoutMetadata';
 import { zoneOfFabric } from '../utils/zoneMembership';
+import type { LayerElement } from '../utils/zoneMembership';
+import { boundingBoxOf } from '../utils/zoneGeometry';
 import { canEditStructureConstraints } from '../utils/structureConstraintPolicy';
 import { authApi } from '../../auth/api/authApi';
 import { useAuth } from '../../auth/context/AuthContext';
@@ -352,8 +354,7 @@ function LayoutPage() {
         zoneType: 'WORK',
         assignedUserId: null,
         defaultExitId: null,
-        alternateExitId: null,
-        structureFabricIds: null,
+        members: null,
       })
       .then((created) => {
         if (created) {
@@ -361,6 +362,135 @@ function LayoutPage() {
           dispatch({ type: 'setTool', tool: 'select' });
         }
       });
+  };
+
+  const clearElementSelection = () =>
+    dispatch({
+      type: 'selectAt',
+      wallId: null,
+      outsideWallId: null,
+      exitId: null,
+      textId: null,
+      pillarId: null,
+      fabricId: null,
+      additive: false,
+    });
+
+  const handleSelectZone = (zoneId: number | null) => {
+    setSelectedZoneId(zoneId);
+    if (zoneId !== null) {
+      clearElementSelection();
+    }
+  };
+
+  const handleChangeMembership = (element: LayerElement, targetZoneId: number | null) => {
+    if (element.backendId === null) {
+      return;
+    }
+    const zones = metadata.metadata.zones;
+    const isSameMember = (member: { kind: string; id: number }) =>
+      member.kind === element.kind && member.id === element.backendId;
+    const source = zones.find((zone) => zone.members.some(isSameMember));
+
+    if (targetZoneId === null) {
+      if (!source) {
+        return;
+      }
+      const nextMembers = source.members.filter((member) => !isSameMember(member));
+      void metadata.updateZone(
+        source.zoneId,
+        { members: nextMembers },
+        (zone) => ({ ...zone, members: nextMembers }),
+      );
+      return;
+    }
+
+    const target = zones.find((zone) => zone.zoneId === targetZoneId);
+    if (!target || (source && source.zoneId === targetZoneId)) {
+      return;
+    }
+    const targetMembers = [
+      ...target.members.filter((member) => !isSameMember(member)),
+      { kind: element.kind, id: element.backendId },
+    ];
+    void metadata.updateZone(
+      targetZoneId,
+      { members: targetMembers },
+      (zone) => ({ ...zone, members: targetMembers }),
+    );
+    if (source) {
+      const sourceMembers = source.members.filter((member) => !isSameMember(member));
+      void metadata.updateZone(
+        source.zoneId,
+        { members: sourceMembers },
+        (zone) => ({ ...zone, members: sourceMembers }),
+      );
+    }
+  };
+
+  const handleSwapZoneOrder = (draggedZoneId: number, targetZoneId: number) => {
+    const zones = metadata.metadata.zones;
+    const dragged = zones.find((zone) => zone.zoneId === draggedZoneId);
+    const target = zones.find((zone) => zone.zoneId === targetZoneId);
+    if (!dragged || !target || dragged.displayOrder === target.displayOrder) {
+      return;
+    }
+    void metadata.updateZone(
+      draggedZoneId,
+      { displayOrder: target.displayOrder },
+      (zone) => ({ ...zone, displayOrder: target.displayOrder }),
+    );
+    void metadata.updateZone(
+      targetZoneId,
+      { displayOrder: dragged.displayOrder },
+      (zone) => ({ ...zone, displayOrder: dragged.displayOrder }),
+    );
+  };
+
+  const handleGroupSelectionIntoZone = () => {
+    const { doc, selection } = stateRef.current;
+    const walls = doc.walls.filter((wall) => selection.wallIds.includes(wall.id));
+    const pillars = doc.pillars.filter((pillar) => selection.pillarIds.includes(pillar.id));
+    const fabrics = doc.fabrics.filter((fabric) => selection.fabricIds.includes(fabric.id));
+    const chosen = [...walls, ...pillars, ...fabrics];
+    if (
+      chosen.length === 0 ||
+      !chosen.every((element) => element.backendId !== null)
+    ) {
+      return;
+    }
+    const box = boundingBoxOf(walls, pillars, fabrics, doc.width, doc.height);
+    if (box === null || box.width <= 0 || box.height <= 0) {
+      return;
+    }
+    const members = [
+      ...walls.map((wall) => ({ kind: 'WALL' as const, id: wall.backendId! })),
+      ...pillars.map((pillar) => ({ kind: 'PILLAR' as const, id: pillar.backendId! })),
+      ...fabrics.map((fabric) => ({ kind: 'FABRIC' as const, id: fabric.backendId! })),
+    ];
+    void metadata
+      .createZone({
+        ...box,
+        name: `구역 ${metadata.metadata.zones.length + 1}`,
+        zoneType: 'WORK',
+        assignedUserId: null,
+        defaultExitId: null,
+        members,
+      })
+      .then((created) => {
+        if (created) {
+          setSelectedZoneId(created.zoneId);
+          clearElementSelection();
+        }
+      });
+  };
+
+  const handleZoneRectCommit = (zoneId: number, rect: ZoneRect) => {
+    void metadata.updateZone(
+      zoneId,
+      { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      (zone) => ({ ...zone, rect }),
+    );
   };
 
   const draftTextId = state.textDraft === null ? null : state.textDraft.textId;
@@ -426,6 +556,9 @@ function LayoutPage() {
         zones={metadata.metadata.zones}
         selectedZoneId={selectedZoneId}
         onZoneDrawn={handleZoneDrawn}
+        onSelectZone={setSelectedZoneId}
+        onZoneRectCommit={handleZoneRectCommit}
+        canEditZones={canManageZones}
       />
       {layersPanel.isMinimized ? (
         <CanvasWorkspacePanelRestore
@@ -458,8 +591,12 @@ function LayoutPage() {
             dispatch={dispatch}
             zones={metadata.metadata.zones}
             selectedZoneId={selectedZoneId}
-            onSelectZone={setSelectedZoneId}
+            onSelectZone={handleSelectZone}
             employeeNameById={employeeNameById}
+            orderLocked={readOnly}
+            onChangeMembership={handleChangeMembership}
+            onGroupSelectionIntoZone={handleGroupSelectionIntoZone}
+            onSwapZoneOrder={handleSwapZoneOrder}
           />
         </CanvasWorkspacePanel>
       )}
@@ -512,7 +649,6 @@ function LayoutPage() {
                   exits={state.doc.exits}
                   employees={employees}
                   readOnly={!canManageZones}
-                  selectedFabric={selectedFabric}
                   onRename={(name) =>
                     void metadata.updateZone(selectedZone.zoneId, { name }, (zone) => ({
                       ...zone,
@@ -538,32 +674,13 @@ function LayoutPage() {
                       (zone) => ({ ...zone, assignedUserId }),
                     )
                   }
-                  onChangeExit={(which, exitId) =>
+                  onChangeExit={(exitId) =>
                     void metadata.updateZone(
                       selectedZone.zoneId,
-                      which === 'default'
-                        ? exitId === null
-                          ? { clearDefaultExit: true }
-                          : { defaultExitId: exitId }
-                        : exitId === null
-                          ? { clearAlternateExit: true }
-                          : { alternateExitId: exitId },
-                      (zone) =>
-                        which === 'default'
-                          ? { ...zone, defaultExitId: exitId }
-                          : { ...zone, alternateExitId: exitId },
+                      exitId === null ? { clearDefaultExit: true } : { defaultExitId: exitId },
+                      (zone) => ({ ...zone, defaultExitId: exitId }),
                     )
                   }
-                  onToggleMembership={(fabricBackendId, add) => {
-                    const next = add
-                      ? [...selectedZone.structureFabricIds, fabricBackendId]
-                      : selectedZone.structureFabricIds.filter((id) => id !== fabricBackendId);
-                    void metadata.updateZone(
-                      selectedZone.zoneId,
-                      { structureFabricIds: next },
-                      (zone) => ({ ...zone, structureFabricIds: next }),
-                    );
-                  }}
                   onDelete={() => {
                     void metadata.deleteZone(selectedZone.zoneId);
                     setSelectedZoneId(null);

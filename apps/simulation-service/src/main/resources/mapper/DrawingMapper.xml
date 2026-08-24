@@ -125,10 +125,11 @@
                start_x,
                start_y,
                end_x,
-               end_y
+               end_y,
+               display_order
         FROM walls
         WHERE layout_version_id = #{layoutVersionId}
-        ORDER BY id ASC
+        ORDER BY display_order ASC, id ASC
     </select>
 
     <select id="findPillarsByVersionId" resultType="com.hwalro.simulation.drawing.domain.Pillar">
@@ -139,10 +140,11 @@
                start_y,
                end_x,
                end_y,
-               rotation
+               rotation,
+               display_order
         FROM pillars
         WHERE layout_version_id = #{layoutVersionId}
-        ORDER BY id ASC
+        ORDER BY display_order ASC, id ASC
     </select>
 
     <select id="findFabricsByVersionId" resultType="com.hwalro.simulation.drawing.domain.Fabric">
@@ -157,10 +159,11 @@
                movable,
                max_movement_distance,
                rotation_locked,
-               keep_against_wall
+               keep_against_wall,
+               display_order
         FROM fabrics
         WHERE layout_version_id = #{layoutVersionId}
-        ORDER BY id ASC
+        ORDER BY display_order ASC, id ASC
     </select>
 
     <select id="findOutsideWallsByVersionId" resultType="com.hwalro.simulation.drawing.domain.OutsideWall">
@@ -216,7 +219,7 @@
     </insert>
 
     <insert id="insertWalls">
-        INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y)
+        INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y, display_order)
         VALUES
         <foreach collection="list" item="wall" separator=",">
             (#{wall.layoutVersionId},
@@ -224,12 +227,13 @@
              #{wall.startX},
              #{wall.startY},
              #{wall.endX},
-             #{wall.endY})
+             #{wall.endY},
+             COALESCE(#{wall.displayOrder}, 0))
         </foreach>
     </insert>
 
     <insert id="insertPillars">
-        INSERT INTO pillars (layout_version_id, name, start_x, start_y, end_x, end_y, rotation)
+        INSERT INTO pillars (layout_version_id, name, start_x, start_y, end_x, end_y, rotation, display_order)
         VALUES
         <foreach collection="list" item="pillar" separator=",">
             (#{pillar.layoutVersionId},
@@ -238,12 +242,13 @@
              #{pillar.startY},
              #{pillar.endX},
              #{pillar.endY},
-             #{pillar.rotation})
+             #{pillar.rotation},
+             COALESCE(#{pillar.displayOrder}, 0))
         </foreach>
     </insert>
 
     <insert id="insertFabrics">
-        INSERT INTO fabrics (layout_version_id, name, start_x, start_y, end_x, end_y, rotation)
+        INSERT INTO fabrics (layout_version_id, name, start_x, start_y, end_x, end_y, rotation, display_order)
         VALUES
         <foreach collection="list" item="fabric" separator=",">
             (#{fabric.layoutVersionId},
@@ -252,7 +257,8 @@
              #{fabric.startY},
              #{fabric.endX},
              #{fabric.endY},
-             #{fabric.rotation})
+             #{fabric.rotation},
+             COALESCE(#{fabric.displayOrder}, 0))
         </foreach>
     </insert>
 
@@ -297,14 +303,34 @@
 
     <insert id="insertFabric" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO fabrics (layout_version_id, name, start_x, start_y, end_x, end_y, rotation,
-                             movable, max_movement_distance, rotation_locked, keep_against_wall)
+                             movable, max_movement_distance, rotation_locked, keep_against_wall, display_order)
         VALUES (#{layoutVersionId}, #{name}, #{startX}, #{startY}, #{endX}, #{endY}, #{rotation},
                 COALESCE(#{movable}, TRUE), #{maxMovementDistance},
-                COALESCE(#{rotationLocked}, FALSE), COALESCE(#{keepAgainstWall}, FALSE))
+                COALESCE(#{rotationLocked}, FALSE), COALESCE(#{keepAgainstWall}, FALSE),
+                COALESCE(#{displayOrder}, 0))
     </insert>
 
+    <insert id="insertWall" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y, display_order)
+        VALUES (#{layoutVersionId}, #{name}, #{startX}, #{startY}, #{endX}, #{endY}, COALESCE(#{displayOrder}, 0))
+    </insert>
+
+    <insert id="insertPillar" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pillars (layout_version_id, name, start_x, start_y, end_x, end_y, rotation, display_order)
+        VALUES (#{layoutVersionId}, #{name}, #{startX}, #{startY}, #{endX}, #{endY}, #{rotation},
+                COALESCE(#{displayOrder}, 0))
+    </insert>
+
+    <select id="findWallIdsByVersionId" resultType="java.lang.Long">
+        SELECT id FROM walls WHERE layout_version_id = #{layoutVersionId} ORDER BY display_order ASC, id ASC
+    </select>
+
+    <select id="findPillarIdsByVersionId" resultType="java.lang.Long">
+        SELECT id FROM pillars WHERE layout_version_id = #{layoutVersionId} ORDER BY display_order ASC, id ASC
+    </select>
+
     <select id="findFabricIdsByVersionId" resultType="java.lang.Long">
-        SELECT id FROM fabrics WHERE layout_version_id = #{layoutVersionId} ORDER BY id ASC
+        SELECT id FROM fabrics WHERE layout_version_id = #{layoutVersionId} ORDER BY display_order ASC, id ASC
     </select>
 
     <select id="findLayoutExitIdsByVersionId" resultType="java.lang.Long">
@@ -319,7 +345,8 @@
             start_y = #{startY},
             end_x = #{endX},
             end_y = #{endY},
-            rotation = #{rotation}
+            rotation = #{rotation},
+            display_order = COALESCE(#{displayOrder}, 0)
         WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
     </update>
 
@@ -333,8 +360,49 @@
         WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
     </update>
 
+    <update id="updateWallGeometry">
+        UPDATE walls
+        SET name = #{name},
+            start_x = #{startX},
+            start_y = #{startY},
+            end_x = #{endX},
+            end_y = #{endY},
+            display_order = COALESCE(#{displayOrder}, 0)
+        WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
+    </update>
+
+    <update id="updatePillarGeometry">
+        UPDATE pillars
+        SET name = #{name},
+            start_x = #{startX},
+            start_y = #{startY},
+            end_x = #{endX},
+            end_y = #{endY},
+            rotation = #{rotation},
+            display_order = COALESCE(#{displayOrder}, 0)
+        WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
+    </update>
+
     <delete id="deleteFabricsByIds">
         DELETE FROM fabrics
+        WHERE layout_version_id = #{layoutVersionId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteWallsByIds">
+        DELETE FROM walls
+        WHERE layout_version_id = #{layoutVersionId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deletePillarsByIds">
+        DELETE FROM pillars
         WHERE layout_version_id = #{layoutVersionId}
           AND id IN
         <foreach collection="ids" item="id" open="(" separator="," close=")">
@@ -361,16 +429,6 @@
         WHERE id = #{id} AND layout_version_id = #{layoutVersionId}
     </update>
 
-    <insert id="copyFabrics">
-        INSERT INTO fabrics (layout_version_id, name, start_x, start_y, end_x, end_y, rotation,
-                             movable, max_movement_distance, rotation_locked, keep_against_wall)
-        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y, rotation,
-               movable, max_movement_distance, rotation_locked, keep_against_wall
-        FROM fabrics
-        WHERE layout_version_id = #{sourceVersionId}
-        ORDER BY id
-    </insert>
-
     <!-- layout_zones의 비상구 복합 FK는 RESTRICT다. 비상구를 지우기 전에 참조를 끊는다. -->
     <update id="nullifyZoneExitReferences">
         UPDATE layout_zones
@@ -378,29 +436,24 @@
             <foreach collection="exitIds" item="exitId" open="(" separator="," close=")">
                 #{exitId}
             </foreach>
-            THEN NULL ELSE default_exit_id END,
-            alternate_exit_id = CASE WHEN alternate_exit_id IN
-            <foreach collection="exitIds" item="exitId" open="(" separator="," close=")">
-                #{exitId}
-            </foreach>
-            THEN NULL ELSE alternate_exit_id END
+            THEN NULL ELSE default_exit_id END
         WHERE layout_version_id = #{layoutVersionId}
     </update>
 
     <insert id="copyWalls">
-        INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y)
-        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y
+        INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y, display_order)
+        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y, display_order
         FROM walls
         WHERE layout_version_id = #{sourceVersionId}
-        ORDER BY id
+        ORDER BY display_order ASC, id ASC
     </insert>
 
     <insert id="copyPillars">
-        INSERT INTO pillars (layout_version_id, name, start_x, start_y, end_x, end_y, rotation)
-        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y, rotation
+        INSERT INTO pillars (layout_version_id, name, start_x, start_y, end_x, end_y, rotation, display_order)
+        SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y, rotation, display_order
         FROM pillars
         WHERE layout_version_id = #{sourceVersionId}
-        ORDER BY id
+        ORDER BY display_order ASC, id ASC
     </insert>
 
     <insert id="copyOutsideWalls">
@@ -439,16 +492,6 @@
           AND optimistic_lock = #{expectedLock}
           AND status = '초안'
     </update>
-
-    <delete id="deleteWallsByVersionId">
-        DELETE FROM walls
-        WHERE layout_version_id = #{layoutVersionId}
-    </delete>
-
-    <delete id="deletePillarsByVersionId">
-        DELETE FROM pillars
-        WHERE layout_version_id = #{layoutVersionId}
-    </delete>
 
     <delete id="deleteFabricsByVersionId">
         DELETE FROM fabrics
