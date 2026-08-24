@@ -51,9 +51,7 @@ describe('ReviewProgressScene', () => {
     await render(<ReviewProgressScene steps={STEPS} />);
     expect(container.querySelector('clipPath rect')?.getAttribute('width')).toBe('276');
 
-    await render(
-      <ReviewProgressScene steps={STEPS.map((step) => ({ ...step, state: 'done' }))} />,
-    );
+    await render(<ReviewProgressScene steps={STEPS.map((step) => ({ ...step, state: 'done' }))} />);
     expect(container.querySelector('clipPath rect')?.getAttribute('width')).toBe('676');
   });
 });

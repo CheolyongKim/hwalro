@@ -316,8 +316,6 @@ describe('threeSimulationGeometry', () => {
       [{ name: 'internal-exit', startX: 4, startY: 5, endX: 6, endY: 5 }],
     );
 
-    expect(walls).toEqual([
-      { name: 'top-part-0', startX: 0, startY: 0, endX: 10, endY: 0 },
-    ]);
+    expect(walls).toEqual([{ name: 'top-part-0', startX: 0, startY: 0, endX: 10, endY: 0 }]);
   });
 });

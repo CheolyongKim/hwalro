@@ -15,7 +15,9 @@ function Card({
   return (
     <div
       className={`rounded-xl border border-line bg-surface ${
-        interactive ? 'transition-colors duration-150 hover:border-line-strong hover:bg-primary-faint' : ''
+        interactive
+          ? 'transition-colors duration-150 hover:border-line-strong hover:bg-primary-faint'
+          : ''
       } ${padded ? 'p-5' : ''} ${className}`}
       {...rest}
     >

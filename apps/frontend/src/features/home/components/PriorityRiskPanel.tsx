@@ -44,10 +44,7 @@ function RiskRow({ item }: { item: PriorityRiskItem }) {
 
   return (
     <li>
-      <Link
-        to={`/risk-management?riskId=${item.id}`}
-        className="home-priority-risks__row group"
-      >
+      <Link to={`/risk-management?riskId=${item.id}`} className="home-priority-risks__row group">
         <div className="flex items-center justify-between gap-2">
           <span
             className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-bold ${config.badgeBg} ${config.badgeText}`}
@@ -82,9 +79,7 @@ export function PriorityRiskPanel({
       <div className="home-priority-risks__header">
         <h2>우선 확인할 항목</h2>
         {!isPending && !isError && displayCount > 0 && (
-          <span className="home-priority-risks__count">
-            {displayCount}
-          </span>
+          <span className="home-priority-risks__count">{displayCount}</span>
         )}
       </div>
 
@@ -106,18 +101,12 @@ export function PriorityRiskPanel({
           >
             {errorMessage}
           </p>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="home-dashboard__retry"
-          >
+          <button type="button" onClick={onRetry} className="home-dashboard__retry">
             다시 시도
           </button>
         </div>
       ) : items.length === 0 ? (
-        <div className="home-dashboard__state">
-          우선 확인할 항목이 없습니다.
-        </div>
+        <div className="home-dashboard__state">우선 확인할 항목이 없습니다.</div>
       ) : (
         <ul className="home-priority-risks__list">
           {items.map((item) => (
@@ -127,10 +116,7 @@ export function PriorityRiskPanel({
       )}
 
       <div className="home-priority-risks__footer">
-        <Link
-          to="/risk-management"
-          className="home-priority-risks__all-link"
-        >
+        <Link to="/risk-management" className="home-priority-risks__all-link">
           모든 위험 항목 확인
           <ArrowRight aria-hidden="true" className="h-4 w-4" strokeWidth={2.5} />
         </Link>

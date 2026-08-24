@@ -208,7 +208,9 @@ function Sidebar() {
             {user?.name.charAt(0) ?? '활'}
           </div>
           <div className="hidden min-w-0 text-left lg:block">
-            <p className="truncate text-xs font-bold text-workspace-text">{user?.name ?? '사용자'}</p>
+            <p className="truncate text-xs font-bold text-workspace-text">
+              {user?.name ?? '사용자'}
+            </p>
             <p className="mt-1 truncate text-[10px] text-workspace-muted">
               {user?.roles.map((role) => ROLE_LABELS[role] ?? role).join(', ')}
             </p>

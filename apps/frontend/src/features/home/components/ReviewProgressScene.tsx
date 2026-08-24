@@ -23,11 +23,7 @@ export function ReviewProgressScene({ steps }: { steps: ReviewStep[] }) {
 
   return (
     <div className="home-review-scene" aria-hidden="true">
-      <svg
-        className="home-review-scene__route"
-        viewBox="0 0 720 120"
-        preserveAspectRatio="none"
-      >
+      <svg className="home-review-scene__route" viewBox="0 0 720 120" preserveAspectRatio="none">
         <defs>
           <clipPath id={clipId}>
             <rect x="0" y="0" width={progressX} height="120" />

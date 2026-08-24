@@ -111,11 +111,7 @@ export const INSIDE_WALLS: WallSegment[] = [
   },
 ];
 
-function addWall(
-  parent: THREE.Group,
-  segment: WallSegment,
-  material: THREE.MeshStandardMaterial,
-) {
+function addWall(parent: THREE.Group, segment: WallSegment, material: THREE.MeshStandardMaterial) {
   const deltaX = segment.endX - segment.startX;
   const deltaZ = segment.endZ - segment.startZ;
   const length = Math.hypot(deltaX, deltaZ);
@@ -236,168 +232,171 @@ export function createLoginSafetyScene(
   let animationFrame = 0;
 
   try {
-  const scene = new THREE.Scene();
-  createdScene = scene;
-  const camera = new THREE.OrthographicCamera(-10, 10, 7, -7, 0.1, 100);
-  camera.position.set(13.5, 14.5, 17.5);
-  const cameraTarget = new THREE.Vector3(0, 0, 0.4);
-  camera.lookAt(cameraTarget);
-  const framingOffset = new THREE.Vector3(0.52, 0.72, 0).applyQuaternion(camera.quaternion);
-  camera.position.add(framingOffset);
-  cameraTarget.add(framingOffset);
-  camera.lookAt(cameraTarget);
+    const scene = new THREE.Scene();
+    createdScene = scene;
+    const camera = new THREE.OrthographicCamera(-10, 10, 7, -7, 0.1, 100);
+    camera.position.set(13.5, 14.5, 17.5);
+    const cameraTarget = new THREE.Vector3(0, 0, 0.4);
+    camera.lookAt(cameraTarget);
+    const framingOffset = new THREE.Vector3(0.52, 0.72, 0).applyQuaternion(camera.quaternion);
+    camera.position.add(framingOffset);
+    cameraTarget.add(framingOffset);
+    camera.lookAt(cameraTarget);
 
-  const model = new THREE.Group();
-  model.rotation.y = CAMERA_BASE_ROTATION;
-  scene.add(model);
+    const model = new THREE.Group();
+    model.rotation.y = CAMERA_BASE_ROTATION;
+    scene.add(model);
 
-  const floor = new THREE.Mesh(
-    new THREE.BoxGeometry(FLOOR_WIDTH, 0.18, FLOOR_DEPTH),
-    new THREE.MeshStandardMaterial({ color: 0xf9fbfa, roughness: 0.92 }),
-  );
-  floor.position.y = -0.1;
-  floor.receiveShadow = true;
-  model.add(floor);
+    const floor = new THREE.Mesh(
+      new THREE.BoxGeometry(FLOOR_WIDTH, 0.18, FLOOR_DEPTH),
+      new THREE.MeshStandardMaterial({ color: 0xf9fbfa, roughness: 0.92 }),
+    );
+    floor.position.y = -0.1;
+    floor.receiveShadow = true;
+    model.add(floor);
 
-  const grid = new THREE.GridHelper(FLOOR_WIDTH, 17, 0xcbd8d4, 0xe4ebe8);
-  grid.scale.z = FLOOR_DEPTH / FLOOR_WIDTH;
-  grid.position.y = 0.006;
-  const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
-  gridMaterials.forEach((material) => {
-    material.transparent = true;
-    material.opacity = 0.62;
-  });
-  model.add(grid);
-
-  const outsideMaterial = new THREE.MeshStandardMaterial({
-    color: 0x173a33,
-    roughness: 0.7,
-  });
-  const insideMaterial = new THREE.MeshStandardMaterial({
-    color: 0x315c53,
-    roughness: 0.74,
-  });
-  OUTSIDE_WALLS.forEach((wall) => addWall(model, wall, outsideMaterial));
-  INSIDE_WALLS.forEach((wall) => addWall(model, wall, insideMaterial));
-  addExitPortal(model);
-
-  const routes = LOGIN_SCENE_ROUTE_POINTS.map(createRoute);
-
-  const routeMaterial = new THREE.MeshBasicMaterial({
-    color: EXIT_COLOR,
-    transparent: true,
-    opacity: 0.42,
-  });
-  routes.forEach((route) => {
-    const path = new THREE.Mesh(new THREE.TubeGeometry(route, 84, 0.026, 6, false), routeMaterial);
-    model.add(path);
-  });
-
-  const agents: MovingAgent[] = [];
-  const agentGeometry = new THREE.SphereGeometry(0.14, 14, 10);
-  const agentMaterial = new THREE.MeshStandardMaterial({ color: 0xb6d843, roughness: 0.6 });
-  const leadMaterial = new THREE.MeshStandardMaterial({ color: 0x0f766e, roughness: 0.56 });
-  for (let index = 0; index < 22; index += 1) {
-    const curve = routes[index % routes.length];
-    const mesh = new THREE.Mesh(agentGeometry, index === 0 ? leadMaterial : agentMaterial);
-    mesh.castShadow = true;
-    model.add(mesh);
-    agents.push({
-      mesh,
-      curve,
-      offset: (index * 0.087) % 1,
-      speed: index % 2 === 0 ? 0.026 : 0.023,
+    const grid = new THREE.GridHelper(FLOOR_WIDTH, 17, 0xcbd8d4, 0xe4ebe8);
+    grid.scale.z = FLOOR_DEPTH / FLOOR_WIDTH;
+    grid.position.y = 0.006;
+    const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
+    gridMaterials.forEach((material) => {
+      material.transparent = true;
+      material.opacity = 0.62;
     });
-  }
+    model.add(grid);
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xa2b5af, 2.5));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 3.1);
-  keyLight.position.set(-7, 13, 9);
-  keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(1024, 1024);
-  keyLight.shadow.camera.left = -14;
-  keyLight.shadow.camera.right = 14;
-  keyLight.shadow.camera.top = 14;
-  keyLight.shadow.camera.bottom = -14;
-  scene.add(keyLight);
-
-  let targetRotation = model.rotation.y;
-  const timer = new THREE.Timer();
-  createdTimer = timer;
-  timer.connect(document);
-
-  const placeAgents = (elapsed: number) => {
-    agents.forEach((agent, index) => {
-      const progress = (agent.offset + elapsed * agent.speed) % 1;
-      const point = agent.curve.getPointAt(progress);
-      agent.mesh.position.set(point.x, index === 0 ? 0.29 : 0.2, point.z);
-      const scale = index === 0 ? 1.65 : 1;
-      agent.mesh.scale.setScalar(scale);
+    const outsideMaterial = new THREE.MeshStandardMaterial({
+      color: 0x173a33,
+      roughness: 0.7,
     });
-  };
+    const insideMaterial = new THREE.MeshStandardMaterial({
+      color: 0x315c53,
+      roughness: 0.74,
+    });
+    OUTSIDE_WALLS.forEach((wall) => addWall(model, wall, outsideMaterial));
+    INSIDE_WALLS.forEach((wall) => addWall(model, wall, insideMaterial));
+    addExitPortal(model);
 
-  const render = () => renderer.render(scene, camera);
-  const resize = () => {
-    const width = Math.max(1, host.clientWidth);
-    const height = Math.max(1, host.clientHeight);
-    const aspect = width / height;
-    const viewHeight = calculateLoginSceneViewHeight(aspect);
-    camera.left = (-viewHeight * aspect) / 2;
-    camera.right = (viewHeight * aspect) / 2;
-    camera.top = viewHeight / 2;
-    camera.bottom = -viewHeight / 2;
-    camera.updateProjectionMatrix();
-    renderer.setSize(width, height, false);
-    render();
-  };
+    const routes = LOGIN_SCENE_ROUTE_POINTS.map(createRoute);
 
-  const handlePointerMove = (event: PointerEvent) => {
-    const bounds = host.getBoundingClientRect();
-    const pointerX = (event.clientX - bounds.left) / Math.max(1, bounds.width) - 0.5;
-    targetRotation = calculateLoginSceneTargetRotation(pointerX);
-  };
-  const handlePointerLeave = () => {
-    targetRotation = CAMERA_BASE_ROTATION;
-  };
-  pointerMoveHandler = handlePointerMove;
-  pointerLeaveHandler = handlePointerLeave;
+    const routeMaterial = new THREE.MeshBasicMaterial({
+      color: EXIT_COLOR,
+      transparent: true,
+      opacity: 0.42,
+    });
+    routes.forEach((route) => {
+      const path = new THREE.Mesh(
+        new THREE.TubeGeometry(route, 84, 0.026, 6, false),
+        routeMaterial,
+      );
+      model.add(path);
+    });
 
-  const animate = () => {
-    animationFrame = window.requestAnimationFrame(animate);
-    if (document.hidden) return;
-    timer.update();
-    placeAgents(timer.getElapsed());
-    model.rotation.y += (targetRotation - model.rotation.y) * 0.045;
-    render();
-  };
+    const agents: MovingAgent[] = [];
+    const agentGeometry = new THREE.SphereGeometry(0.14, 14, 10);
+    const agentMaterial = new THREE.MeshStandardMaterial({ color: 0xb6d843, roughness: 0.6 });
+    const leadMaterial = new THREE.MeshStandardMaterial({ color: 0x0f766e, roughness: 0.56 });
+    for (let index = 0; index < 22; index += 1) {
+      const curve = routes[index % routes.length];
+      const mesh = new THREE.Mesh(agentGeometry, index === 0 ? leadMaterial : agentMaterial);
+      mesh.castShadow = true;
+      model.add(mesh);
+      agents.push({
+        mesh,
+        curve,
+        offset: (index * 0.087) % 1,
+        speed: index % 2 === 0 ? 0.026 : 0.023,
+      });
+    }
 
-  const resizeObserver = new ResizeObserver(resize);
-  createdResizeObserver = resizeObserver;
-  resizeObserver.observe(host);
-  if (!reducedMotion) {
-    host.addEventListener('pointermove', handlePointerMove);
-    host.addEventListener('pointerleave', handlePointerLeave);
-    placeAgents(0);
-    animationFrame = window.requestAnimationFrame(animate);
-  } else {
-    placeAgents(0);
-  }
-  resize();
-  host.appendChild(renderer.domElement);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xa2b5af, 2.5));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.1);
+    keyLight.position.set(-7, 13, 9);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    keyLight.shadow.camera.left = -14;
+    keyLight.shadow.camera.right = 14;
+    keyLight.shadow.camera.top = 14;
+    keyLight.shadow.camera.bottom = -14;
+    scene.add(keyLight);
 
-  return {
-    destroy: () => {
-      window.cancelAnimationFrame(animationFrame);
-      resizeObserver.disconnect();
-      host.removeEventListener('pointermove', handlePointerMove);
-      host.removeEventListener('pointerleave', handlePointerLeave);
-      timer.dispose();
-      disposeObject(scene);
-      renderer.dispose();
-      renderer.forceContextLoss();
-      renderer.domElement.remove();
-    },
-  };
+    let targetRotation = model.rotation.y;
+    const timer = new THREE.Timer();
+    createdTimer = timer;
+    timer.connect(document);
+
+    const placeAgents = (elapsed: number) => {
+      agents.forEach((agent, index) => {
+        const progress = (agent.offset + elapsed * agent.speed) % 1;
+        const point = agent.curve.getPointAt(progress);
+        agent.mesh.position.set(point.x, index === 0 ? 0.29 : 0.2, point.z);
+        const scale = index === 0 ? 1.65 : 1;
+        agent.mesh.scale.setScalar(scale);
+      });
+    };
+
+    const render = () => renderer.render(scene, camera);
+    const resize = () => {
+      const width = Math.max(1, host.clientWidth);
+      const height = Math.max(1, host.clientHeight);
+      const aspect = width / height;
+      const viewHeight = calculateLoginSceneViewHeight(aspect);
+      camera.left = (-viewHeight * aspect) / 2;
+      camera.right = (viewHeight * aspect) / 2;
+      camera.top = viewHeight / 2;
+      camera.bottom = -viewHeight / 2;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height, false);
+      render();
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const bounds = host.getBoundingClientRect();
+      const pointerX = (event.clientX - bounds.left) / Math.max(1, bounds.width) - 0.5;
+      targetRotation = calculateLoginSceneTargetRotation(pointerX);
+    };
+    const handlePointerLeave = () => {
+      targetRotation = CAMERA_BASE_ROTATION;
+    };
+    pointerMoveHandler = handlePointerMove;
+    pointerLeaveHandler = handlePointerLeave;
+
+    const animate = () => {
+      animationFrame = window.requestAnimationFrame(animate);
+      if (document.hidden) return;
+      timer.update();
+      placeAgents(timer.getElapsed());
+      model.rotation.y += (targetRotation - model.rotation.y) * 0.045;
+      render();
+    };
+
+    const resizeObserver = new ResizeObserver(resize);
+    createdResizeObserver = resizeObserver;
+    resizeObserver.observe(host);
+    if (!reducedMotion) {
+      host.addEventListener('pointermove', handlePointerMove);
+      host.addEventListener('pointerleave', handlePointerLeave);
+      placeAgents(0);
+      animationFrame = window.requestAnimationFrame(animate);
+    } else {
+      placeAgents(0);
+    }
+    resize();
+    host.appendChild(renderer.domElement);
+
+    return {
+      destroy: () => {
+        window.cancelAnimationFrame(animationFrame);
+        resizeObserver.disconnect();
+        host.removeEventListener('pointermove', handlePointerMove);
+        host.removeEventListener('pointerleave', handlePointerLeave);
+        timer.dispose();
+        disposeObject(scene);
+        renderer.dispose();
+        renderer.forceContextLoss();
+        renderer.domElement.remove();
+      },
+    };
   } catch (error: unknown) {
     window.cancelAnimationFrame(animationFrame);
     createdResizeObserver?.disconnect();

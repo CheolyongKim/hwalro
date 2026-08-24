@@ -49,9 +49,7 @@ export function ThreeSimulationLoading() {
 export function SimulationPlaybackStage(props: SimulationPlaybackStageProps) {
   if (props.viewMode === 'three') {
     return (
-      <Suspense
-        fallback={<ThreeSimulationLoading />}
-      >
+      <Suspense fallback={<ThreeSimulationLoading />}>
         <ThreeSimulationStage
           result={props.result}
           bottlenecks={props.bottlenecks}

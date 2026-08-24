@@ -204,8 +204,7 @@ function projectPointToSegmentLine(point: Point, segment: DrawingSegment) {
   const lengthSquared = deltaX * deltaX + deltaY * deltaY;
   if (lengthSquared === 0) return point;
   const ratio =
-    ((point.x - segment.startX) * deltaX + (point.y - segment.startY) * deltaY) /
-    lengthSquared;
+    ((point.x - segment.startX) * deltaX + (point.y - segment.startY) * deltaY) / lengthSquared;
   return {
     x: segment.startX + deltaX * ratio,
     y: segment.startY + deltaY * ratio,
@@ -231,10 +230,7 @@ export function projectExitsToBoundarySegments<T extends DrawingSegment>(
   });
 }
 
-export function splitBoundarySegmentsAtExits(
-  segments: DrawingSegment[],
-  exits: DrawingSegment[],
-) {
+export function splitBoundarySegmentsAtExits(segments: DrawingSegment[], exits: DrawingSegment[]) {
   const exitsBySegment = new Map<DrawingSegment, DrawingSegment[]>();
 
   for (const exit of projectExitsToBoundarySegments(segments, exits)) {

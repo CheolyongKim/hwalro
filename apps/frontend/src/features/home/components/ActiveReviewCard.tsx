@@ -64,11 +64,7 @@ export function ActiveReviewCard({
           >
             {errorMessage}
           </p>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="home-dashboard__retry"
-          >
+          <button type="button" onClick={onRetry} className="home-dashboard__retry">
             다시 시도
           </button>
         </div>
@@ -84,10 +80,7 @@ export function ActiveReviewCard({
         </p>
         <div className="home-active-review__empty">
           <p className="text-sm text-text-muted">아직 진행 중인 검토가 없습니다.</p>
-          <Link
-            to="/drawings"
-            className="home-active-review__primary-link"
-          >
+          <Link to="/drawings" className="home-active-review__primary-link">
             도면 목록으로 이동
           </Link>
         </div>
@@ -108,10 +101,7 @@ export function ActiveReviewCard({
       <div className="home-active-review__body">
         <div className="home-active-review__flow">
           <ReviewProgressStepper steps={review.steps} />
-          <Link
-            to={review.resumePath}
-            className="home-active-review__primary-link"
-          >
+          <Link to={review.resumePath} className="home-active-review__primary-link">
             검토 이어가기
           </Link>
         </div>

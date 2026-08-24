@@ -15,16 +15,11 @@ const AGENT_RADIUS = 0.14;
 const WALL_HALF_DEPTH = 0.14;
 const CLEARANCE = AGENT_RADIUS + WALL_HALF_DEPTH + 0.04;
 
-function pointToSegmentDistance(
-  x: number,
-  z: number,
-  wall: WallSegment,
-): number {
+function pointToSegmentDistance(x: number, z: number, wall: WallSegment): number {
   const deltaX = wall.endX - wall.startX;
   const deltaZ = wall.endZ - wall.startZ;
   const lengthSquared = deltaX * deltaX + deltaZ * deltaZ;
-  const projection =
-    ((x - wall.startX) * deltaX + (z - wall.startZ) * deltaZ) / lengthSquared;
+  const projection = ((x - wall.startX) * deltaX + (z - wall.startZ) * deltaZ) / lengthSquared;
   const ratio = Math.max(0, Math.min(1, projection));
   const closestX = wall.startX + deltaX * ratio;
   const closestZ = wall.startZ + deltaZ * ratio;
@@ -49,7 +44,14 @@ describe('login safety scene routes', () => {
         walls.forEach((wall, wallIndex) => {
           const distance = pointToSegmentDistance(point.x, point.z, wall);
           if (distance < closest.distance) {
-            closest = { distance, routeIndex, sampleIndex: index, wallIndex, x: point.x, z: point.z };
+            closest = {
+              distance,
+              routeIndex,
+              sampleIndex: index,
+              wallIndex,
+              x: point.x,
+              z: point.z,
+            };
           }
         });
       }

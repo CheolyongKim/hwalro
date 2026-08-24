@@ -8,13 +8,7 @@ interface WorkStatusCardsProps {
   onRetry: () => void;
 }
 
-function StatusCard({
-  label,
-  count,
-}: {
-  label: string;
-  count: number;
-}) {
+function StatusCard({ label, count }: { label: string; count: number }) {
   return (
     <div className="home-work-status__item">
       <div className="home-work-status__label">
@@ -62,11 +56,7 @@ export function WorkStatusCards({
         >
           {errorMessage}
         </p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="home-dashboard__retry"
-        >
+        <button type="button" onClick={onRetry} className="home-dashboard__retry">
           다시 시도
         </button>
       </section>

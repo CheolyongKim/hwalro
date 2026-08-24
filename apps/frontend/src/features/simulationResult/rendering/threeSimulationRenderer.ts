@@ -7,11 +7,7 @@ import type {
   RiskZone,
   SimulationResultViewModel,
 } from '../types';
-import {
-  interpolatePositions,
-  isAgentPositionActive,
-  selectFramePair,
-} from '../utils/playback';
+import { interpolatePositions, isAgentPositionActive, selectFramePair } from '../utils/playback';
 import {
   boundsTransform,
   createBoundarySegments,

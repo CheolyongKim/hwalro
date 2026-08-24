@@ -12,9 +12,7 @@ describe('외곽벽 이름', () => {
       name: '테스트 도면',
       width: 10,
       height: 10,
-      outsideWalls: [
-        { name: '외각벽 1', startX: 0, startY: 0, endX: 10, endY: 0 },
-      ],
+      outsideWalls: [{ name: '외각벽 1', startX: 0, startY: 0, endX: 10, endY: 0 }],
     });
 
     expect(document.outsideWalls[0]?.name).toBe('외곽벽 1');
