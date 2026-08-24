@@ -92,7 +92,8 @@ public final class SimulationDtos {
             LocalDateTime finishedAt,
             Integer totalPeople,
             String terminationReason,
-            Boolean isImprovement) {}
+            Boolean isImprovement,
+            Boolean hasLayoutSearch) {}
 
     public record SimulationOverviewPageResponse(
             int totalCount, int page, int size, boolean hasNext, List<SimulationOverviewResponse> items) {}
