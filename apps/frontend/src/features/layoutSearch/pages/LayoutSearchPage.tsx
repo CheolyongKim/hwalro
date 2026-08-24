@@ -130,18 +130,17 @@ export default function LayoutSearchPage() {
     async (verify: boolean) => {
       if (await start(undefined, verify)) {
         setSelectedTabKey(null);
+        if (verify) {
+          navigate('/simulations', { state: { layoutSearchSimulationId: id } });
+        }
       }
     },
-    [start],
+    [start, id, navigate],
   );
 
   const retry = useCallback(() => {
     void Promise.all([loadSourceSetup(), initialize()]);
   }, [initialize, loadSourceSetup]);
-
-  const focusComparison = useCallback(() => {
-    document.getElementById('compare-improved-button')?.focus();
-  }, []);
 
   if (loading || sourceLoading) {
     return <CanvasWorkspaceState message="배치 개선안 탐색을 준비하고 있습니다." role="status" />;
@@ -268,7 +267,6 @@ export default function LayoutSearchPage() {
               candidate={selectedCandidate}
               onPrepareSimulation={() => void prepareSimulation(selectedCandidate.candidateId)}
               preparing={preparingCandidateIds.has(selectedCandidate.candidateId)}
-              onContinueComparing={focusComparison}
               previewAvailable={preview.drawing !== null}
               onReject={() => void rejectCandidate(selectedCandidate.candidateId)}
               rejecting={starting}

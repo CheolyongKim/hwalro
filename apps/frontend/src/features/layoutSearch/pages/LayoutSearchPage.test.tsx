@@ -1,4 +1,4 @@
-// @vitest-environment happy-dom
+﻿// @vitest-environment happy-dom
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -170,6 +170,7 @@ async function renderPage() {
       <MemoryRouter initialEntries={['/simulations/42/layout-search']}>
         <Routes>
           <Route path="/simulations/:simulationId/layout-search" element={<LayoutSearchPage />} />
+          <Route path="/simulations" element={<div>시뮬레이션 목록 화면</div>} />
         </Routes>
       </MemoryRouter>,
     );
@@ -266,7 +267,7 @@ describe('배치 개선안 페이지 interaction', () => {
       });
 
     await renderPage();
-    const prepare = button('이 개선안으로 시뮬레이션 준비');
+    const prepare = button('이 개선안으로 시뮬레이션 진행');
     await act(async () => {
       prepare.click();
       prepare.click();
@@ -281,7 +282,7 @@ describe('배치 개선안 페이지 interaction', () => {
       element.textContent?.includes('혼잡 완화'),
     );
     await act(async () => secondCandidate?.click());
-    expect((button('이 개선안으로 시뮬레이션 준비') as HTMLButtonElement).disabled).toBe(false);
+    expect((button('이 개선안으로 시뮬레이션 진행') as HTMLButtonElement).disabled).toBe(false);
     expect(container.querySelector('a[href="/simulations/112/setup"]')).toBeNull();
   });
 
@@ -298,7 +299,7 @@ describe('배치 개선안 페이지 interaction', () => {
 
     await renderPage();
     await act(async () => {
-      button('이 개선안으로 시뮬레이션 준비').click();
+      button('이 개선안으로 시뮬레이션 진행').click();
       await Promise.resolve();
     });
     const secondCandidate = [...container.querySelectorAll('button')].find((element) =>
@@ -306,9 +307,9 @@ describe('배치 개선안 페이지 interaction', () => {
     );
     await act(async () => secondCandidate?.click());
 
-    expect((button('이 개선안으로 시뮬레이션 준비') as HTMLButtonElement).disabled).toBe(false);
+    expect((button('이 개선안으로 시뮬레이션 진행') as HTMLButtonElement).disabled).toBe(false);
     await act(async () => {
-      button('이 개선안으로 시뮬레이션 준비').click();
+      button('이 개선안으로 시뮬레이션 진행').click();
       await Promise.resolve();
     });
     expect(preparation).toHaveBeenCalledTimes(2);
@@ -374,6 +375,7 @@ describe('배치 개선안 페이지 interaction', () => {
     });
 
     expect(start).toHaveBeenCalledWith(42, expect.anything(), true);
+    expect(container.textContent).toContain('시뮬레이션 목록 화면');
   });
 
   it('원본 setup 오류에서 다시 시도하면 실제 setup을 재요청한다', async () => {
