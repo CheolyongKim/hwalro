@@ -131,7 +131,7 @@ public class RiskService {
             }
         }
         if (risk.getSimulationResultId() == null) {
-            throw new SimulationServiceException("위험 항목에 연결된 도면을 조회할 수 없습니다.");
+            throw new SimulationServiceException("주의 항목에 연결된 도면을 조회할 수 없습니다.");
         }
         RiskDrawingContextResponse context = drawingContextClient.findOne(risk.getSimulationResultId(), authorization);
         if (context == null) {
@@ -167,7 +167,7 @@ public class RiskService {
         validateSimulationResultId(request.simulationResultId());
         validateLayoutIds(request.layoutId(), request.layoutVersionId());
         if (request.simulationResultId() == null && request.layoutId() == null) {
-            throw new IllegalArgumentException("위험 항목은 도면 또는 시뮬레이션 결과 중 하나에 연결되어야 합니다.");
+            throw new IllegalArgumentException("주의 항목은 도면 또는 시뮬레이션 결과 중 하나에 연결되어야 합니다.");
         }
         validateGeometry(request);
         List<AttachedLawRef> attachedLaws = validateAttachedLaws(request.attachedLaws());
@@ -177,7 +177,7 @@ public class RiskService {
         risk.setLayoutId(request.layoutId());
         risk.setLayoutVersionId(request.layoutVersionId());
         if (risk.getLayoutId() == null) {
-            // 시뮬레이션 결과에서 생성된 위험도 도면 이력에 쌓이도록 레이아웃을 추정해 저장한다.
+            // 시뮬레이션 결과에서 생성된 주의 항목도 도면 이력에 쌓이도록 레이아웃을 추정해 저장한다.
             resolveLayoutFromSimulationResult(risk, authorization);
         }
         risk.setTitle(request.title().trim());
@@ -506,10 +506,10 @@ public class RiskService {
                 && request.endX() != null
                 && request.endY() != null;
         if (anyProvided != allProvided) {
-            throw new IllegalArgumentException("위험 구역 좌표는 startX, startY, endX, endY를 모두 함께 입력해야 합니다.");
+            throw new IllegalArgumentException("주의 구역 좌표는 startX, startY, endX, endY를 모두 함께 입력해야 합니다.");
         }
         if (allProvided && (request.endX() < request.startX() || request.endY() < request.startY())) {
-            throw new IllegalArgumentException("위험 구역 좌표는 endX가 startX 이상, endY가 startY 이상이어야 합니다.");
+            throw new IllegalArgumentException("주의 구역 좌표는 endX가 startX 이상, endY가 startY 이상이어야 합니다.");
         }
     }
 
@@ -521,10 +521,10 @@ public class RiskService {
 
     private void validateFields(String title, String severity, String status, String description) {
         if (!StringUtils.hasText(title)) {
-            throw new IllegalArgumentException("위험 항목명을 입력해 주세요.");
+            throw new IllegalArgumentException("주의 항목명을 입력해 주세요.");
         }
         if (title.length() > MAX_TITLE_LENGTH) {
-            throw new IllegalArgumentException("위험 항목명은 200자 이하여야 합니다.");
+            throw new IllegalArgumentException("주의 항목명은 200자 이하여야 합니다.");
         }
         if (!StringUtils.hasText(severity) || !ALLOWED_SEVERITIES.contains(severity.trim())) {
             throw new IllegalArgumentException("위험도는 높음, 보통, 낮음 중 하나여야 합니다.");

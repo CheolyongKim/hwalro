@@ -58,8 +58,8 @@ export function LayoutToolbar({
             aria-pressed={riskMode}
             title={
               riskMode
-                ? '도면을 드래그해 위험 구역을 지정하세요. ESC로 종료합니다.'
-                : '도면 위에 위험 예상 항목 구역을 표시합니다.'
+                ? '도면을 드래그해 주의 구역을 지정하세요. ESC로 종료합니다.'
+                : '도면 위에 주의 구역을 표시합니다.'
             }
             className={`flex h-9 items-center justify-center gap-1.5 rounded-lg border text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
               riskMode
@@ -68,7 +68,7 @@ export function LayoutToolbar({
             }`}
           >
             <ShieldAlert aria-hidden="true" className="h-4 w-4" />
-            {riskMode ? '위험 구역 지정 중' : '위험 구역'}
+            {riskMode ? '주의 구역 지정 중' : '주의 구역'}
           </button>
         )}
       </div>

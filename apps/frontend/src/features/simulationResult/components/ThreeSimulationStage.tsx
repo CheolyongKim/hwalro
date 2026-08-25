@@ -7,8 +7,13 @@ import {
   updateThreeSimulationScene,
   type ThreeSimulationScene,
 } from '../rendering/threeSimulationRenderer';
+import {
+  saveThreeCamera,
+  type SimulationCameraMemory,
+} from '../rendering/simulationCameraMemory';
 
 interface Props {
+  cameraMemory: SimulationCameraMemory;
   result: SimulationResultViewModel;
   bottlenecks: DetectedBottleneck[];
   currentTimeSeconds: number;
@@ -35,11 +40,15 @@ export function ThreeSimulationStage(props: Props) {
     if (!host) return;
     let scene: ThreeSimulationScene | null = null;
     const handleControlsStart = () => onViewportPanRef.current();
+    const saveCurrentCamera = () => {
+      if (scene) saveThreeCamera(props.cameraMemory, scene.getCameraState());
+    };
     setSceneError(false);
     try {
-      scene = createThreeSimulationScene(host, props.result);
+      scene = createThreeSimulationScene(host, props.result, props.cameraMemory.three);
       sceneRef.current = scene;
       scene.controls.addEventListener('start', handleControlsStart);
+      scene.controls.addEventListener('change', saveCurrentCamera);
       setSceneVersion((version) => version + 1);
     } catch (error: unknown) {
       console.error('Three.js simulation scene initialization failed.', error);
@@ -47,7 +56,9 @@ export function ThreeSimulationStage(props: Props) {
     }
     return () => {
       if (scene) {
+        saveCurrentCamera();
         scene.controls.removeEventListener('start', handleControlsStart);
+        scene.controls.removeEventListener('change', saveCurrentCamera);
         destroyThreeSimulationScene(scene);
       }
       if (sceneRef.current === scene) sceneRef.current = null;
@@ -106,7 +117,15 @@ export function ThreeSimulationStage(props: Props) {
       {!sceneError && (
         <div className="simulation-three-toolbar">
           <span>좌클릭 회전 / 우클릭 이동 / 휠 확대</span>
-          <button type="button" onClick={() => sceneRef.current?.resetCamera()}>
+          <button
+            type="button"
+            onClick={() => {
+              sceneRef.current?.resetCamera();
+              if (sceneRef.current) {
+                saveThreeCamera(props.cameraMemory, sceneRef.current.getCameraState());
+              }
+            }}
+          >
             시점 초기화
           </button>
         </div>

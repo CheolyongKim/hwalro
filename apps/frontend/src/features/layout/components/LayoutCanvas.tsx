@@ -199,14 +199,14 @@ export function LayoutCanvas({
     if (event.button !== 0) {
       return;
     }
-    if (readOnly) {
-      return;
-    }
     if (riskMode) {
       const rect = event.currentTarget.getBoundingClientRect();
       const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
       setRiskDraft({ start: world, end: world });
       event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+    if (readOnly) {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
@@ -534,7 +534,7 @@ export function LayoutCanvas({
       ? panning
         ? 'layout-cursor-grabbing'
         : 'layout-cursor-grab'
-      : riskMode && !readOnly
+      : riskMode
         ? 'cursor-crosshair'
         : tool === 'wall'
           ? 'layout-cursor-wall'

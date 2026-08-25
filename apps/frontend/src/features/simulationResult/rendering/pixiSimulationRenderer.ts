@@ -85,7 +85,7 @@ function traceBoundary(graphics: Graphics, points: PixiSceneConfig['drawing']['o
   return graphics.closePath();
 }
 
-// 출구·에이전트(청록), 병목(빨강), 위험구역(파랑)과 겹치지 않는 보라색 계열을 쓴다.
+// 출구·에이전트(청록), 병목(빨강), 위험 구역(파랑)과 겹치지 않는 보라색 계열을 쓴다.
 const IMPROVED_FABRIC_FILL = 0xe6dbf7;
 const IMPROVED_FABRIC_STROKE = 0x7a45c9;
 

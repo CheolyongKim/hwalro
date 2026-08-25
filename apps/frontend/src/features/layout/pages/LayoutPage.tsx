@@ -428,7 +428,7 @@ function LayoutPage() {
           endX: risk.endX ?? 0,
           endY: risk.endY ?? 0,
         }))}
-        riskMode={riskMode && !readOnly}
+        riskMode={riskMode}
         onRiskZoneDrawn={setPendingRiskBounds}
       />
       {settingsPanel.isMinimized ? (

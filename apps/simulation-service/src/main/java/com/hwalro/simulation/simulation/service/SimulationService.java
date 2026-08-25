@@ -175,7 +175,7 @@ public class SimulationService {
             RegulationUsageClient.RegulationUsageResponse usage =
                     regulationUsageClient.checkUsage(result.getId(), authorization);
             if (usage.usedInRisks()) {
-                throw new SimulationConflictException("위험 예상 항목에 연결된 시뮬레이션은 삭제할 수 없습니다.");
+                throw new SimulationConflictException("주의 항목에 연결된 시뮬레이션은 삭제할 수 없습니다.");
             }
             if (usage.usedInReports()) {
                 throw new SimulationConflictException("보고서에 연결된 시뮬레이션은 삭제할 수 없습니다.");
@@ -485,7 +485,7 @@ public class SimulationService {
                 || request.selectedExitIds() == null
                 || request.walkingSpeed() == null
                 || request.initialResponseTimeStdDev() == null) {
-            throw new IllegalArgumentException("에이전트, 위험구역, 출입구와 시뮬레이션 옵션이 모두 필요합니다.");
+            throw new IllegalArgumentException("에이전트, 위험 구역, 출입구와 시뮬레이션 옵션이 모두 필요합니다.");
         }
         validateOptions(request.walkingSpeed(), request.initialResponseTimeStdDev());
 

@@ -23,6 +23,7 @@ import {
 } from './threeSimulationGeometry';
 import { configureThreeSimulationControls } from './threeSimulationControls';
 import { getExitPresentation, type ExitPresentation } from './exitPresentation';
+import type { ThreeCameraState } from './simulationCameraMemory';
 
 export interface ThreeSimulationScene {
   renderer: THREE.WebGLRenderer;
@@ -34,6 +35,7 @@ export interface ThreeSimulationScene {
   interpolationBuffer: Float32Array;
   lastOverlayKey: string | null;
   render: () => void;
+  getCameraState: () => ThreeCameraState;
   resetCamera: () => void;
 }
 
@@ -414,6 +416,7 @@ function disposeObject(object: THREE.Object3D) {
 export function createThreeSimulationScene(
   host: HTMLDivElement,
   result: SimulationResultViewModel,
+  savedCamera: ThreeCameraState | null = null,
 ): ThreeSimulationScene {
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -454,6 +457,10 @@ export function createThreeSimulationScene(
     camera.position.copy(initialPosition);
     controls.target.copy(initialTarget);
     configureThreeSimulationControls(controls, span);
+    if (savedCamera) {
+      camera.position.fromArray(savedCamera.position);
+      controls.target.fromArray(savedCamera.target);
+    }
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xa6b9b3, 2.25));
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -494,6 +501,10 @@ export function createThreeSimulationScene(
       interpolationBuffer: new Float32Array(result.totalPeople * 2),
       lastOverlayKey: null,
       render,
+      getCameraState: () => ({
+        position: camera.position.toArray(),
+        target: controls.target.toArray(),
+      }),
       resetCamera: () => {
         camera.position.copy(initialPosition);
         controls.target.copy(initialTarget);

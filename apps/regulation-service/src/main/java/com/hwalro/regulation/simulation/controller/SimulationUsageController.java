@@ -25,7 +25,7 @@ public class SimulationUsageController {
     }
 
     @GetMapping("/{simulationResultId}")
-    @Operation(summary = "시뮬레이션 결과가 위험 예상 항목 또는 보고서에서 참조 중인지 조회")
+    @Operation(summary = "시뮬레이션 결과가 주의 항목 또는 보고서에서 참조 중인지 조회")
     public SimulationUsageResponse getSimulationUsage(@PathVariable Long simulationResultId) {
         boolean usedInRisks = riskMapper.countBySimulationResultId(simulationResultId) > 0;
         boolean usedInReports = reportMapper.countBySimulationResultId(simulationResultId) > 0;

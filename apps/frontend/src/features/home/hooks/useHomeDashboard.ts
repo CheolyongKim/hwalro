@@ -68,7 +68,7 @@ export function useHomeDashboard() {
     [risksQuery.data],
   );
 
-  // 우선 확인할 위험 항목의 담당자 이름을 한 번에 조회한다.
+  // 우선 확인할 주의 항목의 담당자 이름을 한 번에 조회한다.
   const assigneeIds = useMemo(() => {
     const ids = new Set<number>();
     priorityRisks.forEach((risk) => {

@@ -64,7 +64,7 @@ class AiReportDraftServiceTest {
         when(simulationClient.findAll(List.of(10L, 20L), "Bearer token")).thenReturn(List.of(source, comparison));
         Risk risk = new Risk();
         risk.setSimulationResultId(10L);
-        risk.setTitle("위험 예상 구역");
+        risk.setTitle("주의 구역");
         risk.setDescription("사용자 지정");
         risk.setSeverity("HIGH");
         when(riskMapper.findBySimulationResultIds(List.of(10L, 20L))).thenReturn(List.of(risk));

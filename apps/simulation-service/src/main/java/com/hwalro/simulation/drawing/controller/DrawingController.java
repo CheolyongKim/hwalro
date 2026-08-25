@@ -76,7 +76,7 @@ public class DrawingController {
     @PostMapping("/drawing-contexts")
     @Operation(
             summary = "도면 ID 기반 도면 컨텍스트 조회",
-            description = "위험 예상 항목·안전 점검 등에서 도면 ID로 현재 버전 도면 지오메트리를 조회합니다. 최대 20개까지 가능합니다.")
+            description = "주의 항목·안전 점검 등에서 도면 ID로 현재 버전 도면 지오메트리를 조회합니다. 최대 20개까지 가능합니다.")
     public List<LayoutDrawingContextResponse> findDrawingContexts(
             @RequestBody LayoutDrawingContextsRequest request,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {

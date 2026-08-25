@@ -61,7 +61,7 @@ export function AgentDeletionConfirmDialog({
               id="agent-deletion-confirm-description"
               className="mt-1 text-xs leading-5 text-text-muted"
             >
-              위험구역과 시뮬레이션 조건은 유지됩니다.
+              위험 구역과 시뮬레이션 조건은 유지됩니다.
             </p>
             <div className="mt-3 flex justify-end gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={onCancel} autoFocus>
@@ -110,7 +110,7 @@ export function AgentDeletionSuccessToast({
             에이전트 {count.toLocaleString()}명을 삭제했습니다.
           </p>
           <p className="mt-1 text-xs leading-5 text-text-muted">
-            위험구역과 시뮬레이션 조건은 유지됩니다.
+            위험 구역과 시뮬레이션 조건은 유지됩니다.
           </p>
         </div>
         <button
