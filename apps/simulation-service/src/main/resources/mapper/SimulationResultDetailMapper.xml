@@ -50,11 +50,18 @@
         ORDER BY id
     </select>
 
-    <select id="findExits" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$SegmentRow">
-        SELECT name, start_x AS startX, start_y AS startY, end_x AS endX, end_y AS endY, 0 AS rotation
+    <select id="findExits" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$ExitRow">
+        SELECT id, name, start_x AS startX, start_y AS startY, end_x AS endX, end_y AS endY
         FROM layout_exits
         WHERE layout_version_id = #{layoutVersionId}
         ORDER BY id
+    </select>
+
+    <select id="findSelectedExitIds" resultType="long">
+        SELECT layout_exit_id
+        FROM simulation_exits
+        WHERE simulation_id = #{simulationId}
+        ORDER BY layout_exit_id
     </select>
 
     <select id="findPillars" resultType="com.hwalro.simulation.result.mapper.SimulationResultDetailMapper$SegmentRow">

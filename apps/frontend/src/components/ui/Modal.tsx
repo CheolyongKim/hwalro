@@ -77,7 +77,7 @@ function Modal({ open, onClose, title, description, size = 'md', children, foote
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-workspace/55 p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -88,11 +88,11 @@ function Modal({ open, onClose, title, description, size = 'md', children, foote
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`max-h-[calc(100dvh-2.5rem)] w-full overflow-y-auto rounded-2xl bg-white shadow-overlay outline-none ${sizeClasses[size]}`}
+        className={`max-h-[calc(100dvh-2.5rem)] w-full overflow-y-auto rounded-2xl border border-line bg-surface shadow-overlay outline-none ${sizeClasses[size]}`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-line-subtle px-6 py-5">
           <div className="min-w-0">
-            {title ? <h2 className="text-lg font-black tracking-tight text-ink">{title}</h2> : null}
+            {title ? <h2 className="text-lg font-bold tracking-tight text-ink">{title}</h2> : null}
             {description ? <p className="mt-1 text-sm text-text-muted">{description}</p> : null}
           </div>
           <button

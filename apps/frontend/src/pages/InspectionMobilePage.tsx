@@ -243,9 +243,9 @@ function InspectionMobilePage() {
       <div className="mx-auto min-h-dvh w-full max-w-xl px-4 pb-10 pt-4">
         <Skeleton className="h-10 w-40" />
         <div className="mt-6 space-y-3">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <Skeleton className="h-32 w-full rounded-2xl" />
-          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
         </div>
       </div>
     );
@@ -284,7 +284,7 @@ function InspectionMobilePage() {
       <header className="sticky top-0 z-10 border-b border-line bg-background/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
           <div className="min-w-0">
-            <p className="truncate text-base font-black text-ink">{areaName}</p>
+            <p className="truncate text-base font-bold text-ink">{areaName}</p>
             <p className="text-xs font-bold text-text-muted">
               안전 점검 · {counts.completed}/{items.length} 항목 판정
             </p>
@@ -402,11 +402,11 @@ function InspectionMobilePage() {
           {items.map((item) => (
             <li
               key={item.id}
-              className={`rounded-2xl border border-line p-4 ${item.result === 'FAIL' ? 'bg-danger-soft/40' : 'bg-white'}`}
+              className={`rounded-xl border border-line p-4 ${item.result === 'FAIL' ? 'bg-danger-soft/40' : 'bg-surface'}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-black text-ink">
+                  <p className="text-sm font-bold text-ink">
                     <span className="mr-2 text-text-muted tabular-nums">{item.displayOrder}.</span>
                     {item.title}
                   </p>
