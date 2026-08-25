@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 
 public class Risk {
     private Long id;
-    private Long simulationResultId;
     private Long layoutId;
     private Long layoutVersionId;
     private Long assigneeId;
@@ -26,14 +25,6 @@ public class Risk {
 
     public void setId(Long id) {
         this.id = id;
-    }
-
-    public Long getSimulationResultId() {
-        return simulationResultId;
-    }
-
-    public void setSimulationResultId(Long simulationResultId) {
-        this.simulationResultId = simulationResultId;
     }
 
     public Long getLayoutId() {

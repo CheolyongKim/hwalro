@@ -40,6 +40,9 @@ class SimulationReportContextServiceTest {
         assertThat(contexts)
                 .extracting(SimulationReportContextResponse::simulationResultId)
                 .containsExactly(20L, 10L);
+        assertThat(contexts)
+                .extracting(SimulationReportContextResponse::layoutId)
+                .containsExactly(300L, 300L);
         assertThat(contexts.get(0).metrics())
                 .containsExactly(new SimulationReportContextResponse.Metric("MAX_DENSITY", 5.2, "persons/m2"));
         assertThat(contexts.get(1).bottlenecks())

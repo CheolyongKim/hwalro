@@ -114,6 +114,7 @@ export interface HazardZone {
 export interface SimulationResultSummaryViewModel {
   simulationId: string;
   simulationResultId: number;
+  layoutId: number;
   title: string;
   subtitle: string;
   durationSeconds: number;

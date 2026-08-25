@@ -5,6 +5,7 @@ import java.util.List;
 public record SimulationResultDetailResponse(
         Long simulationId,
         Long simulationResultId,
+        Long layoutId,
         String title,
         String subtitle,
         double durationSeconds,

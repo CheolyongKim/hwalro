@@ -8,7 +8,8 @@ USE hwalro_regulation;
 
 CREATE TABLE IF NOT EXISTS risks (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    simulation_result_id BIGINT UNSIGNED NULL,
+    layout_id BIGINT UNSIGNED NOT NULL,
+    layout_version_id BIGINT UNSIGNED NULL,
     assignee_id BIGINT UNSIGNED NULL,
     title VARCHAR(200) NOT NULL,
     description TEXT NULL,
@@ -20,7 +21,7 @@ CREATE TABLE IF NOT EXISTS risks (
     status VARCHAR(30) NOT NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_risks PRIMARY KEY (id),
-    INDEX idx_risks_simulation_result_id (simulation_result_id),
+    INDEX idx_risks_layout_id (layout_id),
     INDEX idx_risks_assignee_id (assignee_id)
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
