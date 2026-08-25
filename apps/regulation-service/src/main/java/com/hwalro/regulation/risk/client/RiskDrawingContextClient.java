@@ -4,7 +4,6 @@ import com.hwalro.regulation.report.client.SimulationServiceProperties;
 import com.hwalro.regulation.report.exception.SimulationServiceException;
 import com.hwalro.regulation.report.exception.SimulationServiceTimeoutException;
 import com.hwalro.regulation.risk.dto.LayoutDrawingContextResponse;
-import com.hwalro.regulation.risk.dto.RiskDrawingContextResponse;
 import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
@@ -36,30 +35,6 @@ public class RiskDrawingContextClient {
     public int maxResultCount() {
         return maxResultCount;
     }
-
-    public RiskDrawingContextResponse findOne(Long simulationResultId, String authorization) {
-        List<RiskDrawingContextResponse> contexts = findAll(List.of(simulationResultId), authorization);
-        return contexts.isEmpty() ? null : contexts.get(0);
-    }
-
-    public List<RiskDrawingContextResponse> findAll(List<Long> simulationResultIds, String authorization) {
-        try {
-            List<RiskDrawingContextResponse> contexts = restClient
-                    .post()
-                    .uri("/api/simulation-results/drawing-contexts")
-                    .header(HttpHeaders.AUTHORIZATION, authorization)
-                    .body(new DrawingContextRequest(simulationResultIds))
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<>() {});
-            return contexts == null ? List.of() : contexts;
-        } catch (ResourceAccessException exception) {
-            throw new SimulationServiceTimeoutException("시뮬레이션 도면 조회 시간이 초과되었습니다.", exception);
-        } catch (RestClientException exception) {
-            throw new SimulationServiceException("시뮬레이션 도면을 조회할 수 없습니다.", exception);
-        }
-    }
-
-    private record DrawingContextRequest(List<Long> simulationResultIds) {}
 
     public List<LayoutDrawingContextResponse> findLayoutContexts(List<Long> layoutIds, String authorization) {
         try {

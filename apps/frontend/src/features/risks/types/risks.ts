@@ -5,8 +5,7 @@ export interface AttachedLawRef {
 
 export interface Risk {
   id: number;
-  simulationResultId: number | null;
-  layoutId: number | null;
+  layoutId: number;
   layoutVersionId: number | null;
   assigneeId: number | null;
   assigneeName: string | null;
@@ -20,13 +19,11 @@ export interface Risk {
   status: string;
   attachedLaws: AttachedLawRef[];
   createdAt: string;
-  simulationTitle: string | null;
   layoutTitle: string | null;
 }
 
 export interface RiskCreateRequest {
-  simulationResultId: number | null;
-  layoutId: number | null;
+  layoutId: number;
   layoutVersionId: number | null;
   startX: number | null;
   startY: number | null;
@@ -65,12 +62,9 @@ export interface DrawingSegment {
 }
 
 export interface RiskDrawingContext {
-  simulationResultId: number | null;
-  simulationId: number | null;
-  layoutId: number | null;
+  layoutId: number;
   layoutVersionId: number | null;
   layoutTitle: string;
-  title: string;
   drawing: {
     name: string;
     width: number;

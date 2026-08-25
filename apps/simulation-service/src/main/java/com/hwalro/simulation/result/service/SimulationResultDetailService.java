@@ -77,6 +77,7 @@ public class SimulationResultDetailService {
         return new SimulationResultDetailResponse(
                 summary.simulationId(),
                 summary.simulationResultId(),
+                summary.layoutId(),
                 summary.title() != null && !summary.title().isBlank() ? summary.title() : summary.layoutTitle(),
                 SUBTITLE,
                 duration,

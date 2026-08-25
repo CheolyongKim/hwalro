@@ -36,6 +36,7 @@ public interface SimulationResultDetailMapper {
             Long simulationResultId,
             Long simulationId,
             Long createdBy,
+            Long layoutId,
             Long layoutVersionId,
             String layoutTitle,
             String title,

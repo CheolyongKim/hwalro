@@ -25,6 +25,7 @@ interface ExitResponse extends SegmentResponse {
 interface SimulationResultSummaryResponse {
   simulationId: number;
   simulationResultId: number;
+  layoutId: number;
   title: string;
   subtitle: string;
   durationSeconds: number;
