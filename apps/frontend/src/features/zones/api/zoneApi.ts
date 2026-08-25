@@ -49,22 +49,15 @@ export interface EvacuationRoute {
   /** 경로에서 가장 좁은 지점의 통로 반폭(m). 작을수록 사람이 몰렸을 때 막히기 쉽다. */
   narrowestMeters: number | null;
   waypoints: RoutePoint[];
-  /** 구역 안에서 비상구가 갈리는 영역들. 배정된 비상구가 있으면 나눌 이유가 없어 비어 있다. */
+  /** 구역 안에서 비상구가 갈리는 영역의 대표 경로들. 배정된 비상구가 있으면 나눌 이유가 없어 비어 있다. */
   partitions: ZoneExitPartition[];
-}
-
-/** 도면 좌표계 사각형. 격자 칸을 가로로 이어 붙인 것이다. */
-export interface RouteTile {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 export interface ZoneExitPartition {
   exitId: number;
   exitName: string;
-  tiles: RouteTile[];
+  /** 이 갈래의 출발점. 서버가 경계 트리밍 후 채우므로 waypoints[0]과 같다. */
+  entryPoint: RoutePoint;
   waypoints: RoutePoint[];
   distanceMeters: number;
   narrowestMeters: number | null;

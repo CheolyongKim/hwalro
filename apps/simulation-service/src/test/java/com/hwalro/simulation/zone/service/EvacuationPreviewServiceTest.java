@@ -309,6 +309,11 @@ class EvacuationPreviewServiceTest {
         assertThat(routes)
                 .allSatisfy(route -> assertThat(route.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE));
         assertThat(routes.get(0).partitions()).hasSize(2);
+        assertThat(routes.get(0).partitions())
+                .allSatisfy(partition -> {
+                    assertThat(partition.waypoints()).isNotEmpty();
+                    assertThat(partition.entryPoint()).isEqualTo(partition.waypoints().get(0));
+                });
         verify(engineRunner, times(1)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
         verify(engineRunner, never()).previewRoutes(anyString(), any(SimulationSetupResponse.class), any());
     }

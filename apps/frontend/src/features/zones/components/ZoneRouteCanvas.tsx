@@ -11,7 +11,7 @@ import { exitColorOf } from '../utils/exitColors';
  * 선택한 구역 하나의 대피 동선을 그린다.
  *
  * 모든 구역의 경로를 흐리게 겹쳐 두면 도면이 실타래처럼 보여 정작 보려던 구역의 경로를 읽기 어렵다.
- * 구역에 담당 비상구가 없어 자리마다 나가는 곳이 갈리는 경우에는 영역과 경로를 비상구 색으로 구분한다.
+ * 구역에 담당 비상구가 없어 자리마다 나가는 곳이 갈리는 경우에는 갈래 경로를 비상구 색으로 구분한다.
  */
 export function ZoneRouteCanvas({
   drawing,
@@ -86,22 +86,6 @@ export function ZoneRouteCanvas({
               dash={[s(6), s(4)]}
             />
           ) : null}
-          {/* 나가는 비상구가 갈리는 영역을 색으로 칠한다. 격자 칸을 가로로 이어 붙인 사각형들이다. */}
-          {split
-            ? partitions.flatMap((partition) =>
-                partition.tiles.map((tile, index) => (
-                  <Rect
-                    key={`tile-${partition.exitId}-${index}`}
-                    x={tile.x}
-                    y={tile.y}
-                    width={tile.width}
-                    height={tile.height}
-                    fill={exitColorOf(partition.exitId, exitIds)}
-                    opacity={0.25}
-                  />
-                )),
-              )
-            : null}
           {drawing.outsideWalls.map((wall, index) => (
             <Line
               key={`outside-${index}`}

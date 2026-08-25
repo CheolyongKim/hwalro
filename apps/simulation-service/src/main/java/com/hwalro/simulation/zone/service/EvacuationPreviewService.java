@@ -272,8 +272,14 @@ public class EvacuationPreviewService {
             return null;
         }
         PreviewedRoute trimmed = trim(zone, exit, route);
+        List<PointDto> waypoints = trimmed.waypoints();
         return new ZoneExitPartitionDto(
-                branch.exitId(), exit.name(), List.of(), trimmed.waypoints(), route.distanceMeters(), null);
+                branch.exitId(),
+                exit.name(),
+                waypoints.isEmpty() ? null : waypoints.get(0),
+                waypoints,
+                route.distanceMeters(),
+                null);
     }
 
     private EvacuationRouteResponse available(

@@ -179,7 +179,7 @@ describe('EvacuationRoutesPage', () => {
           {
             exitId: 9,
             exitName: '비상구 1',
-            tiles: [{ x: 10, y: 20, width: 5, height: 0.25 }],
+            entryPoint: { x: 12, y: 21 },
             waypoints: [
               { x: 12, y: 21 },
               { x: 169, y: 41 },
@@ -190,7 +190,7 @@ describe('EvacuationRoutesPage', () => {
           {
             exitId: 10,
             exitName: '비상구 2',
-            tiles: [{ x: 15, y: 20, width: 5, height: 0.25 }],
+            entryPoint: { x: 18, y: 21 },
             waypoints: [
               { x: 18, y: 21 },
               { x: 1, y: 41 },
