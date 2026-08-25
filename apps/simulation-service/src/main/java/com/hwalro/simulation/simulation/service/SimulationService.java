@@ -188,8 +188,8 @@ public class SimulationService {
                 throw new SimulationConflictException("진행 중인 시뮬레이션은 삭제할 수 없습니다.");
             }
 
-            if (simulationMapper.countImprovementReferences(id) > 0) {
-                throw new SimulationConflictException("개선안에 연결된 시뮬레이션은 삭제할 수 없습니다.");
+            if (simulationMapper.countBlockingImprovementReferences(id) > 0) {
+                throw new SimulationConflictException("개선안의 원본으로 사용 중인 시뮬레이션은 삭제할 수 없습니다.");
             }
 
             if (simulationMapper.countChildSimulations(id) > 0) {

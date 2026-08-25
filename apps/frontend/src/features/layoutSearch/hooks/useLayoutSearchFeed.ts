@@ -68,5 +68,5 @@ export function useLayoutSearchFeeds(simulationIds: readonly number[]) {
     };
   }, [active, refresh]);
 
-  return { feeds, error, active };
+  return { feeds, error, active, refresh };
 }
