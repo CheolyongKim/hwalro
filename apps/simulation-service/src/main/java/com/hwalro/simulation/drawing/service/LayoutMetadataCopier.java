@@ -69,7 +69,12 @@ public class LayoutMetadataCopier {
         List<LayoutZoneMember> members = new ArrayList<>();
         for (LayoutZoneMember source : layoutZoneMapper.findZoneMembersByVersionId(sourceVersionId)) {
             ZoneElementKind kind = source.getKind();
-            Long targetElementId = remap(elementIdMap(elementIdMaps, kind), source.elementId(), kindLabel(kind));
+            Long targetElementId = elementIdMap(elementIdMaps, kind).get(source.elementId());
+            if (targetElementId == null) {
+                // 이번 저장에서 지워진 요소다. 소속만 남겨 둘 곳이 없으니 함께 버린다.
+                // 여기서 실패시키면 구역에 속한 기물을 지운 사람은 도면을 영영 저장하지 못한다.
+                continue;
+            }
             members.add(LayoutZoneMember.of(
                     targetVersionId, remap(zoneIdMap, source.getZoneId(), "구역"), kind, targetElementId));
         }
