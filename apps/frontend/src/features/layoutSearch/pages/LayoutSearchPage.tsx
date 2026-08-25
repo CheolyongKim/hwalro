@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   CanvasWorkspace,
   CanvasWorkspaceBackButton,
@@ -130,9 +130,7 @@ export default function LayoutSearchPage() {
     async (verify: boolean) => {
       if (await start(undefined, verify)) {
         setSelectedTabKey(null);
-        if (verify) {
-          navigate('/simulations', { state: { layoutSearchSimulationId: id } });
-        }
+        navigate('/simulations', { state: { layoutSearchSimulationId: id } });
       }
     },
     [start, id, navigate],
@@ -194,6 +192,16 @@ export default function LayoutSearchPage() {
     );
   }
 
+  if (active) {
+    return (
+      <Navigate
+        to="/simulations"
+        replace
+        state={{ layoutSearchSimulationId: id }}
+      />
+    );
+  }
+
   return (
     <CanvasWorkspace className="layout-search-workspace">
       <CanvasWorkspaceBackButton
@@ -238,11 +246,9 @@ export default function LayoutSearchPage() {
           </div>
         ) : (
           <div className="proposal-layout-loading" role="status">
-            {active
-              ? '개선안이 검증되면 배치를 표시합니다.'
-              : search.status === 'NO_IMPROVEMENT'
-                ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
-                : '검증 중인 배치'}
+            {search.status === 'NO_IMPROVEMENT'
+              ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
+              : '표시할 개선안이 없습니다.'}
           </div>
         )}
       </div>
@@ -278,12 +284,12 @@ export default function LayoutSearchPage() {
                 <h2>
                   {search.status === 'NO_IMPROVEMENT'
                     ? '현재 탐색 범위에서 개선안을 찾지 못했습니다'
-                    : '검증 중인 배치'}
+                    : '표시할 개선안이 없습니다'}
                 </h2>
                 <p>
                   {search.status === 'NO_IMPROVEMENT'
                     ? '구조물 제약을 조정한 뒤 다시 탐색하면 다른 배치안을 찾을 수 있습니다.'
-                    : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
+                    : '제약 설정을 다시 열어 새로운 개선안을 탐색할 수 있습니다.'}
                 </p>
               </div>
             </div>

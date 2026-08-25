@@ -29,6 +29,7 @@ import com.hwalro.simulation.search.dto.LayoutSearchDtos.PreparedSimulationDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.ProgressDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.RationaleDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.RegionDto;
+import com.hwalro.simulation.search.dto.LayoutSearchMonitorItem;
 import com.hwalro.simulation.search.mapper.LayoutSearchMapper;
 import com.hwalro.simulation.simulation.domain.Simulation;
 import com.hwalro.simulation.simulation.domain.SimulationMetric;
@@ -79,6 +80,10 @@ public class LayoutSearchQueryService {
         LayoutSearchEntity search = requireSearch(searchId);
         simulationService.getSetup(search.getBaselineSimulationId(), user);
         return toResponse(search, user);
+    }
+
+    public List<LayoutSearchMonitorItem> getMonitor(JwtUser user) {
+        return layoutSearchMapper.findMonitorItems(user.userId());
     }
 
     private LayoutSearchResponse toResponse(LayoutSearchEntity search, JwtUser user) {
