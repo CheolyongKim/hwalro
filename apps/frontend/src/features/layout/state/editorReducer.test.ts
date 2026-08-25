@@ -95,17 +95,30 @@ describe('저장 응답의 서버 ID 반영', () => {
       doc: {
         ...initial.doc,
         walls: [{ ...wall('w1'), backendId: null }],
+        exits: [
+          {
+            id: 'e1',
+            backendId: null,
+            name: '비상구 1',
+            startX: 0,
+            startY: 0,
+            endX: 1,
+            endY: 0,
+          },
+        ],
         fabrics: [{ ...wall('f1'), backendId: null, rotation: 0 }],
       },
     };
     const adopted = editorReducer(loaded, {
       type: 'adoptSavedIds',
       walls: [11],
+      exits: [33],
       pillars: [],
       fabrics: [22],
     });
 
     expect(adopted.doc.walls[0].backendId).toBe(11);
+    expect(adopted.doc.exits[0].backendId).toBe(33);
     expect(adopted.doc.fabrics[0].backendId).toBe(22);
     // 사용자 편집이 아니므로 실행 취소 이력에 남지 않는다.
     expect(adopted.past).toHaveLength(0);
@@ -118,7 +131,13 @@ describe('저장 응답의 서버 ID 반영', () => {
       doc: { ...initial.doc, walls: [wall('w1'), wall('w2')] },
     };
     expect(
-      editorReducer(loaded, { type: 'adoptSavedIds', walls: [11], pillars: [], fabrics: [] }),
+      editorReducer(loaded, {
+        type: 'adoptSavedIds',
+        walls: [11],
+        exits: [],
+        pillars: [],
+        fabrics: [],
+      }),
     ).toBe(loaded);
   });
 });

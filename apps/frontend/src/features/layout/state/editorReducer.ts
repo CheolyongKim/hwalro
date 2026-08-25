@@ -120,6 +120,7 @@ export type EditorAction =
       /** 저장 응답의 서버 ID를 받아들인다. 사용자 편집이 아니므로 실행 취소 이력에 남기지 않는다. */
       type: 'adoptSavedIds';
       walls: Array<number | null>;
+      exits: Array<number | null>;
       pillars: Array<number | null>;
       fabrics: Array<number | null>;
     }
@@ -539,6 +540,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       // 저장 요청 도중 요소가 추가·삭제됐다면 위치가 어긋난다. 다음 저장이 바로잡도록 건너뛴다.
       if (
         action.walls.length !== state.doc.walls.length ||
+        action.exits.length !== state.doc.exits.length ||
         action.pillars.length !== state.doc.pillars.length ||
         action.fabrics.length !== state.doc.fabrics.length
       ) {
@@ -556,6 +558,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         doc: {
           ...state.doc,
           walls: adopt(state.doc.walls, action.walls),
+          exits: adopt(state.doc.exits, action.exits),
           pillars: adopt(state.doc.pillars, action.pillars),
           fabrics: adopt(state.doc.fabrics, action.fabrics),
         },

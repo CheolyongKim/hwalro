@@ -79,11 +79,16 @@ export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuPro
     };
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', onClose, true);
+    const onScroll = (event: Event) => {
+      if (!(event.target instanceof Node) || !menuRef.current?.contains(event.target)) {
+        onClose();
+      }
+    };
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [onClose]);
 
@@ -114,7 +119,9 @@ export function LayerContextMenu({ anchor, items, onClose }: LayerContextMenuPro
                 <div
                   role="menu"
                   aria-label={item.label}
-                  className="absolute left-full top-0 min-w-[160px] rounded-md border border-panel-divider bg-white py-1 shadow-raised"
+                  className={`absolute min-w-[160px] max-h-[min(24rem,calc(100dvh-1rem))] overflow-y-auto overscroll-contain rounded-md border border-panel-divider bg-white py-1 shadow-raised ${
+                    position.x > window.innerWidth / 2 ? 'right-full' : 'left-full'
+                  } ${position.y > window.innerHeight / 2 ? 'bottom-0' : 'top-0'}`}
                 >
                   {item.children.map((child) => (
                     <button
