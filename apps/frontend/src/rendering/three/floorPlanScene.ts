@@ -7,7 +7,8 @@
  * 이 파일은 그 경계를 타입으로만 정한다. 렌더러 구현은 아직 옮기지 않는다.
  */
 
-export interface ScenePoint {
+/** 도면 좌표계의 점(m). 왼쪽 위가 원점이다. 장면 좌표(x, z)와 헷갈리지 않도록 이름을 구분한다. */
+export interface PlanPoint {
   x: number;
   y: number;
 }
@@ -55,7 +56,7 @@ export interface FloorPlanSceneInput {
    * <p>바닥 슬래브의 모양과 외벽 위치가 모두 이 폴리곤에서 나온다. 시뮬레이션 쪽은 서버가 조립해 준 값을 그대로 쓰고,
    * 도면 쪽은 외곽벽 선분에서 폴리곤을 만들어 넣어야 한다.
    */
-  outsideBoundary: ScenePoint[];
+  outsideBoundary: PlanPoint[];
   /** 건물 안쪽 벽. */
   walls: SceneSegment[];
   pillars: SceneRect[];
@@ -114,7 +115,7 @@ export function sceneCoordinate(x: number, y: number, width: number, height: num
 export function floorPlanSceneInputOf(drawing: {
   width: number;
   height: number;
-  outsideBoundary: ScenePoint[];
+  outsideBoundary: PlanPoint[];
   walls: SceneSegment[];
   pillars: SceneRect[];
   fabrics: SceneRect[];

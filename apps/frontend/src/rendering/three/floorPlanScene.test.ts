@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { worldToScene } from '../../features/simulationResult/rendering/threeSimulationGeometry';
+import { worldToScene } from './floorPlanGeometry';
 import type { SimulationDrawing } from '../../features/simulationResult/types';
 import { FLOOR_PLAN_DIMENSIONS, floorPlanSceneInputOf, sceneCoordinate } from './floorPlanScene';
 
