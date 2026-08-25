@@ -35,7 +35,7 @@
 | 6 | 응답 계약에서 타일 제거 | 보통낮음 | 완료 | `07d73386` |
 | 7 | 레이아웃 버전 캐시 적용 | 보통낮음 | 완료 | `2e074d0d` |
 | 8 | 권한과 직원 가시성 통합 | 보통 | 완료 | `18c8ee87` |
-| 9 | 기존 Java 라우팅 삭제 | 보통 | 완료 | `TBD9` |
+| 9 | 기존 Java 라우팅 삭제 | 보통 | 완료 | `70d2a200` |
 | 10 | 정적 3D 장면 입력 계약 정의 | 보통낮음 | 대기 | - |
 | 11 | 비상구와 기본 기하 생성기 추출 | 보통 | 대기 | - |
 | 12 | 바닥·외곽벽 공용 장면 추출 | 보통 | 대기 | - |
@@ -147,7 +147,7 @@
 ### 9. 기존 Java 라우팅 삭제
 
 - 완료일: 2026-08-25
-- 커밋: `TBD9 feat(SCRUM-133): 엔진으로 대체된 Java 라우팅을 삭제`
+- 커밋: `70d2a200 feat(SCRUM-133): 엔진으로 대체된 Java 라우팅을 삭제`
 - 결과: `EvacuationGrid`, `EvacuationRoutePlanner`, `EvacuationExitField`와 대응 테스트 3종(`EvacuationGridPerformanceTest`, `EvacuationRoutePlannerTest`, `EvacuationExitFieldTest`)을 삭제했다. 약 1,450줄이 사라졌고 대피 경로 계산은 파이썬 엔진 하나만 남는다.
 - 삭제 전 확인: 세 클래스가 서로만 참조하고 생산 코드에서는 이미 끊겨 있었다. 삭제 후 `apps/simulation-service/src`와 `apps/frontend/src` 전체에서 세 이름의 참조가 0건임을 확인했다.
 - 검증:
