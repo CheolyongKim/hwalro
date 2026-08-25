@@ -2,6 +2,8 @@ import axios from 'axios';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../../components/ui';
+import { isCancelledRequest, loadWithRetry } from '../../../api/loadWithRetry';
+import { useDelayedLoadingMessage } from '../../../hooks/useDelayedLoadingMessage';
 import {
   CanvasWorkspace,
   CanvasWorkspaceBackButton,
@@ -466,27 +468,36 @@ export default function SimulationResultPage() {
   const [loadingTotalPeople, setLoadingTotalPeople] = useState<number | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [retry, setRetry] = useState(0);
+  const loadingParticipantLabel = loadingTotalPeople?.toLocaleString('ko-KR');
+  const loadingMessage = useDelayedLoadingMessage(
+    status === 'loading',
+    loadingParticipantLabel
+      ? `${loadingParticipantLabel}명 시뮬레이션 결과를 준비하고 있습니다.`
+      : '시뮬레이션 결과를 준비하고 있습니다.',
+  );
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     setStatus('loading');
     setLoadingTotalPeople(null);
     if (!Number.isSafeInteger(numericSimulationId) || numericSimulationId < 1) {
       setStatus('missing');
       return () => {
-        active = false;
+        controller.abort();
       };
     }
-    void simulationApi
-      .getSetup(numericSimulationId)
+    void loadWithRetry(() => simulationApi.getSetup(numericSimulationId, controller.signal), {
+      signal: controller.signal,
+    })
       .then((setup) => {
-        if (active) setLoadingTotalPeople(setup.totalPeople);
+        if (!controller.signal.aborted) setLoadingTotalPeople(setup.totalPeople);
       })
       .catch(() => undefined);
-    simulationApi
-      .getExecution(numericSimulationId)
+    loadWithRetry(() => simulationApi.getExecution(numericSimulationId, controller.signal), {
+      signal: controller.signal,
+    })
       .then(async (execution) => {
-        if (!active) return;
+        if (controller.signal.aborted) return;
         if (execution.status !== 'COMPLETED' || !execution.result) {
           navigate('/simulations', {
             replace: true,
@@ -497,8 +508,11 @@ export default function SimulationResultPage() {
           });
           return;
         }
-        const loadedSummary = await simulationResultProvider.getSummary(simulationId);
-        if (!active) return;
+        const loadedSummary = await loadWithRetry(
+          () => simulationResultProvider.getSummary(simulationId, controller.signal),
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted) return;
         if (!loadedSummary) {
           setStatus('missing');
           return;
@@ -509,9 +523,11 @@ export default function SimulationResultPage() {
         // 결과 분석 화면은 별도 저장이 없으므로 결과를 실제로 열람한 시점을 작업으로 본다.
         recordLastActivity('SIMULATION_RESULT', numericSimulationId);
       })
-      .catch(() => active && setStatus('error'));
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted && !isCancelledRequest(error)) setStatus('error');
+      });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [navigate, numericSimulationId, retry, simulationId, recordLastActivity]);
 
@@ -521,15 +537,21 @@ export default function SimulationResultPage() {
       setOriginState({ status: 'unavailable' });
       return;
     }
-    let active = true;
+    const controller = new AbortController();
     setOriginState({ status: 'loading' });
     const sourceSimulationId = summary.sourceSimulationId;
     Promise.all([
-      simulationApi.getExecution(sourceSimulationId),
-      simulationResultProvider.getSummary(String(sourceSimulationId)),
+      loadWithRetry(() => simulationApi.getExecution(sourceSimulationId, controller.signal), {
+        signal: controller.signal,
+      }),
+      loadWithRetry(
+        () =>
+          simulationResultProvider.getSummary(String(sourceSimulationId), controller.signal),
+        { signal: controller.signal },
+      ),
     ])
       .then(([execution, sourceSummary]) => {
-        if (!active) return;
+        if (controller.signal.aborted) return;
         // 기존 시뮬레이션이 아직 완료되지 않았거나 결과가 없으면 토글을 숨긴다.
         if (execution.status === 'COMPLETED' && execution.result && sourceSummary) {
           setOriginState({
@@ -541,24 +563,15 @@ export default function SimulationResultPage() {
         }
       })
       .catch(() => {
-        if (active) setOriginState({ status: 'unavailable' });
+        if (!controller.signal.aborted) setOriginState({ status: 'unavailable' });
       });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [summary]);
 
   if (status === 'loading') {
-    const participantLabel = loadingTotalPeople?.toLocaleString('ko-KR');
-    return (
-      <CanvasWorkspaceState
-        message={
-          participantLabel
-            ? `${participantLabel}명 시뮬레이션 결과를 준비하고 있습니다.`
-            : '시뮬레이션 결과를 준비하고 있습니다.'
-        }
-      />
-    );
+    return <CanvasWorkspaceState message={loadingMessage} />;
   }
   if (status !== 'ready' || !summary || !executionResult) {
     return (

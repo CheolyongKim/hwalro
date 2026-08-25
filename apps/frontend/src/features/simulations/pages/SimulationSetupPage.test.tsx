@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { act } from 'react';
+import { AxiosError } from 'axios';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -118,6 +119,28 @@ function executeButton(): HTMLButtonElement {
 }
 
 describe('출입구 기본 선택', () => {
+  it('일시적인 조회 실패는 오류 화면으로 전환하지 않고 자동 복구한다', async () => {
+    vi.useFakeTimers();
+    const getSetup = vi
+      .spyOn(simulationApi, 'getSetup')
+      .mockRejectedValueOnce(
+        new AxiosError('unavailable', undefined, undefined, undefined, { status: 503 } as never),
+      )
+      .mockResolvedValue(setup());
+
+    await renderPage();
+    expect(container.textContent).toContain('시뮬레이션 설정을 불러오는 중...');
+    expect(container.textContent).not.toContain('다시 시도');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(getSetup).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="simulation-canvas"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('다시 시도');
+  });
+
   it('저장된 출입구 선택을 유지한다', async () => {
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
 

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
+import { isCancelledRequest, loadWithRetry } from '../../../api/loadWithRetry';
+import { useDelayedLoadingMessage } from '../../../hooks/useDelayedLoadingMessage';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutPrimaryActions, LayoutToolbar } from '../components/LayoutToolbar';
 import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
@@ -74,6 +76,7 @@ function LayoutPage() {
   const layoutId = parseLayoutId(drawingId);
   const [state, dispatch] = useReducer(editorReducer, undefined, createInitialState);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
+  const loadingMessage = useDelayedLoadingMessage(loadStatus === 'loading', '도면 불러오는 중...');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [retryCount, setRetryCount] = useState(0);
@@ -132,12 +135,14 @@ function LayoutPage() {
       return;
     }
     loadedRef.current = true;
-    let cancelled = false;
+    const controller = new AbortController();
     sessionRef.current = null;
     setLoadStatus('loading');
-    fetchDrawing(drawingId)
+    loadWithRetry(() => fetchDrawing(drawingId, controller.signal), {
+      signal: controller.signal,
+    })
       .then((session) => {
-        if (cancelled) {
+        if (controller.signal.aborted) {
           return;
         }
         if (session === null) {
@@ -148,13 +153,13 @@ function LayoutPage() {
         dispatch({ type: 'loadDocument', doc: session.doc });
         setLoadStatus('ready');
       })
-      .catch(() => {
-        if (!cancelled) {
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted && !isCancelledRequest(error)) {
           setLoadStatus('error');
         }
       });
     return () => {
-      cancelled = true;
+      controller.abort();
       loadedRef.current = false;
     };
   }, [drawingId, retryCount]);
@@ -381,7 +386,7 @@ function LayoutPage() {
       : (state.doc.layoutTexts.find((t) => t.id === draftTextId)?.text ?? '');
 
   if (loadStatus === 'loading') {
-    return <CanvasWorkspaceState message="도면 불러오는 중..." />;
+    return <CanvasWorkspaceState message={loadingMessage} />;
   }
 
   if (loadStatus === 'missing') {

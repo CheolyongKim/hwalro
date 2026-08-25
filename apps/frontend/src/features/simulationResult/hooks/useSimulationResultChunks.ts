@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { timelineChunkWindow } from '../../simulations/utils/timeline';
 import { simulationResultProvider } from '../api/simulationResultProvider';
+import { isCancelledRequest, loadWithRetry } from '../../../api/loadWithRetry';
 import type { EvacuationPoint, HeatmapData, SimulationPlaybackChunkData } from '../types';
 
 interface Options {
@@ -99,6 +100,7 @@ export function useSimulationResultChunks(options: Options) {
   useEffect(() => {
     const requestVersion = requestVersionRef.current + 1;
     requestVersionRef.current = requestVersion;
+    const controller = new AbortController();
     if (chunkCount < 1 || timelineChunkCount !== heatmapChunkCount) {
       setLoading(false);
       setError('타임라인과 히트맵 결과 청크가 올바르게 저장되지 않았습니다.');
@@ -112,11 +114,16 @@ export function useSimulationResultChunks(options: Options) {
         sequences.map(async (chunkSequence) => {
           const cached = cacheRef.current.get(chunkSequence);
           if (cached) return cached;
-          return simulationResultProvider.getPlaybackChunk(
-            simulationId,
-            chunkSequence,
-            totalPeople,
-            maxDensity,
+          return loadWithRetry(
+            () =>
+              simulationResultProvider.getPlaybackChunk(
+                simulationId,
+                chunkSequence,
+                totalPeople,
+                maxDensity,
+                controller.signal,
+              ),
+            { signal: controller.signal },
           );
         }),
       );
@@ -132,11 +139,13 @@ export function useSimulationResultChunks(options: Options) {
       setLoading(false);
     };
 
-    void load().catch(() => {
+    void load().catch((loadError: unknown) => {
       if (requestVersionRef.current !== requestVersion) return;
+      if (controller.signal.aborted || isCancelledRequest(loadError)) return;
       setLoading(false);
       setError('시뮬레이션 재생 데이터를 불러오지 못했습니다.');
     });
+    return () => controller.abort();
   }, [
     chunkCount,
     heatmapChunkCount,
@@ -158,23 +167,28 @@ export function useSimulationResultChunks(options: Options) {
   // 필요한 시점에 언제든 다시 가져온다.
   useEffect(() => {
     if (chunkCount < 1 || timelineChunkCount !== heatmapChunkCount) return;
-    let cancelled = false;
+    const controller = new AbortController();
     const run = async () => {
       for (let sequence = 0; sequence < chunkCount; sequence += 1) {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         if (cacheRef.current.has(sequence) || prefetchedSequencesRef.current.has(sequence)) {
           // 재생 창이 캐시에 담은 청크의 진행률도 이미 병합됐으니 같은 완료 추적으로 기록한다.
           prefetchedSequencesRef.current.add(sequence);
           continue;
         }
         try {
-          const data = await simulationResultProvider.getPlaybackChunk(
-            simulationId,
-            sequence,
-            totalPeople,
-            maxDensity,
+          const data = await loadWithRetry(
+            () =>
+              simulationResultProvider.getPlaybackChunk(
+                simulationId,
+                sequence,
+                totalPeople,
+                maxDensity,
+                controller.signal,
+              ),
+            { signal: controller.signal },
           );
-          if (cancelled) return;
+          if (controller.signal.aborted) return;
           prefetchedSequencesRef.current.add(sequence);
           setProgress((current) => mergeProgressPoints(current, [data]));
         } catch {
@@ -184,7 +198,7 @@ export function useSimulationResultChunks(options: Options) {
     };
     void run();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [
     chunkCount,

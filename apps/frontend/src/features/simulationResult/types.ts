@@ -142,7 +142,10 @@ export interface SimulationPlaybackChunkData {
 }
 
 export interface SimulationResultProvider {
-  getSummary(simulationId: string): Promise<SimulationResultSummaryViewModel | null>;
+  getSummary(
+    simulationId: string,
+    signal?: AbortSignal,
+  ): Promise<SimulationResultSummaryViewModel | null>;
   getComparableSimulations(
     simulationId: number,
     page: number,
@@ -153,5 +156,6 @@ export interface SimulationResultProvider {
     sequence: number,
     totalPeople: number,
     maxDensity: number,
+    signal?: AbortSignal,
   ): Promise<SimulationPlaybackChunkData>;
 }
