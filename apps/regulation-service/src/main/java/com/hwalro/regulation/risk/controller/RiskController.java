@@ -58,6 +58,20 @@ public class RiskController {
         return riskService.getDrawingContext(simulationResultId, authorization);
     }
 
+    @GetMapping("/by-layout/{layoutId}")
+    public List<RiskResponse> listByLayout(
+            @PathVariable Long layoutId, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return riskService.listByLayout(layoutId, user);
+    }
+
+    @GetMapping("/{id}/drawing")
+    public RiskDrawingContextResponse getDrawingForRisk(
+            @PathVariable Long id,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return riskService.getDrawingForRisk(id, user, authorization);
+    }
+
     @GetMapping("/{id}")
     public RiskResponse get(
             @PathVariable Long id, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
@@ -68,8 +82,9 @@ public class RiskController {
     @ResponseStatus(HttpStatus.CREATED)
     public RiskResponse create(
             @RequestBody RiskCreateRequest request,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return riskService.create(request, user.userId());
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return riskService.create(request, user.userId(), authorization);
     }
 
     @PutMapping("/{id}")

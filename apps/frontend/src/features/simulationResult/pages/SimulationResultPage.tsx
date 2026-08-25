@@ -21,13 +21,11 @@ import { ImprovementComparisonPanel } from '../components/ImprovementComparisonP
 import { PlaybackControls } from '../components/PlaybackControls';
 import { ReportDraftDialog } from '../components/ReportDraftDialog';
 import { ResultSummaryPanel } from '../components/ResultSummaryPanel';
-import { RiskZoneEditorDialog } from '../components/RiskZoneEditorDialog';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
 import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
 import type {
-  Bounds,
   RiskZone,
   SimulationResultSummaryViewModel,
   SimulationResultViewModel,
@@ -38,6 +36,7 @@ import {
   rankBottlenecks,
 } from '../utils/bottleneckDisplay';
 import { calculateEvacuationRate } from '../utils/evacuationRate';
+import { findImprovedFabricDiff } from '../utils/improvedFabrics';
 import { selectFramePair } from '../utils/playback';
 import '../simulationResult.css';
 import '../simulationResultMotion.css';
@@ -69,13 +68,34 @@ function getReportDraftErrorMessage(error: unknown) {
   return 'AI 보고서 초안을 생성하지 못했습니다.';
 }
 
-interface ResultViewProps {
+interface OriginSimulationResult {
   summary: SimulationResultSummaryViewModel;
   executionResult: SimulationResultSummary;
 }
 
-function ResultView({ summary, executionResult }: ResultViewProps) {
+type OriginResultState =
+  | { status: 'loading' }
+  | { status: 'unavailable' }
+  | { status: 'ready'; result: OriginSimulationResult };
+
+interface ResultViewProps {
+  summary: SimulationResultSummaryViewModel;
+  executionResult: SimulationResultSummary;
+  originState: OriginResultState;
+}
+
+function ResultView({
+  summary: currentSummary,
+  executionResult: currentExecution,
+  originState,
+}: ResultViewProps) {
   const navigate = useNavigate();
+  const [viewingOrigin, setViewingOrigin] = useState(false);
+  const originReady = originState.status === 'ready';
+  // 재생바와 시간은 그대로 두고 화면에 보이는 시뮬레이션 결과만 바꾼다.
+  const summary = viewingOrigin && originReady ? originState.result.summary : currentSummary;
+  const executionResult =
+    viewingOrigin && originReady ? originState.result.executionResult : currentExecution;
   const playback = useSimulationPlayback(summary.durationSeconds);
   const rankedBottlenecks = useMemo(
     () => rankBottlenecks(summary.bottlenecks),
@@ -109,6 +129,21 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         : null,
     [chunks.agentFrames, chunks.evacuationProgress, chunks.heatmap, summary],
   );
+  // 기존 배치와 개선 배치를 비교해 바뀐 구조물을 양쪽 화면 모두에서 강조한다.
+  // 비교 대상은 항상 (기존 요약, 개선 요약) 고정이고, 활성 화면에 맞는 쪽 인덱스를 쓴다.
+  const improvedFabricDiff = useMemo(
+    () =>
+      originState.status === 'ready'
+        ? findImprovedFabricDiff(
+            originState.result.summary.drawing.fabrics,
+            currentSummary.drawing.fabrics,
+          )
+        : { originIndexes: [], improvedIndexes: [] },
+    [originState, currentSummary.drawing],
+  );
+  const changedFabricCount = (
+    viewingOrigin ? improvedFabricDiff.originIndexes : improvedFabricDiff.improvedIndexes
+  ).length;
   const evacuationChart = useCollapsibleWorkspacePanel(() =>
     matchesMediaQuery(NARROW_RESULT_VIEWPORT_QUERY),
   );
@@ -118,9 +153,7 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
   const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(
     rankedBottlenecks[0]?.id ?? null,
   );
-  const [riskDrawingMode, setRiskDrawingMode] = useState(false);
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
-  const [pendingBounds, setPendingBounds] = useState<Bounds | null>(null);
   const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
@@ -175,11 +208,6 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     if (!improvementPanel.isMinimized) improvementPanel.collapse();
   };
 
-  const handleRiskZoneCreated = (bounds: Bounds) => {
-    setPendingBounds(bounds);
-    setRiskDrawingMode(false);
-  };
-
   useEffect(() => {
     let active = true;
     setRiskLoadError(null);
@@ -200,6 +228,21 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
     playback.pause();
     playback.seek(summary.durationSeconds);
     setResultsRevealed(true);
+  };
+
+  const handleViewOrigin = (nextViewingOrigin: boolean) => {
+    // 전환 대상 결과가 더 짧으면 재생 위치를 그 결과 길이 안으로 되돌린다.
+    const target =
+      nextViewingOrigin && originState.status === 'ready'
+        ? originState.result
+        : nextViewingOrigin
+          ? null
+          : { summary: currentSummary, executionResult: currentExecution };
+    if (!target) return;
+    setViewingOrigin(nextViewingOrigin);
+    if (playback.displayTimeSeconds > target.summary.durationSeconds) {
+      playback.seek(target.summary.durationSeconds);
+    }
   };
 
   const handleShowMoreBottlenecks = () => {
@@ -270,13 +313,39 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         currentTimeSeconds={playback.displayTimeSeconds}
         selectedBottleneckId={selectedBottleneckId}
         showBottlenecks={bottlenecksVisible}
-        riskDrawingMode={riskDrawingMode}
         riskZones={riskZones}
-        onRiskZoneCreated={handleRiskZoneCreated}
+        improvedFabricIndexes={
+          viewingOrigin ? improvedFabricDiff.originIndexes : improvedFabricDiff.improvedIndexes
+        }
         onViewportPan={handleViewportPan}
       />
 
-      <CanvasWorkspaceBackButton onClick={() => navigate('/simulations')} />
+      <div className="result-top-left">
+        <CanvasWorkspaceBackButton onClick={() => navigate('/simulations')} />
+        {originReady && (
+          <div className="origin-toggle" role="group" aria-label="기존 배치와 개선 배치 결과 전환">
+            <button
+              type="button"
+              className={viewingOrigin ? 'is-active' : undefined}
+              aria-pressed={viewingOrigin}
+              onClick={() => handleViewOrigin(true)}
+            >
+              기존 배치
+            </button>
+            <button
+              type="button"
+              className={!viewingOrigin ? 'is-active' : undefined}
+              aria-pressed={!viewingOrigin}
+              onClick={() => handleViewOrigin(false)}
+            >
+              개선 배치
+            </button>
+          </div>
+        )}
+        {originReady && changedFabricCount > 0 && (
+          <span className="origin-fabric-badge">개선된 구조물 {changedFabricCount}개</span>
+        )}
+      </div>
       <CanvasWorkspaceHeader
         title={
           <div className="flex items-center gap-2">
@@ -293,17 +362,11 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         statusTone="complete"
       />
 
-      <div className="risk-zone-control">
-        <button
-          type="button"
-          className={`risk-zone-button ${riskDrawingMode ? 'is-active' : ''}`}
-          aria-pressed={riskDrawingMode}
-          onClick={() => setRiskDrawingMode((value) => !value)}
-        >
-          {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 항목 설정'}
-        </button>
-        {riskLoadError && <p className="risk-zone-load-error">{riskLoadError}</p>}
-      </div>
+      {riskLoadError && (
+        <div className="risk-zone-control">
+          <p className="risk-zone-load-error">{riskLoadError}</p>
+        </div>
+      )}
 
       <ResultSummaryPanel
         result={result}
@@ -366,19 +429,6 @@ function ResultView({ summary, executionResult }: ResultViewProps) {
         onCompare={() => navigate(`/simulations/${result.simulationId}/layout-search`)}
       />
 
-      {pendingBounds && (
-        <RiskZoneEditorDialog
-          bounds={pendingBounds}
-          drawing={result.drawing}
-          simulationResultId={summary.simulationResultId}
-          onCancel={() => setPendingBounds(null)}
-          onConfirm={(risk) => {
-            setRiskZones((zones) => [...zones, toRiskZone(risk)]);
-            setPendingBounds(null);
-          }}
-        />
-      )}
-
       <ReportDraftDialog
         open={reportOpen}
         result={result}
@@ -400,6 +450,7 @@ export default function SimulationResultPage() {
   const recordLastActivity = useRecordLastActivity();
   const [summary, setSummary] = useState<SimulationResultSummaryViewModel | null>(null);
   const [executionResult, setExecutionResult] = useState<SimulationResultSummary | null>(null);
+  const [originState, setOriginState] = useState<OriginResultState>({ status: 'loading' });
   const [loadingTotalPeople, setLoadingTotalPeople] = useState<number | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [retry, setRetry] = useState(0);
@@ -452,6 +503,39 @@ export default function SimulationResultPage() {
     };
   }, [navigate, numericSimulationId, retry, simulationId, recordLastActivity]);
 
+  useEffect(() => {
+    // 개선안이 아니면 기존 시뮬레이션 비교 자체가 없으므로 loading에 머물지 않게 정리한다.
+    if (!summary?.isImprovement || !summary.sourceSimulationId) {
+      setOriginState({ status: 'unavailable' });
+      return;
+    }
+    let active = true;
+    setOriginState({ status: 'loading' });
+    const sourceSimulationId = summary.sourceSimulationId;
+    Promise.all([
+      simulationApi.getExecution(sourceSimulationId),
+      simulationResultProvider.getSummary(String(sourceSimulationId)),
+    ])
+      .then(([execution, sourceSummary]) => {
+        if (!active) return;
+        // 기존 시뮬레이션이 아직 완료되지 않았거나 결과가 없으면 토글을 숨긴다.
+        if (execution.status === 'COMPLETED' && execution.result && sourceSummary) {
+          setOriginState({
+            status: 'ready',
+            result: { summary: sourceSummary, executionResult: execution.result },
+          });
+        } else {
+          setOriginState({ status: 'unavailable' });
+        }
+      })
+      .catch(() => {
+        if (active) setOriginState({ status: 'unavailable' });
+      });
+    return () => {
+      active = false;
+    };
+  }, [summary]);
+
   if (status === 'loading') {
     const participantLabel = loadingTotalPeople?.toLocaleString('ko-KR');
     return (
@@ -489,5 +573,7 @@ export default function SimulationResultPage() {
       />
     );
   }
-  return <ResultView summary={summary} executionResult={executionResult} />;
+  return (
+    <ResultView summary={summary} executionResult={executionResult} originState={originState} />
+  );
 }

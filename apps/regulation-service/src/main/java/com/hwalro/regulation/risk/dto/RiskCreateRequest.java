@@ -4,6 +4,8 @@ import java.util.List;
 
 public record RiskCreateRequest(
         Long simulationResultId,
+        Long layoutId,
+        Long layoutVersionId,
         Double startX,
         Double startY,
         Double endX,
