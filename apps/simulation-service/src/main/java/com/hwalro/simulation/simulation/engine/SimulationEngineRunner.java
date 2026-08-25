@@ -172,6 +172,12 @@ public class SimulationEngineRunner {
     public List<PreviewedRoute> previewRoutes(
             String jobLabel, SimulationSetupResponse setup, RouteOriginBounds routeOriginBounds)
             throws EngineRunException {
+        return previewRouteResult(jobLabel, setup, routeOriginBounds).routes();
+    }
+
+    public RoutePreviewResult previewRouteResult(
+            String jobLabel, SimulationSetupResponse setup, RouteOriginBounds routeOriginBounds)
+            throws EngineRunException {
         Path jobDirectory = null;
         Process process = null;
         try {
@@ -211,7 +217,7 @@ public class SimulationEngineRunner {
                 log.warn("Route preview {} failed with exit code {}: {}", jobLabel, process.exitValue(), diagnostic);
                 throw new EngineRunException("ENGINE_ERROR: 대피 경로를 계산하지 못했습니다.", false);
             }
-            return readPreviewedRoutes(outputDirectory);
+            return readRoutePreviewResult(outputDirectory);
         } catch (IOException exception) {
             log.warn("Route preview {} I/O failed", jobLabel, exception);
             throw new EngineRunException("ENGINE_ERROR: 대피 경로 입출력 처리에 실패했습니다.", false, exception);
@@ -226,7 +232,7 @@ public class SimulationEngineRunner {
         }
     }
 
-    private List<PreviewedRoute> readPreviewedRoutes(Path outputDirectory) throws IOException {
+    RoutePreviewResult readRoutePreviewResult(Path outputDirectory) throws IOException {
         Path routesPath = outputDirectory.resolve("routes.json");
         if (!Files.exists(routesPath)) {
             throw new IOException("엔진이 대피 경로를 내놓지 않았습니다.");
@@ -266,7 +272,71 @@ public class SimulationEngineRunner {
                     distance.doubleValue(),
                     waypoints));
         }
-        return List.copyOf(parsed);
+        return new RoutePreviewResult(List.copyOf(parsed), readRouteCoverage(root.get("coverage")));
+    }
+
+    private RouteCoverage readRouteCoverage(JsonNode coverage) throws IOException {
+        if (coverage == null || !coverage.isObject()) {
+            throw new IOException("대피 경로 커버리지 응답 형식이 올바르지 않습니다.");
+        }
+        JsonNode originX = coverage.get("originX");
+        JsonNode originY = coverage.get("originY");
+        JsonNode step = coverage.get("step");
+        JsonNode columns = coverage.get("columns");
+        JsonNode rows = coverage.get("rows");
+        JsonNode labels = coverage.get("labels");
+        JsonNode exitIds = coverage.get("exitIds");
+        if (originX == null
+                || !originX.isNumber()
+                || !Double.isFinite(originX.doubleValue())
+                || originY == null
+                || !originY.isNumber()
+                || !Double.isFinite(originY.doubleValue())
+                || step == null
+                || !step.isNumber()
+                || !Double.isFinite(step.doubleValue())
+                || step.doubleValue() <= 0
+                || columns == null
+                || !columns.isIntegralNumber()
+                || !columns.canConvertToInt()
+                || columns.intValue() <= 0
+                || rows == null
+                || !rows.isIntegralNumber()
+                || !rows.canConvertToInt()
+                || rows.intValue() <= 0
+                || labels == null
+                || !labels.isArray()
+                || exitIds == null
+                || !exitIds.isArray()
+                || exitIds.isEmpty()
+                || (long) columns.intValue() * rows.intValue() != labels.size()) {
+            throw new IOException("대피 경로 커버리지 응답 값이 올바르지 않습니다.");
+        }
+        List<Long> parsedExitIds = new ArrayList<>();
+        for (JsonNode exitId : exitIds) {
+            if (!exitId.isIntegralNumber() || !exitId.canConvertToLong()) {
+                throw new IOException("대피 경로 커버리지 비상구 값이 올바르지 않습니다.");
+            }
+            parsedExitIds.add(exitId.longValue());
+        }
+        List<Integer> parsedLabels = new ArrayList<>();
+        for (JsonNode label : labels) {
+            if (!label.isIntegralNumber()
+                    || !label.canConvertToInt()
+                    || label.intValue() < -1
+                    || label.intValue() >= parsedExitIds.size()) {
+                throw new IOException("대피 경로 커버리지 라벨 값이 올바르지 않습니다.");
+            }
+            parsedLabels.add(label.intValue());
+        }
+        return new RouteCoverage(
+                originX.decimalValue(),
+                originY.decimalValue(),
+                step.decimalValue(),
+                columns.intValue(),
+                rows.intValue(),
+                List.copyOf(parsedLabels),
+                List.copyOf(parsedExitIds));
     }
 
     /** 대피 경로 미리보기 결과 한 건. 시뮬레이션 식별자나 지표는 담지 않는다. */
@@ -276,6 +346,17 @@ public class SimulationEngineRunner {
             boolean originAdjusted,
             double distanceMeters,
             List<PointDto> waypoints) {}
+
+    public record RoutePreviewResult(List<PreviewedRoute> routes, RouteCoverage coverage) {}
+
+    public record RouteCoverage(
+            BigDecimal originX,
+            BigDecimal originY,
+            BigDecimal step,
+            int columns,
+            int rows,
+            List<Integer> labels,
+            List<Long> exitIds) {}
 
     public record RouteOriginBounds(BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height) {}
 

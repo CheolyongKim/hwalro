@@ -120,6 +120,50 @@ class SimulationEngineRunnerTest {
     }
 
     @Test
+    void readsRoutePreviewCoverageContract(@TempDir Path temporaryDirectory) throws Exception {
+        Path output = temporaryDirectory.resolve("output");
+        Files.createDirectories(output);
+        Files.writeString(
+                output.resolve("routes.json"),
+                """
+                {"schemaVersion":1,
+                 "routes":[{"agentId":1,"exitId":501,"routeOrigin":{"x":1,"y":1},
+                   "originAdjusted":false,"distanceMeters":2.5,
+                   "waypoints":[{"x":1,"y":1},{"x":3,"y":1}]}],
+                 "coverage":{"originX":0,"originY":0,"step":1,"columns":3,"rows":2,
+                   "labels":[0,0,-1,1,1,-1],"exitIds":[501,502]}}
+                """);
+
+        var result = runner(temporaryDirectory).readRoutePreviewResult(output);
+
+        assertThat(result.routes()).singleElement().satisfies(route -> assertThat(route.exitId())
+                .isEqualTo(501L));
+        assertThat(result.coverage().originX()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.coverage().step()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(result.coverage().columns()).isEqualTo(3);
+        assertThat(result.coverage().rows()).isEqualTo(2);
+        assertThat(result.coverage().labels()).containsExactly(0, 0, -1, 1, 1, -1);
+        assertThat(result.coverage().exitIds()).containsExactly(501L, 502L);
+    }
+
+    @Test
+    void rejectsRoutePreviewCoverageWithWrongLabelCount(@TempDir Path temporaryDirectory) throws Exception {
+        Path output = temporaryDirectory.resolve("output");
+        Files.createDirectories(output);
+        Files.writeString(
+                output.resolve("routes.json"),
+                """
+                {"schemaVersion":1,"routes":[],
+                 "coverage":{"originX":0,"originY":0,"step":1,"columns":2,"rows":2,
+                   "labels":[0,0,0],"exitIds":[501]}}
+                """);
+
+        assertThatThrownBy(() -> runner(temporaryDirectory).readRoutePreviewResult(output))
+                .isInstanceOf(java.io.IOException.class)
+                .hasMessageContaining("커버리지");
+    }
+
+    @Test
     void readsStrictRoutingFailureAndReconstructsCurrentPosition(@TempDir Path temporaryDirectory) throws Exception {
         Path output = temporaryDirectory.resolve("output");
         Files.createDirectories(output);
