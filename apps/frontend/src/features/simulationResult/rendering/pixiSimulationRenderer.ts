@@ -21,6 +21,7 @@ import { interpolatePositions, selectFramePair } from '../utils/playback';
 import { FLOOR_LABEL_SOURCE_FONT_SIZE, getFloorLabelPresentation } from './floorLabelPresentation';
 import { composeHeatmapTrail } from './heatmapTrail';
 import { getExitPresentation } from './exitPresentation';
+import { HAZARD_GRADIENT_STOPS } from './hazardPresentation';
 
 export interface PixiCameraTransform {
   scale: number;
@@ -196,11 +197,7 @@ function drawHazardZones(result: PixiSceneConfig) {
     innerRadius: 0,
     outerCenter: { x: 0.5, y: 0.5 },
     outerRadius: 0.5,
-    colorStops: [
-      { offset: 0, color: 'rgba(177, 32, 32, 0.58)' },
-      { offset: 0.5, color: 'rgba(225, 75, 75, 0.28)' },
-      { offset: 1, color: 'rgba(239, 119, 119, 0.08)' },
-    ],
+    colorStops: HAZARD_GRADIENT_STOPS.map(({ offset, css }) => ({ offset, color: css })),
     textureSpace: 'local',
   });
   for (const hazard of result.hazardZones) {

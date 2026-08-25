@@ -23,6 +23,10 @@ import {
 } from './threeSimulationGeometry';
 import { configureThreeSimulationControls } from './threeSimulationControls';
 import { getExitPresentation, type ExitPresentation } from './exitPresentation';
+import {
+  HAZARD_GRADIENT_FRAGMENT_SHADER,
+  HAZARD_GRADIENT_VERTEX_SHADER,
+} from './hazardPresentation';
 import type { ThreeCameraState } from './simulationCameraMemory';
 
 export interface ThreeSimulationScene {
@@ -367,6 +371,15 @@ function createStructures(result: SimulationResultViewModel) {
 
 function createHazards(result: SimulationResultViewModel) {
   const group = new THREE.Group();
+  if (result.hazardZones.length === 0) return group;
+  const fillMaterial = new THREE.ShaderMaterial({
+    vertexShader: HAZARD_GRADIENT_VERTEX_SHADER,
+    fragmentShader: HAZARD_GRADIENT_FRAGMENT_SHADER,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
   for (const hazard of result.hazardZones) {
     const center = worldToScene(
       hazard.centerX,
@@ -376,13 +389,7 @@ function createHazards(result: SimulationResultViewModel) {
     );
     const fill = new THREE.Mesh(
       new THREE.CircleGeometry(hazard.radius, 48),
-      new THREE.MeshBasicMaterial({
-        color: 0xd64e46,
-        transparent: true,
-        opacity: 0.16,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      }),
+      fillMaterial,
     );
     fill.rotation.x = -Math.PI / 2;
     fill.position.set(center.x, 0.045, center.z);
