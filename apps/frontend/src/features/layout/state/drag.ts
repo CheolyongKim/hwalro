@@ -29,20 +29,6 @@ export function applyDragUpdate(state: EditorState, point: Vec2): EditorState {
   if (drag.kind === 'erase') {
     return state;
   }
-  if (drag.kind === 'backgroundMove') {
-    if (!state.doc.background) {
-      return state;
-    }
-    const dx = point.x - drag.origin.x;
-    const dy = point.y - drag.origin.y;
-    const moved = { ...drag.originBg, x: drag.originBg.x + dx, y: drag.originBg.y + dy };
-    return { ...state, doc: { ...state.doc, background: moved } };
-  }
-  if (drag.kind === 'backgroundResize') {
-    const width = Math.max(1, point.x - drag.originBg.x);
-    const resized = { ...drag.originBg, width, height: width / drag.originBg.aspect };
-    return { ...state, doc: { ...state.doc, background: resized } };
-  }
   if (drag.kind === 'rotate') {
     return applyRotateUpdate(state, drag, point);
   }

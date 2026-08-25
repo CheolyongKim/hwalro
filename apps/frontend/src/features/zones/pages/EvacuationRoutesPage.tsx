@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Layer, Line, Rect, Stage, Circle } from 'react-konva';
 import { Card, EmptyState, ErrorState, PageHeader, buttonClassName } from '../../../components/ui';
 import { drawingApi } from '../../drawings/api/drawingApi';
 import type { Drawing } from '../../drawings/types/drawing';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import { layoutMetadataApi, type LayoutZone } from '../../layout/api/layoutMetadataApi';
-import { CANVAS_COLORS } from '../../layout/utils/colors';
-import { fitCamera, PX_PER_METER } from '../../layout/utils/geometry';
 import { zoneApi, type EvacuationRoute } from '../api/zoneApi';
 import { narrowPassageWarning } from '../utils/evacuationStatus';
+import { exitColorOf } from '../utils/exitColors';
+import { ZoneRouteCanvas } from '../components/ZoneRouteCanvas';
 
 const VIEW_HEIGHT = 560;
 
@@ -27,18 +26,30 @@ function EvacuationRoutesPage() {
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
   const [width, setWidth] = useState(0);
 
-  useEffect(() => {
-    const element = containerRef.current;
-    if (element === null) return;
+  /**
+   * 캔버스 자리는 로딩이 끝난 뒤에야 DOM에 붙는다. useEffect로 관찰을 걸면 이펙트가 도는 시점에
+   * 아직 그 자리가 없어 관찰이 아예 시작되지 않고, 폭이 0으로 남아 도면이 통째로 보이지 않는다.
+   * 붙고 떨어지는 순간에 직접 반응하는 콜백 ref를 쓴다 - 의존성 목록을 조건부 렌더와 맞춰 관리할
+   * 필요가 없다.
+   */
+  const attachContainer = useCallback((element: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    if (element === null) {
+      observerRef.current = null;
+      return;
+    }
+    setWidth(element.getBoundingClientRect().width);
     const observer = new ResizeObserver((entries) => {
       setWidth(entries[0].contentRect.width);
     });
     observer.observe(element);
-    return () => observer.disconnect();
+    observerRef.current = observer;
   }, []);
+
+  useEffect(() => () => observerRef.current?.disconnect(), []);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +81,24 @@ function EvacuationRoutesPage() {
       active = false;
     };
   }, [drawingId]);
+
+  // 색은 도면 안에서 몇 번째 비상구인지로 정한다. 저장할 때마다 ID가 새로 매겨지므로 ID를 직접 쓰면
+  // 색이 통째로 바뀐다.
+  const exitIds = useMemo(
+    () =>
+      (drawing?.exits ?? [])
+        .map((exit) => exit.id)
+        .filter((id): id is number => typeof id === 'number'),
+    [drawing],
+  );
+  const selectedRoute = useMemo(
+    () => routes.find((route) => route.zoneId === selectedZoneId) ?? null,
+    [routes, selectedZoneId],
+  );
+  const selectedZone = useMemo(
+    () => zones.find((zone) => zone.zoneId === selectedZoneId) ?? null,
+    [zones, selectedZoneId],
+  );
 
   const summary = useMemo(() => {
     return {
@@ -155,235 +184,133 @@ function EvacuationRoutesPage() {
               </dl>
             </Card>
 
-            <Card padded={false} className="mt-4 overflow-hidden">
-              <div ref={containerRef} className="w-full" style={{ height: VIEW_HEIGHT }}>
-                {width > 0 ? (
-                  <AllRoutesCanvas
-                    drawing={drawing}
-                    routes={routes}
-                    zones={zones}
-                    width={width}
-                    selectedZoneId={selectedZoneId}
-                  />
-                ) : null}
-              </div>
-            </Card>
+            {/* 도면과 목록을 좌우로 나눈다. 목록이 도면 아래에 있으면 구역을 고를 때마다 스크롤해야 한다. */}
+            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <Card padded={false} className="overflow-hidden">
+                <div
+                  ref={attachContainer}
+                  className="relative w-full"
+                  style={{ height: VIEW_HEIGHT }}
+                >
+                  {width > 0 ? (
+                    <ZoneRouteCanvas
+                      drawing={drawing}
+                      route={selectedRoute}
+                      zone={selectedZone}
+                      exitIds={exitIds}
+                      width={width}
+                      height={VIEW_HEIGHT}
+                    />
+                  ) : null}
+                </div>
+              </Card>
 
-            <Card padded={false} className="mt-4 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-line bg-surface-elevated/40 text-[11px] font-semibold text-text-muted">
-                    <tr>
-                      <th className="px-6 py-2">구역</th>
-                      <th className="px-4 py-2">안내 비상구</th>
-                      <th className="px-4 py-2">선택 방식</th>
-                      <th className="px-4 py-2">이동 거리</th>
-                      <th className="px-4 py-2">가장 좁은 구간</th>
-                      <th className="px-4 py-2">비고</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {routes.map((route) => {
-                      const warning = narrowPassageWarning(route.narrowestMeters);
-                      const unavailable = route.status !== 'AVAILABLE';
-                      return (
-                        <tr
-                          key={route.zoneId}
+              <Card padded={false} className="flex flex-col overflow-hidden">
+                <div className="border-b border-line px-4 py-3">
+                  <h2 className="text-sm font-bold text-text-strong">구역 목록</h2>
+                  <p className="mt-0.5 text-xs text-text-muted">
+                    구역을 고르면 그 구역의 대피 동선만 도면에 표시됩니다.
+                  </p>
+                </div>
+                <ul
+                  className="divide-y divide-line overflow-y-auto"
+                  style={{ maxHeight: VIEW_HEIGHT - 58 }}
+                >
+                  {routes.map((route) => {
+                    const warning = narrowPassageWarning(route.narrowestMeters);
+                    const unavailable = route.status !== 'AVAILABLE';
+                    const selected = selectedZoneId === route.zoneId;
+                    return (
+                      <li key={route.zoneId}>
+                        <button
+                          type="button"
+                          aria-pressed={selected}
                           onClick={() => setSelectedZoneId(route.zoneId)}
-                          className={`cursor-pointer transition-colors ${selectedZoneId === route.zoneId ? 'bg-primary-soft/40' : ''}`}
+                          className={`w-full px-4 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                            selected ? 'bg-primary-soft/50' : 'hover:bg-primary-soft/25'
+                          }`}
                         >
-                          <td className="px-6 py-1.5 font-bold text-text-strong">
-                            <button
-                              type="button"
-                              aria-pressed={selectedZoneId === route.zoneId}
-                              onClick={() => setSelectedZoneId(route.zoneId)}
-                              className="w-full rounded-md py-1 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                            >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-bold text-text-strong">
                               {route.zoneName}
-                            </button>
-                          </td>
-                          <td className="px-4 py-2.5 text-text-strong">
-                            {route.recommendedExitName ?? '-'}
-                          </td>
-                          <td className="px-4 py-2.5 text-text-muted">
-                            {route.exitChoice === 'ASSIGNED'
-                              ? '담당 지정'
-                              : route.exitChoice === 'NEAREST'
-                                ? '자동 선택'
-                                : '-'}
-                          </td>
-                          <td className="px-4 py-2.5 tabular-nums text-text-strong">
-                            {unavailable ? '-' : `${Math.round(route.distanceMeters)}m`}
-                          </td>
-                          <td className="px-4 py-2.5 tabular-nums text-text-strong">
-                            {unavailable || route.narrowestMeters === null
-                              ? '-'
-                              : `${(route.narrowestMeters * 2).toFixed(1)}m`}
-                          </td>
-                          <td className="px-4 py-2.5 text-xs">
+                            </span>
                             {unavailable ? (
-                              <span className="font-bold text-danger-strong">경로 없음</span>
-                            ) : warning !== null ? (
-                              <span className="text-danger-strong">병목 주의</span>
+                              <span className="shrink-0 text-[11px] font-bold text-danger-strong">
+                                경로 없음
+                              </span>
                             ) : (
-                              <span className="text-text-muted">-</span>
+                              <span className="shrink-0 text-[11px] tabular-nums text-text-muted">
+                                {Math.round(route.distanceMeters)}m
+                              </span>
                             )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+                          </span>
+                          <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-muted">
+                            {unavailable ? null : (
+                              <span
+                                aria-hidden
+                                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    route.recommendedExitId === null
+                                      ? 'transparent'
+                                      : exitColorOf(route.recommendedExitId, exitIds),
+                                }}
+                              />
+                            )}
+                            <span className="truncate">
+                              {route.recommendedExitName ?? '안내할 비상구 없음'}
+                              {route.partitions.length > 1
+                                ? ` 외 ${route.partitions.length - 1}곳으로 분산`
+                                : ''}
+                            </span>
+                            {warning !== null && !unavailable ? (
+                              <span className="shrink-0 font-bold text-danger-strong">병목</span>
+                            ) : null}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            </div>
+
+            {selectedRoute !== null && selectedRoute.partitions.length > 1 ? (
+              <Card className="mt-4">
+                <h2 className="text-sm font-bold text-text-strong">
+                  {selectedRoute.zoneName} - 비상구가 갈리는 영역 {selectedRoute.partitions.length}
+                  곳
+                </h2>
+                <p className="mt-1 text-xs text-text-muted">
+                  이 구역에는 담당 비상구가 지정되어 있지 않아, 자리마다 가장 빨리 닿는 비상구가
+                  다릅니다. 도면의 색과 아래 목록의 색이 같습니다.
+                </p>
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {selectedRoute.partitions.map((partition) => (
+                    <li
+                      key={partition.exitId}
+                      className="flex items-center gap-2 rounded-lg border border-line px-3 py-2"
+                    >
+                      <span
+                        aria-hidden
+                        className="inline-block h-3 w-3 shrink-0 rounded-sm"
+                        style={{ backgroundColor: exitColorOf(partition.exitId, exitIds) }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-text-strong">
+                        {partition.exitName}
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-text-muted">
+                        {Math.round(partition.distanceMeters)}m
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : null}
           </>
         )}
       </div>
     </main>
-  );
-}
-
-function AllRoutesCanvas({
-  drawing,
-  routes,
-  zones,
-  width,
-  selectedZoneId,
-}: {
-  drawing: Drawing;
-  routes: EvacuationRoute[];
-  zones: LayoutZone[];
-  width: number;
-  selectedZoneId: number | null;
-}) {
-  const camera = useMemo(
-    () => fitCamera(drawing.width, drawing.height, width, VIEW_HEIGHT),
-    [drawing.width, drawing.height, width],
-  );
-  const k = camera.zoom * PX_PER_METER;
-  // 화면에서 value 픽셀로 보이게 하는 도면 좌표 길이. 레이어 배율이 k이므로 zoom이 아니라 k로 나눈다.
-  // zoom으로 나누면 PX_PER_METER배 두꺼워져 벽이 도면을 덮어 버린다.
-  const s = (value: number) => value / k;
-  const selectedRoute = routes.find((route) => route.zoneId === selectedZoneId) ?? null;
-  const selectedZone = zones.find((zone) => zone.zoneId === selectedZoneId) ?? null;
-
-  return (
-    <Stage width={width} height={VIEW_HEIGHT}>
-      <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
-        <Rect
-          x={0}
-          y={0}
-          width={drawing.width}
-          height={drawing.height}
-          fill={CANVAS_COLORS.canvas}
-          stroke={CANVAS_COLORS.gridBoundary}
-          strokeWidth={s(1)}
-        />
-        {selectedZone !== null ? (
-          <Rect
-            x={selectedZone.rect.x}
-            y={selectedZone.rect.y}
-            width={selectedZone.rect.width}
-            height={selectedZone.rect.height}
-            fill={CANVAS_COLORS.zoneSelectedFill}
-            stroke={CANVAS_COLORS.zoneStroke}
-            strokeWidth={s(2)}
-            dash={[s(6), s(4)]}
-          />
-        ) : null}
-        {drawing.outsideWalls.map((wall, index) => (
-          <Line
-            key={`outside-${index}`}
-            points={[wall.startX, wall.startY, wall.endX, wall.endY]}
-            stroke={CANVAS_COLORS.outsideWall}
-            strokeWidth={s(3)}
-          />
-        ))}
-        {drawing.walls.map((wall, index) => (
-          <Line
-            key={`wall-${index}`}
-            points={[wall.startX, wall.startY, wall.endX, wall.endY]}
-            stroke={CANVAS_COLORS.ink}
-            strokeWidth={s(2)}
-          />
-        ))}
-        {drawing.pillars.map((pillar, index) => {
-          const pillarWidth = Math.abs(pillar.endX - pillar.startX);
-          const pillarHeight = Math.abs(pillar.endY - pillar.startY);
-          return (
-            <Rect
-              key={`pillar-${index}`}
-              x={(pillar.startX + pillar.endX) / 2}
-              y={(pillar.startY + pillar.endY) / 2}
-              width={pillarWidth}
-              height={pillarHeight}
-              offsetX={pillarWidth / 2}
-              offsetY={pillarHeight / 2}
-              rotation={pillar.rotation}
-              fill={CANVAS_COLORS.pillarFill}
-            />
-          );
-        })}
-        {drawing.fabrics.map((fabric, index) => {
-          const fabricWidth = Math.abs(fabric.endX - fabric.startX);
-          const fabricHeight = Math.abs(fabric.endY - fabric.startY);
-          return (
-            <Rect
-              key={`fabric-${index}`}
-              x={(fabric.startX + fabric.endX) / 2}
-              y={(fabric.startY + fabric.endY) / 2}
-              width={fabricWidth}
-              height={fabricHeight}
-              offsetX={fabricWidth / 2}
-              offsetY={fabricHeight / 2}
-              rotation={fabric.rotation}
-              fill={CANVAS_COLORS.fabricFill}
-              stroke={CANVAS_COLORS.fabricStroke}
-              strokeWidth={s(1)}
-            />
-          );
-        })}
-        {drawing.exits.map((exit, index) => {
-          const highlighted =
-            exit.id !== null &&
-            (exit.id === selectedRoute?.recommendedExitId ||
-              exit.id === selectedRoute?.defaultExit?.id);
-          return (
-            <Line
-              key={`exit-${index}`}
-              points={[exit.startX, exit.startY, exit.endX, exit.endY]}
-              stroke={highlighted ? CANVAS_COLORS.exitStrong : CANVAS_COLORS.exit}
-              strokeWidth={s(highlighted ? 6 : 4)}
-              opacity={highlighted ? 1 : 0.45}
-            />
-          );
-        })}
-        {routes.map((route) =>
-          route.waypoints.length < 2 ? null : (
-            <Line
-              key={`route-${route.zoneId}`}
-              points={route.waypoints.flatMap((point) => [point.x, point.y])}
-              stroke={CANVAS_COLORS.accent}
-              strokeWidth={s(selectedZoneId === route.zoneId ? 4 : 1.5)}
-              opacity={selectedZoneId === route.zoneId ? 0.95 : 0.12}
-              dash={selectedZoneId === route.zoneId ? [s(6), s(4)] : undefined}
-              lineCap="round"
-              lineJoin="round"
-            />
-          ),
-        )}
-        {selectedRoute !== null ? (
-          <Circle
-            x={selectedRoute.routeOrigin.x}
-            y={selectedRoute.routeOrigin.y}
-            radius={s(5)}
-            fill={selectedRoute.status === 'AVAILABLE' ? CANVAS_COLORS.accent : CANVAS_COLORS.exit}
-            stroke={CANVAS_COLORS.canvas}
-            strokeWidth={s(2)}
-          />
-        ) : null}
-      </Layer>
-    </Stage>
   );
 }
 

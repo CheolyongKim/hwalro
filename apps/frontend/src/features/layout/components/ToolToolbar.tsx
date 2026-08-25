@@ -15,14 +15,13 @@ interface ToolToolbarProps {
 const TOOLS: Array<{ id: Tool; label: string }> = [
   { id: 'select', label: '선택' },
   { id: 'wall', label: '벽' },
-  { id: 'outsideWall', label: '외각벽' },
+  { id: 'outsideWall', label: '외곽벽' },
   { id: 'exit', label: '비상구' },
   { id: 'pillar', label: '기둥' },
   { id: 'fabric', label: '구조물' },
   { id: 'zone', label: '구역' },
   { id: 'text', label: '텍스트' },
   { id: 'erase', label: '지우개' },
-  { id: 'background', label: '배경' },
 ];
 
 export function ToolToolbar({

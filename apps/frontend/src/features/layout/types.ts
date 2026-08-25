@@ -71,17 +71,6 @@ export interface LayoutText {
   y: number;
 }
 
-export interface BackgroundImage {
-  id: string;
-  image: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  opacity: number;
-  aspect: number;
-}
-
 export interface DrawingDocument {
   name: string;
   width: number;
@@ -92,7 +81,6 @@ export interface DrawingDocument {
   pillars: Pillar[];
   fabrics: Fabric[];
   layoutTexts: LayoutText[];
-  background: BackgroundImage | null;
 }
 
 export type Tool =
@@ -102,7 +90,6 @@ export type Tool =
   | 'exit'
   | 'text'
   | 'erase'
-  | 'background'
   | 'pillar'
   | 'fabric'
   /** 구역은 서버 소유 상태다. 문서(doc)에 들어가지 않고 그리기 draft만 편집기가 관리한다. */
@@ -178,18 +165,6 @@ export type DragState =
       originDoc: DrawingDocument;
       exitId: string;
       handle: WallHandle;
-    }
-  | {
-      kind: 'backgroundMove';
-      origin: Vec2;
-      originBg: BackgroundImage;
-      originDoc: DrawingDocument;
-    }
-  | {
-      kind: 'backgroundResize';
-      origin: Vec2;
-      originBg: BackgroundImage;
-      originDoc: DrawingDocument;
     }
   | {
       kind: 'erase';
@@ -270,16 +245,6 @@ export interface SerializedText {
   y: number;
 }
 
-export interface SerializedBackground {
-  image: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  opacity: number;
-  aspect: number;
-}
-
 export interface SerializedDocument {
   name: string;
   width: number;
@@ -290,5 +255,4 @@ export interface SerializedDocument {
   pillars: SerializedPillar[];
   fabrics: SerializedFabric[];
   layoutTexts: SerializedText[];
-  background: SerializedBackground | null;
 }

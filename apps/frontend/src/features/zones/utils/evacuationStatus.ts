@@ -1,8 +1,4 @@
-import type {
-  EvacuationStatus,
-  EvacuationUnavailableReason,
-  ExitChoice,
-} from '../api/zoneApi';
+import type { EvacuationStatus, EvacuationUnavailableReason, ExitChoice } from '../api/zoneApi';
 
 export interface StatusPresentation {
   /** 화면에 그대로 쓰는 안내 문구. */

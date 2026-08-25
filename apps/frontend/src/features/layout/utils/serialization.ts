@@ -1,6 +1,5 @@
 import { orderedElements, withAssignedOrder } from './elementOrder';
 import type {
-  BackgroundImage,
   DrawingDocument,
   Exit,
   Fabric,
@@ -41,8 +40,12 @@ function wallNameIndex(name: string): number | null {
 }
 
 function outsideWallNameIndex(name: string): number | null {
-  const match = /^외각벽 (\d+)$/.exec(name);
+  const match = /^외(?:곽|각)벽 (\d+)$/.exec(name);
   return match ? Number(match[1]) : null;
+}
+
+function normalizeOutsideWallName(name: string): string {
+  return name.replace(/^외각벽(?=\s|$)/, '외곽벽');
 }
 
 function exitNameIndex(name: string): number | null {
@@ -181,17 +184,6 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       displayOrder: orderById.get(fabric.id),
     })),
     layoutTexts: doc.layoutTexts.map((text) => ({ text: text.text, x: text.x, y: text.y })),
-    background: doc.background
-      ? {
-          image: doc.background.image,
-          x: doc.background.x,
-          y: doc.background.y,
-          width: doc.background.width,
-          height: doc.background.height,
-          opacity: doc.background.opacity,
-          aspect: doc.background.aspect,
-        }
-      : null,
   };
 }
 
@@ -283,7 +275,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     }
     const wall: OutsideWall = {
       id: `loaded-outside-wall-${i}`,
-      name: parsedName ?? '',
+      name: parsedName ? normalizeOutsideWallName(parsedName) : '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `outsideWalls[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `outsideWalls[${i}].startY`),
       endX: toFiniteNumber(entry.endX ?? entry.end_x, `outsideWalls[${i}].endX`),
@@ -298,7 +290,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
 
   for (const { wall, order } of unnamedOutsideWalls) {
     maxOutsideWallIndex += 1;
-    outsideWalls.splice(order, 0, { ...wall, name: `외각벽 ${maxOutsideWallIndex}` });
+    outsideWalls.splice(order, 0, { ...wall, name: `외곽벽 ${maxOutsideWallIndex}` });
   }
 
   const rawExits = (data.exits ?? []) as unknown[];
@@ -366,34 +358,6 @@ export function fromSerialized(data: unknown): DrawingDocument {
     };
   });
 
-  let background: BackgroundImage | null = null;
-  if (data.background !== undefined && data.background !== null) {
-    if (!isRecord(data.background)) {
-      throw new Error('background는 객체이거나 null이어야 합니다');
-    }
-    const bg = data.background;
-    const image = typeof bg.image === 'string' ? bg.image : '';
-    if (image === '') {
-      throw new Error('background.image가 빈 값입니다');
-    }
-    const width = toFiniteNumber(bg.width, 'background.width');
-    const height = toFiniteNumber(bg.height, 'background.height');
-    if (width <= 0 || height <= 0) {
-      throw new Error('background.width/height는 0보다 커야 합니다');
-    }
-    const rawAspect = toFiniteNumber(bg.aspect ?? width / height, 'background.aspect');
-    background = {
-      id: 'loaded-background',
-      image,
-      x: toFiniteNumber(bg.x, 'background.x'),
-      y: toFiniteNumber(bg.y, 'background.y'),
-      width,
-      height,
-      opacity: Math.min(1, Math.max(0.1, toFiniteNumber(bg.opacity, 'background.opacity'))),
-      aspect: rawAspect > 0 ? rawAspect : width / height,
-    };
-  }
-
   return {
     name,
     width,
@@ -404,7 +368,6 @@ export function fromSerialized(data: unknown): DrawingDocument {
     pillars,
     fabrics,
     layoutTexts,
-    background,
   };
 }
 

@@ -19,11 +19,11 @@ import SafetyCheckTemplatePage from '../pages/SafetyCheckTemplatePage';
 import ReportListPage from '../features/reports/pages/ReportListPage';
 import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
-import CreateDrawingPage from '../features/drawings/pages/CreateDrawingPage';
 import SimulationSetupPage from '../features/simulations/pages/SimulationSetupPage';
 import SimulationListPage from '../features/simulations/pages/SimulationListPage';
 
 const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
+const CreateDrawingPage = lazy(() => import('../features/drawings/pages/CreateDrawingPage'));
 const MyZonesPage = lazy(() => import('../features/zones/pages/MyZonesPage'));
 const EvacuationPage = lazy(() => import('../features/zones/pages/EvacuationPage'));
 const EvacuationRoutesPage = lazy(() => import('../features/zones/pages/EvacuationRoutesPage'));
@@ -108,10 +108,6 @@ export const router = createBrowserRouter([
                 ],
               },
               {
-                element: <CapabilityRoute capability="drawings.manage" />,
-                children: [{ path: 'drawings/new', element: <CreateDrawingPage /> }],
-              },
-              {
                 element: <CapabilityRoute capability="simulations" />,
                 children: [{ path: 'simulations', element: <SimulationListPage /> }],
               },
@@ -156,6 +152,19 @@ export const router = createBrowserRouter([
               {
                 element: <CapabilityRoute capability="systemManagement" />,
                 children: [{ path: 'system-management', element: <SystemManagementPage /> }],
+              },
+            ],
+          },
+          {
+            element: <CapabilityRoute capability="drawings.manage" />,
+            children: [
+              {
+                path: 'drawings/new',
+                element: (
+                  <Suspense fallback={<FullscreenRouteFallback />}>
+                    <CreateDrawingPage />
+                  </Suspense>
+                ),
               },
             ],
           },

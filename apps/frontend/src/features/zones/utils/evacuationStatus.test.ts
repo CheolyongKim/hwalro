@@ -29,8 +29,7 @@ describe('evacuationStatusPresentation', () => {
       evacuationStatusPresentation('NOT_CONFIGURED', 'ASSIGNED', 'ASSIGNED_EXIT_NOT_FOUND').message,
     ).toContain('현재 도면에 없습니다');
     expect(
-      evacuationStatusPresentation('UNREACHABLE', 'NEAREST', 'NO_WALKABLE_ORIGIN_IN_ZONE')
-        .message,
+      evacuationStatusPresentation('UNREACHABLE', 'NEAREST', 'NO_WALKABLE_ORIGIN_IN_ZONE').message,
     ).toContain('담당 구역 안');
   });
 });

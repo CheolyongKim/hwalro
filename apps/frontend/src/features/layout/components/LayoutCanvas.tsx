@@ -38,7 +38,6 @@ import { zoneAsRect } from '../utils/zoneGeometry';
 import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO, FONT_UI } from '../utils/colors';
 import type { LayoutZone, ZoneRect } from '../api/layoutMetadataApi';
 import {
-  BackgroundLayer,
   ExitView,
   FabricView,
   GridLayer,
@@ -48,6 +47,8 @@ import {
   WallView,
 } from './layers';
 import { useCanvasListeners } from './useCanvasListeners';
+import type { EvacuationRoute } from '../../zones/api/zoneApi';
+import { EvacuationRouteOverlay } from '../../zones/components/EvacuationRouteOverlay';
 
 interface LayoutCanvasProps {
   state: EditorState;
@@ -74,6 +75,10 @@ interface LayoutCanvasProps {
   canEditZones?: boolean;
   /** 캔버스에서 요소를 우클릭했을 때. 계층 패널과 같은 메뉴를 화면 좌표에 연다. */
   onElementContextMenu?: (anchor: Vec2, hit: ElementHit) => void;
+  riskZones?: LayoutRiskZone[];
+  riskMode?: boolean;
+  onRiskZoneDrawn?: (bounds: { x: number; y: number; width: number; height: number }) => void;
+  evacuationRoutes?: readonly EvacuationRoute[];
 }
 
 function ZoneView({
@@ -111,6 +116,20 @@ function ZoneView({
       />
     </Group>
   );
+}
+
+export interface LayoutRiskZone {
+  id: number;
+  title: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
+interface RiskRectDraft {
+  start: Vec2;
+  end: Vec2;
 }
 
 interface PanSession {
@@ -156,12 +175,17 @@ export function LayoutCanvas({
   onZoneRectCommit,
   canEditZones = false,
   onElementContextMenu,
+  riskZones = [],
+  riskMode = false,
+  onRiskZoneDrawn,
+  evacuationRoutes = [],
 }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const suppressClickRef = useRef(false);
   const [panning, setPanning] = useState(false);
   const [zoneDraftRect, setZoneDraftRect] = useState<ZoneRect | null>(null);
   const zoneDragRef = useRef<ZoneDragSession | null>(null);
+  const [riskDraft, setRiskDraft] = useState<RiskRectDraft | null>(null);
 
   const { containerRef, spaceDown } = useCanvasListeners({
     dispatch,
@@ -323,6 +347,13 @@ export function LayoutCanvas({
     if (event.button !== 0) {
       return;
     }
+    if (riskMode) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
+      setRiskDraft({ start: world, end: world });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     dispatch({ type: 'cursorMove', world });
@@ -434,27 +465,6 @@ export function LayoutCanvas({
       dispatch({ type: 'eraseStart', point: world, hit: hitAt(world) });
       return;
     }
-    if (tool === 'background') {
-      const bg = doc.background;
-      if (bg !== null) {
-        const cornerX = bg.x + bg.width;
-        const cornerY = bg.y + bg.height;
-        const handleR = 10 / (camera.zoom * PX_PER_METER);
-        if (Math.abs(world.x - cornerX) <= handleR && Math.abs(world.y - cornerY) <= handleR) {
-          dispatch({ type: 'backgroundResizeStart', point: world });
-          return;
-        }
-        const onImage =
-          world.x >= bg.x && world.x <= cornerX && world.y >= bg.y && world.y <= cornerY;
-        if (onImage) {
-          dispatch({ type: 'backgroundDragStart', point: world });
-          return;
-        }
-      }
-      startPan({ x: event.clientX, y: event.clientY }, camera);
-      return;
-    }
-
     let handleHit: HandleHit | null = null;
     let handleElementKind: 'wall' | 'outsideWall' = 'wall';
     for (const wall of doc.walls) {
@@ -671,6 +681,14 @@ export function LayoutCanvas({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (riskDraft) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setRiskDraft({
+        ...riskDraft,
+        end: screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera),
+      });
+      return;
+    }
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     if (state.draft) {
@@ -736,10 +754,32 @@ export function LayoutCanvas({
   };
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (riskDraft) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const end = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
+      const width = Math.abs(end.x - riskDraft.start.x);
+      const height = Math.abs(end.y - riskDraft.start.y);
+      const minSize = 2 / (camera.zoom * PX_PER_METER);
+      setRiskDraft(null);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      if (width >= minSize && height >= minSize) {
+        onRiskZoneDrawn?.({
+          x: Math.min(riskDraft.start.x, end.x),
+          y: Math.min(riskDraft.start.y, end.y),
+          width,
+          height,
+        });
+      }
+      return;
+    }
     if (panRef.current) {
       suppressClickRef.current = true;
       stopPan();
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
     }
     if (zoneDragRef.current) {
       const session = zoneDragRef.current;
@@ -778,21 +818,23 @@ export function LayoutCanvas({
       ? panning
         ? 'layout-cursor-grabbing'
         : 'layout-cursor-grab'
-      : tool === 'wall'
-        ? 'layout-cursor-wall'
-        : tool === 'outsideWall'
-          ? 'layout-cursor-outside-wall'
-          : tool === 'exit'
-            ? 'layout-cursor-exit'
-            : tool === 'pillar'
-              ? 'layout-cursor-pillar'
-              : tool === 'fabric'
-                ? 'layout-cursor-fabric'
-                : tool === 'erase'
-                  ? 'layout-cursor-erase'
-                  : tool === 'text'
-                    ? 'layout-cursor-text'
-                    : 'layout-cursor-default';
+      : riskMode
+        ? 'cursor-crosshair'
+        : tool === 'wall'
+          ? 'layout-cursor-wall'
+          : tool === 'outsideWall'
+            ? 'layout-cursor-outside-wall'
+            : tool === 'exit'
+              ? 'layout-cursor-exit'
+              : tool === 'pillar'
+                ? 'layout-cursor-pillar'
+                : tool === 'fabric'
+                  ? 'layout-cursor-fabric'
+                  : tool === 'erase'
+                    ? 'layout-cursor-erase'
+                    : tool === 'text'
+                      ? 'layout-cursor-text'
+                      : 'layout-cursor-default';
 
   const viewW = size.w > 0 ? size.w / (camera.zoom * PX_PER_METER) : 1;
   const viewH = size.h > 0 ? size.h / (camera.zoom * PX_PER_METER) : 1;
@@ -833,18 +875,6 @@ export function LayoutCanvas({
         <Stage width={size.w} height={size.h}>
           <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             <Rect x={0} y={0} width={doc.width} height={doc.height} fill={CANVAS_COLORS.canvas} />
-            {doc.background && <BackgroundLayer bg={doc.background} />}
-            {doc.background && tool === 'background' && (
-              <Rect
-                x={doc.background.x + doc.background.width - s(7)}
-                y={doc.background.y + doc.background.height - s(7)}
-                width={s(14)}
-                height={s(14)}
-                fill={CANVAS_COLORS.canvas}
-                stroke={CANVAS_COLORS.ink}
-                strokeWidth={s(1.5)}
-              />
-            )}
             <GridLayer
               minX={camera.panX}
               minY={camera.panY}
@@ -975,6 +1005,13 @@ export function LayoutCanvas({
                 s={s}
               />
             ))}
+            <EvacuationRouteOverlay
+              routes={evacuationRoutes}
+              exitIds={doc.exits.flatMap((exit) =>
+                exit.backendId === null ? [] : [exit.backendId],
+              )}
+              scale={s}
+            />
             {doc.layoutTexts.map((text) => (
               <TextView
                 key={text.id}
@@ -983,6 +1020,47 @@ export function LayoutCanvas({
                 zoom={camera.zoom}
               />
             ))}
+            {riskZones.map((zone) => {
+              const x = Math.min(zone.startX, zone.endX);
+              const y = Math.min(zone.startY, zone.endY);
+              const w = Math.abs(zone.endX - zone.startX);
+              const h = Math.abs(zone.endY - zone.startY);
+              const labelWidth = estimateTextWidthPx(zone.title, s(11));
+              return (
+                <Group key={`risk-zone-${zone.id}`}>
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={w}
+                    height={h}
+                    fill="rgba(201, 79, 71, 0.18)"
+                    stroke="#c94f47"
+                    strokeWidth={s(1.5)}
+                  />
+                  <KonvaText
+                    x={x}
+                    y={y - s(14)}
+                    width={labelWidth}
+                    text={zone.title}
+                    fontSize={s(11)}
+                    fill="#c94f47"
+                    fontFamily={FONT_MONO}
+                  />
+                </Group>
+              );
+            })}
+            {riskDraft && (
+              <Rect
+                x={Math.min(riskDraft.start.x, riskDraft.end.x)}
+                y={Math.min(riskDraft.start.y, riskDraft.end.y)}
+                width={Math.abs(riskDraft.end.x - riskDraft.start.x)}
+                height={Math.abs(riskDraft.end.y - riskDraft.start.y)}
+                fill="rgba(201, 79, 71, 0.12)"
+                stroke="#c94f47"
+                strokeWidth={s(1.5)}
+                dash={[s(6), s(4)]}
+              />
+            )}
             {draft && (
               <Group>
                 {isWallDraft ? (

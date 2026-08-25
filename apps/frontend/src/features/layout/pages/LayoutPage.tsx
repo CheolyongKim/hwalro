@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { Minus } from 'lucide-react';
 import { LayoutCanvas } from '../components/LayoutCanvas';
-import { LayoutToolbar } from '../components/LayoutToolbar';
+import { LayoutPrimaryActions, LayoutToolbar } from '../components/LayoutToolbar';
 import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
 import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
@@ -47,6 +55,11 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { can } from '../../auth/capabilities';
 import type { EmployeeSummary } from '../../auth/types/auth';
 import type { ZoneRect, ZoneType } from '../api/layoutMetadataApi';
+import { riskApi } from '../../risks/api/riskApi';
+import type { Risk } from '../../risks/types/risks';
+import { RiskZoneEditorDialog } from '../../risks/components/RiskZoneEditorDialog';
+import { zoneApi, type EvacuationRoute } from '../../zones/api/zoneApi';
+import { EvacuationRoutePanel } from '../../zones/components/EvacuationRoutePanel';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
@@ -78,10 +91,17 @@ function hasUnsavedDocChanges(stateDoc: DrawingDocument, sessionDoc: DrawingDocu
   return JSON.stringify(stateDoc) !== JSON.stringify(sessionDoc);
 }
 
+function parseLayoutId(value: string | undefined): number | null {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 function LayoutPage() {
   const { drawingId = '' } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const recordLastActivity = useRecordLastActivity();
+  const layoutId = parseLayoutId(drawingId);
   const [state, dispatch] = useReducer(editorReducer, undefined, createInitialState);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -92,6 +112,7 @@ function LayoutPage() {
   const { user } = useAuth();
   const canManageZones = can(user?.roles, 'zones.manage');
   const canManageGeometry = can(user?.roles, 'drawings.manage');
+  const canManageRisks = can(user?.roles, 'risks');
   const metadata = useLayoutMetadata(drawingId);
   const persistZoneRect = useCallback(
     (zoneId: number, rect: ZoneRect) =>
@@ -112,10 +133,26 @@ function LayoutPage() {
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [movementPreviewRadius, setMovementPreviewRadius] = useState<number | null>(null);
+  const [evacuationRoutes, setEvacuationRoutes] = useState<EvacuationRoute[] | null>(null);
+  const [enabledEvacuationZoneIds, setEnabledEvacuationZoneIds] = useState<Set<number>>(new Set());
+  const [evacuationRoutesLoading, setEvacuationRoutesLoading] = useState(false);
+  const [evacuationRoutesError, setEvacuationRoutesError] = useState<string | null>(null);
+  const fadeInLayout = (location.state as { fadeInLayout?: boolean } | null)?.fadeInLayout === true;
+  const [riskMode, setRiskMode] = useState(false);
+  const [risks, setRisks] = useState<Risk[]>([]);
+  const [pendingRiskBounds, setPendingRiskBounds] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
+  const riskModeRef = useRef(false);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
+  const evacuationRequestRef = useRef<Promise<void> | null>(null);
+  const evacuationRequestSequenceRef = useRef(0);
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
   const restoreButtonRef = useRef<HTMLButtonElement>(null);
   const restorePanelFocusRef = useRef(false);
@@ -126,6 +163,78 @@ function LayoutPage() {
   useLayoutEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  const toggleRiskMode = useCallback(() => {
+    setRiskMode((current) => {
+      riskModeRef.current = !current;
+      return !current;
+    });
+  }, []);
+
+  useEffect(() => {
+    evacuationRequestSequenceRef.current += 1;
+    evacuationRequestRef.current = null;
+    setEvacuationRoutes(null);
+    setEnabledEvacuationZoneIds(new Set());
+    setEvacuationRoutesLoading(false);
+    setEvacuationRoutesError(null);
+  }, [layoutId]);
+
+  const loadEvacuationRoutes = useCallback(() => {
+    if (layoutId === null || evacuationRoutes !== null || evacuationRequestRef.current !== null) {
+      return;
+    }
+    const sequence = ++evacuationRequestSequenceRef.current;
+    setEvacuationRoutesLoading(true);
+    setEvacuationRoutesError(null);
+    const request = zoneApi
+      .evacuationRoutes(layoutId)
+      .then((routes) => {
+        if (evacuationRequestSequenceRef.current === sequence) setEvacuationRoutes(routes);
+      })
+      .catch(() => {
+        if (evacuationRequestSequenceRef.current === sequence) {
+          setEvacuationRoutesError('대피 동선을 불러오지 못했습니다. 다시 선택해 주세요.');
+        }
+      })
+      .finally(() => {
+        if (evacuationRequestSequenceRef.current === sequence) {
+          evacuationRequestRef.current = null;
+          setEvacuationRoutesLoading(false);
+        }
+      });
+    evacuationRequestRef.current = request;
+  }, [evacuationRoutes, layoutId]);
+
+  const toggleEvacuationZone = useCallback(
+    (zoneId: number) => {
+      setEnabledEvacuationZoneIds((current) => {
+        const next = new Set(current);
+        if (next.has(zoneId)) next.delete(zoneId);
+        else {
+          next.add(zoneId);
+          loadEvacuationRoutes();
+        }
+        return next;
+      });
+    },
+    [loadEvacuationRoutes],
+  );
+
+  const toggleAllEvacuationZones = useCallback(
+    (enabled: boolean) => {
+      setEnabledEvacuationZoneIds(
+        enabled ? new Set(metadata.metadata.zones.map((zone) => zone.zoneId)) : new Set(),
+      );
+      if (enabled) loadEvacuationRoutes();
+    },
+    [loadEvacuationRoutes, metadata.metadata.zones],
+  );
+
+  const visibleEvacuationRoutes = useMemo(
+    () => evacuationRoutes?.filter((route) => enabledEvacuationZoneIds.has(route.zoneId)) ?? [],
+    [enabledEvacuationZoneIds, evacuationRoutes],
+  );
 
   useLayoutEffect(() => {
     if (!restorePanelFocusRef.current) {
@@ -219,6 +328,24 @@ function LayoutPage() {
     }
   }, [metadata.metadata.zones, selectedZoneId]);
 
+  useEffect(() => {
+    if (loadStatus !== 'ready' || layoutId === null || !canManageRisks) {
+      return;
+    }
+    let active = true;
+    riskApi
+      .listByLayout(layoutId)
+      .then((items) => {
+        if (active) setRisks(items);
+      })
+      .catch(() => {
+        if (active) setRisks([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [canManageRisks, layoutId, loadStatus]);
+
   const adoptSavedDrawing = useCallback(
     (drawing: Drawing) => {
       dispatch({
@@ -260,7 +387,9 @@ function LayoutPage() {
         layoutVersionStatus: drawing.layoutVersionStatus,
       };
       dispatch({ type: 'setValidationProblems', problems: [] });
-      recordLastActivity('LAYOUT_EDIT', Number(drawingId));
+      if (layoutId !== null) {
+        recordLastActivity('LAYOUT_EDIT', layoutId);
+      }
       setSaveStatus('saved');
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -292,7 +421,7 @@ function LayoutPage() {
         saveTimerRef.current = null;
       }, 2000);
     }
-  }, [saveStatus, loadStatus, drawingId, recordLastActivity]);
+  }, [saveStatus, loadStatus, drawingId, layoutId, recordLastActivity]);
 
   const handleOpenDraftDialog = useCallback(async () => {
     const session = sessionRef.current;
@@ -314,14 +443,16 @@ function LayoutPage() {
         layoutVersionNumber: drawing.layoutVersionNumber,
         layoutVersionStatus: drawing.layoutVersionStatus,
       };
-      recordLastActivity('LAYOUT_EDIT', Number(drawingId));
+      if (layoutId !== null) {
+        recordLastActivity('LAYOUT_EDIT', layoutId);
+      }
       setDraftDialogOpen(true);
     } catch (error) {
       dispatch({ type: 'setError', message: getSimulationErrorMessage(error) });
     } finally {
       setDraftPending(false);
     }
-  }, [draftPending, drawingId, recordLastActivity]);
+  }, [draftPending, drawingId, layoutId, recordLastActivity]);
 
   const handleCreateDraft = useCallback(
     async (parentSimulationId?: number) => {
@@ -403,6 +534,10 @@ function LayoutPage() {
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         dispatch({ type: 'deleteSelection' });
       } else if (event.key === 'Escape') {
+        if (riskModeRef.current) {
+          setRiskMode(false);
+          riskModeRef.current = false;
+        }
         dispatch({ type: 'escape' });
       }
     };
@@ -416,6 +551,36 @@ function LayoutPage() {
     setSaveStatus('idle');
     setHistoryDialogOpen(false);
   }, []);
+
+  const handleUpdateDrawingInfo = useCallback(
+    (info: { title: string; description: string | null }) => {
+      const nextDescription = info.description === '' ? null : info.description;
+      if (sessionRef.current !== null && sessionRef.current.description !== nextDescription) {
+        sessionRef.current = { ...sessionRef.current, description: nextDescription };
+      }
+      if (stateRef.current.doc.name !== info.title) {
+        dispatch({ type: 'renameDoc', name: info.title });
+      }
+    },
+    [],
+  );
+  useEffect(() => {
+    if (loadStatus !== 'ready' || layoutId === null) {
+      return;
+    }
+    let active = true;
+    riskApi
+      .listByLayout(layoutId)
+      .then((items) => {
+        if (active) setRisks(items);
+      })
+      .catch(() => {
+        if (active) setRisks([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadStatus, layoutId]);
 
   const readOnly = sessionRef.current?.layoutVersionStatus === '잠금';
   const employeeNameById = Object.fromEntries(
@@ -705,12 +870,15 @@ function LayoutPage() {
   }
 
   return (
-    <CanvasWorkspace className="layout-workspace">
+    <CanvasWorkspace
+      className={`layout-workspace ${fadeInLayout ? 'layout-workspace--entering' : ''}`}
+    >
       <CanvasWorkspaceBackButton onClick={() => navigate('/drawings')} />
       <LayoutWorkspaceHeader
         name={state.doc.name}
+        description={sessionRef.current?.description ?? null}
         readOnly={readOnly}
-        onRename={(name) => dispatch({ type: 'renameDoc', name })}
+        onUpdateInfo={handleUpdateDrawingInfo}
       />
       <LayoutCanvas
         state={state}
@@ -727,6 +895,17 @@ function LayoutPage() {
         onZoneRectCommit={handleZoneRectCommit}
         canEditZones={canManageZones}
         onElementContextMenu={canManageZones ? handleCanvasContextMenu : undefined}
+        riskZones={risks.map((risk) => ({
+          id: risk.id,
+          title: risk.title,
+          startX: risk.startX ?? 0,
+          startY: risk.startY ?? 0,
+          endX: risk.endX ?? 0,
+          endY: risk.endY ?? 0,
+        }))}
+        riskMode={canManageRisks && riskMode}
+        onRiskZoneDrawn={canManageRisks ? setPendingRiskBounds : undefined}
+        evacuationRoutes={visibleEvacuationRoutes}
       />
       {canvasMenu !== null ? (
         <LayerContextMenu
@@ -820,11 +999,10 @@ function LayoutPage() {
           }}
         >
           <LayoutToolbar
-            saveStatus={saveStatus}
-            onSave={() => void performSave()}
             onOpenHistory={() => setHistoryDialogOpen(true)}
-            onStartSimulation={() => void handleOpenDraftDialog()}
             readOnly={readOnly || !canManageGeometry}
+            riskMode={riskMode}
+            onToggleRiskMode={canManageRisks ? toggleRiskMode : undefined}
             collapseButtonRef={collapseButtonRef}
             onCollapse={() => {
               restorePanelFocusRef.current = true;
@@ -832,6 +1010,14 @@ function LayoutPage() {
             }}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
+            <EvacuationRoutePanel
+              zones={metadata.metadata.zones}
+              enabledZoneIds={enabledEvacuationZoneIds}
+              loading={evacuationRoutesLoading}
+              errorMessage={evacuationRoutesError}
+              onToggle={toggleEvacuationZone}
+              onToggleAll={toggleAllEvacuationZones}
+            />
             {metadata.errorMessage ? (
               <p
                 role="alert"
@@ -917,6 +1103,12 @@ function LayoutPage() {
                 ) : null}
               </>
             )}
+            <LayoutPrimaryActions
+              saveStatus={saveStatus}
+              onSave={() => void performSave()}
+              onStartSimulation={() => void handleOpenDraftDialog()}
+              readOnly={readOnly || !canManageGeometry}
+            />
           </div>
         </CanvasWorkspacePanel>
       )}
@@ -967,6 +1159,33 @@ function LayoutPage() {
           pending={draftPending}
           onClose={() => setDraftDialogOpen(false)}
           onConfirm={(parentSimulationId) => void handleCreateDraft(parentSimulationId)}
+        />
+      )}
+      {pendingRiskBounds && layoutId !== null && sessionRef.current !== null && (
+        <RiskZoneEditorDialog
+          bounds={pendingRiskBounds}
+          drawing={{
+            width: state.doc.width,
+            height: state.doc.height,
+            layoutTexts: state.doc.layoutTexts.map((text) => ({
+              text: text.text,
+              x: text.x,
+              y: text.y,
+            })),
+            zones: metadata.metadata.zones.map((zone) => ({
+              name: zone.name,
+              rect: zone.rect,
+            })),
+          }}
+          layoutId={layoutId}
+          layoutVersionId={sessionRef.current.layoutVersionId}
+          onCancel={() => setPendingRiskBounds(null)}
+          onConfirm={(risk) => {
+            setRisks((current) => [risk, ...current]);
+            setPendingRiskBounds(null);
+            setRiskMode(false);
+            riskModeRef.current = false;
+          }}
         />
       )}
       {historyDialogOpen && sessionRef.current !== null && (

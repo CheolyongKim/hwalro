@@ -71,6 +71,7 @@
 - 공간 이동은 `transform`, 상태 전환은 `opacity` 중심으로 표현한다.
 - 드래그 삽입 표시는 라임 선과 양 끝 마커로 정확한 before/after 위치를 알린다.
 - `prefers-reduced-motion: reduce`에서는 패널 전환을 1ms로 줄이고 기능은 유지한다.
+- 대피 동선은 8px 선과 6px 간격의 dash가 초당 18px 이동해 비상구 방향의 흐름을 나타내며, reduced-motion에서는 같은 dash를 정지 상태로 유지한다.
 
 ## 7. Depth & Surface
 
