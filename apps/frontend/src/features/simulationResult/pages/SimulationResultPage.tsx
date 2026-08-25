@@ -21,14 +21,12 @@ import { ImprovementComparisonPanel } from '../components/ImprovementComparisonP
 import { PlaybackControls } from '../components/PlaybackControls';
 import { ReportDraftDialog } from '../components/ReportDraftDialog';
 import { ResultSummaryPanel } from '../components/ResultSummaryPanel';
-import { RiskZoneEditorDialog } from '../components/RiskZoneEditorDialog';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
 import { SimulationViewToggle } from '../components/SimulationViewToggle';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
 import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
 import type {
-  Bounds,
   RiskZone,
   SimulationResultSummaryViewModel,
   SimulationResultViewModel,
@@ -157,10 +155,8 @@ function ResultView({
   const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(
     rankedBottlenecks[0]?.id ?? null,
   );
-  const [riskDrawingMode, setRiskDrawingMode] = useState(false);
   const [viewMode, setViewMode] = useState<SimulationViewMode>('plan');
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
-  const [pendingBounds, setPendingBounds] = useState<Bounds | null>(null);
   const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
@@ -215,16 +211,9 @@ function ResultView({
     if (!improvementPanel.isMinimized) improvementPanel.collapse();
   };
 
-  const handleRiskZoneCreated = (bounds: Bounds) => {
-    setPendingBounds(bounds);
-    setRiskDrawingMode(false);
-  };
-
   const handleViewModeChange = (mode: SimulationViewMode) => {
     setViewMode(mode);
-    if (mode === 'three') setRiskDrawingMode(false);
   };
-
   useEffect(() => {
     let active = true;
     setRiskLoadError(null);
@@ -330,13 +319,11 @@ function ResultView({
         currentTimeSeconds={playback.displayTimeSeconds}
         selectedBottleneckId={selectedBottleneckId}
         showBottlenecks={bottlenecksVisible}
-        riskDrawingMode={riskDrawingMode}
         riskZones={riskZones}
         viewMode={viewMode}
         improvedFabricIndexes={
           viewingOrigin ? improvedFabricDiff.originIndexes : improvedFabricDiff.improvedIndexes
         }
-        onRiskZoneCreated={handleRiskZoneCreated}
         onViewportPan={handleViewportPan}
       />
 
@@ -384,24 +371,11 @@ function ResultView({
 
       <SimulationViewToggle mode={viewMode} onChange={handleViewModeChange} />
 
-      <div className="risk-zone-control">
-        <button
-          type="button"
-          className={`risk-zone-button ${riskDrawingMode ? 'is-active' : ''}`}
-          aria-pressed={riskDrawingMode}
-          aria-describedby={viewMode === 'three' ? 'three-risk-edit-note' : undefined}
-          disabled={viewMode === 'three'}
-          onClick={() => setRiskDrawingMode((value) => !value)}
-        >
-          {riskDrawingMode ? '도면을 드래그해 구역을 설정하세요' : '위험 예상 항목 설정'}
-        </button>
-        {viewMode === 'three' && (
-          <p id="three-risk-edit-note" className="three-risk-edit-note">
-            위험 구역 편집은 2D에서 사용할 수 있습니다.
-          </p>
-        )}
-        {riskLoadError && <p className="risk-zone-load-error">{riskLoadError}</p>}
-      </div>
+      {riskLoadError && (
+        <div className="risk-zone-control">
+          <p className="risk-zone-load-error">{riskLoadError}</p>
+        </div>
+      )}
 
       <ResultSummaryPanel
         result={result}
@@ -463,19 +437,6 @@ function ResultView({
         panel={improvementPanel}
         onCompare={() => navigate(`/simulations/${result.simulationId}/layout-search`)}
       />
-
-      {pendingBounds && (
-        <RiskZoneEditorDialog
-          bounds={pendingBounds}
-          drawing={result.drawing}
-          simulationResultId={summary.simulationResultId}
-          onCancel={() => setPendingBounds(null)}
-          onConfirm={(risk) => {
-            setRiskZones((zones) => [...zones, toRiskZone(risk)]);
-            setPendingBounds(null);
-          }}
-        />
-      )}
 
       <ReportDraftDialog
         open={reportOpen}

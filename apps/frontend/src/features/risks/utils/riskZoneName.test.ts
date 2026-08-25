@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Bounds, DrawingText } from '../types';
+import type { Bounds, DrawingText } from './riskZoneTypes';
 import { generateRiskZoneName } from './riskZoneName';
 
 const DRAWING = { width: 100, height: 80, layoutTexts: [] as DrawingText[] };

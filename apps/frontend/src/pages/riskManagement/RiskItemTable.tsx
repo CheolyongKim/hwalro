@@ -67,7 +67,7 @@ function RiskItemTable({
                   )}
                 </div>
                 <span className="truncate text-sm text-text-muted">
-                  {item.simulationTitle ?? ''}
+                  {item.layoutTitle ?? item.simulationTitle ?? ''}
                 </span>
                 <Badge tone={SEVERITY_TONES[item.severity] ?? 'neutral'}>{item.severity}</Badge>
                 <span className="text-sm tabular-nums text-text-strong">
