@@ -58,16 +58,19 @@ public class EvacuationPreviewService {
     private final DrawingService drawingService;
     private final SimulationService simulationService;
     private final SimulationEngineRunner engineRunner;
+    private final EvacuationRouteCache routeCache;
 
     public EvacuationPreviewService(
             LayoutZoneService layoutZoneService,
             DrawingService drawingService,
             SimulationService simulationService,
-            SimulationEngineRunner engineRunner) {
+            SimulationEngineRunner engineRunner,
+            EvacuationRouteCache routeCache) {
         this.layoutZoneService = layoutZoneService;
         this.drawingService = drawingService;
         this.simulationService = simulationService;
         this.engineRunner = engineRunner;
+        this.routeCache = routeCache;
     }
 
     public EvacuationRouteResponse preview(Long zoneId, JwtUser user) {
@@ -88,11 +91,29 @@ public class EvacuationPreviewService {
             throw new ForbiddenException("도면 전체의 대피 경로는 안전 담당자만 조회할 수 있습니다.");
         }
         Long versionId = layoutZoneService.currentVersionId(layoutId);
-        DrawingGeometryDto drawing = simulationService.layoutGeometry(versionId);
         List<LayoutZone> zones = layoutZoneService.zones(versionId);
         if (zones.isEmpty()) {
             return List.of();
         }
+        // 캐시는 필터 이전의 전체 구역 결과만 담는다. 보는 사람에 따른 필터는 꺼낸 뒤에 적용해야 한다.
+        String cacheKey = EvacuationRouteCache.keyOf(versionId, zones);
+        List<EvacuationRouteResponse> cached = routeCache.find(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        List<EvacuationRouteResponse> computed = computeAll(layoutId, versionId, zones);
+        routeCache.put(cacheKey, computed);
+        return computed;
+    }
+
+    /**
+     * 도면 전체 대피 경로를 실제로 계산한다.
+     *
+     * <p>엔진 실행 실패로 예외가 나가는 경로에서는 호출자가 캐시에 담지 않는다. 일시적인 장애를 오래 붙들고 있으면
+     * 엔진이 복구된 뒤에도 계속 실패를 돌려주기 때문이다.
+     */
+    private List<EvacuationRouteResponse> computeAll(Long layoutId, Long versionId, List<LayoutZone> zones) {
+        DrawingGeometryDto drawing = simulationService.layoutGeometry(versionId);
         if (drawing.exits().isEmpty()) {
             return zones.stream()
                     .map(zone -> notConfigured(

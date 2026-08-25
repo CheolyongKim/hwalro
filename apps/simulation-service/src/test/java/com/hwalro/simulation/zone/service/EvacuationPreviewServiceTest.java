@@ -156,7 +156,8 @@ class EvacuationPreviewServiceTest {
                             .toList();
                     return new RoutePreviewResult(List.of(), coverage, zoneRoutes);
                 });
-        service = new EvacuationPreviewService(layoutZoneService, drawingService, simulationService, engineRunner);
+        service = new EvacuationPreviewService(
+                layoutZoneService, drawingService, simulationService, engineRunner, new EvacuationRouteCache());
     }
 
     @Test
@@ -309,11 +310,10 @@ class EvacuationPreviewServiceTest {
         assertThat(routes)
                 .allSatisfy(route -> assertThat(route.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE));
         assertThat(routes.get(0).partitions()).hasSize(2);
-        assertThat(routes.get(0).partitions())
-                .allSatisfy(partition -> {
-                    assertThat(partition.waypoints()).isNotEmpty();
-                    assertThat(partition.entryPoint()).isEqualTo(partition.waypoints().get(0));
-                });
+        assertThat(routes.get(0).partitions()).allSatisfy(partition -> {
+            assertThat(partition.waypoints()).isNotEmpty();
+            assertThat(partition.entryPoint()).isEqualTo(partition.waypoints().get(0));
+        });
         verify(engineRunner, times(1)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
         verify(engineRunner, never()).previewRoutes(anyString(), any(SimulationSetupResponse.class), any());
     }
@@ -323,5 +323,49 @@ class EvacuationPreviewServiceTest {
         assertThatThrownBy(() -> service.previewAll(LAYOUT_ID, employee()))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("안전 담당자");
+    }
+
+    @Test
+    void 같은_도면을_다시_조회하면_엔진을_다시_실행하지_않는다() throws Exception {
+        when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
+        when(layoutZoneService.zones(VERSION_ID))
+                .thenReturn(List.of(zone(ZONE_ID, null, EMPLOYEE_ID), zone(31L, NEAR_EXIT_ID, 99L)));
+
+        List<EvacuationRouteResponse> first = service.previewAll(LAYOUT_ID, reviewer());
+        List<EvacuationRouteResponse> second = service.previewAll(LAYOUT_ID, reviewer());
+
+        assertThat(second).isEqualTo(first);
+        verify(engineRunner, times(1)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
+    }
+
+    @Test
+    void 구역을_옮기면_버전이_그대로여도_다시_계산한다() throws Exception {
+        // 구역 편집은 새 버전을 만들지 않고 현재 버전을 제자리에서 고친다. 버전 ID만 키로 쓰면 낡은 경로가 남는다.
+        when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
+        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(zone(ZONE_ID, null, EMPLOYEE_ID)));
+        service.previewAll(LAYOUT_ID, reviewer());
+
+        LayoutZone moved = zone(ZONE_ID, null, EMPLOYEE_ID);
+        moved.setX(m(12));
+        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(moved));
+        service.previewAll(LAYOUT_ID, reviewer());
+
+        verify(engineRunner, times(2)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
+    }
+
+    @Test
+    void 엔진_장애는_캐시하지_않는다() throws Exception {
+        when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
+        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(zone(ZONE_ID, null, EMPLOYEE_ID)));
+        when(engineRunner.previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any()))
+                .thenThrow(new EngineRunException("엔진 실행 실패", false));
+
+        assertThatThrownBy(() -> service.previewAll(LAYOUT_ID, reviewer()))
+                .isInstanceOf(SimulationEngineUnavailableException.class);
+        assertThatThrownBy(() -> service.previewAll(LAYOUT_ID, reviewer()))
+                .isInstanceOf(SimulationEngineUnavailableException.class);
+
+        // 장애를 캐시하면 엔진이 살아난 뒤에도 계속 실패를 돌려준다.
+        verify(engineRunner, times(2)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
     }
 }
