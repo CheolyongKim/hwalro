@@ -137,7 +137,19 @@ export interface StartSearchResult {
   status: string;
 }
 
+export interface LayoutSearchMonitorItem {
+  searchId: number;
+  baselineSimulationId: number;
+  title: string;
+  status: SearchStatus;
+}
+
 export const layoutSearchApi = {
+  listMonitor: () =>
+    apiClient
+      .get<LayoutSearchMonitorItem[]>('/api/layout-searches/monitor')
+      .then((response) => response.data),
+
   // 제약은 도면에 저장된 값을 서버가 읽는다. 실행마다 달라지는 값은 verify뿐이다.
   start: (simulationId: number, verify = false) =>
     apiClient

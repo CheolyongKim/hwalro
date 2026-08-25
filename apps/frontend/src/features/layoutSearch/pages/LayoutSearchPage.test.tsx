@@ -397,20 +397,21 @@ describe('배치 개선안 페이지 interaction', () => {
     expect(container.textContent).toContain('배치 개선안 탐색 시작');
   });
 
-  it('active 상태에서만 poll하고 unmount 뒤 timer를 정리한다', async () => {
+  it('진행 중인 탐색 페이지에 접근하면 대기 화면 없이 시뮬레이션 목록으로 이동한다', async () => {
     vi.useFakeTimers();
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     const latest = vi.spyOn(layoutSearchApi, 'latest').mockResolvedValue(search('GENERATING', []));
 
     await renderPage();
-    expect(container.textContent).toContain('검증 중인 배치');
-    expect(container.textContent).toContain('전체 후보 계산 중');
+    expect(container.textContent).toContain('시뮬레이션 목록 화면');
+    expect(container.textContent).not.toContain('검증 중인 배치');
+    expect(container.textContent).not.toContain('개선안이 검증되면 배치를 표시합니다.');
     await act(async () => vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS));
-    expect(latest).toHaveBeenCalledTimes(2);
+    expect(latest).toHaveBeenCalledTimes(1);
 
     await act(async () => root.unmount());
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
-    expect(latest).toHaveBeenCalledTimes(2);
+    expect(latest).toHaveBeenCalledTimes(1);
     root = createRoot(container);
   });
 });

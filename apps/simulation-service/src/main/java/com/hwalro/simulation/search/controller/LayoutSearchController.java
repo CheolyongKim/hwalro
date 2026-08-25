@@ -9,11 +9,13 @@ import com.hwalro.simulation.search.dto.LayoutSearchDtos.LayoutSearchResponse;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.PreparedSimulationDto;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.StartStudyRequest;
 import com.hwalro.simulation.search.dto.LayoutSearchDtos.StartStudyResponse;
+import com.hwalro.simulation.search.dto.LayoutSearchMonitorItem;
 import com.hwalro.simulation.search.service.CandidateAdoptionService;
 import com.hwalro.simulation.search.service.LayoutSearchOrchestrator;
 import com.hwalro.simulation.search.service.LayoutSearchQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,6 +61,13 @@ public class LayoutSearchController {
             @PathVariable long simulationId,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return layoutSearchQueryService.getLatest(simulationId, user);
+    }
+
+    @GetMapping("/layout-searches/monitor")
+    @Operation(summary = "내 배치 개선안 탐색 상태 조회", description = "현재 사용자가 요청한 최근 배치 개선안 탐색 상태를 조회합니다.")
+    public List<LayoutSearchMonitorItem> monitor(
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return layoutSearchQueryService.getMonitor(user);
     }
 
     @GetMapping("/layout-searches/{searchId}")

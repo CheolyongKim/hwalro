@@ -14,7 +14,8 @@ export const drawingApi = {
         params: { page, size, query: query?.trim() || undefined },
       })
       .then((res) => res.data),
-  get: (id: number) => apiClient.get<Drawing>(`/api/drawings/${id}`).then((res) => res.data),
+  get: (id: number, signal?: AbortSignal) =>
+    apiClient.get<Drawing>(`/api/drawings/${id}`, { signal }).then((res) => res.data),
   create: (body: DrawingCreateRequest) =>
     apiClient.post<Drawing>('/api/drawings', body).then((res) => res.data),
   duplicate: (id: number) =>
