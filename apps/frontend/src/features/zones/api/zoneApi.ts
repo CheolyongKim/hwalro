@@ -70,10 +70,4 @@ export const zoneApi = {
     apiClient
       .get<EvacuationRoute>(`/api/my-zones/${zoneId}/evacuation-route`)
       .then((response) => response.data),
-
-  /** 도면의 모든 구역 대피 경로. 안전 담당 권한에서만 조회된다. */
-  evacuationRoutes: (drawingId: number) =>
-    apiClient
-      .get<EvacuationRoute[]>(`/api/drawings/${drawingId}/evacuation-routes`)
-      .then((response) => response.data),
 };
