@@ -19,6 +19,11 @@ import ReportDetailPage from '../features/reports/pages/ReportDetailPage';
 import DrawingListPage from '../features/drawings/pages/DrawingListPage';
 import SimulationSetupPage from '../features/simulations/pages/SimulationSetupPage';
 import SimulationListPage from '../features/simulations/pages/SimulationListPage';
+import { CanvasWorkspaceState } from '../components/workspace';
+import {
+  DRAWING_WORKSPACE_LOADING_MESSAGE,
+  SIMULATION_RESULT_LOADING_MESSAGE,
+} from '../components/workspace/workspaceLoadingMessages';
 
 const LayoutPage = lazy(() => import('../features/layout/pages/LayoutPage'));
 const CreateDrawingPage = lazy(() => import('../features/drawings/pages/CreateDrawingPage'));
@@ -28,12 +33,8 @@ const SimulationAnalysisResultPage = lazy(
 const LayoutSearchPage = lazy(() => import('../features/layoutSearch/pages/LayoutSearchPage'));
 const InspectionMobilePage = lazy(() => import('../pages/InspectionMobilePage'));
 
-function FullscreenRouteFallback() {
-  return (
-    <div className="flex h-dvh items-center justify-center bg-background text-sm text-text-muted">
-      화면을 준비하고 있습니다.
-    </div>
-  );
+function FullscreenRouteFallback({ message }: { message: string }) {
+  return <CanvasWorkspaceState message={message} role="status" />;
 }
 
 function DrawingEditRedirect() {
@@ -93,7 +94,9 @@ export const router = createBrowserRouter([
           {
             path: 'layout/:drawingId',
             element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
+              <Suspense
+                fallback={<FullscreenRouteFallback message={DRAWING_WORKSPACE_LOADING_MESSAGE} />}
+              >
                 <LayoutPage />
               </Suspense>
             ),
@@ -102,7 +105,9 @@ export const router = createBrowserRouter([
           {
             path: 'simulations/:simulationId/results',
             element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
+              <Suspense
+                fallback={<FullscreenRouteFallback message={SIMULATION_RESULT_LOADING_MESSAGE} />}
+              >
                 <SimulationAnalysisResultPage />
               </Suspense>
             ),
@@ -110,7 +115,9 @@ export const router = createBrowserRouter([
           {
             path: 'simulations/:simulationId/layout-search',
             element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
+              <Suspense
+                fallback={<FullscreenRouteFallback message="배치 개선안을 준비하고 있습니다." />}
+              >
                 <LayoutSearchPage />
               </Suspense>
             ),
@@ -118,7 +125,9 @@ export const router = createBrowserRouter([
           {
             path: 'inspect/:areaId',
             element: (
-              <Suspense fallback={<FullscreenRouteFallback />}>
+              <Suspense
+                fallback={<FullscreenRouteFallback message="점검 화면을 준비하고 있습니다." />}
+              >
                 <InspectionMobilePage />
               </Suspense>
             ),

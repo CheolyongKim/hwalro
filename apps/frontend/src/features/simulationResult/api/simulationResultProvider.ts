@@ -74,10 +74,11 @@ function toSummaryViewModel(
 }
 
 export const simulationResultProvider: SimulationResultProvider = {
-  async getSummary(simulationId) {
+  async getSummary(simulationId, signal) {
     try {
       const response = await apiClient.get<SimulationResultSummaryResponse>(
         `/api/simulations/${simulationId}/result`,
+        { signal },
       );
       return toSummaryViewModel(response.data);
     } catch (error) {
@@ -94,10 +95,10 @@ export const simulationResultProvider: SimulationResultProvider = {
     return response.data;
   },
 
-  async getPlaybackChunk(simulationId, sequence, totalPeople, maxDensity) {
+  async getPlaybackChunk(simulationId, sequence, totalPeople, maxDensity, signal) {
     const [timeline, heatmap] = await Promise.all([
-      simulationApi.getTimelineChunk(simulationId, sequence),
-      simulationApi.getHeatmapChunk(simulationId, sequence),
+      simulationApi.getTimelineChunk(simulationId, sequence, signal),
+      simulationApi.getHeatmapChunk(simulationId, sequence, signal),
     ]);
     return convertPlaybackChunks(timeline, heatmap, totalPeople, maxDensity);
   },
