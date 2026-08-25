@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, FileText } from 'lucide-react';
@@ -21,7 +21,6 @@ function CreateDrawingPage() {
   const sceneHandleRef = useRef<BuildingSceneHandle | null>(null);
   const cancelledRef = useRef(false);
   const phaseRef = useRef<Phase>('picking');
-  const confirmRef = useRef<(floorId: FloorId) => void>(() => {});
   const [phase, setPhase] = useState<Phase>('picking');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -29,22 +28,6 @@ function CreateDrawingPage() {
     phaseRef.current = next;
     setPhase(next);
   };
-
-  useEffect(() => {
-    cancelledRef.current = false;
-    const host = sceneHostRef.current;
-    if (!host) return;
-    const handle = createBuildingScene(host, {
-      selectableIds: LINKED_FLOOR_IDS,
-      onConfirm: (floorId) => confirmRef.current(floorId),
-    });
-    sceneHandleRef.current = handle;
-    return () => {
-      cancelledRef.current = true;
-      handle.dispose();
-      sceneHandleRef.current = null;
-    };
-  }, []);
 
   const openDrawing = async (drawingId: number) => {
     recordLastActivity('LAYOUT_EDIT', drawingId);
@@ -79,9 +62,25 @@ function CreateDrawingPage() {
     }
   };
 
-  useEffect(() => {
-    confirmRef.current = (floorId) => void startWithLinkedFloor(floorId);
+  const handleSceneConfirm = useEffectEvent((floorId: FloorId) => {
+    void startWithLinkedFloor(floorId);
   });
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    const host = sceneHostRef.current;
+    if (!host) return;
+    const handle = createBuildingScene(host, {
+      selectableIds: LINKED_FLOOR_IDS,
+      onConfirm: handleSceneConfirm,
+    });
+    sceneHandleRef.current = handle;
+    return () => {
+      cancelledRef.current = true;
+      handle.dispose();
+      sceneHandleRef.current = null;
+    };
+  }, []);
 
   const startWithEmptyCanvas = async () => {
     if (phaseRef.current !== 'picking') return;
