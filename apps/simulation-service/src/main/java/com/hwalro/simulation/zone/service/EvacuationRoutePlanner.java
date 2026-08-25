@@ -170,7 +170,18 @@ public final class EvacuationRoutePlanner {
             }
         }
         Collections.reverse(cells);
+        return toRoute(grid, cells, exitId);
+    }
 
+    /**
+     * 칸 목록을 사람이 볼 수 있는 경로로 바꾼다. A*와 비상구 필드가 함께 쓴다.
+     *
+     * @param cells 출발점에서 비상구 순서로 늘어선 칸들
+     */
+    static Route toRoute(EvacuationGrid grid, List<Integer> cells, Long exitId) {
+        if (cells.isEmpty()) {
+            return Route.none();
+        }
         double distance = 0.0;
         double narrowest = Double.POSITIVE_INFINITY;
         for (int i = 0; i < cells.size(); i++) {

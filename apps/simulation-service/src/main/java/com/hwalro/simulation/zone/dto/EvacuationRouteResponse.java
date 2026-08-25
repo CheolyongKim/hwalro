@@ -19,6 +19,7 @@ import java.util.List;
  * @param exitChoice {@code ASSIGNED}(배정된 비상구) | {@code NEAREST}(걸어서 가장 가까운 비상구)
  * @param distanceMeters 안내 경로를 따라 걷는 거리(m)
  * @param narrowestMeters 경로에서 가장 좁은 지점의 통로 반폭(m). 작을수록 사람이 몰렸을 때 막히기 쉽다.
+ * @param partitions 구역 안에서 비상구가 갈리는 영역들. 배정된 비상구가 있으면 나눌 이유가 없어 비어 있다.
  */
 public record EvacuationRouteResponse(
         Long zoneId,
@@ -34,4 +35,5 @@ public record EvacuationRouteResponse(
         String exitChoice,
         double distanceMeters,
         Double narrowestMeters,
-        List<PointDto> waypoints) {}
+        List<PointDto> waypoints,
+        List<ZoneExitPartitionDto> partitions) {}

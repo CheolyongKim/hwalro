@@ -3,6 +3,7 @@ package com.hwalro.simulation.zone.service;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.FabricRectDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.RectDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SegmentDto;
 import java.math.BigDecimal;
@@ -48,6 +49,21 @@ public final class EvacuationGrid {
         int rows = Math.max(1, (int) Math.ceil(height / CELL_SIZE));
         boolean[] blocked = new boolean[columns * rows];
 
+        // 외곽선을 막지 않으면 경로가 건물 밖으로 새어 나간다. 도면 가장자리만 막는 것으로는 부족하다 -
+        // 외곽선이 도면 경계보다 안쪽에 있으면 그 사이 빈 땅을 가로질러 버린다.
+        List<PointDto> boundary = drawing.outsideBoundary();
+        for (int i = 0; i < boundary.size(); i++) {
+            PointDto from = boundary.get(i);
+            PointDto to = boundary.get((i + 1) % boundary.size());
+            blockLine(
+                    blocked,
+                    columns,
+                    rows,
+                    from.x().doubleValue(),
+                    from.y().doubleValue(),
+                    to.x().doubleValue(),
+                    to.y().doubleValue());
+        }
         for (SegmentDto wall : drawing.walls()) {
             blockSegment(blocked, columns, rows, wall);
         }
@@ -217,10 +233,18 @@ public final class EvacuationGrid {
     }
 
     private static void blockSegment(boolean[] blocked, int columns, int rows, SegmentDto segment) {
-        double x1 = segment.startX().doubleValue();
-        double y1 = segment.startY().doubleValue();
-        double x2 = segment.endX().doubleValue();
-        double y2 = segment.endY().doubleValue();
+        blockLine(
+                blocked,
+                columns,
+                rows,
+                segment.startX().doubleValue(),
+                segment.startY().doubleValue(),
+                segment.endX().doubleValue(),
+                segment.endY().doubleValue());
+    }
+
+    private static void blockLine(
+            boolean[] blocked, int columns, int rows, double x1, double y1, double x2, double y2) {
         double length = Math.hypot(x2 - x1, y2 - y1);
         int steps = Math.max(1, (int) Math.ceil(length / (CELL_SIZE / 2)));
         for (int step = 0; step <= steps; step++) {

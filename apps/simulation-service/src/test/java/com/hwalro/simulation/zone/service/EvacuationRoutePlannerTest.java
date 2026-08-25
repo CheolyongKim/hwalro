@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SegmentDto;
 import java.math.BigDecimal;
 import java.util.List;
@@ -113,5 +114,39 @@ class EvacuationRoutePlannerTest {
         assertThat(EvacuationRoutePlanner.narrowPenalty(1.2)).isEqualTo(1.0);
         assertThat(EvacuationRoutePlanner.narrowPenalty(0.7)).isBetween(1.5, 2.5);
         assertThat(EvacuationRoutePlanner.narrowPenalty(0.3)).isEqualTo(EvacuationRoutePlanner.MAX_NARROW_PENALTY);
+    }
+
+    @Test
+    void 외곽선을_뚫고_건물_밖으로_나가지_않는다() {
+        // 외곽선이 도면 경계보다 안쪽에 있다. 도면 가장자리만 막는 방식이라면 이 사이 빈 땅을
+        // 가로질러 비상구로 직행해 버린다.
+        List<PointDto> boundary = List.of(
+                new PointDto(m(4), m(4)),
+                new PointDto(m(26), m(4)),
+                new PointDto(m(26), m(16)),
+                new PointDto(m(4), m(16)));
+        DrawingGeometryDto layout = new DrawingGeometryDto(
+                1L,
+                "테스트 도면",
+                m(30),
+                m(20),
+                boundary,
+                List.of(wall(15.0, 4.0, 15.0, 13.0)),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(exit(1L, 26.0, 9.0, 26.0, 11.0)));
+
+        EvacuationRoutePlanner.Route route =
+                EvacuationRoutePlanner.plan(EvacuationGrid.of(layout), 8.0, 6.0, layout.exits());
+
+        assertThat(route.found()).isTrue();
+        // 모든 경유점이 외곽선 안에 있어야 한다.
+        assertThat(route.waypoints()).allSatisfy(point -> {
+            assertThat(point.x().doubleValue()).isBetween(3.5, 26.5);
+            assertThat(point.y().doubleValue()).isBetween(3.5, 16.5);
+        });
+        // 벽을 돌아가야 하므로 직선거리(18m)보다 길다.
+        assertThat(route.distanceMeters()).isGreaterThan(19.0);
     }
 }
