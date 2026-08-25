@@ -5,9 +5,6 @@ public class SafetyInspection {
     private Long inspectionAreaId;
     private Long checklistTemplateId;
     private Long simulationResultId;
-    private Long layoutId;
-    private Long layoutVersionId;
-    private byte[] snapshotImage;
     private Long inspectorId;
 
     public Long getId() {
@@ -48,29 +45,5 @@ public class SafetyInspection {
 
     public void setInspectorId(Long inspectorId) {
         this.inspectorId = inspectorId;
-    }
-
-    public Long getLayoutId() {
-        return layoutId;
-    }
-
-    public void setLayoutId(Long layoutId) {
-        this.layoutId = layoutId;
-    }
-
-    public Long getLayoutVersionId() {
-        return layoutVersionId;
-    }
-
-    public void setLayoutVersionId(Long layoutVersionId) {
-        this.layoutVersionId = layoutVersionId;
-    }
-
-    public byte[] getSnapshotImage() {
-        return snapshotImage;
-    }
-
-    public void setSnapshotImage(byte[] snapshotImage) {
-        this.snapshotImage = snapshotImage;
     }
 }

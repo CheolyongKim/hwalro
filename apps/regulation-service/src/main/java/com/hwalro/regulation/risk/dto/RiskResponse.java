@@ -5,8 +5,7 @@ import java.util.List;
 
 public record RiskResponse(
         Long id,
-        Long layoutId,
-        Long layoutVersionId,
+        Long simulationResultId,
         Long assigneeId,
         String assigneeName,
         String title,
@@ -19,4 +18,4 @@ public record RiskResponse(
         String status,
         LocalDateTime createdAt,
         List<AttachedLawRef> attachedLaws,
-        String layoutTitle) {}
+        String simulationTitle) {}

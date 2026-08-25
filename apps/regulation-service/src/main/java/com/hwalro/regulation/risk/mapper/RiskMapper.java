@@ -19,9 +19,12 @@ public interface RiskMapper {
 
     long count(@Param("assigneeId") Long assigneeId, @Param("query") String query);
 
-    List<Risk> findByLayoutId(@Param("layoutId") Long layoutId, @Param("assigneeId") Long assigneeId);
+    List<Risk> findBySimulationResultId(
+            @Param("simulationResultId") Long simulationResultId, @Param("assigneeId") Long assigneeId);
 
-    List<Risk> findByLayoutIds(@Param("layoutIds") List<Long> layoutIds);
+    List<Risk> findBySimulationResultIds(@Param("simulationResultIds") List<Long> simulationResultIds);
+
+    int countBySimulationResultId(@Param("simulationResultId") Long simulationResultId);
 
     int insert(Risk risk);
 

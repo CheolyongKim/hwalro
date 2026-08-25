@@ -1,10 +1,6 @@
-import type { Bounds, DrawingText } from './riskZoneTypes';
+import type { Bounds, DrawingText, SimulationDrawing } from '../types';
 
-type RiskZoneNameDrawing = {
-  width: number;
-  height: number;
-  layoutTexts: DrawingText[];
-};
+type RiskZoneNameDrawing = Pick<SimulationDrawing, 'width' | 'height' | 'layoutTexts'>;
 
 const STORE_DISTANCE_RATIO = 0.15;
 const MIN_STORE_DISTANCE = 5;

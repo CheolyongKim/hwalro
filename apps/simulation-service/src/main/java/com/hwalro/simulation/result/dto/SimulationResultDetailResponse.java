@@ -5,7 +5,6 @@ import java.util.List;
 public record SimulationResultDetailResponse(
         Long simulationId,
         Long simulationResultId,
-        Long layoutId,
         String title,
         String subtitle,
         double durationSeconds,
@@ -24,7 +23,7 @@ public record SimulationResultDetailResponse(
             double height,
             List<Point> outsideBoundary,
             List<Segment> walls,
-            List<Exit> exits,
+            List<Segment> exits,
             List<Rectangle> pillars,
             List<Rectangle> fabrics,
             List<LayoutText> layoutTexts,
@@ -36,8 +35,6 @@ public record SimulationResultDetailResponse(
     public record Point(double x, double y) {}
 
     public record Segment(String name, double startX, double startY, double endX, double endY) {}
-
-    public record Exit(Long id, String name, double startX, double startY, double endX, double endY, boolean active) {}
 
     public record Rectangle(String name, double startX, double startY, double endX, double endY, double rotation) {}
 

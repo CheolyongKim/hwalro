@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import {
   applyPixiCamera,
@@ -9,31 +9,21 @@ import {
   updatePixiSimulationScene,
   type PixiSimulationScene,
 } from '../rendering/pixiSimulationRenderer';
-import type { SimulationViewMode } from '../rendering/simulationViewMode';
-import {
-  savePlanCamera,
-  type PlanCameraState,
-  type SimulationCameraMemory,
-} from '../rendering/simulationCameraMemory';
-import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
+import type { Bounds, DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import './SimulationPlaybackStage.css';
 
-export interface SimulationPlaybackStageProps {
-  cameraMemory: SimulationCameraMemory;
+interface Props {
   result: SimulationResultViewModel;
   bottlenecks: DetectedBottleneck[];
   currentTimeSeconds: number;
   selectedBottleneckId: number | null;
   showBottlenecks: boolean;
+  riskDrawingMode: boolean;
   riskZones: RiskZone[];
-  viewMode: SimulationViewMode;
   improvedFabricIndexes?: readonly number[];
+  onRiskZoneCreated: (bounds: Bounds) => void;
   onViewportPan: () => void;
 }
-
-const ThreeSimulationStage = lazy(() =>
-  import('./ThreeSimulationStage').then((module) => ({ default: module.ThreeSimulationStage })),
-);
 
 interface PanSession {
   pointerX: number;
@@ -43,41 +33,14 @@ interface PanSession {
   notified: boolean;
 }
 
-export function ThreeSimulationLoading() {
-  return (
-    <div className="simulation-canvas-wrap simulation-three-loading" role="status">
-      3D 공간을 준비하고 있습니다.
-    </div>
-  );
-}
-
-export function SimulationPlaybackStage(props: SimulationPlaybackStageProps) {
-  if (props.viewMode === 'three') {
-    return (
-      <Suspense fallback={<ThreeSimulationLoading />}>
-        <ThreeSimulationStage
-          cameraMemory={props.cameraMemory}
-          result={props.result}
-          bottlenecks={props.bottlenecks}
-          currentTimeSeconds={props.currentTimeSeconds}
-          selectedBottleneckId={props.selectedBottleneckId}
-          showBottlenecks={props.showBottlenecks}
-          riskZones={props.riskZones}
-          onViewportPan={props.onViewportPan}
-        />
-      </Suspense>
-    );
-  }
-
-  return <PixiSimulationStage {...props} />;
-}
-
-function PixiSimulationStage(props: SimulationPlaybackStageProps) {
+export function SimulationPlaybackStage(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<PixiSimulationScene | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const panSessionRef = useRef<PanSession | null>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
-  const [camera, setCamera] = useState<PlanCameraState>(() => ({ ...props.cameraMemory.plan }));
+  const [camera, setCamera] = useState({ zoom: 1, panX: 0, panY: 0 });
+  const [draftZone, setDraftZone] = useState<Bounds | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [sceneVersion, setSceneVersion] = useState(0);
   const [sceneError, setSceneError] = useState(false);
@@ -96,11 +59,6 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       ),
     [camera, props.result.drawing.height, props.result.drawing.width, size],
   );
-
-  const commitCamera = (nextCamera: PlanCameraState) => {
-    savePlanCamera(props.cameraMemory, nextCamera);
-    setCamera(nextCamera);
-  };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -163,8 +121,10 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       props.selectedBottleneckId,
       props.showBottlenecks,
       props.riskZones,
+      draftZone,
     );
   }, [
+    draftZone,
     props.bottlenecks,
     props.currentTimeSeconds,
     props.result,
@@ -174,20 +134,39 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
     sceneVersion,
   ]);
 
+  const pointerPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return pixiScreenToWorld(event.clientX - rect.left, event.clientY - rect.top, transform);
+  };
+
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (sceneError) return;
-    panSessionRef.current = {
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      panX: camera.panX,
-      panY: camera.panY,
-      notified: false,
-    };
-    setIsPanning(true);
+    if (props.riskDrawingMode) {
+      dragStartRef.current = pointerPoint(event);
+    } else {
+      panSessionRef.current = {
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        panX: camera.panX,
+        panY: camera.panY,
+        notified: false,
+      };
+      setIsPanning(true);
+    }
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragStartRef.current) {
+      const point = pointerPoint(event);
+      setDraftZone({
+        x: Math.min(point.x, dragStartRef.current.x),
+        y: Math.min(point.y, dragStartRef.current.y),
+        width: Math.abs(point.x - dragStartRef.current.x),
+        height: Math.abs(point.y - dragStartRef.current.y),
+      });
+      return;
+    }
     const session = panSessionRef.current;
     if (!session) return;
     const deltaX = event.clientX - session.pointerX;
@@ -196,18 +175,24 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       session.notified = true;
       props.onViewportPan();
     }
-    commitCamera({
-      ...camera,
+    setCamera((current) => ({
+      ...current,
       panX: session.panX + deltaX,
       panY: session.panY + deltaY,
-    });
+    }));
   };
 
   const onPointerUp = () => {
     if (panSessionRef.current) {
       panSessionRef.current = null;
       setIsPanning(false);
+      return;
     }
+    dragStartRef.current = null;
+    if (draftZone && draftZone.width >= 1 && draftZone.height >= 1) {
+      props.onRiskZoneCreated(draftZone);
+    }
+    setDraftZone(null);
   };
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -227,7 +212,7 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       0,
       0,
     );
-    commitCamera({
+    setCamera({
       zoom: nextZoom,
       panX: pointerX - world.x * fitTransform.scale - fitTransform.offsetX,
       panY: pointerY - world.y * fitTransform.scale - fitTransform.offsetY,
@@ -237,9 +222,9 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
   return (
     <div
       ref={hostRef}
-      className={`simulation-canvas-wrap simulation-canvas--interactive is-pannable ${isPanning ? 'is-panning' : ''}`}
+      className={`simulation-canvas-wrap simulation-canvas--interactive ${props.riskDrawingMode ? 'is-drawing' : 'is-pannable'} ${isPanning ? 'is-panning' : ''}`}
       role="application"
-      aria-label="시뮬레이션 재생 도면, 2D 보기"
+      aria-label="더현대 서울 지하 2층 PixiJS 시뮬레이션 재생 도면"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

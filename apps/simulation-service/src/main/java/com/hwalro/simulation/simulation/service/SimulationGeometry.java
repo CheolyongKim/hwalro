@@ -127,15 +127,15 @@ public final class SimulationGeometry {
 
         for (HazardZoneDto hazard : hazards) {
             if (hazard == null || hazard.centerX() == null || hazard.centerY() == null || hazard.radius() == null) {
-                throw invalid("위험 구역 좌표와 반지름이 필요합니다.");
+                throw invalid("위험구역 좌표와 반지름이 필요합니다.");
             }
             if (hazard.radius().signum() <= 0 || hazard.radius().compareTo(MAX_VALUE) > 0) {
-                throw invalid("위험 구역 반지름은 0보다 크고 1000000 이하여야 합니다.");
+                throw invalid("위험구역 반지름은 0보다 크고 1000000 이하여야 합니다.");
             }
             PointDto center = new PointDto(hazard.centerX(), hazard.centerY());
-            validatePoint(center, "위험 구역 중심");
+            validatePoint(center, "위험구역 중심");
             if (!insidePolygon(center, boundary) && distanceToBoundary(center, boundary) > EPSILON) {
-                throw invalid("위험 구역 중심은 외곽선 안에 있어야 합니다.");
+                throw invalid("위험구역 중심은 외곽선 안에 있어야 합니다.");
             }
         }
     }

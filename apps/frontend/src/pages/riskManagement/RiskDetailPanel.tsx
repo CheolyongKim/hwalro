@@ -51,21 +51,34 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
   const deleteMutation = useDeleteRisk();
 
   const zoneBounds = useMemo(() => {
-    if (risk.startX === null || risk.startY === null || risk.endX === null || risk.endY === null) {
+    if (
+      risk.simulationResultId === null ||
+      risk.startX === null ||
+      risk.startY === null ||
+      risk.endX === null ||
+      risk.endY === null
+    ) {
       return null;
     }
     return {
+      simulationResultId: risk.simulationResultId,
       startX: risk.startX,
       startY: risk.startY,
       endX: risk.endX,
       endY: risk.endY,
     };
-  }, [risk.endX, risk.endY, risk.startX, risk.startY]);
+  }, [risk.endX, risk.endY, risk.simulationResultId, risk.startX, risk.startY]);
 
+  const simulationResultId = zoneBounds?.simulationResultId;
   const drawingContextQuery = useQuery({
-    queryKey: ['risk-drawing', risk.id],
-    queryFn: () => riskApi.getDrawingForRisk(risk.id),
-    enabled: zoneBounds !== null,
+    queryKey: ['risk-drawing', simulationResultId],
+    queryFn: () => {
+      if (simulationResultId === undefined) {
+        throw new Error('연결된 시뮬레이션 결과가 없습니다.');
+      }
+      return riskApi.getDrawingContext(simulationResultId);
+    },
+    enabled: simulationResultId !== undefined,
   });
 
   const errorMessage = updateMutation.isError
@@ -82,8 +95,10 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
     setDeleteConfirmOpen(true);
   };
 
-  const handleOpenSource = () => {
-    navigate(`/layout/${risk.layoutId}`);
+  const handleOpenSimulation = () => {
+    if (drawingContextQuery?.data) {
+      navigate(`/simulations/${drawingContextQuery?.data.simulationId}/results`);
+    }
   };
 
   return (
@@ -118,7 +133,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       </div>
 
       <div className="mt-6 space-y-6">
-        <Field label="주의 항목명" htmlFor="risk-title">
+        <Field label="위험 항목명" htmlFor="risk-title">
           <Input id="risk-title" value={title} onChange={(event) => setTitle(event.target.value)} />
         </Field>
         <Field label="설명" htmlFor="risk-description">
@@ -144,8 +159,8 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       </div>
 
       {zoneBounds && (
-        <section className="mt-6" aria-label="주의 구역">
-          <span className="text-xs font-bold text-text-muted">주의 구역</span>
+        <section className="mt-6" aria-label="시뮬레이션 구역">
+          <span className="text-xs font-bold text-text-muted">시뮬레이션 구역</span>
           {drawingContextQuery.isPending ? (
             <Skeleton className="mt-2 h-40 w-full" />
           ) : drawingContextQuery.isError ? (
@@ -157,21 +172,21 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
               <div className="mt-2 space-y-2">
                 <button
                   type="button"
-                  onClick={handleOpenSource}
-                  title="도면으로 이동"
+                  onClick={handleOpenSimulation}
+                  title="시뮬레이션 결과 페이지로 이동"
                   className="block w-full cursor-pointer overflow-hidden rounded-xl border border-line bg-white text-left outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
                 >
                   <RiskZonePreview drawing={drawingContextQuery?.data.drawing} zone={zoneBounds} />
                 </button>
                 <button
                   type="button"
-                  onClick={handleOpenSource}
+                  onClick={handleOpenSimulation}
                   className="flex h-10 w-full cursor-pointer items-center justify-center gap-1 overflow-hidden rounded-lg border border-primary bg-primary-soft px-4 text-sm font-bold text-primary outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <span className="truncate">
-                    {drawingContextQuery?.data.layoutTitle || '도면'}
+                    {drawingContextQuery?.data.title || '시뮬레이션 결과'}
                   </span>
-                  <span className="shrink-0">도면 열기</span>
+                  <span className="shrink-0">보러가기</span>
                 </button>
               </div>
             )
@@ -218,8 +233,8 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       )}
       <ConfirmDialog
         open={deleteConfirmOpen}
-        title="주의 항목 삭제"
-        description={`'${title}' 주의 항목을 삭제하시겠습니까?`}
+        title="위험 항목 삭제"
+        description={`'${title}' 위험 항목을 삭제하시겠습니까?`}
         isLoading={deleteMutation.isPending}
         onCancel={() => {
           setDeleteConfirmOpen(false);
@@ -231,7 +246,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
           })
         }
       >
-        <p className="text-sm text-text-muted">삭제한 주의 항목은 복구할 수 없습니다.</p>
+        <p className="text-sm text-text-muted">삭제한 위험 항목은 복구할 수 없습니다.</p>
         {deleteMutation.isError && (
           <p
             role="alert"

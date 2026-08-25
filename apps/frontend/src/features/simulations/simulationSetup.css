@@ -1,9 +1,9 @@
 .simulation-setup-panel {
   --color-ink: var(--color-panel-text);
-  --color-primary: var(--color-workspace-accent);
-  --color-primary-soft: color-mix(in srgb, var(--color-workspace-accent) 12%, transparent);
-  --color-surface: var(--color-workspace-raised);
-  --color-line: var(--color-workspace-line);
+  --color-primary: var(--color-panel-accent);
+  --color-primary-soft: color-mix(in srgb, var(--color-panel-accent) 10%, transparent);
+  --color-surface: rgba(255, 255, 255, 0.07);
+  --color-line: rgba(255, 255, 255, 0.13);
   --color-text-strong: var(--color-panel-text);
   --color-text-muted: var(--color-panel-muted);
 }
@@ -24,13 +24,14 @@
   justify-content: center;
   gap: 6px;
   overflow-x: auto;
-  border: 1px solid var(--color-workspace-line);
-  border-radius: 12px;
-  background: var(--color-workspace-panel);
+  border: 1px solid rgba(151, 177, 170, 0.16);
+  border-radius: 999px;
+  background: rgba(15, 48, 42, 0.92);
   padding: 7px 10px;
-  box-shadow: var(--shadow-raised);
+  box-shadow: 0 18px 40px rgba(10, 39, 34, 0.25);
   transform: translateX(-50%);
   scrollbar-width: none;
+  backdrop-filter: blur(16px) saturate(115%);
 }
 
 .simulation-setup-tool-dock::-webkit-scrollbar {
@@ -42,8 +43,8 @@
   min-width: 64px;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 8px;
-  background: var(--color-workspace-raised);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
   padding: 0 12px;
   color: var(--color-panel-text);
   font-size: 12px;
@@ -55,13 +56,14 @@
 }
 
 .simulation-setup-tool-button:not(.is-active):not(:disabled):hover {
-  background: color-mix(in srgb, var(--color-workspace-raised) 75%, white 8%);
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
 }
 
 .simulation-setup-tool-button.is-active {
-  background: var(--color-primary);
-  color: var(--color-white);
-  font-weight: 700;
+  background: var(--color-lime);
+  color: var(--color-ink-deep);
+  font-weight: 900;
 }
 
 .simulation-setup-tool-button:disabled,
@@ -85,18 +87,19 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--color-workspace-line);
-  border-radius: 10px;
-  background: var(--color-workspace-panel);
+  border: 1px solid rgba(151, 177, 170, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
   padding: 9px 13px;
-  color: var(--color-workspace-muted);
+  color: var(--color-text-muted);
   font-size: 11px;
-  box-shadow: none;
+  box-shadow: 0 12px 30px rgba(22, 55, 49, 0.12);
+  backdrop-filter: blur(14px);
 }
 
 .simulation-setup-zoom-status strong {
   min-width: 40px;
-  color: var(--color-workspace-text);
+  color: var(--color-text-strong);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -158,7 +161,7 @@
   margin: 3px 0 0;
   color: var(--color-white);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 900;
   letter-spacing: -0.04em;
   line-height: 1.08;
 }
@@ -171,8 +174,8 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
-  background: var(--color-workspace-raised);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
   color: var(--color-white);
 }
 
@@ -221,7 +224,7 @@
 .simulation-setup-panel__execute {
   border: 0;
   background: var(--color-lime);
-  color: var(--color-white);
+  color: var(--color-ink-deep);
 }
 
 .simulation-setup-panel__execute:not(:disabled):hover {
@@ -412,14 +415,14 @@
 }
 
 .simulation-setup-info-tooltip {
-  border: 1px solid var(--color-line-strong);
-  background: var(--color-white);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-floating);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--color-ink-deep);
+  color: var(--color-white);
+  box-shadow: 0 14px 32px rgba(7, 24, 21, 0.38);
 }
 
 .simulation-setup-info-tooltip__source {
-  color: var(--color-text-muted);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .simulation-number-stepper {
@@ -530,101 +533,4 @@
     background: var(--color-white);
     backdrop-filter: none;
   }
-}
-
-/* 프로젝터 발표용 light-first 패널 대비 보강 */
-.simulation-setup-tool-button:not(.is-active):not(:disabled):hover,
-.simulation-setup-panel__collapse:hover,
-.simulation-setup-panel__save:not(:disabled):hover {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
-.simulation-setup-zoom-status {
-  font-size: 12px;
-  box-shadow: var(--shadow-raised);
-}
-
-.simulation-setup-panel__top,
-.simulation-setup-panel__section {
-  border-color: var(--color-line);
-}
-
-.simulation-setup-panel__heading small {
-  color: var(--color-text-muted);
-  font-size: 12px;
-}
-
-.simulation-setup-panel__heading h2 {
-  color: var(--color-ink);
-}
-
-.simulation-setup-panel__collapse {
-  color: var(--color-text-strong);
-}
-
-.simulation-setup-tool-state__icon,
-.simulation-setup-tool-state__badge {
-  background: var(--color-surface-subtle);
-}
-
-.simulation-setup-exit-list {
-  scrollbar-color: var(--color-line-strong) var(--color-surface-subtle);
-}
-
-.simulation-setup-exit-list::-webkit-scrollbar-track {
-  background: var(--color-surface-subtle);
-}
-
-.simulation-setup-exit-list::-webkit-scrollbar-thumb {
-  border-color: var(--color-white);
-  background: var(--color-line-strong);
-}
-
-.simulation-setup-exit-option {
-  border-color: var(--color-line);
-  background: var(--color-white);
-}
-
-.simulation-setup-exit-option.is-selected,
-.simulation-setup-exit-option:hover,
-.simulation-setup-exit-option.is-highlighted {
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
-.simulation-setup-panel__content input[type='number'],
-.simulation-setup-title-input {
-  border-color: var(--color-line-strong);
-  background: var(--color-white);
-  color: var(--color-ink);
-}
-
-.simulation-setup-panel__content input[type='number']:disabled,
-.simulation-setup-title-input:disabled {
-  border-color: var(--color-line);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-muted);
-}
-
-.simulation-setup-title-input:hover:not(:disabled),
-.simulation-setup-title-input:focus {
-  background: var(--color-white);
-}
-
-.simulation-setup-info-tooltip {
-  border: 1px solid var(--color-line-strong);
-  background: var(--color-white);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-floating);
-}
-
-.simulation-setup-info-tooltip__source {
-  color: var(--color-text-muted);
-}
-
-.simulation-number-stepper__controls {
-  border-color: var(--color-line);
-  background: var(--color-surface-subtle);
 }

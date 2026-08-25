@@ -22,11 +22,6 @@ export interface DrawingRect extends DrawingSegment {
   rotation?: number;
 }
 
-export interface DrawingExit extends DrawingSegment {
-  id: number;
-  active: boolean;
-}
-
 export interface DrawingText {
   text: string;
   x: number;
@@ -39,7 +34,7 @@ export interface SimulationDrawing {
   height: number;
   outsideBoundary: Point[];
   walls: DrawingSegment[];
-  exits: DrawingExit[];
+  exits: DrawingSegment[];
   pillars: DrawingRect[];
   fabrics: DrawingRect[];
   layoutTexts: DrawingText[];
@@ -124,7 +119,6 @@ export interface HazardZone {
 export interface SimulationResultSummaryViewModel {
   simulationId: string;
   simulationResultId: number;
-  layoutId: number;
   title: string;
   subtitle: string;
   durationSeconds: number;

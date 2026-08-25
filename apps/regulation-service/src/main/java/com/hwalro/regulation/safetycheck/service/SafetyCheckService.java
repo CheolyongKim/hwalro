@@ -2,8 +2,6 @@ package com.hwalro.regulation.safetycheck.service;
 
 import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
-import com.hwalro.regulation.risk.dto.LayoutDrawingContextResponse;
-import com.hwalro.regulation.safetycheck.client.SafetyCheckDrawingContextClient;
 import com.hwalro.regulation.safetycheck.domain.ChecklistTemplate;
 import com.hwalro.regulation.safetycheck.domain.InspectionArea;
 import com.hwalro.regulation.safetycheck.domain.SafetyInspection;
@@ -21,44 +19,32 @@ import com.hwalro.regulation.safetycheck.exception.InspectionAreaNotFoundExcepti
 import com.hwalro.regulation.safetycheck.exception.SafetyInspectionNotFoundException;
 import com.hwalro.regulation.safetycheck.mapper.SafetyCheckMapper;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SafetyCheckService {
-    private static final Logger log = LoggerFactory.getLogger(SafetyCheckService.class);
     private static final int MAX_AREA_NAME_LENGTH = 200;
     private static final int MAX_AREA_DESCRIPTION_LENGTH = 1_000;
-    // ponytail: 스냅샷을 MySQL MEDIUMBLOB에 저장한다(상한 8MB). 용량이 커지면 오브젝트 스토리지로 분리한다.
-    private static final int MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
     private static final Set<String> ITEM_RESULTS = Set.of("PENDING", "PASS", "REVIEW_REQUIRED", "FAIL");
     private static final Set<String> INSPECTION_STATUSES = Set.of("DRAFT", "COMPLETED");
 
     private final SafetyCheckMapper safetyCheckMapper;
-    private final SafetyCheckDrawingContextClient drawingContextClient;
 
-    public SafetyCheckService(
-            SafetyCheckMapper safetyCheckMapper, SafetyCheckDrawingContextClient drawingContextClient) {
+    public SafetyCheckService(SafetyCheckMapper safetyCheckMapper) {
         this.safetyCheckMapper = safetyCheckMapper;
-        this.drawingContextClient = drawingContextClient;
     }
 
-    public List<InspectionAreaResponse> getAreas(JwtUser user, String authorization) {
-        return enrichLayoutTitles(safetyCheckMapper.findAreas(resolveInspectorFilter(user)), authorization);
+    public List<InspectionAreaResponse> getAreas(JwtUser user) {
+        return safetyCheckMapper.findAreas(resolveInspectorFilter(user));
     }
 
-    public InspectionAreaResponse getArea(Long areaId, JwtUser user, String authorization) {
-        return enrichLayoutTitles(List.of(findArea(areaId, resolveInspectorFilter(user))), authorization)
-                .get(0);
+    public InspectionAreaResponse getArea(Long areaId, JwtUser user) {
+        return findArea(areaId, resolveInspectorFilter(user));
     }
 
     @Transactional
@@ -145,7 +131,6 @@ public class SafetyCheckService {
         inspection.setInspectionAreaId(areaId);
         inspection.setChecklistTemplateId(templateId);
         inspection.setSimulationResultId(simulationResultId);
-        inspection.setLayoutId(safetyCheckMapper.findAreaLayoutId(areaId));
         inspection.setInspectorId(user.userId());
         safetyCheckMapper.insertInspection(inspection);
         safetyCheckMapper.insertInspectionItems(inspection.getId(), templateId);
@@ -183,16 +168,9 @@ public class SafetyCheckService {
 
         LocalDateTime now = LocalDateTime.now();
         for (InspectionUpdateRequest.ItemUpdate item : request.items()) {
-            validateMarker(item);
             LocalDateTime checkedAt = "PENDING".equals(item.result()) ? null : now;
             if (safetyCheckMapper.updateInspectionItem(
-                            inspectionId,
-                            item.id(),
-                            item.result(),
-                            normalizeComment(item.comment()),
-                            item.markerX(),
-                            item.markerY(),
-                            checkedAt)
+                            inspectionId, item.id(), item.result(), normalizeComment(item.comment()), checkedAt)
                     != 1) {
                 throw new IllegalArgumentException("The request contains an item outside this inspection.");
             }
@@ -224,85 +202,6 @@ public class SafetyCheckService {
         if (safetyCheckMapper.deleteInspection(inspectionId) != 1) {
             throw new IllegalArgumentException("Only draft inspections can be deleted.");
         }
-    }
-
-    public void saveSnapshot(Long inspectionId, byte[] image, Long layoutId, Long layoutVersionId, JwtUser user) {
-        if (image == null || image.length == 0) {
-            throw new IllegalArgumentException("스냅샷 이미지가 비어 있습니다.");
-        }
-        if (image.length > MAX_SNAPSHOT_BYTES) {
-            throw new IllegalArgumentException("스냅샷 이미지는 8MB 이하여야 합니다.");
-        }
-        if (layoutVersionId != null && layoutVersionId <= 0) {
-            throw new IllegalArgumentException("도면 버전 ID는 양수여야 합니다.");
-        }
-        if (layoutId != null && layoutId <= 0) {
-            throw new IllegalArgumentException("도면 ID는 양수여야 합니다.");
-        }
-        InspectionDetailHeader header = findHeader(inspectionId);
-        if ("COMPLETED".equals(header.status())) {
-            throw new IllegalArgumentException("완료된 점검에는 스냅샷을 저장할 수 없습니다.");
-        }
-        boolean isOwner = header.inspectorId().equals(user.userId());
-        if (!isOwner && !user.roles().contains("ADMIN")) {
-            throw new ForbiddenException("점검자 본인만 스냅샷을 저장할 수 있습니다.");
-        }
-        if (safetyCheckMapper.updateSnapshotImage(inspectionId, image, layoutId, layoutVersionId) != 1) {
-            throw new IllegalArgumentException("임시 저장 상태의 점검에만 스냅샷을 저장할 수 있습니다.");
-        }
-    }
-
-    public byte[] getSnapshotImage(Long inspectionId) {
-        findHeader(inspectionId);
-        return safetyCheckMapper.findSnapshotImage(inspectionId);
-    }
-
-    private void validateMarker(InspectionUpdateRequest.ItemUpdate item) {
-        Double markerX = item.markerX();
-        Double markerY = item.markerY();
-        if (markerX == null && markerY == null) {
-            return;
-        }
-        if (markerX == null || markerY == null) {
-            throw new IllegalArgumentException("항목 위치는 markerX와 markerY를 함께 입력해야 합니다.");
-        }
-        if (markerX < 0 || markerX > 1 || markerY < 0 || markerY > 1) {
-            throw new IllegalArgumentException("항목 위치는 0 이상 1 이하 값이어야 합니다.");
-        }
-    }
-
-    private List<InspectionAreaResponse> enrichLayoutTitles(List<InspectionAreaResponse> areas, String authorization) {
-        List<Long> layoutIds = areas.stream()
-                .map(InspectionAreaResponse::layoutId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (layoutIds.isEmpty()) {
-            return areas;
-        }
-        Map<Long, String> titles = new HashMap<>();
-        try {
-            for (LayoutDrawingContextResponse context :
-                    drawingContextClient.findLayoutContexts(layoutIds, authorization)) {
-                titles.put(context.layoutId(), context.layoutTitle());
-            }
-        } catch (RuntimeException exception) {
-            log.warn("Failed to resolve inspection area drawing titles. layoutIds={}", layoutIds, exception);
-        }
-        return areas.stream()
-                .map(area -> area.layoutId() == null
-                        ? area
-                        : new InspectionAreaResponse(
-                                area.id(),
-                                area.name(),
-                                area.description(),
-                                area.layoutId(),
-                                titles.get(area.layoutId()),
-                                area.active(),
-                                area.inspectionCount(),
-                                area.lastInspectedAt(),
-                                area.hasActiveTemplate()))
-                .toList();
     }
 
     private void requireArea(Long areaId) {
@@ -338,10 +237,6 @@ public class SafetyCheckService {
         InspectionArea area = new InspectionArea();
         area.setName(name);
         area.setDescription(description);
-        if (request.layoutId() != null && request.layoutId() <= 0) {
-            throw new IllegalArgumentException("도면 ID는 양수여야 합니다.");
-        }
-        area.setLayoutId(request.layoutId());
         return area;
     }
 
@@ -449,10 +344,6 @@ public class SafetyCheckService {
                 header.inspectionAreaId(),
                 header.areaName(),
                 header.simulationResultId(),
-                header.layoutId(),
-                header.layoutVersionId(),
-                header.areaLayoutId(),
-                header.hasSnapshot(),
                 header.inspectorId(),
                 header.status(),
                 header.comment(),

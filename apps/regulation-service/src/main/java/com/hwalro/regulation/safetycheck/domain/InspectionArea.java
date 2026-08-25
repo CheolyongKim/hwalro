@@ -4,7 +4,6 @@ public class InspectionArea {
     private Long id;
     private String name;
     private String description;
-    private Long layoutId;
 
     public Long getId() {
         return id;
@@ -28,13 +27,5 @@ public class InspectionArea {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public Long getLayoutId() {
-        return layoutId;
-    }
-
-    public void setLayoutId(Long layoutId) {
-        this.layoutId = layoutId;
     }
 }

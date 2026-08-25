@@ -5,8 +5,7 @@
 
     <select id="findById" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
-               layout_id,
-               layout_version_id,
+               simulation_result_id,
                assignee_id,
                title,
                description,
@@ -23,8 +22,7 @@
 
     <select id="findPage" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
-               layout_id,
-               layout_version_id,
+               simulation_result_id,
                assignee_id,
                title,
                description,
@@ -61,10 +59,9 @@
         </where>
     </select>
 
-    <select id="findByLayoutId" resultType="com.hwalro.regulation.risk.domain.Risk">
+    <select id="findBySimulationResultId" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
-               layout_id,
-               layout_version_id,
+               simulation_result_id,
                assignee_id,
                title,
                description,
@@ -76,15 +73,14 @@
                status,
                created_at
         FROM risks
-        WHERE layout_id = #{layoutId}
+        WHERE simulation_result_id = #{simulationResultId}
         <if test="assigneeId != null">AND assignee_id = #{assigneeId}</if>
         ORDER BY id DESC
     </select>
 
-    <select id="findByLayoutIds" resultType="com.hwalro.regulation.risk.domain.Risk">
+    <select id="findBySimulationResultIds" resultType="com.hwalro.regulation.risk.domain.Risk">
         SELECT id,
-               layout_id,
-               layout_version_id,
+               simulation_result_id,
                assignee_id,
                title,
                description,
@@ -96,16 +92,22 @@
                status,
                created_at
         FROM risks
-        WHERE layout_id IN
-        <foreach collection="layoutIds" item="layoutId" open="(" separator="," close=")">
-            #{layoutId}
+        WHERE simulation_result_id IN
+        <foreach collection="simulationResultIds" item="simulationResultId" open="(" separator="," close=")">
+            #{simulationResultId}
         </foreach>
-        ORDER BY layout_id, id
+        ORDER BY simulation_result_id, id
+    </select>
+
+    <select id="countBySimulationResultId" resultType="int">
+        SELECT COUNT(*)
+        FROM risks
+        WHERE simulation_result_id = #{simulationResultId}
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO risks (layout_id, layout_version_id, assignee_id, title, description, start_x, start_y, end_x, end_y, severity, status)
-        VALUES (#{layoutId}, #{layoutVersionId}, #{assigneeId}, #{title}, #{description}, #{startX}, #{startY}, #{endX}, #{endY}, #{severity}, #{status})
+        INSERT INTO risks (simulation_result_id, assignee_id, title, description, start_x, start_y, end_x, end_y, severity, status)
+        VALUES (#{simulationResultId}, #{assigneeId}, #{title}, #{description}, #{startX}, #{startY}, #{endX}, #{endY}, #{severity}, #{status})
     </insert>
 
     <update id="update">

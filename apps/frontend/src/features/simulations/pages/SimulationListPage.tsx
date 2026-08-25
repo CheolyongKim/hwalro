@@ -148,7 +148,7 @@ function SimulationListPage() {
       if (items.length === 1 && page > 1) {
         setPage((p) => Math.max(1, p - 1));
       }
-      await Promise.all([query.refetch(), layoutSearchFeed.refresh()]);
+      await query.refetch();
     } catch (error) {
       setDeleteError(getSimulationErrorMessage(error));
     } finally {
@@ -605,7 +605,7 @@ function SimulationListPage() {
         <div className="space-y-2 text-sm leading-6">
           <p className="font-bold text-text-strong">시뮬레이션을 삭제하시겠습니까?</p>
           <p className="text-text-muted">
-            다른 개선안의 원본이거나 주의 항목·보고서에 연결된 시뮬레이션은 삭제할 수 없으며, 삭제된
+            개선안, 위험 예상 항목, 보고서에 연결된 시뮬레이션은 삭제할 수 없으며, 삭제된
             시뮬레이션은 복구할 수 없습니다.
           </p>
         </div>

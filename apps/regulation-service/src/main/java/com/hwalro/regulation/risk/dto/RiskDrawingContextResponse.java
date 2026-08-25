@@ -2,7 +2,8 @@ package com.hwalro.regulation.risk.dto;
 
 import java.util.List;
 
-public record RiskDrawingContextResponse(Long layoutId, Long layoutVersionId, String layoutTitle, Drawing drawing) {
+public record RiskDrawingContextResponse(
+        Long simulationResultId, Long simulationId, String layoutTitle, String title, Drawing drawing) {
 
     public record Drawing(
             String name,

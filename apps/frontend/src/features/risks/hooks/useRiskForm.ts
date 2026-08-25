@@ -43,8 +43,8 @@ export function useRiskForm(initial: RiskFormValues) {
     );
   };
 
-  const toCreateRequest = (): Omit<RiskCreateRequest, 'layoutId'> => ({
-    layoutVersionId: null,
+  const toCreateRequest = (): RiskCreateRequest => ({
+    simulationResultId: null,
     startX: null,
     startY: null,
     endX: null,

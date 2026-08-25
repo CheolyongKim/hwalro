@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { interpolatePositions, isAgentPositionActive, selectFramePair } from '../utils/playback';
 import {
+  boundsTransform,
   createBoundarySegments,
   drawingRectContainsPoint,
   escalatorPlacementFromRect,
@@ -19,8 +20,7 @@ import {
   segmentTransform,
   splitBoundarySegmentsAtActiveExits,
   worldToScene,
-} from '../../../rendering/three/floorPlanGeometry';
-import { boundsTransform } from './threeSimulationGeometry';
+} from './threeSimulationGeometry';
 import { configureThreeSimulationControls } from './threeSimulationControls';
 import { getExitPresentation, type ExitPresentation } from './exitPresentation';
 import {

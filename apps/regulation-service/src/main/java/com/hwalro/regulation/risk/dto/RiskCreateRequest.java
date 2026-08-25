@@ -3,8 +3,7 @@ package com.hwalro.regulation.risk.dto;
 import java.util.List;
 
 public record RiskCreateRequest(
-        Long layoutId,
-        Long layoutVersionId,
+        Long simulationResultId,
         Double startX,
         Double startY,
         Double endX,

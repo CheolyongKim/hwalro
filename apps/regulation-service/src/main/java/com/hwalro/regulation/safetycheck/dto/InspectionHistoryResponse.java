@@ -10,5 +10,4 @@ public record InspectionHistoryResponse(
         int totalItemCount,
         int failCount,
         int reviewRequiredCount,
-        boolean hasSnapshot,
         LocalDateTime createdAt) {}
