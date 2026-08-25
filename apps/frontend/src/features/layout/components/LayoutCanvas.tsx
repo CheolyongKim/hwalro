@@ -1005,13 +1005,6 @@ export function LayoutCanvas({
                 s={s}
               />
             ))}
-            <EvacuationRouteOverlay
-              routes={evacuationRoutes}
-              exitIds={doc.exits.flatMap((exit) =>
-                exit.backendId === null ? [] : [exit.backendId],
-              )}
-              scale={s}
-            />
             {doc.layoutTexts.map((text) => (
               <TextView
                 key={text.id}
@@ -1116,6 +1109,23 @@ export function LayoutCanvas({
               />
             )}
           </Layer>
+          {evacuationRoutes.length > 0 ? (
+            <Layer
+              listening={false}
+              x={-camera.panX * k}
+              y={-camera.panY * k}
+              scaleX={k}
+              scaleY={k}
+            >
+              <EvacuationRouteOverlay
+                routes={evacuationRoutes}
+                exitIds={doc.exits.flatMap((exit) =>
+                  exit.backendId === null ? [] : [exit.backendId],
+                )}
+                scale={s}
+              />
+            </Layer>
+          ) : null}
         </Stage>
       )}
     </div>

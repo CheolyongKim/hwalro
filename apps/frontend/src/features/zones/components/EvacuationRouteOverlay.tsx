@@ -14,7 +14,8 @@ export function EvacuationRouteOverlay({ routes, exitIds, scale }: EvacuationRou
   const lineRefs = useRef(new Map<string, Konva.Line>());
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (routes.length === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      return;
     let frame = 0;
     let previousTime = performance.now();
     const animate = (time: number) => {
@@ -22,8 +23,8 @@ export function EvacuationRouteOverlay({ routes, exitIds, scale }: EvacuationRou
       previousTime = time;
       for (const line of lineRefs.current.values()) {
         line.dashOffset(line.dashOffset() - distance);
-        line.getLayer()?.batchDraw();
       }
+      lineRefs.current.values().next().value?.getLayer()?.batchDraw();
       frame = window.requestAnimationFrame(animate);
     };
     frame = window.requestAnimationFrame(animate);
