@@ -325,6 +325,7 @@ function LayoutPage() {
       } else if (event.key === 'Escape') {
         if (riskModeRef.current) {
           setRiskMode(false);
+          riskModeRef.current = false;
         }
         dispatch({ type: 'escape' });
       }
