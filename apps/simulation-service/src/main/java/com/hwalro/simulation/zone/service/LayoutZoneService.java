@@ -1,11 +1,13 @@
 package com.hwalro.simulation.zone.service;
 
+import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.Fabric;
 import com.hwalro.simulation.drawing.domain.FloorPlan;
 import com.hwalro.simulation.drawing.domain.Layout;
 import com.hwalro.simulation.drawing.domain.LayoutVersion;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.domain.LayoutZoneMember;
 import com.hwalro.simulation.zone.domain.ZoneElementKind;
@@ -85,6 +87,21 @@ public class LayoutZoneService {
             result.put(fabric.getId(), WallContactEvaluator.touches(fabric, walls, outsideWalls));
         }
         return Map.copyOf(result);
+    }
+
+    /**
+     * 그 사용자에게 보여도 되는 구역만 고른다.
+     *
+     * <p>권한 역할은 도면의 모든 구역을 보고, 일반 직원은 자신에게 배정된 구역만 본다. 도면 메타데이터 조회와 대피 경로
+     * 조회가 같은 규칙을 써야 화면마다 보이는 구역이 달라지지 않는다.
+     */
+    public static List<LayoutZone> visibleZones(List<LayoutZone> zones, JwtUser user) {
+        if (DrawingService.isPrivileged(user)) {
+            return zones;
+        }
+        return zones.stream()
+                .filter(zone -> user.userId().equals(zone.getAssignedUserId()))
+                .toList();
     }
 
     public List<AssignedZoneRow> assignedZones(Long userId) {

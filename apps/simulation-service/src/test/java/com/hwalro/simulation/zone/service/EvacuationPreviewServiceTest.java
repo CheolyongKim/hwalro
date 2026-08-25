@@ -319,10 +319,24 @@ class EvacuationPreviewServiceTest {
     }
 
     @Test
-    void 일반_직원은_도면_전체의_대피_경로를_받을_수_없다() {
-        assertThatThrownBy(() -> service.previewAll(LAYOUT_ID, employee()))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("안전 담당자");
+    void 일반_직원은_자기_구역의_대피_경로만_받는다() throws Exception {
+        when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
+        when(layoutZoneService.zones(VERSION_ID))
+                .thenReturn(List.of(zone(ZONE_ID, null, EMPLOYEE_ID), zone(31L, NEAR_EXIT_ID, 99L)));
+
+        List<EvacuationRouteResponse> routes = service.previewAll(LAYOUT_ID, employee());
+
+        assertThat(routes).singleElement().satisfies(route -> assertThat(route.zoneId())
+                .isEqualTo(ZONE_ID));
+    }
+
+    @Test
+    void 배정된_구역이_없는_직원에게는_엔진을_돌리지_않는다() throws Exception {
+        when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
+        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(zone(31L, NEAR_EXIT_ID, 99L)));
+
+        assertThat(service.previewAll(LAYOUT_ID, employee())).isEmpty();
+        verify(engineRunner, never()).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
     }
 
     @Test

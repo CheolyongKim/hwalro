@@ -63,11 +63,7 @@ public class LayoutMetadataService {
         List<Fabric> fabrics = layoutZoneService.fabrics(versionId);
         Map<Long, Boolean> wallContacts = layoutZoneService.wallContacts(versionId, fabrics);
 
-        List<LayoutZone> visibleZones = privileged
-                ? zones
-                : zones.stream()
-                        .filter(zone -> user.userId().equals(zone.getAssignedUserId()))
-                        .toList();
+        List<LayoutZone> visibleZones = LayoutZoneService.visibleZones(zones, user);
         Set<Long> visibleZoneIds = visibleZones.stream().map(LayoutZone::getId).collect(Collectors.toSet());
 
         Map<Long, List<ZoneMemberDto>> membersByZone = new LinkedHashMap<>();

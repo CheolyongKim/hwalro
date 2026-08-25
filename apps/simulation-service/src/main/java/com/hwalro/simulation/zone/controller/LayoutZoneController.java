@@ -107,9 +107,10 @@ public class LayoutZoneController {
     }
 
     @GetMapping("/drawings/{id}/evacuation-routes")
+    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN", "GENERAL_EMPLOYEE"})
     @Operation(
-            summary = "도면 전체 대피 경로",
-            description = "도면의 모든 구역에 대한 대피 경로를 반환합니다. 안전 담당자가 대피 계획 전체를 한 번에 검토하는 용도이며, 평상시 기준 정적 경로입니다.")
+            summary = "도면 대피 경로",
+            description = "볼 수 있는 구역의 대피 경로를 반환합니다. 안전 담당자는 도면의 모든 구역을, 일반 직원은 자신에게 배정된 구역만 받습니다. 평상시 기준 정적 경로입니다.")
     public List<EvacuationRouteResponse> evacuationRoutes(
             @Parameter(description = "도면 ID") @PathVariable Long id,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {

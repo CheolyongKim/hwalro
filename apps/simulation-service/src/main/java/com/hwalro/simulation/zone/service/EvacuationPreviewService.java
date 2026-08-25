@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -87,23 +88,39 @@ public class EvacuationPreviewService {
      */
     public List<EvacuationRouteResponse> previewAll(Long layoutId, JwtUser user) {
         drawingService.requireAccessible(layoutId, user);
-        if (!DrawingService.isPrivileged(user)) {
-            throw new ForbiddenException("도면 전체의 대피 경로는 안전 담당자만 조회할 수 있습니다.");
-        }
         Long versionId = layoutZoneService.currentVersionId(layoutId);
         List<LayoutZone> zones = layoutZoneService.zones(versionId);
         if (zones.isEmpty()) {
             return List.of();
         }
+        // 보이는 구역이 하나도 없는 직원에게는 엔진을 돌릴 이유가 없다.
+        Set<Long> visibleZoneIds = LayoutZoneService.visibleZones(zones, user).stream()
+                .map(LayoutZone::getId)
+                .collect(Collectors.toSet());
+        if (visibleZoneIds.isEmpty()) {
+            return List.of();
+        }
         // 캐시는 필터 이전의 전체 구역 결과만 담는다. 보는 사람에 따른 필터는 꺼낸 뒤에 적용해야 한다.
         String cacheKey = EvacuationRouteCache.keyOf(versionId, zones);
         List<EvacuationRouteResponse> cached = routeCache.find(cacheKey);
-        if (cached != null) {
-            return cached;
+        List<EvacuationRouteResponse> all = cached;
+        if (all == null) {
+            all = computeAll(layoutId, versionId, zones);
+            routeCache.put(cacheKey, all);
         }
-        List<EvacuationRouteResponse> computed = computeAll(layoutId, versionId, zones);
-        routeCache.put(cacheKey, computed);
-        return computed;
+        return filterVisible(all, visibleZoneIds);
+    }
+
+    /**
+     * 캐시에서 꺼낸 전체 결과에서 그 사용자가 볼 구역만 남긴다.
+     *
+     * <p>필터는 반드시 캐시 <b>뒤에</b> 온다. 걸러낸 결과를 캐시에 담으면 다음 사람이 남의 구역을 보게 된다.
+     */
+    private static List<EvacuationRouteResponse> filterVisible(
+            List<EvacuationRouteResponse> routes, Set<Long> visibleZoneIds) {
+        return routes.stream()
+                .filter(route -> visibleZoneIds.contains(route.zoneId()))
+                .toList();
     }
 
     /**
