@@ -81,8 +81,7 @@ function LayoutPage() {
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
-  const fadeInLayout =
-    (location.state as { fadeInLayout?: boolean } | null)?.fadeInLayout === true;
+  const fadeInLayout = (location.state as { fadeInLayout?: boolean } | null)?.fadeInLayout === true;
   const [riskMode, setRiskMode] = useState(false);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [pendingRiskBounds, setPendingRiskBounds] = useState<{

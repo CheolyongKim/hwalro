@@ -193,12 +193,7 @@ interface ExitViewProps {
   problem?: boolean;
 }
 
-export const ExitView = memo(function ExitView({
-  exit,
-  selected,
-  s,
-  problem,
-}: ExitViewProps) {
+export const ExitView = memo(function ExitView({ exit, selected, s, problem }: ExitViewProps) {
   let color: string = CANVAS_COLORS.exit;
   if (selected) {
     color = CANVAS_COLORS.exitStrong;

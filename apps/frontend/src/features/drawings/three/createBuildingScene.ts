@@ -58,7 +58,14 @@ function createRadialShadowTexture(): THREE.CanvasTexture {
   canvas.height = size;
   const context = canvas.getContext('2d');
   if (context) {
-    const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    const gradient = context.createRadialGradient(
+      size / 2,
+      size / 2,
+      0,
+      size / 2,
+      size / 2,
+      size / 2,
+    );
     gradient.addColorStop(0, 'rgba(13, 25, 23, 0.16)');
     gradient.addColorStop(0.55, 'rgba(13, 25, 23, 0.08)');
     gradient.addColorStop(1, 'rgba(13, 25, 23, 0)');
@@ -70,7 +77,10 @@ function createRadialShadowTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-function stateTargets(entry: FloorEntry, state: FloorVisualState): {
+function stateTargets(
+  entry: FloorEntry,
+  state: FloorVisualState,
+): {
   edgeOpacity: number;
   slabOpacity: number;
   glowOpacity: number;
@@ -79,15 +89,33 @@ function stateTargets(entry: FloorEntry, state: FloorVisualState): {
   const baseOpacity = entry.linked ? 0.85 : 0.38;
   switch (state) {
     case 'selected':
-      return { edgeOpacity: 1, slabOpacity: 0.85, glowOpacity: 0.3, edgeColor: COLOR_EDGE_SELECTED };
+      return {
+        edgeOpacity: 1,
+        slabOpacity: 0.85,
+        glowOpacity: 0.3,
+        edgeColor: COLOR_EDGE_SELECTED,
+      };
     case 'hover':
-      return { edgeOpacity: 0.95, slabOpacity: 0.78, glowOpacity: 0.26, edgeColor: COLOR_EDGE_HOVER };
+      return {
+        edgeOpacity: 0.95,
+        slabOpacity: 0.78,
+        glowOpacity: 0.26,
+        edgeColor: COLOR_EDGE_HOVER,
+      };
     default:
-      return { edgeOpacity: baseOpacity, slabOpacity: entry.linked ? 0.68 : 0.5, glowOpacity: entry.linked ? 0.18 : 0, edgeColor: entry.linked ? COLOR_EDGE_LINKED : COLOR_EDGE_BASE };
+      return {
+        edgeOpacity: baseOpacity,
+        slabOpacity: entry.linked ? 0.68 : 0.5,
+        glowOpacity: entry.linked ? 0.18 : 0,
+        edgeColor: entry.linked ? COLOR_EDGE_LINKED : COLOR_EDGE_BASE,
+      };
   }
 }
 
-export function createBuildingScene(container: HTMLElement, options: BuildingSceneOptions): BuildingSceneHandle {
+export function createBuildingScene(
+  container: HTMLElement,
+  options: BuildingSceneOptions,
+): BuildingSceneHandle {
   const { onSelect, selectableIds, onConfirm } = options;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -100,7 +128,10 @@ export function createBuildingScene(container: HTMLElement, options: BuildingSce
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 400);
   camera.position.set(30, 19, 34);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance',
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.domElement.style.display = 'block';
@@ -392,7 +423,9 @@ export function createBuildingScene(container: HTMLElement, options: BuildingSce
 
   function setSelected(floorId: FloorId | null) {
     selectedId = floorId;
-    targetY = floorId ? (floors.find((entry) => entry.id === floorId)?.centerY ?? DEFAULT_TARGET_Y) : DEFAULT_TARGET_Y;
+    targetY = floorId
+      ? (floors.find((entry) => entry.id === floorId)?.centerY ?? DEFAULT_TARGET_Y)
+      : DEFAULT_TARGET_Y;
     applyStateTargets();
   }
 
@@ -481,9 +514,12 @@ export function createBuildingScene(container: HTMLElement, options: BuildingSce
     const lerpFactor = 1 - Math.exp(-delta * 7);
     for (const entry of floors) {
       const introFactor = reducedMotion ? 1 : introProgress;
-      entry.edges.material.opacity += (entry.edgeOpacityTarget * introFactor - entry.edges.material.opacity) * lerpFactor;
-      entry.slab.material.opacity += (entry.slabOpacityTarget * introFactor - entry.slab.material.opacity) * lerpFactor;
-      entry.glow.material.opacity += (entry.glowOpacityTarget * introFactor - entry.glow.material.opacity) * lerpFactor;
+      entry.edges.material.opacity +=
+        (entry.edgeOpacityTarget * introFactor - entry.edges.material.opacity) * lerpFactor;
+      entry.slab.material.opacity +=
+        (entry.slabOpacityTarget * introFactor - entry.slab.material.opacity) * lerpFactor;
+      entry.glow.material.opacity +=
+        (entry.glowOpacityTarget * introFactor - entry.glow.material.opacity) * lerpFactor;
       entry.edges.material.color.lerp(entry.edgeColorTarget, lerpFactor);
     }
 

@@ -68,7 +68,8 @@ export const BUILDING_FLOORS: BuildingFloor[] = [
     id: 'B2',
     label: 'B2',
     theme: 'Creative Ground',
-    description: '팝업과 컬처 층입니다. 기본 도면(더현대 지하 2층)이 연결되어 바로 검토를 시작할 수 있습니다.',
+    description:
+      '팝업과 컬처 층입니다. 기본 도면(더현대 지하 2층)이 연결되어 바로 검토를 시작할 수 있습니다.',
     linked: true,
   },
 ];

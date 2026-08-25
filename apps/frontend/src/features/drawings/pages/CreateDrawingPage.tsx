@@ -2,11 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, FileText } from 'lucide-react';
-import {
-  BUILDING,
-  LINKED_FLOOR_IDS,
-  type FloorId,
-} from '../config/buildingFloors';
+import { BUILDING, LINKED_FLOOR_IDS, type FloorId } from '../config/buildingFloors';
 import { createBuildingScene, type BuildingSceneHandle } from '../three/createBuildingScene';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useCreateDrawing } from '../hooks/useDrawingMutations';
@@ -138,7 +134,9 @@ function CreateDrawingPage() {
         </button>
         <div className="mt-3 rounded-2xl border border-line bg-white/85 p-5 shadow-sm backdrop-blur-md max-md:p-4">
           <p className="text-[11px] font-bold tracking-[0.22em] text-primary">새 도면 등록</p>
-          <p className="mt-1.5 text-xl font-black tracking-tight text-ink">검토할 층을 선택하세요</p>
+          <p className="mt-1.5 text-xl font-black tracking-tight text-ink">
+            검토할 층을 선택하세요
+          </p>
           <p className="mt-2 text-xs leading-5 text-text-muted">
             건물에서 층을 클릭하면 해당 층으로 확대되며 도면이 생성됩니다.
           </p>
@@ -183,8 +181,7 @@ function CreateDrawingPage() {
           disabled={pending}
           className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white/85 px-5 text-sm font-bold text-ink/75 shadow-sm backdrop-blur-md transition hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <FileText className="h-4 w-4" aria-hidden="true" />
-          빈 도면으로 시작
+          <FileText className="h-4 w-4" aria-hidden="true" />빈 도면으로 시작
         </button>
       </div>
 
