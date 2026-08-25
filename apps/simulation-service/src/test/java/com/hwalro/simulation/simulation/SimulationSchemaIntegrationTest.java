@@ -391,6 +391,53 @@ class SimulationSchemaIntegrationTest {
         }
     }
 
+    @Test
+    void improvementSimulationCanBeDeletedWithoutDeletingItsLayoutSearch() throws SQLException {
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate(
+                    "INSERT INTO floor_plans (id, name, width, height) VALUES (981, 'deletion', 10, 10)");
+            statement.executeUpdate(
+                    "INSERT INTO layouts (id, floor_plan_id, created_by, title) VALUES (982, 981, 7, 'deletion')");
+            statement.executeUpdate("INSERT INTO layout_versions (id, layout_id, version, status) VALUES "
+                    + "(983, 982, 1, '잠금'), (984, 982, 2, '잠금')");
+            statement.executeUpdate("INSERT INTO simulations (id, layout_version_id, created_by, title, status) "
+                    + "VALUES (985, 983, 7, 'baseline', 'COMPLETED')");
+            statement.executeUpdate("INSERT INTO simulations "
+                    + "(id, layout_version_id, parent_simulation_id, created_by, title, status) "
+                    + "VALUES (986, 984, 985, 7, 'improvement', 'COMPLETED')");
+            statement.executeUpdate(
+                    "INSERT INTO layout_searches (id, baseline_simulation_id, baseline_layout_version_id, "
+                            + "planner_version, status, baseline_metrics, budget, requested_by) VALUES "
+                            + "(987, 985, 983, 'v1', 'COMPLETED', '[]', '{\"verify\":false}', 7)");
+            statement.executeUpdate("INSERT INTO layout_search_candidates "
+                    + "(id, study_id, round_index, candidate_order, origin_finding_type, operator_type, status, "
+                    + "change_set, rationale, prepared_simulation_id) VALUES "
+                    + "(988, 987, 1, 1, 'BOTTLENECK', 'MOVE_OBJECT', 'EVALUATED', '{}', '{}', 986)");
+        }
+
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            SimulationMapper mapper = session.getMapper(SimulationMapper.class);
+            assertThat(mapper.countBlockingImprovementReferences(985L)).isPositive();
+            assertThat(mapper.countBlockingImprovementReferences(986L)).isZero();
+            assertThat(mapper.deleteSimulation(986L)).isEqualTo(1);
+            session.commit();
+        }
+
+        try (Connection connection = connection();
+                Statement statement = connection.createStatement()) {
+            try (ResultSet candidate = statement.executeQuery(
+                    "SELECT prepared_simulation_id FROM layout_search_candidates WHERE id = 988")) {
+                assertThat(candidate.next()).isTrue();
+                assertThat(candidate.getObject("prepared_simulation_id")).isNull();
+            }
+            try (ResultSet search = statement.executeQuery("SELECT COUNT(*) FROM layout_searches WHERE id = 987")) {
+                assertThat(search.next()).isTrue();
+                assertThat(search.getInt(1)).isEqualTo(1);
+            }
+        }
+    }
+
     private static Connection connection() throws SQLException {
         return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
     }

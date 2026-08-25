@@ -1,17 +1,26 @@
 import { useState } from 'react';
-import { AttachedLawChipList } from '../../risks/components/AttachedLawChipList';
-import LawArticlePickerModal from '../../risks/components/LawArticlePickerModal';
-import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../../risks/constants/riskOptions';
-import { useCreateRisk } from '../../risks/hooks/useRiskMutations';
-import type { AttachedLawRef, Risk, RiskCreateRequest } from '../../risks/types/risks';
-import { getRiskErrorMessage } from '../../risks/utils/getRiskErrorMessage';
-import type { Bounds, SimulationDrawing } from '../types';
+import { AttachedLawChipList } from './AttachedLawChipList';
+import LawArticlePickerModal from './LawArticlePickerModal';
+import { SEVERITY_OPTIONS, STATUS_OPTIONS } from '../constants/riskOptions';
+import { useCreateRisk } from '../hooks/useRiskMutations';
+import type { AttachedLawRef, Risk, RiskCreateRequest } from '../types/risks';
+import { getRiskErrorMessage } from '../utils/getRiskErrorMessage';
+import type { Bounds } from '../utils/riskZoneTypes';
 import { generateRiskZoneName } from '../utils/riskZoneName';
+import './RiskZoneEditorDialog.css';
+
+interface DialogDrawing {
+  width: number;
+  height: number;
+  layoutTexts: Array<{ text: string; x: number; y: number }>;
+  zones?: Array<{ name: string; rect: Bounds }>;
+}
 
 interface Props {
   bounds: Bounds;
-  drawing: Pick<SimulationDrawing, 'width' | 'height' | 'layoutTexts' | 'zones'>;
-  simulationResultId: number;
+  drawing: DialogDrawing;
+  layoutId: number;
+  layoutVersionId?: number;
   onCancel: () => void;
   onConfirm: (risk: Risk) => void;
 }
@@ -19,19 +28,13 @@ interface Props {
 export function RiskZoneEditorDialog({
   bounds,
   drawing,
-  simulationResultId,
+  layoutId,
+  layoutVersionId,
   onCancel,
   onConfirm,
 }: Props) {
   const [zoneName, setZoneName] = useState(() =>
-    generateRiskZoneName(
-      bounds,
-      drawing,
-      (drawing.zones ?? []).map((zone) => ({
-        name: zone.name,
-        rect: { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
-      })),
-    ),
+    generateRiskZoneName(bounds, drawing, drawing.zones),
   );
   const [severity, setSeverity] = useState('보통');
   const [status, setStatus] = useState('임시저장');
@@ -53,7 +56,8 @@ export function RiskZoneEditorDialog({
 
   const handleConfirm = () => {
     const body: RiskCreateRequest = {
-      simulationResultId,
+      layoutId,
+      layoutVersionId: layoutVersionId ?? null,
       startX: bounds.x,
       startY: bounds.y,
       endX: bounds.x + bounds.width,
@@ -81,9 +85,9 @@ export function RiskZoneEditorDialog({
           aria-labelledby="zone-editor-title"
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <h2 id="zone-editor-title">위험 예상 항목 이름</h2>
+          <h2 id="zone-editor-title">주의 항목 이름</h2>
           <input
-            aria-label="위험 예상 항목 이름"
+            aria-label="주의 항목 이름"
             value={zoneName}
             onChange={(event) => setZoneName(event.target.value)}
             autoFocus

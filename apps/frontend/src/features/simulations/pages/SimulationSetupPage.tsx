@@ -61,7 +61,7 @@ const TOOL_LABELS: Array<{ value: SimulationTool; label: string }> = [
   { value: 'select', label: '선택' },
   { value: 'spray', label: '에이전트 배치' },
   { value: 'erase', label: '지우개' },
-  { value: 'hazard', label: '위험구역' },
+  { value: 'hazard', label: '위험 구역' },
 ];
 
 function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) {
@@ -684,7 +684,7 @@ function SimulationSetupPage() {
           <div className="simulation-setup-panel__top">
             <div className="simulation-setup-panel__heading">
               <div>
-                <small>SIMULATION SETUP</small>
+                <small>배치 작업</small>
                 <h2>배치 설정</h2>
               </div>
               <button
@@ -764,7 +764,7 @@ function SimulationSetupPage() {
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-xs font-bold text-text-muted">전체 배치 인원</p>
-                  <p className="mt-1 text-2xl font-black tabular-nums text-primary">
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-primary">
                     {agents.length.toLocaleString()}명
                   </p>
                 </div>
@@ -804,11 +804,11 @@ function SimulationSetupPage() {
                       <MousePointer2 aria-hidden="true" className="h-4 w-4" />
                     )}
                   </span>
-                  <h2 className="text-sm font-black">
+                  <h2 className="text-sm font-bold">
                     {tool === 'erase' ? '에이전트 지우기' : '에이전트 배치'}
                   </h2>
                 </div>
-                <span className="simulation-setup-tool-state__badge rounded-full bg-white px-2.5 py-1 text-[11px] font-black">
+                <span className="simulation-setup-tool-state__badge rounded-md bg-white px-2.5 py-1 text-[11px] font-bold">
                   {tool === 'erase' ? '지우개 모드' : tool === 'spray' ? '배치 모드' : '도구 대기'}
                 </span>
               </div>
@@ -866,7 +866,7 @@ function SimulationSetupPage() {
             </section>
 
             <section className="simulation-setup-panel__section">
-              <h2 className="text-sm font-black">시뮬레이션 조건</h2>
+              <h2 className="text-sm font-bold">시뮬레이션 조건</h2>
               <div className="simulation-setup-condition-grid mt-4 grid grid-cols-2 gap-x-3 gap-y-4">
                 <div className="simulation-setup-condition-field text-xs font-bold text-text-muted">
                   <div className="simulation-setup-condition-label flex gap-1">
@@ -921,7 +921,7 @@ function SimulationSetupPage() {
 
             <section className="simulation-setup-panel__section">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-black">사용 출입구</h2>
+                <h2 className="text-sm font-bold">사용 출입구</h2>
                 <button
                   type="button"
                   disabled={!editable || setup.drawing.exits.length === 0}
@@ -986,10 +986,10 @@ function SimulationSetupPage() {
             <section className="simulation-setup-panel__section">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
-                  <h2 className="text-sm font-black">위험구역</h2>
-                  <InfoTooltip id="hazard-cost-help" label="위험구역 경로 비용 안내">
+                  <h2 className="text-sm font-bold">위험 구역</h2>
+                  <InfoTooltip id="hazard-cost-help" label="위험 구역 경로 비용 안내">
                     에이전트의 대피 경로를 비교할 때 사용하는 상대 비용입니다.
-                    <span className="my-1 block font-mono text-[10px] leading-4 text-white">
+                    <span className="my-1 block font-mono text-[11px] leading-4 text-ink">
                       depth = clamp(1 - 중심거리 / 반지름, 0, 1)
                       <br />원 밖: M = 1
                       <br />원 안: M = 5 × 100^depth
@@ -997,9 +997,9 @@ function SimulationSetupPage() {
                       간선 비용 = 길이 / 6 × (시작점 M + 4 × 중간점 M + 끝점 M)
                     </span>
                     경계는 5, 반지름 중간은 50, 중심은 500입니다. 전체 경로는 모든 간선 비용을
-                    합산하고, 위험구역이 겹치면 가장 큰 M만 적용합니다.
-                    <span className="mt-1 block text-white/70">
-                      HAZARD_RADIAL_EXP_V3 · 활로가 정의한 상대 비용이며 공인 위험도나 사망확률이
+                    합산하고, 위험 구역이 겹치면 가장 큰 M만 적용합니다.
+                    <span className="mt-1 block text-text-muted">
+                      HAZARD_RADIAL_EXP_V3 - 활로가 정의한 상대 비용이며 공인 위험도나 사망확률이
                       아닙니다.
                     </span>
                   </InfoTooltip>
@@ -1009,7 +1009,7 @@ function SimulationSetupPage() {
               {selectedHazard ? (
                 <div className="mt-3 rounded-lg border border-danger/25 bg-danger-soft p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-danger-strong">선택 위험구역</span>
+                    <span className="text-xs font-bold text-danger-strong">선택한 위험 구역</span>
                     <button
                       type="button"
                       disabled={!editable}
@@ -1023,7 +1023,7 @@ function SimulationSetupPage() {
                     <label htmlFor="selected-hazard-radius">반지름 (m)</label>
                     <NumberStepperInput
                       id="selected-hazard-radius"
-                      label="위험구역 반지름"
+                      label="위험 구역 반지름"
                       min={HAZARD_MIN_RADIUS}
                       max={HAZARD_MAX_RADIUS}
                       step={0.1}
@@ -1037,7 +1037,7 @@ function SimulationSetupPage() {
                 </div>
               ) : (
                 <p className="mt-3 rounded-lg bg-surface px-3 py-3 text-xs leading-5 text-text-muted">
-                  위험구역을 선택하면 오른쪽 조절점을 드래그해 크기를 변경할 수 있습니다.
+                  위험 구역을 선택하면 오른쪽 조절점을 드래그해 크기를 변경할 수 있습니다.
                 </p>
               )}
             </section>
