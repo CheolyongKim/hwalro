@@ -13,7 +13,9 @@ import { useCreateDrawing } from '../hooks/useDrawingMutations';
 import { getDrawingErrorMessage } from '../utils/getDrawingErrorMessage';
 import '../floorPicker.css';
 
-type Phase = 'picking' | 'diving' | 'creating';
+type Phase = 'picking' | 'diving' | 'creating' | 'transitioning';
+
+const TRANSITION_DURATION_MS = 460;
 
 function CreateDrawingPage() {
   const navigate = useNavigate();
@@ -48,6 +50,16 @@ function CreateDrawingPage() {
     };
   }, []);
 
+  const openDrawing = async (drawingId: number) => {
+    recordLastActivity('LAYOUT_EDIT', drawingId);
+    enterPhase('transitioning');
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      await new Promise((resolve) => window.setTimeout(resolve, TRANSITION_DURATION_MS));
+    }
+    if (cancelledRef.current) return;
+    navigate(`/layout/${drawingId}`, { state: { fadeInLayout: true } });
+  };
+
   const startWithLinkedFloor = async (floorId: FloorId) => {
     if (phaseRef.current !== 'picking') return;
     enterPhase('diving');
@@ -62,8 +74,7 @@ function CreateDrawingPage() {
         sceneHandleRef.current?.diveToFloor(floorId) ?? Promise.resolve(),
       ]);
       if (cancelledRef.current) return;
-      recordLastActivity('LAYOUT_EDIT', drawing.id);
-      navigate(`/layout/${drawing.id}`);
+      await openDrawing(drawing.id);
     } catch (error) {
       if (cancelledRef.current) return;
       sceneHandleRef.current?.cancelDive();
@@ -85,8 +96,7 @@ function CreateDrawingPage() {
         withDefaultData: false,
       });
       if (cancelledRef.current) return;
-      recordLastActivity('LAYOUT_EDIT', drawing.id);
-      navigate(`/layout/${drawing.id}`);
+      await openDrawing(drawing.id);
     } catch (error) {
       if (cancelledRef.current) return;
       enterPhase('picking');
@@ -99,9 +109,12 @@ function CreateDrawingPage() {
   };
 
   const pending = phase !== 'picking';
+  const focusingScene = phase === 'diving' || phase === 'transitioning';
 
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-background text-ink">
+    <div
+      className={`floor-picker-page relative h-[100dvh] overflow-hidden bg-background text-ink ${focusingScene ? 'floor-picker-page--focused' : ''}`}
+    >
       <h1 className="sr-only">새 도면 등록</h1>
       <div
         ref={sceneHostRef}
@@ -111,7 +124,7 @@ function CreateDrawingPage() {
       />
 
       <header
-        className="absolute top-5 left-5 z-10 max-w-[300px]"
+        className="floor-picker-chrome absolute top-5 left-5 z-10 max-w-[300px]"
         onPointerDown={handleOverlayPointerDown}
       >
         <button
@@ -137,7 +150,7 @@ function CreateDrawingPage() {
       </header>
 
       <div
-        className="pointer-events-none absolute bottom-5 left-5 z-10 hidden flex-wrap items-center gap-2 md:flex"
+        className="floor-picker-chrome pointer-events-none absolute bottom-5 left-5 z-10 hidden flex-wrap items-center gap-2 md:flex"
         aria-hidden="true"
       >
         <span className="rounded-full border border-line bg-white/80 px-3 py-1.5 text-[11px] text-text-muted backdrop-blur-md">
@@ -152,7 +165,7 @@ function CreateDrawingPage() {
       </div>
 
       <div
-        className="absolute right-5 bottom-5 z-10 flex flex-col items-stretch gap-2 max-md:right-4 max-md:bottom-4 max-md:left-4"
+        className="floor-picker-chrome absolute right-5 bottom-5 z-10 flex flex-col items-stretch gap-2 max-md:right-4 max-md:bottom-4 max-md:left-4"
         onPointerDown={handleOverlayPointerDown}
       >
         <button
@@ -215,6 +228,10 @@ function CreateDrawingPage() {
             ×
           </button>
         </div>
+      )}
+
+      {phase === 'transitioning' && (
+        <div className="floor-picker-transition-cover" aria-hidden="true" />
       )}
     </div>
   );

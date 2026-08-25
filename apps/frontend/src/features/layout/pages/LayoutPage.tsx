@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutToolbar } from '../components/LayoutToolbar';
@@ -68,6 +68,7 @@ function parseLayoutId(value: string | undefined): number | null {
 
 function LayoutPage() {
   const { drawingId = '' } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const recordLastActivity = useRecordLastActivity();
   const layoutId = parseLayoutId(drawingId);
@@ -80,6 +81,8 @@ function LayoutPage() {
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const fadeInLayout =
+    (location.state as { fadeInLayout?: boolean } | null)?.fadeInLayout === true;
   const [riskMode, setRiskMode] = useState(false);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [pendingRiskBounds, setPendingRiskBounds] = useState<{
@@ -419,7 +422,9 @@ function LayoutPage() {
   }
 
   return (
-    <CanvasWorkspace className="layout-workspace">
+    <CanvasWorkspace
+      className={`layout-workspace ${fadeInLayout ? 'layout-workspace--entering' : ''}`}
+    >
       <CanvasWorkspaceBackButton onClick={() => navigate('/drawings')} />
       <LayoutWorkspaceHeader
         name={state.doc.name}
