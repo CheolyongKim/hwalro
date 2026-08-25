@@ -79,7 +79,9 @@ function CreateDrawingPage() {
     }
   };
 
-  confirmRef.current = (floorId) => void startWithLinkedFloor(floorId);
+  useEffect(() => {
+    confirmRef.current = (floorId) => void startWithLinkedFloor(floorId);
+  });
 
   const startWithEmptyCanvas = async () => {
     if (phaseRef.current !== 'picking') return;
