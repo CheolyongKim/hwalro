@@ -31,7 +31,6 @@ import {
 import type { ElementHit, HandleHit } from '../utils/hitTest';
 import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO } from '../utils/colors';
 import {
-  BackgroundLayer,
   ExitView,
   FabricView,
   GridLayer,
@@ -267,27 +266,6 @@ export function LayoutCanvas({
       dispatch({ type: 'eraseStart', point: world, hit: hitAt(world) });
       return;
     }
-    if (tool === 'background') {
-      const bg = doc.background;
-      if (bg !== null) {
-        const cornerX = bg.x + bg.width;
-        const cornerY = bg.y + bg.height;
-        const handleR = 10 / (camera.zoom * PX_PER_METER);
-        if (Math.abs(world.x - cornerX) <= handleR && Math.abs(world.y - cornerY) <= handleR) {
-          dispatch({ type: 'backgroundResizeStart', point: world });
-          return;
-        }
-        const onImage =
-          world.x >= bg.x && world.x <= cornerX && world.y >= bg.y && world.y <= cornerY;
-        if (onImage) {
-          dispatch({ type: 'backgroundDragStart', point: world });
-          return;
-        }
-      }
-      startPan({ x: event.clientX, y: event.clientY }, camera);
-      return;
-    }
-
     let handleHit: HandleHit | null = null;
     let handleElementKind: 'wall' | 'outsideWall' = 'wall';
     for (const wall of doc.walls) {
@@ -612,18 +590,6 @@ export function LayoutCanvas({
         <Stage width={size.w} height={size.h}>
           <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
             <Rect x={0} y={0} width={doc.width} height={doc.height} fill={CANVAS_COLORS.canvas} />
-            {doc.background && <BackgroundLayer bg={doc.background} />}
-            {doc.background && tool === 'background' && (
-              <Rect
-                x={doc.background.x + doc.background.width - s(7)}
-                y={doc.background.y + doc.background.height - s(7)}
-                width={s(14)}
-                height={s(14)}
-                fill={CANVAS_COLORS.canvas}
-                stroke={CANVAS_COLORS.ink}
-                strokeWidth={s(1.5)}
-              />
-            )}
             <GridLayer
               minX={camera.panX}
               minY={camera.panY}

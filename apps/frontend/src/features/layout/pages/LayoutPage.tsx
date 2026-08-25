@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState }
 import { useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { LayoutCanvas } from '../components/LayoutCanvas';
-import { LayoutToolbar } from '../components/LayoutToolbar';
+import { LayoutPrimaryActions, LayoutToolbar } from '../components/LayoutToolbar';
 import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
 import { ToolToolbar } from '../components/ToolToolbar';
 import { ZoomControl } from '../components/ZoomControl';
@@ -454,10 +454,7 @@ function LayoutPage() {
           }}
         >
           <LayoutToolbar
-            saveStatus={saveStatus}
-            onSave={() => void performSave()}
             onOpenHistory={() => setHistoryDialogOpen(true)}
-            onStartSimulation={() => void handleOpenDraftDialog()}
             readOnly={readOnly}
             riskMode={riskMode}
             onToggleRiskMode={toggleRiskMode}
@@ -471,6 +468,12 @@ function LayoutPage() {
             <div className={readOnly ? 'pointer-events-none opacity-60' : ''}>
               <SettingsPanel state={state} dispatch={dispatch} />
             </div>
+            <LayoutPrimaryActions
+              saveStatus={saveStatus}
+              onSave={() => void performSave()}
+              onStartSimulation={() => void handleOpenDraftDialog()}
+              readOnly={readOnly}
+            />
           </div>
         </CanvasWorkspacePanel>
       )}

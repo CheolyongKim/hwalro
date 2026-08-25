@@ -57,17 +57,6 @@ export interface LayoutText {
   y: number;
 }
 
-export interface BackgroundImage {
-  id: string;
-  image: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  opacity: number;
-  aspect: number;
-}
-
 export interface DrawingDocument {
   name: string;
   width: number;
@@ -78,7 +67,6 @@ export interface DrawingDocument {
   pillars: Pillar[];
   fabrics: Fabric[];
   layoutTexts: LayoutText[];
-  background: BackgroundImage | null;
 }
 
 export type Tool =
@@ -88,7 +76,6 @@ export type Tool =
   | 'exit'
   | 'text'
   | 'erase'
-  | 'background'
   | 'pillar'
   | 'fabric';
 
@@ -164,18 +151,6 @@ export type DragState =
       handle: WallHandle;
     }
   | {
-      kind: 'backgroundMove';
-      origin: Vec2;
-      originBg: BackgroundImage;
-      originDoc: DrawingDocument;
-    }
-  | {
-      kind: 'backgroundResize';
-      origin: Vec2;
-      originBg: BackgroundImage;
-      originDoc: DrawingDocument;
-    }
-  | {
       kind: 'erase';
       origin: Vec2;
       originDoc: DrawingDocument;
@@ -247,16 +222,6 @@ export interface SerializedText {
   y: number;
 }
 
-export interface SerializedBackground {
-  image: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  opacity: number;
-  aspect: number;
-}
-
 export interface SerializedDocument {
   name: string;
   width: number;
@@ -267,5 +232,4 @@ export interface SerializedDocument {
   pillars: SerializedPillar[];
   fabrics: SerializedFabric[];
   layoutTexts: SerializedText[];
-  background: SerializedBackground | null;
 }

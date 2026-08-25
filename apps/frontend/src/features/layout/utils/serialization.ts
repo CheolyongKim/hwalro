@@ -1,5 +1,4 @@
 import type {
-  BackgroundImage,
   DrawingDocument,
   Exit,
   Fabric,
@@ -152,17 +151,6 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       rotation: fabric.rotation,
     })),
     layoutTexts: doc.layoutTexts.map((text) => ({ text: text.text, x: text.x, y: text.y })),
-    background: doc.background
-      ? {
-          image: doc.background.image,
-          x: doc.background.x,
-          y: doc.background.y,
-          width: doc.background.width,
-          height: doc.background.height,
-          opacity: doc.background.opacity,
-          aspect: doc.background.aspect,
-        }
-      : null,
   };
 }
 
@@ -334,34 +322,6 @@ export function fromSerialized(data: unknown): DrawingDocument {
     };
   });
 
-  let background: BackgroundImage | null = null;
-  if (data.background !== undefined && data.background !== null) {
-    if (!isRecord(data.background)) {
-      throw new Error('background는 객체이거나 null이어야 합니다');
-    }
-    const bg = data.background;
-    const image = typeof bg.image === 'string' ? bg.image : '';
-    if (image === '') {
-      throw new Error('background.image가 빈 값입니다');
-    }
-    const width = toFiniteNumber(bg.width, 'background.width');
-    const height = toFiniteNumber(bg.height, 'background.height');
-    if (width <= 0 || height <= 0) {
-      throw new Error('background.width/height는 0보다 커야 합니다');
-    }
-    const rawAspect = toFiniteNumber(bg.aspect ?? width / height, 'background.aspect');
-    background = {
-      id: 'loaded-background',
-      image,
-      x: toFiniteNumber(bg.x, 'background.x'),
-      y: toFiniteNumber(bg.y, 'background.y'),
-      width,
-      height,
-      opacity: Math.min(1, Math.max(0.1, toFiniteNumber(bg.opacity, 'background.opacity'))),
-      aspect: rawAspect > 0 ? rawAspect : width / height,
-    };
-  }
-
   return {
     name,
     width,
@@ -372,7 +332,6 @@ export function fromSerialized(data: unknown): DrawingDocument {
     pillars,
     fabrics,
     layoutTexts,
-    background,
   };
 }
 

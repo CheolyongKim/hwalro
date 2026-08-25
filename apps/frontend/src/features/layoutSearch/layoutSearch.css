@@ -426,6 +426,11 @@
   color: var(--color-primary);
 }
 
+.search-progress-floating__btn.search-rerun-button,
+.search-progress-floating__btn.search-rerun-button:hover:not(:disabled) {
+  color: var(--color-text-strong);
+}
+
 .search-progress-floating__btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -791,7 +796,7 @@
   border-radius: 12px;
   background: var(--color-lime);
   padding: 12px;
-  color: var(--color-text-strong);
+  color: var(--color-white);
   font-size: 13px;
   font-weight: 900;
   cursor: pointer;

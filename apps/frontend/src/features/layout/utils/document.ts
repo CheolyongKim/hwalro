@@ -18,7 +18,6 @@ export function createEmptyDocument(): DrawingDocument {
     pillars: [],
     fabrics: [],
     layoutTexts: [],
-    background: null,
   };
 }
 

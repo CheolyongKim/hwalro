@@ -32,14 +32,6 @@ import {
 import { applyRedo, applyUndo, clearInteraction, commit } from './history';
 import { applyDragUpdate } from './drag';
 import { applySelectAt } from './selection';
-import {
-  applyBackgroundDragStart,
-  applyBackgroundInsert,
-  applyBackgroundOpacity,
-  applyBackgroundRemove,
-  applyBackgroundResize,
-  applyBackgroundResizeStart,
-} from './background';
 
 export type EditorAction =
   | { type: 'setTool'; tool: Tool }
@@ -95,13 +87,6 @@ export type EditorAction =
   | { type: 'eraseUpdate'; hit: ElementHit }
   | { type: 'deleteSelection' }
   | { type: 'setValidationProblems'; problems: ValidationProblem[] }
-  | { type: 'backgroundInsert'; image: string; aspect: number }
-  | { type: 'backgroundDragStart'; point: Vec2 }
-  | { type: 'backgroundResizeStart'; point: Vec2 }
-  | { type: 'backgroundDragStart'; point: Vec2 }
-  | { type: 'backgroundResize'; width: number }
-  | { type: 'backgroundOpacity'; opacity: number }
-  | { type: 'backgroundRemove' }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'commit'; prev: DrawingDocument; next: DrawingDocument }
@@ -547,24 +532,6 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'dragUpdate':
       return applyDragUpdate(state, action.point);
-
-    case 'backgroundInsert':
-      return applyBackgroundInsert(state, action.image, action.aspect);
-
-    case 'backgroundDragStart':
-      return applyBackgroundDragStart(state, action.point);
-
-    case 'backgroundResizeStart':
-      return applyBackgroundResizeStart(state, action.point);
-
-    case 'backgroundResize':
-      return applyBackgroundResize(state, action.width);
-
-    case 'backgroundOpacity':
-      return applyBackgroundOpacity(state, action.opacity);
-
-    case 'backgroundRemove':
-      return applyBackgroundRemove(state);
 
     case 'dragEnd': {
       if (!state.drag) {

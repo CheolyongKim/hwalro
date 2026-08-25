@@ -2,10 +2,7 @@ import type { Ref } from 'react';
 import { History, Minus, ShieldAlert } from 'lucide-react';
 
 interface LayoutToolbarProps {
-  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
-  onSave: () => void;
   onOpenHistory: () => void;
-  onStartSimulation: () => void;
   readOnly: boolean;
   riskMode?: boolean;
   onToggleRiskMode?: () => void;
@@ -14,10 +11,7 @@ interface LayoutToolbarProps {
 }
 
 export function LayoutToolbar({
-  saveStatus,
-  onSave,
   onOpenHistory,
-  onStartSimulation,
   readOnly,
   riskMode = false,
   onToggleRiskMode,
@@ -44,24 +38,6 @@ export function LayoutToolbar({
         </button>
       </div>
       <div className="layout-panel-actions__buttons">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={readOnly}
-          className={`h-9 rounded-lg text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-45 ${
-            saveStatus === 'error'
-              ? 'bg-panel-danger text-white'
-              : 'bg-panel-accent text-ink hover:opacity-85'
-          }`}
-        >
-          {saveStatus === 'saving'
-            ? '저장 중'
-            : saveStatus === 'saved'
-              ? '저장 완료'
-              : saveStatus === 'error'
-                ? '저장 실패'
-                : '저장'}
-        </button>
         {readOnly && (
           <p className="rounded-md bg-panel-soft px-2 py-1.5 text-xs leading-4 text-panel-muted">
             시뮬레이션에 사용된 버전으로, 도면 편집이 잠겨 있습니다.
@@ -74,13 +50,6 @@ export function LayoutToolbar({
         >
           <History aria-hidden="true" className="h-4 w-4" />
           버전 이력
-        </button>
-        <button
-          type="button"
-          onClick={onStartSimulation}
-          className="h-9 rounded-lg border border-panel-accent text-sm font-bold text-panel-accent transition-colors hover:bg-panel-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-        >
-          시뮬레이션 배치
         </button>
         {onToggleRiskMode && (
           <button
@@ -103,6 +72,50 @@ export function LayoutToolbar({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+interface LayoutPrimaryActionsProps {
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  onSave: () => void;
+  onStartSimulation: () => void;
+  readOnly: boolean;
+}
+
+export function LayoutPrimaryActions({
+  saveStatus,
+  onSave,
+  onStartSimulation,
+  readOnly,
+}: LayoutPrimaryActionsProps) {
+  return (
+    <div className="layout-primary-actions">
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={readOnly}
+        className={`h-9 rounded-lg text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-45 ${
+          saveStatus === 'error'
+            ? 'bg-panel-danger text-white'
+            : 'bg-panel-accent text-white hover:opacity-85'
+        }`}
+      >
+        {saveStatus === 'saving'
+          ? '저장 중'
+          : saveStatus === 'saved'
+            ? '저장 완료'
+            : saveStatus === 'error'
+              ? '저장 실패'
+              : '저장'}
+      </button>
+      <button
+        type="button"
+        onClick={onStartSimulation}
+        className="h-9 rounded-lg border border-panel-accent text-sm font-bold text-panel-accent transition-colors hover:bg-panel-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+      >
+        시뮬레이션 배치
+      </button>
     </div>
   );
 }
