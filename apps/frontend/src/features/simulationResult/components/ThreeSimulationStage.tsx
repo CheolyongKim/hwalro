@@ -7,10 +7,7 @@ import {
   updateThreeSimulationScene,
   type ThreeSimulationScene,
 } from '../rendering/threeSimulationRenderer';
-import {
-  saveThreeCamera,
-  type SimulationCameraMemory,
-} from '../rendering/simulationCameraMemory';
+import { saveThreeCamera, type SimulationCameraMemory } from '../rendering/simulationCameraMemory';
 
 interface Props {
   cameraMemory: SimulationCameraMemory;

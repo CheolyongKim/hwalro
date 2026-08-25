@@ -70,14 +70,7 @@ export interface DrawingDocument {
 }
 
 export type Tool =
-  | 'select'
-  | 'wall'
-  | 'outsideWall'
-  | 'exit'
-  | 'text'
-  | 'erase'
-  | 'pillar'
-  | 'fabric';
+  'select' | 'wall' | 'outsideWall' | 'exit' | 'text' | 'erase' | 'pillar' | 'fabric';
 
 export interface Camera {
   zoom: number;
