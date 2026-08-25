@@ -11,19 +11,20 @@ import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.PreviewedRoute;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RouteOriginBounds;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RoutePreviewResult;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RoutePreviewZone;
 import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
 import com.hwalro.simulation.simulation.service.SimulationService;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.dto.EvacuationRouteResponse;
 import com.hwalro.simulation.zone.dto.ZoneExitPartitionDto;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 /**
@@ -32,8 +33,8 @@ import org.springframework.stereotype.Service;
  * <p>평상시 기준 안내다. 실제 화재·통로 차단 같은 현재 상황은 반영하지 않는다 — 그것을 판단할 권위 있는 실시간 상태
  * 소스가 시스템에 없기 때문이다. 최신 시뮬레이션 결과를 실시간 진실로 쓰지 않는다.
  *
- * <p>직원 단건 안내는 시뮬레이션 엔진의 역방향 다익스트라 경로 미리보기를 재사용한다. 시뮬레이션 레코드와 시간 진행은 만들지 않는다.
- * 안전 담당자의 전체 구역 검토는 기존 서버 내 배치 계산을 유지한다.
+ * <p>직원 단건 안내와 안전 담당자의 전체 구역 검토 모두 시뮬레이션 엔진의 역방향 다익스트라 경로 미리보기를 재사용한다. 시뮬레이션 레코드와 시간 진행은
+ * 만들지 않는다.
  */
 @Service
 public class EvacuationPreviewService {
@@ -79,7 +80,7 @@ public class EvacuationPreviewService {
     /**
      * 한 도면의 모든 구역에 대한 대피 경로. 안전 담당자가 도면 전체의 대피 계획을 한 번에 검토할 때 쓴다.
      *
-     * <p>격자는 도면마다 한 번만 만들어 모든 구역이 나눠 쓴다.
+     * <p>엔진 프로세스는 도면마다 한 번만 실행하고 모든 구역과 비상구 갈래가 결과를 나눠 쓴다.
      */
     public List<EvacuationRouteResponse> previewAll(Long layoutId, JwtUser user) {
         drawingService.requireAccessible(layoutId, user);
@@ -88,12 +89,61 @@ public class EvacuationPreviewService {
         }
         Long versionId = layoutZoneService.currentVersionId(layoutId);
         DrawingGeometryDto drawing = simulationService.layoutGeometry(versionId);
-        EvacuationGrid grid = EvacuationGrid.of(drawing);
-        // 비상구 필드는 도면당 한 번이면 모든 구역·모든 칸의 답을 준다. 구역마다 A*를 돌릴 이유가 없다.
-        EvacuationExitField field = drawing.exits().isEmpty() ? null : EvacuationExitField.of(grid, drawing.exits());
-        return layoutZoneService.zones(versionId).stream()
-                .map(zone -> batchRoute(zone, drawing, grid, field))
+        List<LayoutZone> zones = layoutZoneService.zones(versionId);
+        if (zones.isEmpty()) {
+            return List.of();
+        }
+        if (drawing.exits().isEmpty()) {
+            return zones.stream()
+                    .map(zone -> notConfigured(
+                            zone, new PointDto(zone.centerX(), zone.centerY()), null, REASON_NO_EXIT, null))
+                    .toList();
+        }
+
+        List<LayoutZone> routableZones = zones.stream()
+                .filter(zone -> zone.getDefaultExitId() == null || findExit(drawing, zone.getDefaultExitId()) != null)
                 .toList();
+        if (routableZones.isEmpty()) {
+            return zones.stream()
+                    .map(zone -> notConfigured(
+                            zone,
+                            new PointDto(zone.centerX(), zone.centerY()),
+                            null,
+                            REASON_ASSIGNED_EXIT_NOT_FOUND,
+                            CHOICE_ASSIGNED))
+                    .toList();
+        }
+
+        try {
+            RoutePreviewResult result = engineRunner.previewZoneRoutes(
+                    "layout-" + layoutId,
+                    syntheticBatchSetup(versionId, drawing, routableZones),
+                    routableZones.stream()
+                            .map(zone -> new RoutePreviewZone(
+                                    zone.getId(),
+                                    zone.getX(),
+                                    zone.getY(),
+                                    zone.getWidth(),
+                                    zone.getHeight(),
+                                    zone.getDefaultExitId()))
+                            .toList());
+            Map<Long, List<PreviewedRoute>> routesByZone =
+                    result.zoneRoutes().stream().collect(Collectors.groupingBy(PreviewedRoute::zoneId));
+            return zones.stream()
+                    .map(zone -> batchRoute(zone, drawing, result, routesByZone.getOrDefault(zone.getId(), List.of())))
+                    .toList();
+        } catch (EngineRunException exception) {
+            if (exception.failureDetail() != null
+                    && (SimulationEngineRunner.NO_REACHABLE_EXIT_CODE.equals(
+                                    exception.failureDetail().code())
+                            || SimulationEngineRunner.ROUTING_ERROR_CODE.equals(
+                                    exception.failureDetail().code()))) {
+                return zones.stream()
+                        .map(zone -> unavailableBatchZone(zone, drawing))
+                        .toList();
+            }
+            throw new SimulationEngineUnavailableException("대피 경로 엔진을 실행할 수 없습니다.", exception);
+        }
     }
 
     private EvacuationRouteResponse employeeRoute(LayoutZone zone, DrawingGeometryDto drawing) {
@@ -157,128 +207,73 @@ public class EvacuationPreviewService {
     }
 
     private EvacuationRouteResponse batchRoute(
-            LayoutZone zone, DrawingGeometryDto drawing, EvacuationGrid grid, EvacuationExitField field) {
+            LayoutZone zone, DrawingGeometryDto drawing, RoutePreviewResult result, List<PreviewedRoute> zoneRoutes) {
         ExitDto assignedExit = findExit(drawing, zone.getDefaultExitId());
         PointDto origin = new PointDto(zone.centerX(), zone.centerY());
         if (zone.getDefaultExitId() != null && assignedExit == null) {
             return notConfigured(zone, origin, null, REASON_ASSIGNED_EXIT_NOT_FOUND, CHOICE_ASSIGNED);
         }
-        if (drawing.exits().isEmpty() || field == null) {
-            return notConfigured(zone, origin, assignedExit, REASON_NO_EXIT, null);
-        }
-
-        // 배정된 비상구가 있으면 구역 전체가 그곳으로 간다. 나눌 이유가 없다.
         if (assignedExit != null) {
-            EvacuationRoutePlanner.Route route = EvacuationRoutePlanner.plan(
-                    grid, zone.centerX().doubleValue(), zone.centerY().doubleValue(), List.of(assignedExit));
-            if (!route.found()) {
+            PreviewedRoute route = zoneRoutes.stream()
+                    .filter(candidate -> assignedExit.id().equals(candidate.exitId()))
+                    .findFirst()
+                    .orElse(null);
+            if (route == null) {
                 return unreachable(zone, origin, assignedExit, REASON_NO_REACHABLE_EXIT);
             }
-            return available(zone, origin, assignedExit, assignedExit, CHOICE_ASSIGNED, route, List.of());
+            return available(
+                    zone,
+                    origin,
+                    assignedExit,
+                    assignedExit,
+                    CHOICE_ASSIGNED,
+                    trim(zone, assignedExit, route),
+                    List.of());
         }
 
-        List<Integer> cells = field.reachableCellsIn(zone.getX(), zone.getY(), zone.getWidth(), zone.getHeight());
-        if (cells.isEmpty()) {
+        ZoneCoverageBranchExtractor.Result extracted = ZoneCoverageBranchExtractor.extract(
+                result.coverage(),
+                new ZoneCoverageBranchExtractor.ZoneBounds(
+                        zone.getX(), zone.getY(), zone.getWidth(), zone.getHeight()));
+        if (extracted.isolated() || extracted.branches().isEmpty()) {
             return unreachable(zone, origin, null, REASON_NO_REACHABLE_EXIT);
         }
 
-        List<ZoneExitPartitionDto> partitions = partition(field, cells);
-        // 대표 경로는 가장 넓은 영역의 것으로 삼는다. 표와 요약이 구역당 한 줄이기 때문이다.
+        Map<Long, PreviewedRoute> routesByExit = zoneRoutes.stream()
+                .collect(Collectors.toMap(PreviewedRoute::exitId, Function.identity(), (first, ignored) -> first));
+        List<ZoneExitPartitionDto> partitions = extracted.branches().stream()
+                .sorted(Comparator.comparingInt(ZoneCoverageBranchExtractor.Branch::sampleCount)
+                        .reversed())
+                .map(branch -> partition(zone, drawing, branch, routesByExit.get(branch.exitId())))
+                .filter(Objects::nonNull)
+                .toList();
+        if (partitions.isEmpty()) {
+            return unreachable(zone, origin, null, REASON_NO_REACHABLE_EXIT);
+        }
         ZoneExitPartitionDto primary = partitions.get(0);
-        EvacuationRoutePlanner.Route primaryRoute = new EvacuationRoutePlanner.Route(
-                primary.exitId(),
-                primary.waypoints(),
-                primary.distanceMeters(),
-                primary.narrowestMeters() == null ? 0.0 : primary.narrowestMeters());
+        PreviewedRoute primaryRoute = routesByExit.get(primary.exitId());
         return available(
                 zone,
                 origin,
                 null,
                 findExit(drawing, primary.exitId()),
                 CHOICE_NEAREST,
-                primaryRoute,
+                trim(zone, findExit(drawing, primary.exitId()), primaryRoute),
                 partitions.size() > 1 ? partitions : List.of());
     }
 
-    /**
-     * 구역 안의 칸들을 나가게 되는 비상구별로 묶는다.
-     *
-     * <p>영역이 넓은 순으로 돌려준다. 대표 경로와 색 배정이 안정적으로 정해지도록 하기 위함이다.
-     */
-    private static List<ZoneExitPartitionDto> partition(EvacuationExitField field, List<Integer> cells) {
-        Map<Long, List<Integer>> byExit = new LinkedHashMap<>();
-        Map<Long, String> nameByExit = new HashMap<>();
-        for (int cell : cells) {
-            ExitDto exit = field.exitOf(cell);
-            if (exit == null) {
-                continue;
-            }
-            byExit.computeIfAbsent(exit.id(), key -> new ArrayList<>()).add(cell);
-            nameByExit.putIfAbsent(exit.id(), exit.name());
+    private ZoneExitPartitionDto partition(
+            LayoutZone zone,
+            DrawingGeometryDto drawing,
+            ZoneCoverageBranchExtractor.Branch branch,
+            PreviewedRoute route) {
+        ExitDto exit = findExit(drawing, branch.exitId());
+        if (exit == null || route == null) {
+            return null;
         }
-
-        List<ZoneExitPartitionDto> partitions = new ArrayList<>();
-        for (Map.Entry<Long, List<Integer>> entry : byExit.entrySet()) {
-            List<Integer> group = entry.getValue();
-            // 가장 불리한 자리에서 출발하는 경로를 보여준다. 대피 계획은 최악의 자리를 기준으로 봐야 한다.
-            EvacuationRoutePlanner.Route route = field.routeFrom(field.farthestCell(group));
-            partitions.add(new ZoneExitPartitionDto(
-                    entry.getKey(),
-                    nameByExit.get(entry.getKey()),
-                    mergeTiles(field.grid(), group),
-                    route.waypoints(),
-                    route.distanceMeters(),
-                    route.narrowestMeters()));
-        }
-        partitions.sort(Comparator.comparingInt(
-                        (ZoneExitPartitionDto part) -> part.tiles().size())
-                .reversed());
-        return partitions;
-    }
-
-    /**
-     * 같은 줄에서 이어지는 칸들을 하나의 사각형으로 합친다.
-     *
-     * <p>칸 하나하나를 그대로 보내면 도면 전체를 덮는 구역에서 수만 개가 된다. 가로로 이어 붙이는 것만으로도
-     * 개수가 한 자릿수 배로 줄고, 화면에서 칠하는 결과는 같다.
-     */
-    private static List<ZoneExitPartitionDto.TileDto> mergeTiles(EvacuationGrid grid, List<Integer> cells) {
-        List<Integer> sorted = new ArrayList<>(cells);
-        sorted.sort(Comparator.comparingInt((Integer cell) -> cell / grid.columns())
-                .thenComparingInt(cell -> cell % grid.columns()));
-
-        List<ZoneExitPartitionDto.TileDto> tiles = new ArrayList<>();
-        int runRow = -1;
-        int runStart = -1;
-        int runEnd = -1;
-        for (int cell : sorted) {
-            int row = cell / grid.columns();
-            int column = cell % grid.columns();
-            if (row == runRow && column == runEnd + 1) {
-                runEnd = column;
-                continue;
-            }
-            if (runRow >= 0) {
-                tiles.add(tile(grid, runRow, runStart, runEnd));
-            }
-            runRow = row;
-            runStart = column;
-            runEnd = column;
-        }
-        if (runRow >= 0) {
-            tiles.add(tile(grid, runRow, runStart, runEnd));
-        }
-        return tiles;
-    }
-
-    private static ZoneExitPartitionDto.TileDto tile(EvacuationGrid grid, int row, int fromColumn, int toColumn) {
-        double cell = EvacuationGrid.CELL_SIZE;
-        return new ZoneExitPartitionDto.TileDto(
-                round(fromColumn * cell), round(row * cell), round((toColumn - fromColumn + 1) * cell), round(cell));
-    }
-
-    private static double round(double value) {
-        return Math.round(value * 1000.0) / 1000.0;
+        PreviewedRoute trimmed = trim(zone, exit, route);
+        return new ZoneExitPartitionDto(
+                branch.exitId(), exit.name(), List.of(), trimmed.waypoints(), route.distanceMeters(), null);
     }
 
     private EvacuationRouteResponse available(
@@ -287,14 +282,14 @@ public class EvacuationPreviewService {
             ExitDto assignedExit,
             ExitDto reached,
             String choice,
-            EvacuationRoutePlanner.Route route,
+            PreviewedRoute route,
             List<ZoneExitPartitionDto> partitions) {
         return new EvacuationRouteResponse(
                 zone.getId(),
                 zone.getName(),
                 origin,
-                route.waypoints().isEmpty() ? origin : route.waypoints().get(0),
-                false,
+                route.routeOrigin(),
+                route.originAdjusted(),
                 STATUS_AVAILABLE,
                 null,
                 assignedExit,
@@ -302,9 +297,23 @@ public class EvacuationPreviewService {
                 reached == null ? null : reached.name(),
                 choice,
                 route.distanceMeters(),
-                route.narrowestMeters(),
+                null,
                 route.waypoints(),
                 partitions);
+    }
+
+    private PreviewedRoute trim(LayoutZone zone, ExitDto exit, PreviewedRoute route) {
+        List<PointDto> waypoints = ZoneBoundaryTrimmer.trim(
+                route.waypoints(),
+                new ZoneBoundaryTrimmer.ZoneBounds(zone.getX(), zone.getY(), zone.getWidth(), zone.getHeight()),
+                exit);
+        return new PreviewedRoute(
+                route.zoneId(),
+                route.exitId(),
+                route.routeOrigin(),
+                route.originAdjusted(),
+                route.distanceMeters(),
+                waypoints);
     }
 
     private SimulationSetupResponse syntheticSetup(
@@ -325,6 +334,30 @@ public class EvacuationPreviewService {
                 List.of(origin),
                 List.of(),
                 selectedExitIds,
+                drawing,
+                false);
+    }
+
+    private SimulationSetupResponse syntheticBatchSetup(
+            Long versionId, DrawingGeometryDto drawing, List<LayoutZone> zones) {
+        return new SimulationSetupResponse(
+                null,
+                versionId,
+                null,
+                drawing.title(),
+                null,
+                null,
+                1,
+                MODEL_PROFILE,
+                ROUTING_PROFILE,
+                zones.size(),
+                WALKING_SPEED,
+                BigDecimal.ZERO,
+                zones.stream()
+                        .map(zone -> new PointDto(zone.centerX(), zone.centerY()))
+                        .toList(),
+                List.of(),
+                drawing.exits().stream().map(ExitDto::id).toList(),
                 drawing,
                 false);
     }
@@ -366,6 +399,15 @@ public class EvacuationPreviewService {
                 null,
                 List.of(),
                 List.of());
+    }
+
+    private EvacuationRouteResponse unavailableBatchZone(LayoutZone zone, DrawingGeometryDto drawing) {
+        PointDto origin = new PointDto(zone.centerX(), zone.centerY());
+        ExitDto assignedExit = findExit(drawing, zone.getDefaultExitId());
+        if (zone.getDefaultExitId() != null && assignedExit == null) {
+            return notConfigured(zone, origin, null, REASON_ASSIGNED_EXIT_NOT_FOUND, CHOICE_ASSIGNED);
+        }
+        return unreachable(zone, origin, assignedExit, REASON_NO_REACHABLE_EXIT);
     }
 
     private void requireAccessible(LayoutZone zone, JwtUser user) {

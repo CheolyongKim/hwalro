@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hwalro.simulation.common.jwt.ForbiddenException;
@@ -18,7 +21,10 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupRespon
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.PreviewedRoute;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RouteCoverage;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RouteOriginBounds;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RoutePreviewResult;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RoutePreviewZone;
 import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
 import com.hwalro.simulation.simulation.service.SimulationService;
 import com.hwalro.simulation.zone.domain.LayoutZone;
@@ -72,8 +78,12 @@ class EvacuationPreviewServiceTest {
 
     /** 구역은 (10,20)에서 20x10이므로 중심점은 (20,25)다. */
     private static LayoutZone zone(Long defaultExitId, Long assignedUserId) {
+        return zone(ZONE_ID, defaultExitId, assignedUserId);
+    }
+
+    private static LayoutZone zone(Long zoneId, Long defaultExitId, Long assignedUserId) {
         LayoutZone zone = new LayoutZone();
-        zone.setId(ZONE_ID);
+        zone.setId(zoneId);
         zone.setLayoutVersionId(VERSION_ID);
         zone.setName("작업 구역");
         zone.setX(m(10));
@@ -110,6 +120,41 @@ class EvacuationPreviewServiceTest {
                     PointDto origin = setup.agentPositions().get(0);
                     return List.of(new PreviewedRoute(
                             exitId, origin, false, 12.5, List.of(origin, new PointDto(m(34), m(25)))));
+                });
+        RouteCoverage coverage = new RouteCoverage(
+                m(10), m(20), m(10), 3, 2, List.of(0, 0, 1, 0, 0, 1), List.of(NEAR_EXIT_ID, FAR_EXIT_ID));
+        when(engineRunner.previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any()))
+                .thenAnswer(invocation -> {
+                    List<RoutePreviewZone> zones = invocation.getArgument(2);
+                    List<PreviewedRoute> zoneRoutes = zones.stream()
+                            .flatMap(zone -> {
+                                if (zone.defaultExitId() != null) {
+                                    return java.util.stream.Stream.of(new PreviewedRoute(
+                                            zone.zoneId(),
+                                            zone.defaultExitId(),
+                                            new PointDto(m(20), m(25)),
+                                            false,
+                                            14.0,
+                                            List.of(new PointDto(m(20), m(25)), new PointDto(m(34), m(25)))));
+                                }
+                                return java.util.stream.Stream.of(
+                                        new PreviewedRoute(
+                                                zone.zoneId(),
+                                                NEAR_EXIT_ID,
+                                                new PointDto(m(10), m(20)),
+                                                false,
+                                                24.0,
+                                                List.of(new PointDto(m(10), m(20)), new PointDto(m(34), m(25)))),
+                                        new PreviewedRoute(
+                                                zone.zoneId(),
+                                                FAR_EXIT_ID,
+                                                new PointDto(m(30), m(20)),
+                                                false,
+                                                30.0,
+                                                List.of(new PointDto(m(30), m(20)), new PointDto(m(2), m(3)))));
+                            })
+                            .toList();
+                    return new RoutePreviewResult(List.of(), coverage, zoneRoutes);
                 });
         service = new EvacuationPreviewService(layoutZoneService, drawingService, simulationService, engineRunner);
     }
@@ -253,15 +298,19 @@ class EvacuationPreviewServiceTest {
     }
 
     @Test
-    void 안전_담당자는_도면_전체의_대피_경로를_받는다() {
+    void 안전_담당자는_도면_전체의_대피_경로를_받는다() throws Exception {
         when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
-        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(zone(null, EMPLOYEE_ID), zone(NEAR_EXIT_ID, 99L)));
+        when(layoutZoneService.zones(VERSION_ID))
+                .thenReturn(List.of(zone(ZONE_ID, null, EMPLOYEE_ID), zone(31L, NEAR_EXIT_ID, 99L)));
 
         List<EvacuationRouteResponse> routes = service.previewAll(LAYOUT_ID, reviewer());
 
         assertThat(routes).hasSize(2);
         assertThat(routes)
                 .allSatisfy(route -> assertThat(route.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE));
+        assertThat(routes.get(0).partitions()).hasSize(2);
+        verify(engineRunner, times(1)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
+        verify(engineRunner, never()).previewRoutes(anyString(), any(SimulationSetupResponse.class), any());
     }
 
     @Test

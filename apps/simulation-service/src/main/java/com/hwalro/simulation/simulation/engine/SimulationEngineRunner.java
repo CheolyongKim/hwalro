@@ -178,6 +178,20 @@ public class SimulationEngineRunner {
     public RoutePreviewResult previewRouteResult(
             String jobLabel, SimulationSetupResponse setup, RouteOriginBounds routeOriginBounds)
             throws EngineRunException {
+        return previewRouteResult(jobLabel, setup, routeOriginBounds, List.of());
+    }
+
+    public RoutePreviewResult previewZoneRoutes(
+            String jobLabel, SimulationSetupResponse setup, List<RoutePreviewZone> zones) throws EngineRunException {
+        return previewRouteResult(jobLabel, setup, null, zones);
+    }
+
+    private RoutePreviewResult previewRouteResult(
+            String jobLabel,
+            SimulationSetupResponse setup,
+            RouteOriginBounds routeOriginBounds,
+            List<RoutePreviewZone> zones)
+            throws EngineRunException {
         Path jobDirectory = null;
         Process process = null;
         try {
@@ -190,6 +204,9 @@ public class SimulationEngineRunner {
             Map<String, Object> input = createInput(setup);
             if (routeOriginBounds != null) {
                 input.put("routeOriginBounds", routeOriginBounds);
+            }
+            if (!zones.isEmpty()) {
+                input.put("routePreviewZones", zones);
             }
             objectMapper.writeValue(inputPath.toFile(), input);
 
@@ -242,6 +259,17 @@ public class SimulationEngineRunner {
         if (routes == null || !routes.isArray()) {
             throw new IOException("대피 경로 응답 형식이 올바르지 않습니다.");
         }
+        List<PreviewedRoute> parsed = readPreviewRoutes(routes, false);
+        JsonNode zoneRoutes = root.get("zoneRoutes");
+        List<PreviewedRoute> parsedZoneRoutes = zoneRoutes == null ? List.of() : readPreviewRoutes(zoneRoutes, true);
+        return new RoutePreviewResult(
+                List.copyOf(parsed), readRouteCoverage(root.get("coverage")), List.copyOf(parsedZoneRoutes));
+    }
+
+    private List<PreviewedRoute> readPreviewRoutes(JsonNode routes, boolean zoneRoute) throws IOException {
+        if (!routes.isArray()) {
+            throw new IOException("대피 경로 응답 형식이 올바르지 않습니다.");
+        }
         List<PreviewedRoute> parsed = new ArrayList<>();
         for (JsonNode route : routes) {
             List<PointDto> waypoints = new ArrayList<>();
@@ -256,23 +284,26 @@ public class SimulationEngineRunner {
             PointDto routeOrigin = readPoint(route.get("routeOrigin"));
             JsonNode adjusted = route.get("originAdjusted");
             JsonNode distance = route.get("distanceMeters");
+            JsonNode zoneId = route.get("zoneId");
             if (routeOrigin == null
                     || adjusted == null
                     || !adjusted.isBoolean()
                     || distance == null
                     || !distance.isNumber()
                     || !Double.isFinite(distance.doubleValue())
-                    || distance.doubleValue() < 0) {
+                    || distance.doubleValue() < 0
+                    || (zoneRoute && (zoneId == null || !zoneId.isIntegralNumber() || !zoneId.canConvertToLong()))) {
                 throw new IOException("대피 경로 응답 값이 올바르지 않습니다.");
             }
             parsed.add(new PreviewedRoute(
+                    zoneRoute ? zoneId.longValue() : null,
                     exitId == null || exitId.isNull() ? null : exitId.asLong(),
                     routeOrigin,
                     adjusted.booleanValue(),
                     distance.doubleValue(),
                     waypoints));
         }
-        return new RoutePreviewResult(List.copyOf(parsed), readRouteCoverage(root.get("coverage")));
+        return parsed;
     }
 
     private RouteCoverage readRouteCoverage(JsonNode coverage) throws IOException {
@@ -341,13 +372,28 @@ public class SimulationEngineRunner {
 
     /** 대피 경로 미리보기 결과 한 건. 시뮬레이션 식별자나 지표는 담지 않는다. */
     public record PreviewedRoute(
+            Long zoneId,
             Long exitId,
             PointDto routeOrigin,
             boolean originAdjusted,
             double distanceMeters,
-            List<PointDto> waypoints) {}
+            List<PointDto> waypoints) {
+        public PreviewedRoute(
+                Long exitId,
+                PointDto routeOrigin,
+                boolean originAdjusted,
+                double distanceMeters,
+                List<PointDto> waypoints) {
+            this(null, exitId, routeOrigin, originAdjusted, distanceMeters, waypoints);
+        }
+    }
 
-    public record RoutePreviewResult(List<PreviewedRoute> routes, RouteCoverage coverage) {}
+    public record RoutePreviewResult(
+            List<PreviewedRoute> routes, RouteCoverage coverage, List<PreviewedRoute> zoneRoutes) {
+        public RoutePreviewResult(List<PreviewedRoute> routes, RouteCoverage coverage) {
+            this(routes, coverage, List.of());
+        }
+    }
 
     public record RouteCoverage(
             BigDecimal originX,
@@ -359,6 +405,9 @@ public class SimulationEngineRunner {
             List<Long> exitIds) {}
 
     public record RouteOriginBounds(BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height) {}
+
+    public record RoutePreviewZone(
+            Long zoneId, BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height, Long defaultExitId) {}
 
     public EngineRun run(Long simulationId, SimulationSetupResponse setup) throws EngineRunException {
         return run(simulationId, setup, maxSimulationTimeSeconds);

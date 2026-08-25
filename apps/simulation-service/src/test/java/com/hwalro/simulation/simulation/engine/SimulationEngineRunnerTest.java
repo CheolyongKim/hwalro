@@ -130,6 +130,9 @@ class SimulationEngineRunnerTest {
                  "routes":[{"agentId":1,"exitId":501,"routeOrigin":{"x":1,"y":1},
                    "originAdjusted":false,"distanceMeters":2.5,
                    "waypoints":[{"x":1,"y":1},{"x":3,"y":1}]}],
+                 "zoneRoutes":[{"zoneId":30,"exitId":502,"routeOrigin":{"x":2,"y":1},
+                   "originAdjusted":false,"distanceMeters":1.5,
+                   "waypoints":[{"x":2,"y":1},{"x":0,"y":1}]}],
                  "coverage":{"originX":0,"originY":0,"step":1,"columns":3,"rows":2,
                    "labels":[0,0,-1,1,1,-1],"exitIds":[501,502]}}
                 """);
@@ -138,6 +141,10 @@ class SimulationEngineRunnerTest {
 
         assertThat(result.routes()).singleElement().satisfies(route -> assertThat(route.exitId())
                 .isEqualTo(501L));
+        assertThat(result.zoneRoutes()).singleElement().satisfies(route -> {
+            assertThat(route.zoneId()).isEqualTo(30L);
+            assertThat(route.exitId()).isEqualTo(502L);
+        });
         assertThat(result.coverage().originX()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(result.coverage().step()).isEqualByComparingTo(BigDecimal.ONE);
         assertThat(result.coverage().columns()).isEqualTo(3);

@@ -597,6 +597,106 @@ class RoutePreviewModeTest(unittest.TestCase):
             self.assertEqual(coverage["labels"][left], 1)
             self.assertEqual(coverage["labels"][right], 0)
 
+    def test_writes_each_zone_branch_route_in_the_same_preview_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            payload = AgentRouteErrorContractTest._payload()
+            payload["selectedExitIds"] = [1, 2]
+            payload["routePreviewZones"] = [
+                {
+                    "zoneId": 30,
+                    "x": 0.5,
+                    "y": 0.5,
+                    "width": 3,
+                    "height": 3,
+                    "defaultExitId": None,
+                }
+            ]
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with patch("runner._load_dependencies", return_value=(None, None, None, "test")):
+                exit_code = main(["--route-preview", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 0)
+            zone_routes = json.loads((output_dir / "routes.json").read_text("utf-8"))[
+                "zoneRoutes"
+            ]
+            self.assertEqual({route["zoneId"] for route in zone_routes}, {30})
+            self.assertEqual({route["exitId"] for route in zone_routes}, {1, 2})
+            self.assertTrue(all(route["waypoints"] for route in zone_routes))
+
+    def test_zone_preview_keeps_reachable_zones_when_another_component_is_isolated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            payload = AgentRouteErrorContractTest._payload()
+            payload["agents"] = [{"x": 1, "y": 2}, {"x": 3, "y": 2}]
+            payload["drawing"]["fabrics"] = [
+                {"startX": 1.8, "startY": 0, "endX": 2.2, "endY": 4, "rotation": 0}
+            ]
+            payload["routePreviewZones"] = [
+                {
+                    "zoneId": 30,
+                    "x": 0.5,
+                    "y": 1.5,
+                    "width": 1,
+                    "height": 1,
+                    "defaultExitId": None,
+                },
+                {
+                    "zoneId": 31,
+                    "x": 2.5,
+                    "y": 1.5,
+                    "width": 1,
+                    "height": 1,
+                    "defaultExitId": None,
+                },
+            ]
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = main(["--route-preview", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 0)
+            zone_routes = json.loads((output_dir / "routes.json").read_text("utf-8"))[
+                "zoneRoutes"
+            ]
+            self.assertEqual({route["zoneId"] for route in zone_routes}, {31})
+
+    def test_zone_preview_routes_an_assigned_zone_to_its_default_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            payload = AgentRouteErrorContractTest._payload()
+            payload["selectedExitIds"] = [1, 2]
+            payload["routePreviewZones"] = [
+                {
+                    "zoneId": 30,
+                    "x": 2.5,
+                    "y": 1.5,
+                    "width": 1,
+                    "height": 1,
+                    "defaultExitId": 2,
+                }
+            ]
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with patch("runner._load_dependencies", return_value=(None, None, None, "test")):
+                exit_code = main(["--route-preview", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 0)
+            zone_routes = json.loads((output_dir / "routes.json").read_text("utf-8"))[
+                "zoneRoutes"
+            ]
+            self.assertEqual([route["exitId"] for route in zone_routes], [2])
+
     def test_blocked_zone_does_not_move_the_route_origin_outside_the_zone(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

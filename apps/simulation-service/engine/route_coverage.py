@@ -19,6 +19,15 @@ class RouteCoverage(TypedDict):
     exitIds: list[int]
 
 
+class RoutePreviewZone(TypedDict):
+    zoneId: int
+    x: float
+    y: float
+    width: float
+    height: float
+    defaultExitId: int | None
+
+
 def serialize_route_coverage(
     routers: Sequence[GridRouter], exits: Sequence[Exit], step: float = 1.0
 ) -> RouteCoverage:
@@ -55,3 +64,36 @@ def serialize_route_coverage(
         "labels": labels,
         "exitIds": exit_ids,
     }
+
+
+def zone_branch_origins(
+    coverage: RouteCoverage, zone: RoutePreviewZone
+) -> list[tuple[int, tuple[float, float]]]:
+    min_x = zone["x"]
+    min_y = zone["y"]
+    max_x = min_x + zone["width"]
+    max_y = min_y + zone["height"]
+    points_by_label: dict[int, list[tuple[float, float]]] = {}
+    for row in range(coverage["rows"]):
+        y = coverage["originY"] + row * coverage["step"]
+        if y < min_y or y > max_y:
+            continue
+        for column in range(coverage["columns"]):
+            x = coverage["originX"] + column * coverage["step"]
+            if x < min_x or x > max_x:
+                continue
+            label = coverage["labels"][row * coverage["columns"] + column]
+            if label >= 0:
+                points_by_label.setdefault(label, []).append((x, y))
+
+    origins = []
+    for label, points in points_by_label.items():
+        center_x = sum(point[0] for point in points) / len(points)
+        center_y = sum(point[1] for point in points) / len(points)
+        representative = min(
+            points,
+            key=lambda point: (point[0] - center_x) ** 2
+            + (point[1] - center_y) ** 2,
+        )
+        origins.append((coverage["exitIds"][label], representative))
+    return origins

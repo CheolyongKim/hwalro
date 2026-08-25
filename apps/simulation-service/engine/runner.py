@@ -439,7 +439,7 @@ def run(
             split_agent_components,
             usable_exit_segment,
         )
-        from route_coverage import serialize_route_coverage
+        from route_coverage import RoutePreviewZone, serialize_route_coverage, zone_branch_origins
     except ModuleNotFoundError:
         from .route_planner import (  # type: ignore[no-redef]
             AgentRouteUnreachableError,
@@ -457,7 +457,7 @@ def run(
             split_agent_components,
             usable_exit_segment,
         )
-        from .route_coverage import serialize_route_coverage
+        from .route_coverage import RoutePreviewZone, serialize_route_coverage, zone_branch_origins
 
     payload = _read_input(input_path)
     model = _object(payload.get("model"), "model")
@@ -530,6 +530,9 @@ def run(
     route_origin_bounds = (
         _route_origin_bounds(payload.get("routeOriginBounds")) if route_preview else None
     )
+    route_preview_zones = (
+        _route_preview_zones(payload.get("routePreviewZones")) if route_preview else ()
+    )
 
     try:
         hazards = parse_hazards(hazards_value)
@@ -599,7 +602,7 @@ def run(
             continue
         routing_groups.append((physical_component, router, indexed_agents))
 
-    if failed_components:
+    if failed_components and (not route_preview_zones or not routing_groups):
         output_dir.mkdir(parents=True, exist_ok=True)
         affected_indexes = sorted(
             index for indexed_agents in failed_components for index, _position in indexed_agents
@@ -680,46 +683,38 @@ def run(
         serialized_routes = []
         for index in sorted(routes_by_index):
             route = routes_by_index[index]
-            waypoints = list(route.waypoints)
-            if not waypoints or math.dist(agents[index], waypoints[0]) > 1e-9:
-                waypoints.insert(0, agents[index])
-            if not waypoints or math.dist(waypoints[-1], route.terminal_point) > 1e-9:
-                waypoints.append(route.terminal_point)
-            waypoints = orthogonalize_display_path(
-                waypoints, router_by_index[index].can_connect
+            serialized = _serialize_preview_route(
+                route,
+                agents[index],
+                original_agents[index],
+                router_by_index[index],
+                orthogonalize_display_path,
             )
-            distance_meters = sum(
-                math.dist(start, end) for start, end in zip(waypoints, waypoints[1:])
-            )
-            serialized_routes.append(
-                {
-                    "agentId": index + 1,
-                    "exitId": route.exit_id,
-                    "routeOrigin": {
-                        "x": _rounded(agents[index][0]),
-                        "y": _rounded(agents[index][1]),
-                    },
-                    "originAdjusted": math.dist(
-                        original_agents[index], agents[index]
-                    )
-                    > 1e-9,
-                    "distanceMeters": _rounded(distance_meters),
-                    "waypoints": [
-                        {"x": _rounded(x), "y": _rounded(y)} for x, y in waypoints
-                    ],
-                    "terminalPoint": {
-                        "x": _rounded(route.terminal_point[0]),
-                        "y": _rounded(route.terminal_point[1]),
-                    },
-                }
-            )
+            serialized["agentId"] = index + 1
+            serialized_routes.append(serialized)
         routers = [item[1] for item in routing_groups]
+        coverage = serialize_route_coverage(routers, exits)
+        zone_routes = _zone_preview_routes(
+            route_preview_zones,
+            coverage,
+            routing_area,
+            routers,
+            exits,
+            hazards,
+            relocate_agent_within_bounds,
+            GridRouter,
+            zone_branch_origins,
+            orthogonalize_display_path,
+            AgentRouteUnreachableError,
+            _id_key,
+        )
         _write_json(
             output_dir / "routes.json",
             {
                 "schemaVersion": 1,
                 "routes": serialized_routes,
-                "coverage": serialize_route_coverage(routers, exits),
+                "coverage": coverage,
+                "zoneRoutes": zone_routes,
             },
         )
         if phase_profile is not None:
@@ -1981,6 +1976,157 @@ def _route_origin_bounds(value: Any) -> tuple[float, float, float, float] | None
     if bounds[2] <= 0 or bounds[3] <= 0:
         raise RunnerError("routeOriginBounds width and height must be positive")
     return bounds
+
+
+def _route_preview_zones(value: Any) -> tuple[dict[str, Any], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise RunnerError("routePreviewZones must be an array")
+    zones = []
+    zone_ids = set()
+    for index, value_item in enumerate(value):
+        item = _object(value_item, f"routePreviewZones[{index}]")
+        zone_id = item.get("zoneId")
+        default_exit_id = item.get("defaultExitId")
+        if not isinstance(zone_id, int) or isinstance(zone_id, bool) or zone_id in zone_ids:
+            raise RunnerError("routePreviewZones zoneId must be a unique integer")
+        if default_exit_id is not None and (
+            not isinstance(default_exit_id, int) or isinstance(default_exit_id, bool)
+        ):
+            raise RunnerError("routePreviewZones defaultExitId must be an integer or null")
+        try:
+            bounds = tuple(float(item[key]) for key in ("x", "y", "width", "height"))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RunnerError(
+                "routePreviewZones must contain numeric x, y, width and height"
+            ) from exc
+        if not all(math.isfinite(number) for number in bounds):
+            raise RunnerError("routePreviewZones bounds must be finite")
+        if bounds[2] <= 0 or bounds[3] <= 0:
+            raise RunnerError("routePreviewZones width and height must be positive")
+        zone_ids.add(zone_id)
+        zones.append(
+            {
+                "zoneId": zone_id,
+                "x": bounds[0],
+                "y": bounds[1],
+                "width": bounds[2],
+                "height": bounds[3],
+                "defaultExitId": default_exit_id,
+            }
+        )
+    return tuple(zones)
+
+
+def _serialize_preview_route(
+    route, origin, original_origin, router, orthogonalize_path
+) -> dict[str, Any]:
+    waypoints = list(route.waypoints)
+    if not waypoints or math.dist(origin, waypoints[0]) > 1e-9:
+        waypoints.insert(0, origin)
+    if not waypoints or math.dist(waypoints[-1], route.terminal_point) > 1e-9:
+        waypoints.append(route.terminal_point)
+    waypoints = orthogonalize_path(waypoints, router.can_connect)
+    distance_meters = sum(
+        math.dist(start, end) for start, end in zip(waypoints, waypoints[1:])
+    )
+    return {
+        "exitId": route.exit_id,
+        "routeOrigin": {"x": _rounded(origin[0]), "y": _rounded(origin[1])},
+        "originAdjusted": math.dist(original_origin, origin) > 1e-9,
+        "distanceMeters": _rounded(distance_meters),
+        "waypoints": [
+            {"x": _rounded(x), "y": _rounded(y)} for x, y in waypoints
+        ],
+        "terminalPoint": {
+            "x": _rounded(route.terminal_point[0]),
+            "y": _rounded(route.terminal_point[1]),
+        },
+    }
+
+
+def _zone_preview_routes(
+    zones,
+    coverage,
+    routing_area,
+    routers,
+    exits,
+    hazards,
+    relocate_within_bounds,
+    router_type,
+    branch_origin_builder,
+    orthogonalize_path,
+    route_unreachable_error,
+    id_key,
+) -> list[dict[str, Any]]:
+    serialized_routes = []
+    assigned_routers = {}
+    exits_by_id = {id_key(exit_.id): exit_ for exit_ in exits}
+    for zone in zones:
+        bounds = (zone["x"], zone["y"], zone["width"], zone["height"])
+        default_exit_id = zone["defaultExitId"]
+        if default_exit_id is None:
+            candidates = branch_origin_builder(coverage, zone)
+        else:
+            candidates = [
+                (
+                    default_exit_id,
+                    (
+                        zone["x"] + zone["width"] / 2,
+                        zone["y"] + zone["height"] / 2,
+                    ),
+                )
+            ]
+        for exit_id, requested_origin in candidates:
+            origin = relocate_within_bounds(routing_area, requested_origin, bounds)
+            if origin is None:
+                continue
+            planned = None
+            planned_router = None
+            for router in routers:
+                candidate_router = router
+                if default_exit_id is not None:
+                    key = (id(router), id_key(exit_id))
+                    if key not in assigned_routers:
+                        target_exit = exits_by_id.get(id_key(exit_id))
+                        if target_exit is None:
+                            assigned_routers[key] = None
+                        else:
+                            try:
+                                assigned_routers[key] = router_type(
+                                    router.walkable,
+                                    hazards,
+                                    [target_exit],
+                                    physical_walkable=router.physical_walkable,
+                                    exit_clearance=AGENT_RADIUS_METERS,
+                                )
+                            except ValueError:
+                                assigned_routers[key] = None
+                    candidate_router = assigned_routers[key]
+                    if candidate_router is None:
+                        continue
+                try:
+                    route = candidate_router.plan(origin)
+                except (ValueError, route_unreachable_error):
+                    continue
+                if id_key(route.exit_id) != id_key(exit_id):
+                    continue
+                planned = route
+                planned_router = candidate_router
+                break
+            if planned is None or planned_router is None:
+                continue
+            serialized = _serialize_preview_route(
+                planned,
+                origin,
+                requested_origin,
+                planned_router,
+                orthogonalize_path,
+            )
+            serialized["zoneId"] = zone["zoneId"]
+            serialized_routes.append(serialized)
+    return serialized_routes
 
 
 def _rounded(value: Any) -> float:
