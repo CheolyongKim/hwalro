@@ -1,5 +1,9 @@
 # 인계: SCRUM-133 구역 기능
 
+대피 동선 엔진 단일화와 3D의 19개 후속 작업 현황은
+`HANDOFF-SCRUM-133-EVACUATION-ROADMAP.md`에서 관리한다. 해당 작업을 수행할 때는 그 문서를
+매번 함께 갱신한다.
+
 브랜치 `feat/SCRUM-133` · 기준 커밋 `2c94a46` · dev 대비 35커밋 · 원격 푸시 완료
 
 이 문서 하나가 현행 인계 문서다. 이전의 `HANDOFF-SCRUM-133-zone-editor.md`,
