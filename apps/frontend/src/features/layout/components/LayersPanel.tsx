@@ -443,11 +443,15 @@ export function LayersPanel({
           <ul
             id="layout-layer-common"
             className="mt-1 rounded-md"
-            onDragOver={membershipEditable ? (event) => {
-              if (event.dataTransfer.types.includes(DND_MIME)) {
-                event.preventDefault();
-              }
-            } : undefined}
+            onDragOver={
+              membershipEditable
+                ? (event) => {
+                    if (event.dataTransfer.types.includes(DND_MIME)) {
+                      event.preventDefault();
+                    }
+                  }
+                : undefined
+            }
             onDrop={membershipEditable ? commonGroupDrop : undefined}
           >
             {grouped.common.length === 0 ? (

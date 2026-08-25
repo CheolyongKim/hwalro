@@ -122,7 +122,9 @@ export const router = createBrowserRouter([
                     path: 'my-zones',
                     element: (
                       <Suspense
-                        fallback={<FullscreenRouteFallback message="담당 구역을 준비하고 있습니다." />}
+                        fallback={
+                          <FullscreenRouteFallback message="담당 구역을 준비하고 있습니다." />
+                        }
                       >
                         <MyZonesPage />
                       </Suspense>
@@ -132,7 +134,9 @@ export const router = createBrowserRouter([
                     path: 'my-zones/:zoneId/evacuation',
                     element: (
                       <Suspense
-                        fallback={<FullscreenRouteFallback message="대피 안내를 준비하고 있습니다." />}
+                        fallback={
+                          <FullscreenRouteFallback message="대피 안내를 준비하고 있습니다." />
+                        }
                       >
                         <EvacuationPage />
                       </Suspense>
@@ -153,7 +157,9 @@ export const router = createBrowserRouter([
                 path: 'drawings/new',
                 element: (
                   <Suspense
-                    fallback={<FullscreenRouteFallback message={DRAWING_WORKSPACE_LOADING_MESSAGE} />}
+                    fallback={
+                      <FullscreenRouteFallback message={DRAWING_WORKSPACE_LOADING_MESSAGE} />
+                    }
                   >
                     <CreateDrawingPage />
                   </Suspense>
@@ -198,7 +204,9 @@ export const router = createBrowserRouter([
                 path: 'simulations/:simulationId/layout-search',
                 element: (
                   <Suspense
-                    fallback={<FullscreenRouteFallback message="배치 개선안을 준비하고 있습니다." />}
+                    fallback={
+                      <FullscreenRouteFallback message="배치 개선안을 준비하고 있습니다." />
+                    }
                   >
                     <LayoutSearchPage />
                   </Suspense>
