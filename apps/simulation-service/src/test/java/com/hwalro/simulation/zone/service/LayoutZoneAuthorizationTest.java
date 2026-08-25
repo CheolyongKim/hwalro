@@ -177,27 +177,10 @@ class LayoutZoneAuthorizationTest {
     }
 
     @Test
-    void employeeCanEditConstraintsOfTheirOwnStructure() {
-        service.updateStructureConstraints(LAYOUT_ID, MY_FABRIC_ID, patch(), employee());
-
-        verify(layoutZoneService).updateStructureConstraints(LAYOUT_ID, MY_FABRIC_ID, patch());
-        // 직원 경로에서는 도면 소유자 규칙을 타지 않는다. 구역 배정만으로 판단한다.
-        verify(drawingService, never()).requireAccessible(anyLong(), any());
-    }
-
-    @Test
-    void employeeCannotEditConstraintsOfAnotherZonesStructure() {
-        assertThatThrownBy(() -> service.updateStructureConstraints(LAYOUT_ID, OTHER_FABRIC_ID, patch(), employee()))
+    void employeeCannotEditStructureConstraints() {
+        assertThatThrownBy(() -> service.updateStructureConstraints(LAYOUT_ID, MY_FABRIC_ID, patch(), employee()))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("담당 구역");
-        verify(layoutZoneService, never()).updateStructureConstraints(anyLong(), anyLong(), any());
-    }
-
-    @Test
-    void employeeCannotEditConstraintsOfACommonStructure() {
-        assertThatThrownBy(() -> service.updateStructureConstraints(LAYOUT_ID, COMMON_FABRIC_ID, patch(), employee()))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("구역에 속해 있지 않습니다");
+                .hasMessageContaining("기획/운영 담당자");
         verify(layoutZoneService, never()).updateStructureConstraints(anyLong(), anyLong(), any());
     }
 

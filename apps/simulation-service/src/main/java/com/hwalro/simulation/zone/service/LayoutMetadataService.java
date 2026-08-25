@@ -33,7 +33,7 @@ import org.springframework.stereotype.Service;
  *
  * <ul>
  *   <li>권한 역할(ADMIN/SAFETY_REVIEWER/OPERATOR)은 기존 도면 접근 규칙을 그대로 따른다.
- *   <li>일반 직원 전용 사용자는 자기에게 배정된 구역이 있는 도면만 읽고, 그 구역에 속한 구조물의 제약만 수정할 수 있다.
+ *   <li>매장 직원 전용 사용자는 자기에게 배정된 구역이 있는 도면만 읽을 수 있다.
  *   <li>구역 생성·수정·삭제·배정과 배치 제외는 컨트롤러의 {@code @RequireRole}이 이미 막지만, 여기서도 도면 접근을 다시 확인한다.
  * </ul>
  */
@@ -130,12 +130,10 @@ public class LayoutMetadataService {
 
     public void updateStructureConstraints(
             Long layoutId, Long fabricId, StructureConstraintUpdateRequest request, JwtUser user) {
-        Long versionId = layoutZoneService.currentVersionId(layoutId);
-        if (DrawingService.isPrivileged(user)) {
-            drawingService.requireAccessible(layoutId, user);
-        } else {
-            requireOwnedStructure(versionId, fabricId, user);
+        if (!DrawingService.isPrivileged(user)) {
+            throw new ForbiddenException("기획/운영 담당자와 안전 검토 권한만 구조물 제약을 수정할 수 있습니다.");
         }
+        drawingService.requireAccessible(layoutId, user);
         layoutZoneService.updateStructureConstraints(layoutId, fabricId, request);
     }
 

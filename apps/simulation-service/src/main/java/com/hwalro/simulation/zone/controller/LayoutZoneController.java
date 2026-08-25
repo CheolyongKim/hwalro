@@ -50,7 +50,7 @@ public class LayoutZoneController {
     }
 
     @GetMapping("/drawings/{id}/layout-metadata")
-    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN", "GENERAL_EMPLOYEE"})
+    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
     @Operation(
             summary = "도면 구역 메타데이터 조회",
             description = "구역, 구조물 배치 제약, 배치 제외 영역을 반환합니다. 일반 직원은 배정된 구역과 그 구역 구조물만 볼 수 있습니다.")
@@ -97,7 +97,7 @@ public class LayoutZoneController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(
             summary = "구조물 배치 제약 수정",
-            description = "이동 가능 여부·최대 이동 거리·회전 금지·벽 붙임을 저장합니다. 일반 직원은 담당 구역의 구조물만 수정할 수 있습니다.")
+            description = "이동 가능 여부·최대 이동 거리·회전 금지·벽 붙임을 저장합니다. 기획/운영 담당자와 안전 검토 권한만 수정할 수 있습니다.")
     public void updateConstraints(
             @Parameter(description = "도면 ID") @PathVariable Long id,
             @Parameter(description = "구조물 ID") @PathVariable Long fabricId,
