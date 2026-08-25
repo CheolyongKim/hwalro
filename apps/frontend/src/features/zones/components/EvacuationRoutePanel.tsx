@@ -1,43 +1,50 @@
 import type { LayoutZone } from '../../layout/api/layoutMetadataApi';
 
 interface EvacuationRoutePanelProps {
-  zones: readonly LayoutZone[];
-  enabledZoneIds: ReadonlySet<number>;
+  zone: LayoutZone;
+  enabled: boolean;
   loading: boolean;
   errorMessage: string | null;
-  onToggle: (zoneId: number) => void;
-  onToggleAll: (enabled: boolean) => void;
+  onToggle: (enabled: boolean) => void;
 }
 
 export function EvacuationRoutePanel({
-  zones,
-  enabledZoneIds,
+  zone,
+  enabled,
   loading,
   errorMessage,
   onToggle,
-  onToggleAll,
 }: EvacuationRoutePanelProps) {
-  const allEnabled = zones.length > 0 && zones.every((zone) => enabledZoneIds.has(zone.zoneId));
-
   return (
     <section
-      className="border-b border-panel-divider px-3 py-3"
+      className="rounded-lg border border-panel-divider bg-panel-soft px-3 py-3"
       aria-labelledby="evacuation-route-title"
     >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div>
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="min-w-0">
           <h3 id="evacuation-route-title" className="text-sm font-bold text-panel-text">
             대피 동선
           </h3>
-          <p className="mt-1 text-xs text-panel-muted">검토할 구역의 경로만 도면에 표시합니다.</p>
+          <p className="mt-1 truncate text-xs text-panel-muted">{zone.name} 경로를 표시합니다.</p>
         </div>
         <button
           type="button"
-          className="shrink-0 rounded-md border border-panel-divider px-2 py-1 text-xs font-bold text-panel-text hover:border-panel-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-          onClick={() => onToggleAll(!allEnabled)}
-          disabled={zones.length === 0}
+          role="switch"
+          aria-checked={enabled}
+          aria-label={`${zone.name} 대피 동선 표시`}
+          aria-busy={loading}
+          className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-wait disabled:opacity-70 ${
+            enabled ? 'border-panel-accent bg-panel-accent' : 'border-panel-divider bg-panel-muted'
+          }`}
+          onClick={() => onToggle(!enabled)}
+          disabled={loading}
         >
-          {allEnabled ? '전체 끄기' : '전체 켜기'}
+          <span
+            aria-hidden="true"
+            className={`absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform ${
+              enabled ? 'translate-x-5' : 'translate-x-1'
+            }`}
+          />
         </button>
       </div>
       {loading ? (
@@ -53,25 +60,6 @@ export function EvacuationRoutePanel({
           {errorMessage}
         </p>
       ) : null}
-      {zones.length === 0 ? (
-        <p className="py-2 text-xs text-panel-muted">표시할 구역이 없습니다.</p>
-      ) : (
-        <ul className="mt-2 space-y-1">
-          {zones.map((zone) => (
-            <li key={zone.zoneId}>
-              <label className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-panel-text hover:bg-panel-soft">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-panel-accent"
-                  checked={enabledZoneIds.has(zone.zoneId)}
-                  onChange={() => onToggle(zone.zoneId)}
-                />
-                <span className="truncate">{zone.name}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }

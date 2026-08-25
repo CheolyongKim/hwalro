@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { Minus } from 'lucide-react';
@@ -133,8 +125,8 @@ function LayoutPage() {
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [movementPreviewRadius, setMovementPreviewRadius] = useState<number | null>(null);
-  const [evacuationRoutes, setEvacuationRoutes] = useState<EvacuationRoute[] | null>(null);
-  const [enabledEvacuationZoneIds, setEnabledEvacuationZoneIds] = useState<Set<number>>(new Set());
+  const [evacuationRoute, setEvacuationRoute] = useState<EvacuationRoute | null>(null);
+  const [enabledEvacuationZoneId, setEnabledEvacuationZoneId] = useState<number | null>(null);
   const [evacuationRoutesLoading, setEvacuationRoutesLoading] = useState(false);
   const [evacuationRoutesError, setEvacuationRoutesError] = useState<string | null>(null);
   const fadeInLayout = (location.state as { fadeInLayout?: boolean } | null)?.fadeInLayout === true;
@@ -174,67 +166,54 @@ function LayoutPage() {
   useEffect(() => {
     evacuationRequestSequenceRef.current += 1;
     evacuationRequestRef.current = null;
-    setEvacuationRoutes(null);
-    setEnabledEvacuationZoneIds(new Set());
+    setEvacuationRoute(null);
+    setEnabledEvacuationZoneId(null);
     setEvacuationRoutesLoading(false);
     setEvacuationRoutesError(null);
-  }, [layoutId]);
+  }, [layoutId, selectedZoneId]);
 
-  const loadEvacuationRoutes = useCallback(() => {
-    if (layoutId === null || evacuationRoutes !== null || evacuationRequestRef.current !== null) {
-      return;
-    }
-    const sequence = ++evacuationRequestSequenceRef.current;
-    setEvacuationRoutesLoading(true);
-    setEvacuationRoutesError(null);
-    const request = zoneApi
-      .evacuationRoutes(layoutId)
-      .then((routes) => {
-        if (evacuationRequestSequenceRef.current === sequence) setEvacuationRoutes(routes);
-      })
-      .catch(() => {
-        if (evacuationRequestSequenceRef.current === sequence) {
-          setEvacuationRoutesError('대피 동선을 불러오지 못했습니다. 다시 선택해 주세요.');
-        }
-      })
-      .finally(() => {
-        if (evacuationRequestSequenceRef.current === sequence) {
-          evacuationRequestRef.current = null;
-          setEvacuationRoutesLoading(false);
-        }
-      });
-    evacuationRequestRef.current = request;
-  }, [evacuationRoutes, layoutId]);
-
-  const toggleEvacuationZone = useCallback(
-    (zoneId: number) => {
-      setEnabledEvacuationZoneIds((current) => {
-        const next = new Set(current);
-        if (next.has(zoneId)) next.delete(zoneId);
-        else {
-          next.add(zoneId);
-          loadEvacuationRoutes();
-        }
-        return next;
-      });
-    },
-    [loadEvacuationRoutes],
-  );
-
-  const toggleAllEvacuationZones = useCallback(
+  const toggleEvacuationRoute = useCallback(
     (enabled: boolean) => {
-      setEnabledEvacuationZoneIds(
-        enabled ? new Set(metadata.metadata.zones.map((zone) => zone.zoneId)) : new Set(),
-      );
-      if (enabled) loadEvacuationRoutes();
+      if (!enabled) {
+        evacuationRequestSequenceRef.current += 1;
+        evacuationRequestRef.current = null;
+        setEnabledEvacuationZoneId(null);
+        setEvacuationRoute(null);
+        setEvacuationRoutesLoading(false);
+        setEvacuationRoutesError(null);
+        return;
+      }
+      if (selectedZoneId === null || evacuationRequestRef.current !== null) return;
+      const zoneId = selectedZoneId;
+      const sequence = ++evacuationRequestSequenceRef.current;
+      setEnabledEvacuationZoneId(zoneId);
+      setEvacuationRoutesLoading(true);
+      setEvacuationRoutesError(null);
+      const request = zoneApi
+        .evacuationRoute(zoneId)
+        .then((route) => {
+          if (evacuationRequestSequenceRef.current === sequence) setEvacuationRoute(route);
+        })
+        .catch(() => {
+          if (evacuationRequestSequenceRef.current === sequence) {
+            setEvacuationRoutesError('대피 동선을 불러오지 못했습니다. 다시 선택해 주세요.');
+          }
+        })
+        .finally(() => {
+          if (evacuationRequestSequenceRef.current === sequence) {
+            evacuationRequestRef.current = null;
+            setEvacuationRoutesLoading(false);
+          }
+        });
+      evacuationRequestRef.current = request;
     },
-    [loadEvacuationRoutes, metadata.metadata.zones],
+    [selectedZoneId],
   );
 
-  const visibleEvacuationRoutes = useMemo(
-    () => evacuationRoutes?.filter((route) => enabledEvacuationZoneIds.has(route.zoneId)) ?? [],
-    [enabledEvacuationZoneIds, evacuationRoutes],
-  );
+  const visibleEvacuationRoutes =
+    evacuationRoute !== null && evacuationRoute.zoneId === enabledEvacuationZoneId
+      ? [evacuationRoute]
+      : [];
 
   useLayoutEffect(() => {
     if (!restorePanelFocusRef.current) {
@@ -1010,14 +989,6 @@ function LayoutPage() {
             }}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <EvacuationRoutePanel
-              zones={metadata.metadata.zones}
-              enabledZoneIds={enabledEvacuationZoneIds}
-              loading={evacuationRoutesLoading}
-              errorMessage={evacuationRoutesError}
-              onToggle={toggleEvacuationZone}
-              onToggleAll={toggleAllEvacuationZones}
-            />
             {metadata.errorMessage ? (
               <p
                 role="alert"
@@ -1027,7 +998,14 @@ function LayoutPage() {
               </p>
             ) : null}
             {selectedZone !== null ? (
-              <div className="px-3 py-3">
+              <div className="space-y-3 px-3 py-3">
+                <EvacuationRoutePanel
+                  zone={selectedZone}
+                  enabled={enabledEvacuationZoneId === selectedZone.zoneId}
+                  loading={evacuationRoutesLoading}
+                  errorMessage={evacuationRoutesError}
+                  onToggle={toggleEvacuationRoute}
+                />
                 <ZonePanel
                   zone={selectedZone}
                   exits={state.doc.exits}
