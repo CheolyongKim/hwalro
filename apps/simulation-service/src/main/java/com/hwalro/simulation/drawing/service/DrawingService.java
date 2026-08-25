@@ -30,9 +30,12 @@ import com.hwalro.simulation.drawing.exception.DrawingDeletionNotAllowedExceptio
 import com.hwalro.simulation.drawing.exception.DrawingLockedException;
 import com.hwalro.simulation.drawing.exception.DrawingNotFoundException;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
+import com.hwalro.simulation.zone.domain.LayoutZone;
+import com.hwalro.simulation.zone.domain.LayoutZoneMember;
 import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -171,12 +174,71 @@ public class DrawingService {
             insertFabricsIfPresent(toFabricsFromDefault(defaultDrawing.fabrics(), version.getId()));
             insertLayoutTextsIfPresent(toLayoutTextsFromDefault(defaultDrawing.layoutTexts(), version.getId()));
             insertExitsIfPresent(toExitsFromDefault(defaultDrawing.exits(), version.getId()));
+            insertDefaultZones(defaultDrawing.zones(), version.getId());
         }
 
         layout.setCurrentVersionId(version.getId());
         drawingMapper.updateLayoutCurrentVersion(layout);
 
         return toResponse(findLayoutOrThrow(layout.getId()));
+    }
+
+    /**
+     * 기본 도면에 딸려 온 구역과 소속을 새 도면에 심는다.
+     *
+     * <p>기본 도면 데이터는 요소를 ID가 아니라 배열 인덱스로 가리킨다. 요소를 넣은 뒤 다시 읽어
+     * ({@code find*IdsByVersionId}는 {@code display_order ASC, id ASC} 순서다) 위치로 짝짓는다.
+     * {@code carryLayoutMetadataForward()}가 저장 경로에서 쓰는 방식과 같다.
+     *
+     * <p>인덱스가 어긋나면 소속이 조용히 엉뚱한 요소에 붙는다. 그래서 범위를 벗어난 인덱스는 즉시 실패시킨다.
+     */
+    private void insertDefaultZones(List<DefaultDrawingData.DefaultZone> zones, Long layoutVersionId) {
+        if (zones == null || zones.isEmpty()) {
+            return;
+        }
+        Map<ZoneElementKind, List<Long>> elementIds = new EnumMap<>(ZoneElementKind.class);
+        elementIds.put(ZoneElementKind.WALL, drawingMapper.findWallIdsByVersionId(layoutVersionId));
+        elementIds.put(ZoneElementKind.PILLAR, drawingMapper.findPillarIdsByVersionId(layoutVersionId));
+        elementIds.put(ZoneElementKind.FABRIC, drawingMapper.findFabricIdsByVersionId(layoutVersionId));
+        List<Long> exitIds = drawingMapper.findLayoutExitIdsByVersionId(layoutVersionId);
+
+        List<LayoutZoneMember> members = new ArrayList<>();
+        for (DefaultDrawingData.DefaultZone source : zones) {
+            LayoutZone zone = new LayoutZone();
+            zone.setLayoutVersionId(layoutVersionId);
+            zone.setName(source.name());
+            zone.setZoneType(source.zoneType());
+            zone.setX(source.x());
+            zone.setY(source.y());
+            zone.setWidth(source.width());
+            zone.setHeight(source.height());
+            zone.setDisplayOrder(source.displayOrder());
+            zone.setDefaultExitId(
+                    source.defaultExitIndex() == null
+                            ? null
+                            : elementAt(exitIds, source.defaultExitIndex(), "비상구", source.name()));
+            layoutZoneMapper.insertZone(zone);
+
+            if (source.members() == null) {
+                continue;
+            }
+            for (DefaultDrawingData.DefaultZoneMember member : source.members()) {
+                ZoneElementKind kind = ZoneElementKind.valueOf(member.kind());
+                Long elementId = elementAt(elementIds.get(kind), member.index(), kind.name(), source.name());
+                members.add(LayoutZoneMember.of(layoutVersionId, zone.getId(), kind, elementId));
+            }
+        }
+        if (!members.isEmpty()) {
+            layoutZoneMapper.insertZoneMembers(members);
+        }
+    }
+
+    private static Long elementAt(List<Long> ids, int index, String label, String zoneName) {
+        if (index < 0 || index >= ids.size()) {
+            throw new IllegalStateException("기본 도면 구역 \"" + zoneName + "\"이(가) 없는 " + label + " 인덱스를 가리킵니다: " + index
+                    + " (전체 " + ids.size() + "개)");
+        }
+        return ids.get(index);
     }
 
     @Transactional
@@ -657,6 +719,7 @@ public class DrawingService {
                     domainWall.setStartY(wall.startY());
                     domainWall.setEndX(wall.endX());
                     domainWall.setEndY(wall.endY());
+                    domainWall.setDisplayOrder(wall.displayOrder());
                     return domainWall;
                 })
                 .toList();
@@ -768,6 +831,7 @@ public class DrawingService {
                     domainPillar.setEndX(larger(pillar.startX(), pillar.endX()));
                     domainPillar.setEndY(larger(pillar.startY(), pillar.endY()));
                     domainPillar.setRotation(pillar.rotation());
+                    domainPillar.setDisplayOrder(pillar.displayOrder());
                     return domainPillar;
                 })
                 .toList();
@@ -786,6 +850,7 @@ public class DrawingService {
                     domainFabric.setEndX(larger(fabric.startX(), fabric.endX()));
                     domainFabric.setEndY(larger(fabric.startY(), fabric.endY()));
                     domainFabric.setRotation(fabric.rotation());
+                    domainFabric.setDisplayOrder(fabric.displayOrder());
                     return domainFabric;
                 })
                 .toList();
