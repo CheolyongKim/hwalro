@@ -61,7 +61,7 @@ export function EvacuationRouteOverlay({ routes, exitIds, scale }: EvacuationRou
               name="evacuation-route-line"
               points={branch.waypoints.flatMap((point) => [point.x, point.y])}
               stroke={exitColorOf(branch.exitId, exitIds)}
-              strokeWidth={scale(3)}
+              strokeWidth={scale(8)}
               dash={[scale(8), scale(6)]}
               lineCap="round"
               lineJoin="round"

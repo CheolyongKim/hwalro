@@ -319,6 +319,23 @@ class EvacuationPreviewServiceTest {
     }
 
     @Test
+    void 안전_담당자의_선택_구역은_커버리지_결과와_캐시를_사용한다() throws Exception {
+        LayoutZone selected = zone(ZONE_ID, null, EMPLOYEE_ID);
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(selected);
+        when(layoutZoneService.layoutIdOfVersion(VERSION_ID)).thenReturn(LAYOUT_ID);
+        when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
+        when(layoutZoneService.zones(VERSION_ID)).thenReturn(List.of(selected));
+
+        EvacuationRouteResponse first = service.preview(ZONE_ID, reviewer());
+        EvacuationRouteResponse second = service.preview(ZONE_ID, reviewer());
+
+        assertThat(first.partitions()).hasSize(2);
+        assertThat(second).isEqualTo(first);
+        verify(engineRunner, times(1)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
+        verify(engineRunner, never()).previewRoutes(anyString(), any(SimulationSetupResponse.class), any());
+    }
+
+    @Test
     void 일반_직원은_자기_구역의_대피_경로만_받는다() throws Exception {
         when(layoutZoneService.currentVersionId(LAYOUT_ID)).thenReturn(VERSION_ID);
         when(layoutZoneService.zones(VERSION_ID))

@@ -196,6 +196,7 @@ function LayoutPage() {
         })
         .catch(() => {
           if (evacuationRequestSequenceRef.current === sequence) {
+            setEnabledEvacuationZoneId(null);
             setEvacuationRoutesError('대피 동선을 불러오지 못했습니다. 다시 선택해 주세요.');
           }
         })
@@ -211,7 +212,9 @@ function LayoutPage() {
   );
 
   const visibleEvacuationRoutes =
-    evacuationRoute !== null && evacuationRoute.zoneId === enabledEvacuationZoneId
+    selectedZoneId === enabledEvacuationZoneId &&
+    evacuationRoute !== null &&
+    evacuationRoute.zoneId === enabledEvacuationZoneId
       ? [evacuationRoute]
       : [];
 

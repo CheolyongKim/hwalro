@@ -77,6 +77,13 @@ public class EvacuationPreviewService {
     public EvacuationRouteResponse preview(Long zoneId, JwtUser user) {
         LayoutZone zone = layoutZoneService.zoneOrThrow(zoneId);
         requireAccessible(zone, user);
+        if (DrawingService.isPrivileged(user)) {
+            Long layoutId = layoutZoneService.layoutIdOfVersion(zone.getLayoutVersionId());
+            return previewAll(layoutId, user).stream()
+                    .filter(route -> zoneId.equals(route.zoneId()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("선택한 구역의 대피 경로 계산 결과가 없습니다."));
+        }
         DrawingGeometryDto drawing = simulationService.layoutGeometry(zone.getLayoutVersionId());
         return employeeRoute(zone, drawing);
     }
