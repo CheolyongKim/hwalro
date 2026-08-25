@@ -193,13 +193,7 @@ export default function LayoutSearchPage() {
   }
 
   if (active) {
-    return (
-      <Navigate
-        to="/simulations"
-        replace
-        state={{ layoutSearchSimulationId: id }}
-      />
-    );
+    return <Navigate to="/simulations" replace state={{ layoutSearchSimulationId: id }} />;
   }
 
   return (

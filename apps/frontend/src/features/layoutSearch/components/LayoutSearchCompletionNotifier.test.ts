@@ -27,8 +27,8 @@ describe('findNewlyCompletedLayoutSearches', () => {
       monitorItem(5, 'COMPLETED'),
     ];
 
-    expect(findNewlyCompletedLayoutSearches(previous, current).map(({ searchId }) => searchId)).toEqual([
-      1, 5,
-    ]);
+    expect(
+      findNewlyCompletedLayoutSearches(previous, current).map(({ searchId }) => searchId),
+    ).toEqual([1, 5]);
   });
 });
