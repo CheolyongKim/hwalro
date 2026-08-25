@@ -20,6 +20,7 @@ import type {
 import { interpolatePositions, selectFramePair } from '../utils/playback';
 import { FLOOR_LABEL_SOURCE_FONT_SIZE, getFloorLabelPresentation } from './floorLabelPresentation';
 import { composeHeatmapTrail } from './heatmapTrail';
+import { getExitPresentation } from './exitPresentation';
 
 export interface PixiCameraTransform {
   scale: number;
@@ -84,7 +85,7 @@ function traceBoundary(graphics: Graphics, points: PixiSceneConfig['drawing']['o
   return graphics.closePath();
 }
 
-// 출구·에이전트(청록), 병목(빨강), 위험구역(파랑)과 겹치지 않는 보라색 계열을 쓴다.
+// 출구·에이전트(청록), 병목(빨강), 위험 구역(파랑)과 겹치지 않는 보라색 계열을 쓴다.
 const IMPROVED_FABRIC_FILL = 0xe6dbf7;
 const IMPROVED_FABRIC_STROKE = 0x7a45c9;
 
@@ -114,7 +115,7 @@ function drawFloorPlan(result: PixiSceneConfig, improvedFabrics: ReadonlySet<num
   const structureLayer = new Container();
   const lineLayer = new Graphics();
   const labels: PixiText[] = [];
-  baseLayer.rect(0, 0, drawing.width, drawing.height).fill({ color: 0xf3f7f6 });
+  baseLayer.rect(0, 0, drawing.width, drawing.height).fill({ color: 0xdfe6e3 });
   traceBoundary(baseLayer, drawing.outsideBoundary).fill({ color: 0xffffff });
   traceBoundary(lineLayer, drawing.outsideBoundary).stroke({ color: 0x355b55, width: 0.45 });
   for (const wall of drawing.walls) {
@@ -157,10 +158,11 @@ function drawFloorPlan(result: PixiSceneConfig, improvedFabrics: ReadonlySet<num
   }
   const exitLayer = new Graphics();
   for (const exit of drawing.exits) {
+    const presentation = getExitPresentation(exit.active);
     exitLayer
       .moveTo(exit.startX, exit.startY)
       .lineTo(exit.endX, exit.endY)
-      .stroke({ color: 0x078f7e, width: 1, cap: 'round' });
+      .stroke({ color: presentation.color, width: 1, cap: 'round' });
   }
   structureLayer.addChild(exitLayer);
   return { baseLayer, structureLayer, labels };
@@ -270,7 +272,6 @@ export async function createPixiSimulationScene(
     riskLayer,
   );
   app.stage.addChild(world);
-
   return {
     app,
     world,
@@ -416,12 +417,11 @@ function updateBottlenecks(
   }
 }
 
-function updateRiskZones(layer: Graphics, riskZones: RiskZone[], draftZone: Bounds | null) {
+function updateRiskZones(layer: Graphics, riskZones: RiskZone[]) {
   layer.clear();
   for (const zone of riskZones) {
     drawBounds(layer, zone, 0x5c75d9, 0x5c75d9, 0.1);
   }
-  if (draftZone) drawBounds(layer, draftZone, 0x5c75d9, 0x5c75d9, 0.08);
 }
 
 export function updatePixiSimulationScene(
@@ -432,7 +432,6 @@ export function updatePixiSimulationScene(
   selectedBottleneckId: number | null,
   showBottlenecks: boolean,
   riskZones: RiskZone[],
-  draftZone: Bounds | null,
 ) {
   const heatmapFrame = selectFramePair(result.heatmap.frames, currentTimeSeconds).previous;
   if (scene.lastHeatmapTime !== heatmapFrame.timeSeconds) {
@@ -455,7 +454,7 @@ export function updatePixiSimulationScene(
   } else {
     scene.bottleneckLayer.clear();
   }
-  updateRiskZones(scene.riskLayer, riskZones, draftZone);
+  updateRiskZones(scene.riskLayer, riskZones);
   scene.app.render();
 }
 

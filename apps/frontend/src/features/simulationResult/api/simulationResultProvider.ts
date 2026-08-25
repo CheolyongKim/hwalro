@@ -17,9 +17,15 @@ interface SegmentResponse {
   rotation?: number;
 }
 
+interface ExitResponse extends SegmentResponse {
+  id: number;
+  active: boolean;
+}
+
 interface SimulationResultSummaryResponse {
   simulationId: number;
   simulationResultId: number;
+  layoutId: number;
   title: string;
   subtitle: string;
   durationSeconds: number;
@@ -32,7 +38,7 @@ interface SimulationResultSummaryResponse {
     height: number;
     outsideBoundary: Array<{ x: number; y: number }>;
     walls: SegmentResponse[];
-    exits: SegmentResponse[];
+    exits: ExitResponse[];
     pillars: SegmentResponse[];
     fabrics: SegmentResponse[];
     layoutTexts: Array<{ text: string; x: number; y: number }>;
