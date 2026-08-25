@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Circle, Layer, Line, Rect, Stage } from 'react-konva';
 import { Card, ErrorState, PageHeader, buttonClassName } from '../../../components/ui';
@@ -7,9 +8,11 @@ import type { Drawing } from '../../drawings/types/drawing';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
 import { layoutMetadataApi, type LayoutZone } from '../../layout/api/layoutMetadataApi';
 import { CANVAS_COLORS } from '../../layout/utils/colors';
-import { fitCamera, PX_PER_METER } from '../../layout/utils/geometry';
+import { clampPan, fitCamera, PX_PER_METER, zoomAtPoint } from '../../layout/utils/geometry';
+import type { Camera, Vec2 } from '../../layout/types';
 import { zoneApi, type EvacuationRoute, type MyZone } from '../api/zoneApi';
-import { evacuationStatusPresentation, narrowPassageWarning } from '../utils/evacuationStatus';
+import { fitEvacuationCamera } from '../utils/evacuationCamera';
+import { evacuationStatusPresentation } from '../utils/evacuationStatus';
 
 const VIEW_HEIGHT = 460;
 
@@ -28,106 +31,234 @@ interface LoadedEvacuation {
 
 function EvacuationCanvas({ data, width }: { data: LoadedEvacuation; width: number }) {
   const { drawing, zoneRect, route } = data;
-  const camera = useMemo(
-    () => fitCamera(drawing.width, drawing.height, width, VIEW_HEIGHT),
-    [drawing.width, drawing.height, width],
-  );
+  const initialCamera = useMemo(() => {
+    const points: Vec2[] = [...route.waypoints, route.routeOrigin];
+    if (zoneRect !== null) {
+      points.push(
+        { x: zoneRect.x, y: zoneRect.y },
+        { x: zoneRect.x + zoneRect.width, y: zoneRect.y + zoneRect.height },
+      );
+    }
+    const targetExit = drawing.exits.find((exit) => exit.id === route.recommendedExitId);
+    if (targetExit !== undefined) {
+      points.push(
+        { x: targetExit.startX, y: targetExit.startY },
+        { x: targetExit.endX, y: targetExit.endY },
+      );
+    }
+    return points.length > 1
+      ? fitEvacuationCamera(points, width, VIEW_HEIGHT)
+      : fitCamera(drawing.width, drawing.height, width, VIEW_HEIGHT);
+  }, [drawing, route, width, zoneRect]);
+  const [camera, setCamera] = useState<Camera>(initialCamera);
+  const panRef = useRef<{ screen: Vec2; camera: Camera } | null>(null);
+
+  useEffect(() => setCamera(initialCamera), [initialCamera]);
+
+  const clampCamera = (next: Camera): Camera =>
+    clampPan(
+      next,
+      drawing.width,
+      drawing.height,
+      width / (next.zoom * PX_PER_METER),
+      VIEW_HEIGHT / (next.zoom * PX_PER_METER),
+    );
+  const zoomAtCenter = (factor: number) => {
+    setCamera((current) =>
+      clampCamera(
+        zoomAtPoint(current, { x: width / 2, y: VIEW_HEIGHT / 2 }, { left: 0, top: 0 }, factor),
+      ),
+    );
+  };
+  const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCamera((current) =>
+      clampCamera(
+        zoomAtPoint(
+          current,
+          { x: event.clientX, y: event.clientY },
+          rect,
+          event.deltaY < 0 ? 1.15 : 1 / 1.15,
+        ),
+      ),
+    );
+  };
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.target instanceof Element && event.target.closest('button') !== null) return;
+    if (event.button !== 0 && event.button !== 1) return;
+    panRef.current = {
+      screen: { x: event.clientX, y: event.clientY },
+      camera,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (pan === null) return;
+    setCamera(
+      clampCamera({
+        ...pan.camera,
+        panX: pan.camera.panX - (event.clientX - pan.screen.x) / (pan.camera.zoom * PX_PER_METER),
+        panY: pan.camera.panY - (event.clientY - pan.screen.y) / (pan.camera.zoom * PX_PER_METER),
+      }),
+    );
+  };
+  const finishPan = () => {
+    panRef.current = null;
+  };
   const k = camera.zoom * PX_PER_METER;
-  const s = (value: number) => value / camera.zoom;
+  // 화면에서 value 픽셀로 보이게 하는 도면 좌표 길이. 레이어 배율이 k이므로 zoom이 아니라 k로 나눈다.
+  // zoom으로 나누면 PX_PER_METER배 두꺼워져 벽이 도면을 덮어 버린다.
+  const s = (value: number) => value / k;
   return (
-    <Stage width={width} height={VIEW_HEIGHT}>
-      <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
-        <Rect
-          x={0}
-          y={0}
-          width={drawing.width}
-          height={drawing.height}
-          fill={CANVAS_COLORS.canvas}
-          stroke={CANVAS_COLORS.gridBoundary}
-          strokeWidth={s(1)}
-        />
-        {drawing.outsideWalls.map((wall, index) => (
-          <Line
-            key={`outside-${index}`}
-            points={[wall.startX, wall.startY, wall.endX, wall.endY]}
-            stroke={CANVAS_COLORS.outsideWall}
-            strokeWidth={s(3)}
-          />
-        ))}
-        {drawing.walls.map((wall, index) => (
-          <Line
-            key={`wall-${index}`}
-            points={[wall.startX, wall.startY, wall.endX, wall.endY]}
-            stroke={CANVAS_COLORS.ink}
-            strokeWidth={s(2)}
-          />
-        ))}
-        {drawing.pillars.map((pillar, index) => (
+    <div
+      className="relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
+      onWheel={onWheel}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={finishPan}
+      onPointerCancel={finishPan}
+      onPointerLeave={finishPan}
+    >
+      <Stage width={width} height={VIEW_HEIGHT}>
+        <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
           <Rect
-            key={`pillar-${index}`}
-            x={pillar.startX}
-            y={pillar.startY}
-            width={pillar.endX - pillar.startX}
-            height={pillar.endY - pillar.startY}
-            fill={CANVAS_COLORS.pillarFill}
-          />
-        ))}
-        {drawing.fabrics.map((fabric, index) => (
-          <Rect
-            key={`fabric-${index}`}
-            x={fabric.startX}
-            y={fabric.startY}
-            width={fabric.endX - fabric.startX}
-            height={fabric.endY - fabric.startY}
-            fill={CANVAS_COLORS.fabricFill}
-            stroke={CANVAS_COLORS.fabricStroke}
+            x={0}
+            y={0}
+            width={drawing.width}
+            height={drawing.height}
+            fill={CANVAS_COLORS.canvas}
+            stroke={CANVAS_COLORS.gridBoundary}
             strokeWidth={s(1)}
           />
-        ))}
-        {zoneRect ? (
-          <Rect
-            x={zoneRect.x}
-            y={zoneRect.y}
-            width={zoneRect.width}
-            height={zoneRect.height}
-            fill={CANVAS_COLORS.zoneSelectedFill}
-            stroke={CANVAS_COLORS.zoneStroke}
+          {zoneRect ? (
+            <Rect
+              x={zoneRect.x}
+              y={zoneRect.y}
+              width={zoneRect.width}
+              height={zoneRect.height}
+              fill={CANVAS_COLORS.zoneSelectedFill}
+              stroke={CANVAS_COLORS.zoneStroke}
+              strokeWidth={s(2)}
+            />
+          ) : null}
+          {drawing.outsideWalls.map((wall, index) => (
+            <Line
+              key={`outside-${index}`}
+              points={[wall.startX, wall.startY, wall.endX, wall.endY]}
+              stroke={CANVAS_COLORS.outsideWall}
+              strokeWidth={s(3)}
+            />
+          ))}
+          {drawing.walls.map((wall, index) => (
+            <Line
+              key={`wall-${index}`}
+              points={[wall.startX, wall.startY, wall.endX, wall.endY]}
+              stroke={CANVAS_COLORS.ink}
+              strokeWidth={s(2)}
+            />
+          ))}
+          {drawing.pillars.map((pillar, index) => {
+            const width = Math.abs(pillar.endX - pillar.startX);
+            const height = Math.abs(pillar.endY - pillar.startY);
+            return (
+              <Rect
+                key={`pillar-${index}`}
+                x={(pillar.startX + pillar.endX) / 2}
+                y={(pillar.startY + pillar.endY) / 2}
+                width={width}
+                height={height}
+                offsetX={width / 2}
+                offsetY={height / 2}
+                rotation={pillar.rotation}
+                fill={CANVAS_COLORS.pillarFill}
+              />
+            );
+          })}
+          {drawing.fabrics.map((fabric, index) => {
+            const width = Math.abs(fabric.endX - fabric.startX);
+            const height = Math.abs(fabric.endY - fabric.startY);
+            return (
+              <Rect
+                key={`fabric-${index}`}
+                x={(fabric.startX + fabric.endX) / 2}
+                y={(fabric.startY + fabric.endY) / 2}
+                width={width}
+                height={height}
+                offsetX={width / 2}
+                offsetY={height / 2}
+                rotation={fabric.rotation}
+                fill={CANVAS_COLORS.fabricFill}
+                stroke={CANVAS_COLORS.fabricStroke}
+                strokeWidth={s(1)}
+              />
+            );
+          })}
+          {drawing.exits.map((exit, index) => {
+            const isRecommended = exit.id !== null && exit.id === route.recommendedExitId;
+            const isConfigured = exit.id !== null && exit.id === route.defaultExit?.id;
+            return (
+              <Line
+                key={`exit-${index}`}
+                points={[exit.startX, exit.startY, exit.endX, exit.endY]}
+                stroke={
+                  isRecommended || isConfigured ? CANVAS_COLORS.exitStrong : CANVAS_COLORS.exit
+                }
+                strokeWidth={s(isRecommended ? 6 : 4)}
+                opacity={isConfigured ? 1 : 0.45}
+              />
+            );
+          })}
+          {route.waypoints.length > 1 ? (
+            <Line
+              points={route.waypoints.flatMap((point) => [point.x, point.y])}
+              stroke={CANVAS_COLORS.accent}
+              strokeWidth={s(2.5)}
+              dash={[s(6), s(4)]}
+              lineCap="round"
+              lineJoin="round"
+            />
+          ) : null}
+          <Circle
+            x={route.routeOrigin.x}
+            y={route.routeOrigin.y}
+            radius={s(5)}
+            fill={CANVAS_COLORS.accent}
+            stroke={CANVAS_COLORS.canvas}
             strokeWidth={s(2)}
           />
-        ) : null}
-        {drawing.exits.map((exit, index) => {
-          const isRecommended = exit.id !== null && exit.id === route.recommendedExitId;
-          const isConfigured = exit.id !== null && exit.id === route.defaultExit?.id;
-          return (
-            <Line
-              key={`exit-${index}`}
-              points={[exit.startX, exit.startY, exit.endX, exit.endY]}
-              stroke={isRecommended || isConfigured ? CANVAS_COLORS.exitStrong : CANVAS_COLORS.exit}
-              strokeWidth={s(isRecommended ? 6 : 4)}
-              opacity={isConfigured ? 1 : 0.45}
-            />
-          );
-        })}
-        {route.waypoints.length > 1 ? (
-          <Line
-            points={route.waypoints.flatMap((point) => [point.x, point.y])}
-            stroke={CANVAS_COLORS.accent}
-            strokeWidth={s(2.5)}
-            dash={[s(6), s(4)]}
-            lineCap="round"
-            lineJoin="round"
-          />
-        ) : null}
-        <Circle
-          x={route.origin.x}
-          y={route.origin.y}
-          radius={s(5)}
-          fill={CANVAS_COLORS.accent}
-          stroke={CANVAS_COLORS.canvas}
-          strokeWidth={s(2)}
-        />
-      </Layer>
-    </Stage>
+        </Layer>
+      </Stage>
+      <div className="absolute right-3 bottom-3 flex items-center overflow-hidden rounded-lg border border-line bg-surface-elevated/95 shadow-sm">
+        <button
+          type="button"
+          aria-label="축소"
+          onClick={() => zoomAtCenter(1 / 1.25)}
+          className="h-9 w-9 text-lg text-text-strong hover:bg-panel-soft"
+        >
+          −
+        </button>
+        <span className="min-w-14 border-x border-line px-2 text-center text-xs tabular-nums text-text-muted">
+          {Math.round(camera.zoom * 100)}%
+        </span>
+        <button
+          type="button"
+          aria-label="확대"
+          onClick={() => zoomAtCenter(1.25)}
+          className="h-9 w-9 text-lg text-text-strong hover:bg-panel-soft"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={() => setCamera(initialCamera)}
+          className="h-9 border-l border-line px-3 text-xs font-bold text-text-strong hover:bg-panel-soft"
+        >
+          경로 맞춤
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -136,6 +267,7 @@ function EvacuationPage() {
   const [data, setData] = useState<LoadedEvacuation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -155,6 +287,8 @@ function EvacuationPage() {
     let active = true;
     const numericZoneId = Number(zoneId);
     async function load() {
+      setIsLoading(true);
+      setErrorMessage(null);
       try {
         const zones = await zoneApi.myZones();
         const zone = zones.find((entry) => entry.zoneId === numericZoneId);
@@ -190,12 +324,17 @@ function EvacuationPage() {
     return () => {
       active = false;
     };
-  }, [zoneId]);
+  }, [zoneId, retryCount]);
 
   const presentation =
-    data === null ? null : evacuationStatusPresentation(data.route.status, data.route.exitChoice);
+    data === null
+      ? null
+      : evacuationStatusPresentation(
+          data.route.status,
+          data.route.exitChoice,
+          data.route.unavailableReason,
+        );
   const recommendedName = data?.route.recommendedExitName ?? null;
-  const narrowWarning = data === null ? null : narrowPassageWarning(data.route.narrowestMeters);
 
   return (
     <main className="bg-background">
@@ -229,6 +368,7 @@ function EvacuationPage() {
           <Card className="mt-4">
             <ErrorState
               message={errorMessage ?? '대피 경로를 불러오지 못했습니다.'}
+              onRetry={() => setRetryCount((count) => count + 1)}
               className="w-full"
             />
           </Card>
@@ -241,14 +381,15 @@ function EvacuationPage() {
               {presentation.message}
             </p>
 
-            {narrowWarning !== null ? (
-              <p className="mt-3 rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 text-sm font-medium text-danger-strong">
-                {narrowWarning}
+            {data.route.originAdjusted ? (
+              <p className="mt-3 rounded-lg border border-line bg-panel-soft px-4 py-3 text-sm text-text-muted">
+                구역 중심에 구조물이 있어 구역 내 가장 가까운 통행 가능 지점에서 경로를
+                계산했습니다.
               </p>
             ) : null}
 
             <Card className="mt-4">
-              <dl className="grid gap-3 sm:grid-cols-4">
+              <dl className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <dt className="text-xs text-text-muted">안내 비상구</dt>
                   <dd className="mt-1 text-sm font-bold text-text-strong">
@@ -267,21 +408,13 @@ function EvacuationPage() {
                     {presentation.hasRoute ? `약 ${Math.round(data.route.distanceMeters)}m` : '-'}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-text-muted">가장 좁은 구간</dt>
-                  <dd className="mt-1 text-sm font-medium tabular-nums text-text-strong">
-                    {presentation.hasRoute
-                      ? `약 ${(data.route.narrowestMeters * 2).toFixed(1)}m 폭`
-                      : '-'}
-                  </dd>
-                </div>
               </dl>
             </Card>
 
             <Card padded={false} className="mt-4 overflow-hidden">
               <div
                 ref={containerRef}
-                role="img"
+                role="application"
                 aria-label={
                   presentation.hasRoute && recommendedName !== null
                     ? `${data.zone.zoneName}에서 ${recommendedName}까지의 대피 경로`

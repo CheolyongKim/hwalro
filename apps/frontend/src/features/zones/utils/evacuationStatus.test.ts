@@ -23,6 +23,16 @@ describe('evacuationStatusPresentation', () => {
     expect(evacuationStatusPresentation('AVAILABLE', 'NEAREST').message).toContain('가장 가까운');
     expect(evacuationStatusPresentation('AVAILABLE', 'ASSIGNED').message).toContain('지정된');
   });
+
+  it('지정 출구 누락과 구역 내부 시작점 부재를 구체적으로 구분한다', () => {
+    expect(
+      evacuationStatusPresentation('NOT_CONFIGURED', 'ASSIGNED', 'ASSIGNED_EXIT_NOT_FOUND').message,
+    ).toContain('현재 도면에 없습니다');
+    expect(
+      evacuationStatusPresentation('UNREACHABLE', 'NEAREST', 'NO_WALKABLE_ORIGIN_IN_ZONE')
+        .message,
+    ).toContain('담당 구역 안');
+  });
 });
 
 describe('narrowPassageWarning', () => {
@@ -38,5 +48,6 @@ describe('narrowPassageWarning', () => {
 
   it('경로가 없으면 경고할 것도 없다', () => {
     expect(narrowPassageWarning(0)).toBeNull();
+    expect(narrowPassageWarning(null)).toBeNull();
   });
 });
