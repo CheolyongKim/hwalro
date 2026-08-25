@@ -74,13 +74,9 @@ export const BUILDING_FLOORS: BuildingFloor[] = [
   },
 ];
 
-export const FLOORS_BY_ID: Record<FloorId, BuildingFloor> = BUILDING_FLOORS.reduce(
-  (acc, floor) => {
-    acc[floor.id] = floor;
-    return acc;
-  },
-  {} as Record<FloorId, BuildingFloor>,
-);
+export const FLOORS_BY_ID = Object.fromEntries(
+  BUILDING_FLOORS.map((floor) => [floor.id, floor]),
+) as Record<FloorId, BuildingFloor>;
 
 export const LINKED_FLOOR_IDS: ReadonlySet<FloorId> = new Set(
   BUILDING_FLOORS.filter((floor) => floor.linked).map((floor) => floor.id),
