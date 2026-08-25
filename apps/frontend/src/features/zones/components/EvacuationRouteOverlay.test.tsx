@@ -11,14 +11,22 @@ import { EvacuationRouteOverlay } from './EvacuationRouteOverlay';
 const batchDraw = vi.fn();
 
 vi.mock('react-konva', () => ({
-  Group: ({ children }: PropsWithChildren) => children ?? null,
+  Group: forwardRef(function MockGroup({ children }: PropsWithChildren, ref) {
+    useImperativeHandle(ref, () => ({
+      getLayer: () => ({ batchDraw }),
+    }));
+    return children ?? null;
+  }),
   Line: forwardRef(function MockLine(_props, ref) {
     useImperativeHandle(ref, () => ({
-      dashOffset: vi.fn(() => 0),
+      position: vi.fn(),
+      rotation: vi.fn(),
+      visible: vi.fn(),
       getLayer: () => ({ batchDraw }),
     }));
     return null;
   }),
+  Circle: () => null,
 }));
 
 const route: EvacuationRoute = {

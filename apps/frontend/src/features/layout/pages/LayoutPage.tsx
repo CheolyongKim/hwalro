@@ -46,11 +46,11 @@ import { authApi } from '../../auth/api/authApi';
 import { useAuth } from '../../auth/context/AuthContext';
 import { can } from '../../auth/capabilities';
 import type { EmployeeSummary } from '../../auth/types/auth';
-import type { ZoneRect, ZoneType } from '../api/layoutMetadataApi';
+import { layoutMetadataApi, type ZoneRect, type ZoneType } from '../api/layoutMetadataApi';
 import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
 import { RiskZoneEditorDialog } from '../../risks/components/RiskZoneEditorDialog';
-import { zoneApi, type EvacuationRoute } from '../../zones/api/zoneApi';
+import type { EvacuationRoute } from '../../zones/api/zoneApi';
 import { EvacuationRoutePanel } from '../../zones/components/EvacuationRoutePanel';
 import '../layout.css';
 
@@ -183,21 +183,30 @@ function LayoutPage() {
         setEvacuationRoutesError(null);
         return;
       }
-      if (selectedZoneId === null || evacuationRequestRef.current !== null) return;
+      if (selectedZoneId === null || layoutId === null || evacuationRequestRef.current !== null)
+        return;
       const zoneId = selectedZoneId;
       const sequence = ++evacuationRequestSequenceRef.current;
       setEnabledEvacuationZoneId(zoneId);
       setEvacuationRoutesLoading(true);
       setEvacuationRoutesError(null);
-      const request = zoneApi
-        .evacuationRoute(zoneId)
-        .then((route) => {
-          if (evacuationRequestSequenceRef.current === sequence) setEvacuationRoute(route);
+      const request = layoutMetadataApi
+        .evacuationRoutes(layoutId)
+        .then((routes) => {
+          if (evacuationRequestSequenceRef.current === sequence) {
+            const matched = routes.find((r) => r.zoneId === zoneId) ?? null;
+            if (matched !== null) {
+              setEvacuationRoute(matched);
+            } else {
+              setEvacuationRoute(null);
+              setEvacuationRoutesError('해당 구역의 대피 경로 정보를 찾을 수 없습니다.');
+            }
+          }
         })
         .catch(() => {
           if (evacuationRequestSequenceRef.current === sequence) {
             setEnabledEvacuationZoneId(null);
-            setEvacuationRoutesError('대피 동선을 불러오지 못했습니다. 다시 선택해 주세요.');
+            setEvacuationRoutesError('대피 동선을 불러오지 못했습니다. 다시 시도해 주세요.');
           }
         })
         .finally(() => {
@@ -208,7 +217,7 @@ function LayoutPage() {
         });
       evacuationRequestRef.current = request;
     },
-    [selectedZoneId],
+    [layoutId, selectedZoneId],
   );
 
   const visibleEvacuationRoutes =
