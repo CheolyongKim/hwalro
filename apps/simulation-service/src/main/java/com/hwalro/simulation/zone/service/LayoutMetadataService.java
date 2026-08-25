@@ -61,6 +61,7 @@ public class LayoutMetadataService {
         List<LayoutZone> zones = layoutZoneService.zones(versionId);
         List<LayoutZoneMember> memberships = layoutZoneService.memberships(versionId);
         List<Fabric> fabrics = layoutZoneService.fabrics(versionId);
+        Map<Long, Boolean> wallContacts = layoutZoneService.wallContacts(versionId, fabrics);
 
         List<LayoutZone> visibleZones = privileged
                 ? zones
@@ -93,7 +94,9 @@ public class LayoutMetadataService {
                         fabric.getMovable(),
                         fabric.getMaxMovementDistance(),
                         fabric.getRotationLocked(),
-                        fabric.getKeepAgainstWall()))
+                        Boolean.TRUE.equals(fabric.getKeepAgainstWall())
+                                && wallContacts.getOrDefault(fabric.getId(), false),
+                        wallContacts.getOrDefault(fabric.getId(), false)))
                 .toList();
 
         List<ZoneResponse> zoneResponses = visibleZones.stream()

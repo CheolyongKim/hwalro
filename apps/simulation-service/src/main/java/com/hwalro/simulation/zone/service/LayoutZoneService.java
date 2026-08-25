@@ -76,6 +76,17 @@ public class LayoutZoneService {
         return drawingMapper.findFabricsByVersionId(layoutVersionId);
     }
 
+    public Map<Long, Boolean> wallContacts(Long layoutVersionId, List<Fabric> fabrics) {
+        List<com.hwalro.simulation.drawing.domain.Wall> walls = drawingMapper.findWallsByVersionId(layoutVersionId);
+        List<com.hwalro.simulation.drawing.domain.OutsideWall> outsideWalls =
+                drawingMapper.findOutsideWallsByVersionId(layoutVersionId);
+        Map<Long, Boolean> result = new HashMap<>();
+        for (Fabric fabric : fabrics) {
+            result.put(fabric.getId(), WallContactEvaluator.touches(fabric, walls, outsideWalls));
+        }
+        return Map.copyOf(result);
+    }
+
     public List<AssignedZoneRow> assignedZones(Long userId) {
         return layoutZoneMapper.findAssignedZonesByUserId(userId);
     }
@@ -186,6 +197,13 @@ public class LayoutZoneService {
             fabric.setRotationLocked(request.rotationLocked());
         }
         if (request.keepAgainstWall() != null) {
+            if (request.keepAgainstWall()
+                    && !WallContactEvaluator.touches(
+                            fabric,
+                            drawingMapper.findWallsByVersionId(versionId),
+                            drawingMapper.findOutsideWallsByVersionId(versionId))) {
+                throw new IllegalArgumentException("벽에 닿아 있지 않은 구조물에는 벽 유지 제약을 설정할 수 없습니다.");
+            }
             fabric.setKeepAgainstWall(request.keepAgainstWall());
         }
         if (request.clearMaxMovementDistance()) {

@@ -31,8 +31,11 @@ public class SearchConstraintProjector {
         Map<Long, Double> moveRadii = new LinkedHashMap<>();
         Map<Long, Boolean> rotationAllowed = new LinkedHashMap<>();
         Map<Long, Boolean> wallAnchored = new LinkedHashMap<>();
+        List<Fabric> fabrics = drawingMapper.findFabricsByVersionId(layoutVersionId);
+        var walls = drawingMapper.findWallsByVersionId(layoutVersionId);
+        var outsideWalls = drawingMapper.findOutsideWallsByVersionId(layoutVersionId);
 
-        for (Fabric fabric : drawingMapper.findFabricsByVersionId(layoutVersionId)) {
+        for (Fabric fabric : fabrics) {
             boolean movable = !Boolean.FALSE.equals(fabric.getMovable());
             if (!movable) {
                 moveRadii.put(fabric.getId(), 0.0);
@@ -41,7 +44,10 @@ public class SearchConstraintProjector {
             }
             // 이동 가능 + 거리 미지정이면 키를 넣지 않는다. 엔진에서 그것이 "무제한"이다.
             rotationAllowed.put(fabric.getId(), !Boolean.TRUE.equals(fabric.getRotationLocked()));
-            wallAnchored.put(fabric.getId(), Boolean.TRUE.equals(fabric.getKeepAgainstWall()));
+            wallAnchored.put(
+                    fabric.getId(),
+                    Boolean.TRUE.equals(fabric.getKeepAgainstWall())
+                            && WallContactEvaluator.touches(fabric, walls, outsideWalls));
         }
 
         // 배치 제외 영역은 EXCLUSION 유형 구역이다. 사각형을 두 종류로 나눠 관리하지 않는다.

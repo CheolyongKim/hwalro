@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.hwalro.simulation.drawing.domain.Fabric;
+import com.hwalro.simulation.drawing.domain.Wall;
 import com.hwalro.simulation.drawing.mapper.DrawingMapper;
 import com.hwalro.simulation.search.domain.SearchConstraints;
 import com.hwalro.simulation.zone.domain.LayoutZone;
@@ -30,7 +31,13 @@ class SearchConstraintProjectorTest {
     private LayoutZoneMapper layoutZoneMapper;
 
     private SearchConstraints project(List<Fabric> fabrics, List<LayoutZone> zones) {
+        return project(fabrics, zones, List.of());
+    }
+
+    private SearchConstraints project(List<Fabric> fabrics, List<LayoutZone> zones, List<Wall> walls) {
         when(drawingMapper.findFabricsByVersionId(VERSION_ID)).thenReturn(fabrics);
+        when(drawingMapper.findWallsByVersionId(VERSION_ID)).thenReturn(walls);
+        when(drawingMapper.findOutsideWallsByVersionId(VERSION_ID)).thenReturn(List.of());
         when(layoutZoneMapper.findZonesByVersionId(VERSION_ID)).thenReturn(zones);
         return new SearchConstraintProjector(drawingMapper, layoutZoneMapper).project(VERSION_ID);
     }
@@ -39,6 +46,11 @@ class SearchConstraintProjectorTest {
         Fabric fabric = new Fabric();
         fabric.setId(id);
         fabric.setLayoutVersionId(VERSION_ID);
+        fabric.setStartX(BigDecimal.ONE);
+        fabric.setStartY(BigDecimal.ONE);
+        fabric.setEndX(BigDecimal.valueOf(3));
+        fabric.setEndY(BigDecimal.valueOf(2));
+        fabric.setRotation(BigDecimal.ZERO);
         fabric.setMovable(movable);
         fabric.setMaxMovementDistance(maxDistance);
         fabric.setRotationLocked(locked);
@@ -78,11 +90,20 @@ class SearchConstraintProjectorTest {
     }
 
     @Test
-    void keepAgainstWallMapsStraightThrough() {
+    void keepAgainstWallIsKeptOnlyWhileTheStructureStillTouchesAWall() {
         SearchConstraints constraints = project(
-                List.of(fabric(20L, true, null, false, true), fabric(21L, true, null, false, false)), List.of());
+                List.of(fabric(20L, true, null, false, true), fabric(21L, true, null, false, false)),
+                List.of(),
+                List.of(wall(0, 2, 5, 2)));
 
         assertThat(constraints.wallAnchored()).containsEntry(20L, true).containsEntry(21L, false);
+    }
+
+    @Test
+    void staleWallConstraintIsNormalizedToFalse() {
+        SearchConstraints constraints = project(List.of(fabric(20L, true, null, false, true)), List.of());
+
+        assertThat(constraints.wallAnchored()).containsEntry(20L, false);
     }
 
     @Test
@@ -107,6 +128,15 @@ class SearchConstraintProjectorTest {
         zone.setWidth(BigDecimal.valueOf(width));
         zone.setHeight(BigDecimal.valueOf(height));
         return zone;
+    }
+
+    private static Wall wall(double startX, double startY, double endX, double endY) {
+        Wall wall = new Wall();
+        wall.setStartX(BigDecimal.valueOf(startX));
+        wall.setStartY(BigDecimal.valueOf(startY));
+        wall.setEndX(BigDecimal.valueOf(endX));
+        wall.setEndY(BigDecimal.valueOf(endY));
+        return wall;
     }
 
     @Test

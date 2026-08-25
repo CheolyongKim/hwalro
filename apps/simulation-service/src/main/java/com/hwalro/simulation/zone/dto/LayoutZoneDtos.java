@@ -57,7 +57,8 @@ public final class LayoutZoneDtos {
             Boolean movable,
             BigDecimal maxMovementDistance,
             Boolean rotationLocked,
-            Boolean keepAgainstWall) {}
+            Boolean keepAgainstWall,
+            boolean wallContact) {}
 
     /** 부분 갱신. null 필드는 "변경 없음". {@code movable=false}이면 이동 거리는 무시하고 NULL로 저장한다. */
     public record StructureConstraintUpdateRequest(
