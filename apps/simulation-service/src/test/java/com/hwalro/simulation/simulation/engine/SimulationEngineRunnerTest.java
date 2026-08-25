@@ -205,6 +205,25 @@ class SimulationEngineRunnerTest {
     }
 
     @Test
+    void readsStrictNoWalkableOriginFailure(@TempDir Path temporaryDirectory) throws Exception {
+        Path output = temporaryDirectory.resolve("output");
+        Files.createDirectories(output);
+        Files.writeString(
+                output.resolve("error.json"),
+                """
+                {"schemaVersion":1,"code":"NO_WALKABLE_ORIGIN_IN_ZONE","agentId":1}
+                """);
+
+        var detail = runner(temporaryDirectory).readFailureDetail(output, setup());
+
+        assertThat(detail).isNotNull();
+        assertThat(detail.code()).isEqualTo(SimulationEngineRunner.NO_WALKABLE_ORIGIN_CODE);
+        assertThat(detail.agentId()).isEqualTo(1L);
+        assertThat(detail.currentPosition()).isEqualTo(new PointDto(BigDecimal.ONE, BigDecimal.ONE));
+        assertThat(detail.selectedExitIds()).containsExactly(501L);
+    }
+
+    @Test
     void rejectsInvalidNoReachableExitFailureSidecars(@TempDir Path temporaryDirectory) throws Exception {
         Path output = temporaryDirectory.resolve("output");
         Files.createDirectories(output);

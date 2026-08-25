@@ -16,6 +16,7 @@ from route_planner import (
     build_walkable_geometry,
     edge_cost,
     hazard_multiplier,
+    relocate_agent_within_bounds,
     select_accessible_component,
     select_agent_component,
     split_agent_components,
@@ -108,6 +109,22 @@ class PlanCostTest(unittest.TestCase):
 
 
 class GeometryTest(unittest.TestCase):
+    def test_relocates_a_blocked_origin_without_leaving_zone_bounds(self):
+        routing = box(0, 0, 6, 6).difference(box(2, 2, 4, 4))
+
+        relocated = relocate_agent_within_bounds(routing, (3, 3), (1, 1, 4, 4))
+
+        self.assertIsNotNone(relocated)
+        self.assertTrue(box(1, 1, 5, 5).covers(Point(relocated)))
+        self.assertTrue(routing.covers(Point(relocated)))
+
+    def test_returns_none_instead_of_relocating_outside_a_fully_blocked_zone(self):
+        routing = box(0, 0, 6, 6).difference(box(2, 2, 4, 4))
+
+        relocated = relocate_agent_within_bounds(routing, (3, 3), (2.2, 2.2, 1.6, 1.6))
+
+        self.assertIsNone(relocated)
+
     def test_exit_parser_repairs_only_small_outside_rounding_error(self):
         drawing = {
             "outsideBoundary": [

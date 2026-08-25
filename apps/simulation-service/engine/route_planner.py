@@ -322,6 +322,20 @@ def relocate_agents(
     return tuple(positions), tuple(relocations)
 
 
+def relocate_agent_within_bounds(
+    routing_area,
+    agent: Point,
+    bounds: tuple[float, float, float, float],
+) -> Point | None:
+    """Return the nearest walkable point inside the requested zone bounds."""
+    x, y, width, height = bounds
+    bounded = routing_area.intersection(box(x, y, x + width, y + height))
+    if bounded.is_empty or bounded.area <= _EPSILON:
+        return None
+    relocated, _changes = relocate_agents(bounded, (agent,))
+    return relocated[0]
+
+
 def containing_component(area, contained):
     """Return the physical component containing a routing component."""
     components = list(area.geoms) if area.geom_type == "MultiPolygon" else [area]

@@ -77,6 +77,10 @@ class NoReachableSelectedExitRunnerError(RunnerError):
     pass
 
 
+class NoWalkableOriginInZoneRunnerError(RunnerError):
+    pass
+
+
 class RecoveryMutationRollbackRunnerError(RunnerError):
     pass
 
@@ -429,6 +433,7 @@ def run(
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            relocate_agent_within_bounds,
             relocate_agents,
             split_agent_components,
             usable_exit_segment,
@@ -444,6 +449,7 @@ def run(
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            relocate_agent_within_bounds,
             relocate_agents,
             split_agent_components,
             usable_exit_segment,
@@ -517,6 +523,9 @@ def run(
     if not isinstance(recovery_value, bool):
         raise RunnerError("recoveryDetectorEnabled must be a boolean")
     recovery_enabled = recovery_value
+    route_origin_bounds = (
+        _route_origin_bounds(payload.get("routeOriginBounds")) if route_preview else None
+    )
 
     try:
         hazards = parse_hazards(hazards_value)
@@ -525,7 +534,30 @@ def run(
             usable_exit_segment(exit_, AGENT_RADIUS_METERS)
         walkable = build_walkable_geometry(drawing)
         routing_area = build_routing_geometry(drawing, AGENT_RADIUS_METERS)
-        agents, relocations = relocate_agents(routing_area, agents)
+        original_agents = tuple(agents)
+        if route_origin_bounds is not None:
+            if len(agents) != 1:
+                raise RunnerError("routeOriginBounds requires exactly one agent")
+            relocated = relocate_agent_within_bounds(
+                routing_area, agents[0], route_origin_bounds
+            )
+            if relocated is None:
+                output_dir.mkdir(parents=True, exist_ok=True)
+                _write_json(
+                    output_dir / "error.json",
+                    {
+                        "schemaVersion": 1,
+                        "code": "NO_WALKABLE_ORIGIN_IN_ZONE",
+                        "agentId": 1,
+                    },
+                )
+                raise NoWalkableOriginInZoneRunnerError(
+                    "NO_WALKABLE_ORIGIN_IN_ZONE"
+                )
+            agents = (relocated,)
+            relocations = ()
+        else:
+            agents, relocations = relocate_agents(routing_area, agents)
         groups = split_agent_components(routing_area, agents)
     except ValueError as exc:
         raise RunnerError(str(exc)) from exc
@@ -640,25 +672,44 @@ def run(
     # and stops short of building JuPedSim contexts, which is the expensive part.
     if route_preview:
         output_dir.mkdir(parents=True, exist_ok=True)
+        serialized_routes = []
+        for index in sorted(routes_by_index):
+            route = routes_by_index[index]
+            waypoints = list(route.waypoints)
+            if not waypoints or math.dist(agents[index], waypoints[0]) > 1e-9:
+                waypoints.insert(0, agents[index])
+            if not waypoints or math.dist(waypoints[-1], route.terminal_point) > 1e-9:
+                waypoints.append(route.terminal_point)
+            distance_meters = sum(
+                math.dist(start, end) for start, end in zip(waypoints, waypoints[1:])
+            )
+            serialized_routes.append(
+                {
+                    "agentId": index + 1,
+                    "exitId": route.exit_id,
+                    "routeOrigin": {
+                        "x": _rounded(agents[index][0]),
+                        "y": _rounded(agents[index][1]),
+                    },
+                    "originAdjusted": math.dist(
+                        original_agents[index], agents[index]
+                    )
+                    > 1e-9,
+                    "distanceMeters": _rounded(distance_meters),
+                    "waypoints": [
+                        {"x": _rounded(x), "y": _rounded(y)} for x, y in waypoints
+                    ],
+                    "terminalPoint": {
+                        "x": _rounded(route.terminal_point[0]),
+                        "y": _rounded(route.terminal_point[1]),
+                    },
+                }
+            )
         _write_json(
             output_dir / "routes.json",
             {
                 "schemaVersion": 1,
-                "routes": [
-                    {
-                        "agentId": index + 1,
-                        "exitId": routes_by_index[index].exit_id,
-                        "waypoints": [
-                            {"x": _rounded(x), "y": _rounded(y)}
-                            for x, y in routes_by_index[index].waypoints
-                        ],
-                        "terminalPoint": {
-                            "x": _rounded(routes_by_index[index].terminal_point[0]),
-                            "y": _rounded(routes_by_index[index].terminal_point[1]),
-                        },
-                    }
-                    for index in sorted(routes_by_index)
-                ],
+                "routes": serialized_routes,
             },
         )
         if phase_profile is not None:
@@ -1905,6 +1956,23 @@ def _agents(value: Any) -> list[tuple[float, float]]:
     return result
 
 
+def _route_origin_bounds(value: Any) -> tuple[float, float, float, float] | None:
+    if value is None:
+        return None
+    item = _object(value, "routeOriginBounds")
+    try:
+        bounds = tuple(float(item[key]) for key in ("x", "y", "width", "height"))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RunnerError(
+            "routeOriginBounds must contain numeric x, y, width and height"
+        ) from exc
+    if not all(math.isfinite(number) for number in bounds):
+        raise RunnerError("routeOriginBounds values must be finite")
+    if bounds[2] <= 0 or bounds[3] <= 0:
+        raise RunnerError("routeOriginBounds width and height must be positive")
+    return bounds
+
+
 def _rounded(value: Any) -> float:
     return round(float(value), 6)
 
@@ -1957,6 +2025,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     except NoReachableSelectedExitRunnerError:
         print("runner error: NO_REACHABLE_SELECTED_EXIT", file=sys.stderr)
+        return 3
+    except NoWalkableOriginInZoneRunnerError:
+        print("runner error: NO_WALKABLE_ORIGIN_IN_ZONE", file=sys.stderr)
         return 3
     except AgentRouteUnreachableRunnerError:
         print("runner error: AGENT_ROUTE_UNREACHABLE", file=sys.stderr)

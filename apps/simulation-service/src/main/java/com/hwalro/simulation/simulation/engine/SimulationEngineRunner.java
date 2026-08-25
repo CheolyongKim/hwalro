@@ -35,6 +35,7 @@ public class SimulationEngineRunner {
     private static final int ROUTING_ERROR_EXIT_CODE = 3;
     public static final String ROUTING_ERROR_CODE = "AGENT_ROUTE_UNREACHABLE";
     public static final String NO_REACHABLE_EXIT_CODE = "NO_REACHABLE_SELECTED_EXIT";
+    public static final String NO_WALKABLE_ORIGIN_CODE = "NO_WALKABLE_ORIGIN_IN_ZONE";
     private static final BigDecimal MAX_COORDINATE = BigDecimal.valueOf(1_000_000);
 
     private final ObjectMapper objectMapper;
@@ -165,6 +166,12 @@ public class SimulationEngineRunner {
      */
     public List<PreviewedRoute> previewRoutes(String jobLabel, SimulationSetupResponse setup)
             throws EngineRunException {
+        return previewRoutes(jobLabel, setup, null);
+    }
+
+    public List<PreviewedRoute> previewRoutes(
+            String jobLabel, SimulationSetupResponse setup, RouteOriginBounds routeOriginBounds)
+            throws EngineRunException {
         Path jobDirectory = null;
         Process process = null;
         try {
@@ -174,7 +181,11 @@ public class SimulationEngineRunner {
                     .normalize();
             Path inputPath = jobDirectory.resolve("input.json");
             Path outputDirectory = jobDirectory.resolve("output");
-            objectMapper.writeValue(inputPath.toFile(), createInput(setup));
+            Map<String, Object> input = createInput(setup);
+            if (routeOriginBounds != null) {
+                input.put("routeOriginBounds", routeOriginBounds);
+            }
+            objectMapper.writeValue(inputPath.toFile(), input);
 
             process = new ProcessBuilder(
                             pythonCommand,
@@ -191,6 +202,12 @@ public class SimulationEngineRunner {
             }
             String diagnostic = output.await();
             if (process.exitValue() != 0) {
+                if (process.exitValue() == ROUTING_ERROR_EXIT_CODE) {
+                    SimulationFailureDetailResponse failureDetail = readFailureDetail(outputDirectory, setup);
+                    if (failureDetail != null) {
+                        throw new EngineRunException("ENGINE_ROUTING_ERROR: 대피 경로를 계산하지 못했습니다.", false, failureDetail);
+                    }
+                }
                 log.warn("Route preview {} failed with exit code {}: {}", jobLabel, process.exitValue(), diagnostic);
                 throw new EngineRunException("ENGINE_ERROR: 대피 경로를 계산하지 못했습니다.", false);
             }
@@ -230,13 +247,37 @@ public class SimulationEngineRunner {
                 }
             }
             JsonNode exitId = route.get("exitId");
-            parsed.add(new PreviewedRoute(exitId == null || exitId.isNull() ? null : exitId.asLong(), waypoints));
+            PointDto routeOrigin = readPoint(route.get("routeOrigin"));
+            JsonNode adjusted = route.get("originAdjusted");
+            JsonNode distance = route.get("distanceMeters");
+            if (routeOrigin == null
+                    || adjusted == null
+                    || !adjusted.isBoolean()
+                    || distance == null
+                    || !distance.isNumber()
+                    || !Double.isFinite(distance.doubleValue())
+                    || distance.doubleValue() < 0) {
+                throw new IOException("대피 경로 응답 값이 올바르지 않습니다.");
+            }
+            parsed.add(new PreviewedRoute(
+                    exitId == null || exitId.isNull() ? null : exitId.asLong(),
+                    routeOrigin,
+                    adjusted.booleanValue(),
+                    distance.doubleValue(),
+                    waypoints));
         }
         return List.copyOf(parsed);
     }
 
     /** 대피 경로 미리보기 결과 한 건. 시뮬레이션 식별자나 지표는 담지 않는다. */
-    public record PreviewedRoute(Long exitId, List<PointDto> waypoints) {}
+    public record PreviewedRoute(
+            Long exitId,
+            PointDto routeOrigin,
+            boolean originAdjusted,
+            double distanceMeters,
+            List<PointDto> waypoints) {}
+
+    public record RouteOriginBounds(BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height) {}
 
     public EngineRun run(Long simulationId, SimulationSetupResponse setup) throws EngineRunException {
         return run(simulationId, setup, maxSimulationTimeSeconds);
@@ -459,10 +500,37 @@ public class SimulationEngineRunner {
             if (NO_REACHABLE_EXIT_CODE.equals(codeValue)) {
                 return readNoReachableExitDetail(root, setup);
             }
+            if (NO_WALKABLE_ORIGIN_CODE.equals(codeValue)) {
+                return readNoWalkableOriginDetail(root, setup);
+            }
             return null;
         } catch (IOException | RuntimeException exception) {
             return null;
         }
+    }
+
+    private SimulationFailureDetailResponse readNoWalkableOriginDetail(JsonNode root, SimulationSetupResponse setup) {
+        if (root.size() != 3
+                || !root.has("agentId")
+                || !NO_WALKABLE_ORIGIN_CODE.equals(root.get("code").textValue())) {
+            return null;
+        }
+        JsonNode agentId = root.get("agentId");
+        if (!agentId.isIntegralNumber()
+                || !agentId.canConvertToInt()
+                || agentId.intValue() < 1
+                || agentId.intValue() > setup.agentPositions().size()) {
+            return null;
+        }
+        return new SimulationFailureDetailResponse(
+                NO_WALKABLE_ORIGIN_CODE,
+                agentId.longValue(),
+                setup.agentPositions().get(agentId.intValue() - 1),
+                null,
+                null,
+                null,
+                setup.selectedExitIds(),
+                null);
     }
 
     private SimulationFailureDetailResponse readAgentRouteUnreachableDetail(
@@ -586,7 +654,7 @@ public class SimulationEngineRunner {
     }
 
     private static PointDto readPoint(JsonNode node) {
-        if (!node.isObject() || node.size() != 2 || !node.has("x") || !node.has("y")) {
+        if (node == null || !node.isObject() || node.size() != 2 || !node.has("x") || !node.has("y")) {
             return null;
         }
         JsonNode xNode = node.get("x");

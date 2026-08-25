@@ -571,6 +571,40 @@ class RoutePreviewModeTest(unittest.TestCase):
                     self.assertIsInstance(waypoint["y"], float)
                 self.assertIn("x", route["terminalPoint"])
                 self.assertIn("y", route["terminalPoint"])
+                self.assertEqual(route["waypoints"][-1], route["terminalPoint"])
+                self.assertEqual(route["routeOrigin"], route["waypoints"][0])
+                self.assertFalse(route["originAdjusted"])
+                self.assertGreater(route["distanceMeters"], 0)
+
+    def test_blocked_zone_does_not_move_the_route_origin_outside_the_zone(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            payload = AgentRouteErrorContractTest._payload()
+            payload["agents"] = [{"x": 1, "y": 1}]
+            payload["routeOriginBounds"] = {"x": 0.5, "y": 0.5, "width": 1, "height": 1}
+            payload["drawing"]["fabrics"] = [
+                {"startX": 0, "startY": 0, "endX": 2, "endY": 2, "rotation": 0}
+            ]
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = main(["--route-preview", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 3)
+            self.assertEqual(
+                json.loads((output_dir / "error.json").read_text("utf-8")),
+                {
+                    "schemaVersion": 1,
+                    "code": "NO_WALKABLE_ORIGIN_IN_ZONE",
+                    "agentId": 1,
+                },
+            )
+            self.assertFalse((output_dir / "routes.json").exists())
 
     def test_route_preview_wins_over_validate_only(self):
         with tempfile.TemporaryDirectory() as directory:
