@@ -5,6 +5,8 @@ import type { Risk } from '../../risks/types/risks';
 function risk(overrides: Partial<Risk> & Pick<Risk, 'id'>): Risk {
   return {
     simulationResultId: null,
+    layoutId: null,
+    layoutVersionId: null,
     assigneeId: null,
     assigneeName: null,
     title: `위험 ${overrides.id}`,
@@ -18,6 +20,7 @@ function risk(overrides: Partial<Risk> & Pick<Risk, 'id'>): Risk {
     attachedLaws: [],
     createdAt: '2026-08-01T09:00:00',
     simulationTitle: null,
+    layoutTitle: null,
     ...overrides,
   };
 }

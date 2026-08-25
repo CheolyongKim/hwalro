@@ -87,7 +87,7 @@ function RiskManagementPage() {
           <PageHeader
             eyebrow="안전 운영"
             title="위험 예상 항목 관리"
-            description="시뮬레이션과 현장 점검에서 발견한 위험을 담당자와 상태로 관리합니다."
+            description="도면과 시뮬레이션에서 발견한 위험을 도면 기준으로 관리합니다."
             actions={
               <Button size="lg" onClick={() => setIsCreateOpen(true)}>
                 위험 예상 항목 등록

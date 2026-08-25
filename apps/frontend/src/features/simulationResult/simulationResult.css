@@ -9,9 +9,6 @@
 .simulation-canvas--interactive {
   touch-action: none;
 }
-.simulation-canvas--interactive.is-drawing {
-  cursor: crosshair;
-}
 .floating-surface,
 .evacuation-chart {
   background: rgba(255, 255, 255, 0.9);
@@ -1085,26 +1082,6 @@
   position: absolute;
   top: 82px;
   left: 22px;
-}
-.risk-zone-button {
-  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 11px 16px;
-  color: var(--color-text-strong);
-  font-size: 12px;
-  font-weight: 800;
-  box-shadow: 0 12px 30px rgba(22, 55, 49, 0.12);
-  backdrop-filter: blur(14px);
-}
-.risk-zone-button:hover {
-  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
-  transform: translateY(-1px);
-}
-.risk-zone-button.is-active {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 94%, transparent);
-  color: var(--color-white);
 }
 .simulation-result-page button:not(:disabled),
 .simulation-result-page input[type='checkbox']:not(:disabled),
