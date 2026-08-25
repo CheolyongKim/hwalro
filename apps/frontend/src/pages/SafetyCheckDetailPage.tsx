@@ -49,7 +49,7 @@ function getResultIndicatorIcon(result: InspectionResult, displayOrder: number):
     case 'FAIL':
       return <X aria-hidden="true" className="h-4 w-4" />;
     default:
-      return <span className="text-xs font-black tabular-nums">{displayOrder}</span>;
+      return <span className="text-xs font-bold tabular-nums">{displayOrder}</span>;
   }
 }
 
@@ -289,7 +289,7 @@ function SafetyCheckDetailPage() {
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card padded={false} className="p-6">
-          <h2 className="text-lg font-black text-ink">점검 정보</h2>
+          <h2 className="text-lg font-bold text-ink">점검 정보</h2>
           <dl className="mt-6 space-y-5">
             <div>
               <dt className="text-xs font-bold text-text-muted">점검 구역</dt>
@@ -325,7 +325,7 @@ function SafetyCheckDetailPage() {
           <div
             className={`mt-8 rounded-xl border border-line p-5 ${getSummaryPanelClass(counts.fail, counts.review)}`}
           >
-            <p className="text-sm font-black text-ink">
+            <p className="text-sm font-bold text-ink">
               {getSummaryTitle(counts.fail, counts.review, counts.pending)}
             </p>
             <p className="mt-3 text-xs font-bold tabular-nums text-text-strong">
@@ -345,7 +345,7 @@ function SafetyCheckDetailPage() {
         <Card padded={false} className="p-5 sm:p-7">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-xl font-black text-ink">점검 항목</h2>
+              <h2 className="text-xl font-bold text-ink">점검 항목</h2>
               <p className="mt-2 text-sm text-text-muted">
                 각 항목의 판정과 현장 확인 내용을 기록하세요.
               </p>
@@ -436,7 +436,7 @@ function SafetyCheckDetailPage() {
                       {getResultIndicatorIcon(item.result, item.displayOrder)}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-sm font-black text-ink">{item.title}</h3>
+                      <h3 className="text-sm font-bold text-ink">{item.title}</h3>
                       <p className="mt-2 text-xs leading-5 text-text-muted">
                         {item.criterion ?? '별도 판정 기준 없음'}
                       </p>

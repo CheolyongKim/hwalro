@@ -22,6 +22,7 @@ import { PlaybackControls } from '../components/PlaybackControls';
 import { ReportDraftDialog } from '../components/ReportDraftDialog';
 import { ResultSummaryPanel } from '../components/ResultSummaryPanel';
 import { SimulationPlaybackStage } from '../components/SimulationPlaybackStage';
+import { SimulationViewToggle } from '../components/SimulationViewToggle';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback';
 import { useSimulationResultChunks } from '../hooks/useSimulationResultChunks';
@@ -38,6 +39,7 @@ import {
 import { calculateEvacuationRate } from '../utils/evacuationRate';
 import { findImprovedFabricDiff } from '../utils/improvedFabrics';
 import { selectFramePair } from '../utils/playback';
+import type { SimulationViewMode } from '../rendering/simulationViewMode';
 import '../simulationResult.css';
 import '../simulationResultMotion.css';
 
@@ -153,6 +155,7 @@ function ResultView({
   const [selectedBottleneckId, setSelectedBottleneckId] = useState<number | null>(
     rankedBottlenecks[0]?.id ?? null,
   );
+  const [viewMode, setViewMode] = useState<SimulationViewMode>('plan');
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
   const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
@@ -208,6 +211,9 @@ function ResultView({
     if (!improvementPanel.isMinimized) improvementPanel.collapse();
   };
 
+  const handleViewModeChange = (mode: SimulationViewMode) => {
+    setViewMode(mode);
+  };
   useEffect(() => {
     let active = true;
     setRiskLoadError(null);
@@ -314,6 +320,7 @@ function ResultView({
         selectedBottleneckId={selectedBottleneckId}
         showBottlenecks={bottlenecksVisible}
         riskZones={riskZones}
+        viewMode={viewMode}
         improvedFabricIndexes={
           viewingOrigin ? improvedFabricDiff.originIndexes : improvedFabricDiff.improvedIndexes
         }
@@ -361,6 +368,8 @@ function ResultView({
         status="완료"
         statusTone="complete"
       />
+
+      <SimulationViewToggle mode={viewMode} onChange={handleViewModeChange} />
 
       {riskLoadError && (
         <div className="risk-zone-control">

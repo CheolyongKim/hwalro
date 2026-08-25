@@ -209,7 +209,7 @@ function SafetyCheckHistoryPage() {
 
       <Card padded={false} className="mt-5 overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-7">
-          <h2 className="text-xl font-black text-ink">점검 이력</h2>
+          <h2 className="text-xl font-bold text-ink">점검 이력</h2>
         </div>
         {isLoading ? (
           <div className="space-y-5 p-5 sm:p-7">
@@ -258,7 +258,7 @@ function SafetyCheckHistoryPage() {
                       className="grid w-full cursor-pointer gap-4 px-5 py-4 text-left transition hover:bg-primary-soft/30 sm:px-7 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(0,1.35fr)_minmax(10rem,0.9fr)_minmax(14rem,1fr)_18rem]"
                     >
                       <div>
-                        <p className="font-black tabular-nums text-ink">
+                        <p className="font-bold tabular-nums text-ink">
                           {formatInspectionDate(inspection.createdAt)}
                         </p>
                         <p className="mt-1 text-xs tabular-nums text-text-muted">

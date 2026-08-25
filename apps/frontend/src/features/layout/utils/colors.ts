@@ -3,7 +3,7 @@ export const CANVAS_COLORS = {
   canvas: '#ffffff',
   ink: '#0d1917',
   outsideWall: '#2f766c',
-  exit: '#c9f438',
+  exit: '#0f766e',
   exitStrong: '#abcf30',
   gridMinor: '#eef1f0',
   gridMajor: '#dce3e0',

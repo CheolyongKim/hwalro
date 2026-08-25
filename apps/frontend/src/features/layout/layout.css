@@ -1,7 +1,7 @@
 .layout-canvas-wrap {
   position: absolute;
   inset: 0;
-  background: var(--color-background);
+  background: var(--color-canvas-surround);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -124,17 +124,17 @@
 
 .layout-panel-actions__header small {
   display: block;
-  color: #9cb2ad;
-  font-size: 8px;
+  color: var(--color-workspace-muted);
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
 .layout-panel-actions__header h2 {
   margin: 3px 0 0;
-  color: var(--color-white);
+  color: var(--color-workspace-text);
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1.08;
 }
@@ -147,13 +147,14 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--color-white);
+  border-radius: 8px;
+  background: var(--color-workspace-raised);
+  color: var(--color-workspace-text);
 }
 
 .layout-panel-actions__collapse:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .layout-panel-actions__collapse svg {
@@ -186,13 +187,12 @@
   justify-content: center;
   gap: 6px;
   overflow-x: auto;
-  border: 1px solid rgba(151, 177, 170, 0.16);
-  border-radius: 999px;
-  background: rgba(15, 48, 42, 0.92);
+  border: 1px solid var(--color-workspace-line);
+  border-radius: 12px;
+  background: var(--color-workspace-panel);
   padding: 7px 10px;
-  box-shadow: 0 18px 40px rgba(10, 39, 34, 0.25);
+  box-shadow: var(--shadow-raised);
   scrollbar-width: none;
-  backdrop-filter: blur(16px) saturate(115%);
 }
 
 .layout-tool-toolbar::-webkit-scrollbar {
@@ -204,8 +204,8 @@
   min-width: 52px;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: var(--color-workspace-raised);
   padding: 0 10px;
   color: var(--color-panel-text);
   font-size: 12px;
@@ -217,14 +217,14 @@
 }
 
 .layout-tool-button:not(.is-active):not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.14);
-  transform: translateY(-1px);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .layout-tool-button.is-active {
-  background: var(--color-lime);
-  color: var(--color-ink-deep);
-  font-weight: 900;
+  background: var(--color-primary);
+  color: white;
+  font-weight: 700;
 }
 
 .layout-tool-button:disabled {
@@ -243,18 +243,17 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  border: 1px solid rgba(151, 177, 170, 0.4);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--color-workspace-line);
+  border-radius: 10px;
+  background: var(--color-workspace-panel);
   padding: 5px;
-  box-shadow: 0 12px 30px rgba(22, 55, 49, 0.12);
-  color: var(--color-text-strong);
-  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-raised);
+  color: var(--color-workspace-text);
 }
 
 .layout-zoom-control button {
   border: 0;
-  border-radius: 999px;
+  border-radius: 6px;
   background: transparent;
   color: inherit;
   font-weight: 700;
@@ -318,7 +317,6 @@
   }
 
   .layout-zoom-control {
-    background: var(--color-white);
-    backdrop-filter: none;
+    background: var(--color-workspace-panel);
   }
 }
