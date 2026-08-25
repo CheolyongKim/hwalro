@@ -11,6 +11,9 @@ import java.util.List;
  *
  * @param status {@code AVAILABLE} | {@code UNREACHABLE} | {@code NOT_CONFIGURED}
  * @param origin 구역 중심점. 걸을 수 없는 자리라 출발점을 옮겼더라도 요청한 중심점 그대로다.
+ * @param routeOrigin 실제 경로 계산에 사용한 시작점
+ * @param originAdjusted 구역 중심점에서 시작점을 보정했는지
+ * @param unavailableReason 경로를 제공하지 못한 구체적인 사유. 경로가 있으면 null
  * @param defaultExit 구역에 배정된 비상구. 배정이 없으면 null이다.
  * @param recommendedExitId 실제로 안내하는 비상구. 배정이 있으면 그것이고, 없으면 걸어서 가장 가까운 곳이다.
  * @param exitChoice {@code ASSIGNED}(배정된 비상구) | {@code NEAREST}(걸어서 가장 가까운 비상구)
@@ -21,11 +24,14 @@ public record EvacuationRouteResponse(
         Long zoneId,
         String zoneName,
         PointDto origin,
+        PointDto routeOrigin,
+        boolean originAdjusted,
         String status,
+        String unavailableReason,
         ExitDto defaultExit,
         Long recommendedExitId,
         String recommendedExitName,
         String exitChoice,
         double distanceMeters,
-        double narrowestMeters,
+        Double narrowestMeters,
         List<PointDto> waypoints) {}

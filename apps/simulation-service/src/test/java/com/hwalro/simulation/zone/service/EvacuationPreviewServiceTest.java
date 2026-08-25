@@ -2,6 +2,8 @@ package com.hwalro.simulation.zone.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import com.hwalro.simulation.common.jwt.ForbiddenException;
@@ -9,7 +11,15 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SegmentDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationFailureDetailResponse;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.PreviewedRoute;
+import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.RouteOriginBounds;
+import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableException;
 import com.hwalro.simulation.simulation.service.SimulationService;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.dto.EvacuationRouteResponse;
@@ -42,6 +52,9 @@ class EvacuationPreviewServiceTest {
 
     @Mock
     private SimulationService simulationService;
+
+    @Mock
+    private SimulationEngineRunner engineRunner;
 
     private EvacuationPreviewService service;
 
@@ -85,9 +98,20 @@ class EvacuationPreviewServiceTest {
     }
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         when(simulationService.layoutGeometry(VERSION_ID)).thenReturn(drawing());
-        service = new EvacuationPreviewService(layoutZoneService, drawingService, simulationService);
+        when(engineRunner.previewRoutes(anyString(), any(SimulationSetupResponse.class), any(RouteOriginBounds.class)))
+                .thenAnswer(invocation -> {
+                    SimulationSetupResponse setup = invocation.getArgument(1);
+                    Long exitId = setup.selectedExitIds().contains(FAR_EXIT_ID)
+                                    && setup.selectedExitIds().size() == 1
+                            ? FAR_EXIT_ID
+                            : NEAR_EXIT_ID;
+                    PointDto origin = setup.agentPositions().get(0);
+                    return List.of(new PreviewedRoute(
+                            exitId, origin, false, 12.5, List.of(origin, new PointDto(m(34), m(25)))));
+                });
+        service = new EvacuationPreviewService(layoutZoneService, drawingService, simulationService, engineRunner);
     }
 
     @Test
@@ -126,12 +150,24 @@ class EvacuationPreviewServiceTest {
         EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
 
         assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_NOT_CONFIGURED);
+        assertThat(response.unavailableReason()).isEqualTo(EvacuationPreviewService.REASON_NO_EXIT);
         assertThat(response.waypoints()).isEmpty();
         assertThat(response.recommendedExitId()).isNull();
     }
 
     @Test
-    void 벽으로_완전히_갇힌_구역은_도달_불가로_알린다() {
+    void 지정한_비상구가_현재_도면에_없으면_다른_출구로_전환하지_않는다() {
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(999L, EMPLOYEE_ID));
+
+        EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
+
+        assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_NOT_CONFIGURED);
+        assertThat(response.unavailableReason()).isEqualTo(EvacuationPreviewService.REASON_ASSIGNED_EXIT_NOT_FOUND);
+        assertThat(response.recommendedExitId()).isNull();
+    }
+
+    @Test
+    void 벽으로_완전히_갇힌_구역은_도달_불가로_알린다() throws Exception {
         DrawingGeometryDto boxed = new DrawingGeometryDto(
                 LAYOUT_ID,
                 "도면",
@@ -149,10 +185,24 @@ class EvacuationPreviewServiceTest {
                 List.of(new ExitDto(NEAR_EXIT_ID, "가까운 비상구", m(50), m(24), m(50), m(26))));
         when(simulationService.layoutGeometry(VERSION_ID)).thenReturn(boxed);
         when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(null, EMPLOYEE_ID));
+        when(engineRunner.previewRoutes(anyString(), any(SimulationSetupResponse.class), any(RouteOriginBounds.class)))
+                .thenThrow(new EngineRunException(
+                        "route unavailable",
+                        false,
+                        new SimulationFailureDetailResponse(
+                                SimulationEngineRunner.NO_REACHABLE_EXIT_CODE,
+                                null,
+                                null,
+                                null,
+                                1L,
+                                List.of(1L),
+                                List.of(NEAR_EXIT_ID),
+                                "NO_EXIT_SEED_IN_OCCUPIED_COMPONENT")));
 
         EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
 
         assertThat(response.status()).isEqualTo(EvacuationPreviewService.STATUS_UNREACHABLE);
+        assertThat(response.unavailableReason()).isEqualTo(EvacuationPreviewService.REASON_NO_REACHABLE_EXIT);
         assertThat(response.waypoints()).isEmpty();
     }
 
@@ -164,6 +214,33 @@ class EvacuationPreviewServiceTest {
 
         assertThat(response.origin().x()).isEqualByComparingTo(m(20));
         assertThat(response.origin().y()).isEqualByComparingTo(m(25));
+    }
+
+    @Test
+    void 엔진이_구역_내_출발점을_보정하면_직원_응답에_그대로_표시한다() throws Exception {
+        PointDto adjusted = new PointDto(m(21), m(25));
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(NEAR_EXIT_ID, EMPLOYEE_ID));
+        when(engineRunner.previewRoutes(anyString(), any(SimulationSetupResponse.class), any(RouteOriginBounds.class)))
+                .thenReturn(List.of(new PreviewedRoute(
+                        NEAR_EXIT_ID, adjusted, true, 8.0, List.of(adjusted, new PointDto(m(34), m(25))))));
+
+        EvacuationRouteResponse response = service.preview(ZONE_ID, employee());
+
+        assertThat(response.origin()).isEqualTo(new PointDto(m(20), m(25)));
+        assertThat(response.routeOrigin()).isEqualTo(adjusted);
+        assertThat(response.originAdjusted()).isTrue();
+        assertThat(response.narrowestMeters()).isNull();
+    }
+
+    @Test
+    void 엔진_실행_장애는_경로_없음으로_위장하지_않는다() throws Exception {
+        when(layoutZoneService.zoneOrThrow(ZONE_ID)).thenReturn(zone(NEAR_EXIT_ID, EMPLOYEE_ID));
+        when(engineRunner.previewRoutes(anyString(), any(SimulationSetupResponse.class), any(RouteOriginBounds.class)))
+                .thenThrow(new EngineRunException("timeout", true));
+
+        assertThatThrownBy(() -> service.preview(ZONE_ID, employee()))
+                .isInstanceOf(SimulationEngineUnavailableException.class)
+                .hasMessageContaining("엔진");
     }
 
     @Test
