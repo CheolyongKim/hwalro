@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  HAZARD_GRADIENT_FRAGMENT_SHADER,
-  HAZARD_GRADIENT_STOPS,
-} from './hazardPresentation';
+import { HAZARD_GRADIENT_FRAGMENT_SHADER, HAZARD_GRADIENT_STOPS } from './hazardPresentation';
 
 describe('hazardPresentation', () => {
   it('2D 위험 구역과 동일한 빨간색 방사형 그라데이션 단계를 제공한다', () => {

@@ -387,10 +387,7 @@ function createHazards(result: SimulationResultViewModel) {
       result.drawing.width,
       result.drawing.height,
     );
-    const fill = new THREE.Mesh(
-      new THREE.CircleGeometry(hazard.radius, 48),
-      fillMaterial,
-    );
+    const fill = new THREE.Mesh(new THREE.CircleGeometry(hazard.radius, 48), fillMaterial);
     fill.rotation.x = -Math.PI / 2;
     fill.position.set(center.x, 0.045, center.z);
     group.add(fill);
