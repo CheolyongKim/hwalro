@@ -439,6 +439,7 @@ def run(
             split_agent_components,
             usable_exit_segment,
         )
+        from route_coverage import serialize_route_coverage
     except ModuleNotFoundError:
         from .route_planner import (  # type: ignore[no-redef]
             AgentRouteUnreachableError,
@@ -456,6 +457,7 @@ def run(
             split_agent_components,
             usable_exit_segment,
         )
+        from .route_coverage import serialize_route_coverage
 
     payload = _read_input(input_path)
     model = _object(payload.get("model"), "model")
@@ -625,6 +627,7 @@ def run(
         for _physical_component, router, indexed_agents in routing_groups
         for index, position in indexed_agents
     )
+    router_by_index = {index: router for index, _position, router in indexed_routers}
     for index, position, router in indexed_routers:
         try:
             routes_by_index[index] = router.plan(position)
@@ -682,7 +685,9 @@ def run(
                 waypoints.insert(0, agents[index])
             if not waypoints or math.dist(waypoints[-1], route.terminal_point) > 1e-9:
                 waypoints.append(route.terminal_point)
-            waypoints = orthogonalize_display_path(waypoints, router.can_connect)
+            waypoints = orthogonalize_display_path(
+                waypoints, router_by_index[index].can_connect
+            )
             distance_meters = sum(
                 math.dist(start, end) for start, end in zip(waypoints, waypoints[1:])
             )
@@ -708,11 +713,13 @@ def run(
                     },
                 }
             )
+        routers = [item[1] for item in routing_groups]
         _write_json(
             output_dir / "routes.json",
             {
                 "schemaVersion": 1,
                 "routes": serialized_routes,
+                "coverage": serialize_route_coverage(routers, exits),
             },
         )
         if phase_profile is not None:

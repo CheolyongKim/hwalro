@@ -576,6 +576,27 @@ class RoutePreviewModeTest(unittest.TestCase):
                 self.assertFalse(route["originAdjusted"])
                 self.assertGreater(route["distanceMeters"], 0)
 
+    def test_writes_one_meter_exit_coverage_for_multiple_exits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.json"
+            output_dir = root / "output"
+            payload = AgentRouteErrorContractTest._payload()
+            payload["selectedExitIds"] = [1, 2]
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with patch("runner._load_dependencies", return_value=(None, None, None, "test")):
+                exit_code = main(["--route-preview", str(input_path), str(output_dir)])
+
+            self.assertEqual(exit_code, 0)
+            coverage = json.loads((output_dir / "routes.json").read_text("utf-8"))["coverage"]
+            self.assertEqual(coverage["step"], 1.0)
+            self.assertEqual(coverage["exitIds"], [1, 2])
+            left = 2 * coverage["columns"] + 1
+            right = 2 * coverage["columns"] + 3
+            self.assertEqual(coverage["labels"][left], 1)
+            self.assertEqual(coverage["labels"][right], 0)
+
     def test_blocked_zone_does_not_move_the_route_origin_outside_the_zone(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
