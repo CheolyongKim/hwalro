@@ -115,7 +115,9 @@ export const router = createBrowserRouter([
           {
             path: 'simulations/:simulationId/layout-search',
             element: (
-              <Suspense fallback={<FullscreenRouteFallback message="배치 개선안을 준비하고 있습니다." />}>
+              <Suspense
+                fallback={<FullscreenRouteFallback message="배치 개선안을 준비하고 있습니다." />}
+              >
                 <LayoutSearchPage />
               </Suspense>
             ),
@@ -123,7 +125,9 @@ export const router = createBrowserRouter([
           {
             path: 'inspect/:areaId',
             element: (
-              <Suspense fallback={<FullscreenRouteFallback message="점검 화면을 준비하고 있습니다." />}>
+              <Suspense
+                fallback={<FullscreenRouteFallback message="점검 화면을 준비하고 있습니다." />}
+              >
                 <InspectionMobilePage />
               </Suspense>
             ),

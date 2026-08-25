@@ -38,7 +38,10 @@ function toSession(drawing: Drawing): DrawingSession {
   };
 }
 
-export async function fetchDrawing(id: string, signal?: AbortSignal): Promise<DrawingSession | null> {
+export async function fetchDrawing(
+  id: string,
+  signal?: AbortSignal,
+): Promise<DrawingSession | null> {
   try {
     const drawing = await drawingApi.get(Number(id), signal);
     return toSession(drawing);

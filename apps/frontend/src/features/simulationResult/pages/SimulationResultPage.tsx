@@ -292,10 +292,7 @@ function ResultView({
   if (chunks.error || !result || !currentFrame) {
     return (
       <CanvasWorkspaceState
-        message={
-          chunks.error ??
-          '시뮬레이션 재생 데이터가 없습니다.'
-        }
+        message={chunks.error ?? '시뮬레이션 재생 데이터가 없습니다.'}
         actions={
           <>
             <Button
@@ -536,8 +533,7 @@ export default function SimulationResultPage() {
         signal: controller.signal,
       }),
       loadWithRetry(
-        () =>
-          simulationResultProvider.getSummary(String(sourceSimulationId), controller.signal),
+        () => simulationResultProvider.getSummary(String(sourceSimulationId), controller.signal),
         { signal: controller.signal },
       ),
     ])

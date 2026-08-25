@@ -12,5 +12,7 @@ export function useDelayedLoadingMessage(isLoading: boolean, initialMessage: str
     return () => window.clearTimeout(timerId);
   }, [isLoading]);
 
-  return isDelayed ? `${initialMessage} 연결이 지연되어 자동으로 다시 확인하고 있습니다.` : initialMessage;
+  return isDelayed
+    ? `${initialMessage} 연결이 지연되어 자동으로 다시 확인하고 있습니다.`
+    : initialMessage;
 }

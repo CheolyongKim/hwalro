@@ -20,9 +20,7 @@ describe('loadWithRetry', () => {
       .mockRejectedValueOnce(axiosError())
       .mockResolvedValue('loaded');
 
-    await expect(
-      loadWithRetry(request, { delaysMs: [0, 0] }),
-    ).resolves.toBe('loaded');
+    await expect(loadWithRetry(request, { delaysMs: [0, 0] })).resolves.toBe('loaded');
     expect(request).toHaveBeenCalledTimes(3);
   });
 
