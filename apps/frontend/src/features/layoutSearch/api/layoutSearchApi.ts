@@ -137,6 +137,13 @@ export interface StartSearchResult {
   status: string;
 }
 
+export interface LayoutSearchMonitorItem {
+  searchId: number;
+  baselineSimulationId: number;
+  title: string;
+  status: SearchStatus;
+}
+
 export interface ForbiddenZone {
   x: number;
   y: number;
@@ -156,6 +163,11 @@ export function emptyConstraints(): SearchConstraints {
 }
 
 export const layoutSearchApi = {
+  listMonitor: () =>
+    apiClient
+      .get<LayoutSearchMonitorItem[]>('/api/layout-searches/monitor')
+      .then((response) => response.data),
+
   start: (simulationId: number, constraints?: SearchConstraints, verify = false) =>
     apiClient
       .post<StartSearchResult>(`/api/simulations/${simulationId}/layout-searches`, {
