@@ -8,7 +8,10 @@ import com.hwalro.simulation.drawing.dto.DrawingListResponse;
 import com.hwalro.simulation.drawing.dto.DrawingResponse;
 import com.hwalro.simulation.drawing.dto.DrawingUpdateRequest;
 import com.hwalro.simulation.drawing.dto.DrawingVersionSummary;
+import com.hwalro.simulation.drawing.dto.LayoutDrawingContextResponse;
+import com.hwalro.simulation.drawing.dto.LayoutDrawingContextsRequest;
 import com.hwalro.simulation.drawing.service.DrawingService;
+import com.hwalro.simulation.drawing.service.LayoutDrawingContextService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,9 +37,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
 public class DrawingController {
     private final DrawingService drawingService;
+    private final LayoutDrawingContextService layoutDrawingContextService;
 
-    public DrawingController(DrawingService drawingService) {
+    public DrawingController(DrawingService drawingService, LayoutDrawingContextService layoutDrawingContextService) {
         this.drawingService = drawingService;
+        this.layoutDrawingContextService = layoutDrawingContextService;
     }
 
     @GetMapping
@@ -69,6 +74,16 @@ public class DrawingController {
             @Parameter(description = "도면 ID") @PathVariable Long id,
             @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
         return drawingService.get(id, user);
+    }
+
+    @PostMapping("/drawing-contexts")
+    @Operation(
+            summary = "도면 ID 기반 도면 컨텍스트 조회",
+            description = "주의 항목·안전 점검 등에서 도면 ID로 현재 버전 도면 지오메트리를 조회합니다. 최대 20개까지 가능합니다.")
+    public List<LayoutDrawingContextResponse> findDrawingContexts(
+            @RequestBody LayoutDrawingContextsRequest request,
+            @Parameter(hidden = true) @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
+        return layoutDrawingContextService.findAll(request == null ? null : request.layoutIds(), user);
     }
 
     @PostMapping
