@@ -88,7 +88,7 @@ function RiskCreateDialog({ onClose }: { onClose: () => void }) {
       <Modal
         open
         onClose={onClose}
-        title="위험 예상 항목 등록"
+        title="주의 항목 등록"
         size="md"
         footer={
           <>
@@ -106,7 +106,7 @@ function RiskCreateDialog({ onClose }: { onClose: () => void }) {
         }
       >
         <div className="space-y-5">
-          <Field label="위험 항목명" htmlFor="risk-create-name" required>
+          <Field label="주의 항목명" htmlFor="risk-create-name" required>
             <Input
               id="risk-create-name"
               required

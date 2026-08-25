@@ -118,7 +118,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       </div>
 
       <div className="mt-6 space-y-6">
-        <Field label="위험 항목명" htmlFor="risk-title">
+        <Field label="주의 항목명" htmlFor="risk-title">
           <Input id="risk-title" value={title} onChange={(event) => setTitle(event.target.value)} />
         </Field>
         <Field label="설명" htmlFor="risk-description">
@@ -144,8 +144,8 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       </div>
 
       {zoneBounds && (
-        <section className="mt-6" aria-label="위험 구역">
-          <span className="text-xs font-bold text-text-muted">위험 구역</span>
+        <section className="mt-6" aria-label="주의 구역">
+          <span className="text-xs font-bold text-text-muted">주의 구역</span>
           {drawingContextQuery.isPending ? (
             <Skeleton className="mt-2 h-40 w-full" />
           ) : drawingContextQuery.isError ? (
@@ -218,8 +218,8 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
       )}
       <ConfirmDialog
         open={deleteConfirmOpen}
-        title="위험 항목 삭제"
-        description={`'${title}' 위험 항목을 삭제하시겠습니까?`}
+        title="주의 항목 삭제"
+        description={`'${title}' 주의 항목을 삭제하시겠습니까?`}
         isLoading={deleteMutation.isPending}
         onCancel={() => {
           setDeleteConfirmOpen(false);
@@ -231,7 +231,7 @@ function RiskDetailPanel({ risk }: { risk: Risk }) {
           })
         }
       >
-        <p className="text-sm text-text-muted">삭제한 위험 항목은 복구할 수 없습니다.</p>
+        <p className="text-sm text-text-muted">삭제한 주의 항목은 복구할 수 없습니다.</p>
         {deleteMutation.isError && (
           <p
             role="alert"

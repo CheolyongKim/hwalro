@@ -37,7 +37,7 @@ class ReportPromptFactoryTest {
         ReportDraftInput input = new ReportDraftInput(
                 source,
                 List.of(comparison),
-                List.of(new ReportDraftInput.Risk(1000L, "무대 전면 위험 예상 구역", "사용자 지정", "HIGH")));
+                List.of(new ReportDraftInput.Risk(1000L, "무대 전면 주의 구역", "사용자 지정", "HIGH")));
 
         ReportPromptFactory.Prompt prompt = new ReportPromptFactory(new ObjectMapper()).create(input);
 
@@ -75,7 +75,7 @@ class ReportPromptFactoryTest {
                         "평균 대피 시간: 44.84초",
                         "대피 완료 인원: 2,000명",
                         "미대피 인원: 0명",
-                        "무대 전면 위험 예상 구역",
+                        "무대 전면 주의 구역",
                         "\"severity\":\"높음\"")
                 .doesNotContain(
                         "SIMULATION_DURATION_SECONDS",

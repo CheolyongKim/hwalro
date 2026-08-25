@@ -10,10 +10,16 @@ import {
   type PixiSimulationScene,
 } from '../rendering/pixiSimulationRenderer';
 import type { SimulationViewMode } from '../rendering/simulationViewMode';
+import {
+  savePlanCamera,
+  type PlanCameraState,
+  type SimulationCameraMemory,
+} from '../rendering/simulationCameraMemory';
 import type { DetectedBottleneck, RiskZone, SimulationResultViewModel } from '../types';
 import './SimulationPlaybackStage.css';
 
 export interface SimulationPlaybackStageProps {
+  cameraMemory: SimulationCameraMemory;
   result: SimulationResultViewModel;
   bottlenecks: DetectedBottleneck[];
   currentTimeSeconds: number;
@@ -50,6 +56,7 @@ export function SimulationPlaybackStage(props: SimulationPlaybackStageProps) {
     return (
       <Suspense fallback={<ThreeSimulationLoading />}>
         <ThreeSimulationStage
+          cameraMemory={props.cameraMemory}
           result={props.result}
           bottlenecks={props.bottlenecks}
           currentTimeSeconds={props.currentTimeSeconds}
@@ -70,7 +77,7 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
   const sceneRef = useRef<PixiSimulationScene | null>(null);
   const panSessionRef = useRef<PanSession | null>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
-  const [camera, setCamera] = useState({ zoom: 1, panX: 0, panY: 0 });
+  const [camera, setCamera] = useState<PlanCameraState>(() => ({ ...props.cameraMemory.plan }));
   const [isPanning, setIsPanning] = useState(false);
   const [sceneVersion, setSceneVersion] = useState(0);
   const [sceneError, setSceneError] = useState(false);
@@ -89,6 +96,11 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       ),
     [camera, props.result.drawing.height, props.result.drawing.width, size],
   );
+
+  const commitCamera = (nextCamera: PlanCameraState) => {
+    savePlanCamera(props.cameraMemory, nextCamera);
+    setCamera(nextCamera);
+  };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -184,11 +196,11 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       session.notified = true;
       props.onViewportPan();
     }
-    setCamera((current) => ({
-      ...current,
+    commitCamera({
+      ...camera,
       panX: session.panX + deltaX,
       panY: session.panY + deltaY,
-    }));
+    });
   };
 
   const onPointerUp = () => {
@@ -215,7 +227,7 @@ function PixiSimulationStage(props: SimulationPlaybackStageProps) {
       0,
       0,
     );
-    setCamera({
+    commitCamera({
       zoom: nextZoom,
       panX: pointerX - world.x * fitTransform.scale - fitTransform.offsetX,
       panY: pointerY - world.y * fitTransform.scale - fitTransform.offsetY,

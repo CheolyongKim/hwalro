@@ -516,12 +516,10 @@
         </foreach>
     </insert>
 
-    <select id="countImprovementReferences" resultType="int">
+    <select id="countBlockingImprovementReferences" resultType="int">
         SELECT
             (SELECT COUNT(*) FROM improvement_proposals WHERE source_simulation_id = #{simulationId}) +
-            (SELECT COUNT(*) FROM proposal_simulations WHERE simulation_id = #{simulationId} OR source_simulation_id = #{simulationId}) +
-            (SELECT COUNT(*) FROM layout_searches WHERE baseline_simulation_id = #{simulationId}) +
-            (SELECT COUNT(*) FROM layout_search_candidates WHERE prepared_simulation_id = #{simulationId})
+            (SELECT COUNT(*) FROM layout_searches WHERE baseline_simulation_id = #{simulationId})
     </select>
 
     <select id="countChildSimulations" resultType="int">

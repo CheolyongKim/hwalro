@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../../components/ui';
 import {
@@ -40,6 +40,7 @@ import { calculateEvacuationRate } from '../utils/evacuationRate';
 import { findImprovedFabricDiff } from '../utils/improvedFabrics';
 import { selectFramePair } from '../utils/playback';
 import type { SimulationViewMode } from '../rendering/simulationViewMode';
+import { createSimulationCameraMemory } from '../rendering/simulationCameraMemory';
 import '../simulationResult.css';
 import '../simulationResultMotion.css';
 
@@ -156,6 +157,7 @@ function ResultView({
     rankedBottlenecks[0]?.id ?? null,
   );
   const [viewMode, setViewMode] = useState<SimulationViewMode>('plan');
+  const cameraMemoryRef = useRef(createSimulationCameraMemory());
   const [riskZones, setRiskZones] = useState<RiskZone[]>([]);
   const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
@@ -223,7 +225,7 @@ function ResultView({
         if (active) setRiskZones(risks.filter((risk) => risk.startX !== null).map(toRiskZone));
       })
       .catch(() => {
-        if (active) setRiskLoadError('저장된 위험 항목을 불러오지 못했습니다.');
+        if (active) setRiskLoadError('저장된 주의 항목을 불러오지 못했습니다.');
       });
     return () => {
       active = false;
@@ -314,6 +316,7 @@ function ResultView({
   return (
     <CanvasWorkspace className="simulation-result-page">
       <SimulationPlaybackStage
+        cameraMemory={cameraMemoryRef.current}
         result={result}
         bottlenecks={displayedBottlenecks}
         currentTimeSeconds={playback.displayTimeSeconds}

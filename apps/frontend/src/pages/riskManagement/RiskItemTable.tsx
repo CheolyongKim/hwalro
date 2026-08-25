@@ -4,7 +4,7 @@ import type { BadgeTone } from '../../components/ui';
 import type { Risk } from '../../features/risks/types/risks';
 import { formatDate } from '../../features/risks/utils/formatDate';
 
-const TABLE_HEADERS = ['위험 예상 항목', '도면', '심각도', '담당자', '등록일'] as const;
+const TABLE_HEADERS = ['주의 항목', '도면', '심각도', '담당자', '등록일'] as const;
 
 const TABLE_COLUMNS = 'grid-cols-[minmax(0,2.5fr)_minmax(0,1.5fr)_1fr_1fr_2fr]';
 
@@ -18,7 +18,7 @@ function RiskItemTable({
   items,
   selectedId,
   onSelect,
-  emptyTitle = '등록된 위험 항목이 없습니다.',
+  emptyTitle = '등록된 주의 항목이 없습니다.',
   emptyDescription,
 }: {
   items: Risk[];

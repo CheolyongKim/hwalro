@@ -58,7 +58,7 @@ const TOOL_LABELS: Array<{ value: SimulationTool; label: string }> = [
   { value: 'select', label: '선택' },
   { value: 'spray', label: '에이전트 배치' },
   { value: 'erase', label: '지우개' },
-  { value: 'hazard', label: '위험구역' },
+  { value: 'hazard', label: '위험 구역' },
 ];
 
 function InfoTooltip({ id, label, align = 'left', children }: InfoTooltipProps) {
@@ -963,8 +963,8 @@ function SimulationSetupPage() {
             <section className="simulation-setup-panel__section">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
-                  <h2 className="text-sm font-bold">위험구역</h2>
-                  <InfoTooltip id="hazard-cost-help" label="위험구역 경로 비용 안내">
+                  <h2 className="text-sm font-bold">위험 구역</h2>
+                  <InfoTooltip id="hazard-cost-help" label="위험 구역 경로 비용 안내">
                     에이전트의 대피 경로를 비교할 때 사용하는 상대 비용입니다.
                     <span className="my-1 block font-mono text-[11px] leading-4 text-ink">
                       depth = clamp(1 - 중심거리 / 반지름, 0, 1)
@@ -974,7 +974,7 @@ function SimulationSetupPage() {
                       간선 비용 = 길이 / 6 × (시작점 M + 4 × 중간점 M + 끝점 M)
                     </span>
                     경계는 5, 반지름 중간은 50, 중심은 500입니다. 전체 경로는 모든 간선 비용을
-                    합산하고, 위험구역이 겹치면 가장 큰 M만 적용합니다.
+                    합산하고, 위험 구역이 겹치면 가장 큰 M만 적용합니다.
                     <span className="mt-1 block text-text-muted">
                       HAZARD_RADIAL_EXP_V3 - 활로가 정의한 상대 비용이며 공인 위험도나 사망확률이
                       아닙니다.
@@ -986,7 +986,7 @@ function SimulationSetupPage() {
               {selectedHazard ? (
                 <div className="mt-3 rounded-lg border border-danger/25 bg-danger-soft p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-danger-strong">선택 위험구역</span>
+                    <span className="text-xs font-bold text-danger-strong">선택한 위험 구역</span>
                     <button
                       type="button"
                       disabled={!editable}
@@ -1000,7 +1000,7 @@ function SimulationSetupPage() {
                     <label htmlFor="selected-hazard-radius">반지름 (m)</label>
                     <NumberStepperInput
                       id="selected-hazard-radius"
-                      label="위험구역 반지름"
+                      label="위험 구역 반지름"
                       min={HAZARD_MIN_RADIUS}
                       max={HAZARD_MAX_RADIUS}
                       step={0.1}
@@ -1014,7 +1014,7 @@ function SimulationSetupPage() {
                 </div>
               ) : (
                 <p className="mt-3 rounded-lg bg-surface px-3 py-3 text-xs leading-5 text-text-muted">
-                  위험구역을 선택하면 오른쪽 조절점을 드래그해 크기를 변경할 수 있습니다.
+                  위험 구역을 선택하면 오른쪽 조절점을 드래그해 크기를 변경할 수 있습니다.
                 </p>
               )}
             </section>

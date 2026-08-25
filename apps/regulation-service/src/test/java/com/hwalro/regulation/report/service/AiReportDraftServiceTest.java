@@ -64,7 +64,7 @@ class AiReportDraftServiceTest {
         when(simulationClient.findAll(List.of(10L, 20L), "Bearer token")).thenReturn(List.of(source, comparison));
         Risk risk = new Risk();
         risk.setLayoutId(1000L);
-        risk.setTitle("위험 예상 구역");
+        risk.setTitle("주의 구역");
         risk.setDescription("사용자 지정");
         risk.setSeverity("HIGH");
         when(riskMapper.findByLayoutIds(List.of(1000L, 2000L))).thenReturn(List.of(risk));
@@ -78,7 +78,7 @@ class AiReportDraftServiceTest {
         assertThat(inputCaptor.getValue().source()).isEqualTo(source);
         assertThat(inputCaptor.getValue().comparisons()).containsExactly(comparison);
         assertThat(inputCaptor.getValue().risks())
-                .containsExactly(new ReportDraftInput.Risk(1000L, "위험 예상 구역", "사용자 지정", "HIGH"));
+                .containsExactly(new ReportDraftInput.Risk(1000L, "주의 구역", "사용자 지정", "HIGH"));
         verify(reportService).completeAiGeneration(30L, "현재 배치안 안전 검토 보고서", content);
         verify(reportService, never()).failAiGeneration(30L);
     }

@@ -82,9 +82,9 @@ export function RiskZoneEditorDialog({
           aria-labelledby="zone-editor-title"
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <h2 id="zone-editor-title">위험 예상 항목 이름</h2>
+          <h2 id="zone-editor-title">주의 항목 이름</h2>
           <input
-            aria-label="위험 예상 항목 이름"
+            aria-label="주의 항목 이름"
             value={zoneName}
             onChange={(event) => setZoneName(event.target.value)}
             autoFocus

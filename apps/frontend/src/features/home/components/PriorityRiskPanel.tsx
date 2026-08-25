@@ -85,7 +85,7 @@ export function PriorityRiskPanel({
 
       {isPending ? (
         <div className="home-priority-risks__skeleton-list" aria-busy="true">
-          <span className="sr-only">위험 항목을 불러오는 중입니다.</span>
+          <span className="sr-only">주의 항목을 불러오는 중입니다.</span>
           {[0, 1, 2].map((item) => (
             <div key={item} aria-hidden="true" className="home-priority-risks__skeleton-row">
               <span className="home-skeleton home-skeleton--badge" />
@@ -117,7 +117,7 @@ export function PriorityRiskPanel({
 
       <div className="home-priority-risks__footer">
         <Link to="/risk-management" className="home-priority-risks__all-link">
-          모든 위험 항목 확인
+          모든 주의 항목 확인
           <ArrowRight aria-hidden="true" className="h-4 w-4" strokeWidth={2.5} />
         </Link>
       </div>

@@ -392,10 +392,10 @@ public class RiskService {
                 && request.endX() != null
                 && request.endY() != null;
         if (anyProvided != allProvided) {
-            throw new IllegalArgumentException("위험 구역 좌표는 startX, startY, endX, endY를 모두 함께 입력해야 합니다.");
+            throw new IllegalArgumentException("주의 구역 좌표는 startX, startY, endX, endY를 모두 함께 입력해야 합니다.");
         }
         if (allProvided && (request.endX() < request.startX() || request.endY() < request.startY())) {
-            throw new IllegalArgumentException("위험 구역 좌표는 endX가 startX 이상, endY가 startY 이상이어야 합니다.");
+            throw new IllegalArgumentException("주의 구역 좌표는 endX가 startX 이상, endY가 startY 이상이어야 합니다.");
         }
     }
 
@@ -407,10 +407,10 @@ public class RiskService {
 
     private void validateFields(String title, String severity, String status, String description) {
         if (!StringUtils.hasText(title)) {
-            throw new IllegalArgumentException("위험 항목명을 입력해 주세요.");
+            throw new IllegalArgumentException("주의 항목명을 입력해 주세요.");
         }
         if (title.length() > MAX_TITLE_LENGTH) {
-            throw new IllegalArgumentException("위험 항목명은 200자 이하여야 합니다.");
+            throw new IllegalArgumentException("주의 항목명은 200자 이하여야 합니다.");
         }
         if (!StringUtils.hasText(severity) || !ALLOWED_SEVERITIES.contains(severity.trim())) {
             throw new IllegalArgumentException("위험도는 높음, 보통, 낮음 중 하나여야 합니다.");

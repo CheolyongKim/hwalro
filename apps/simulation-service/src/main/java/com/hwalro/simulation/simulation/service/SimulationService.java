@@ -185,8 +185,8 @@ public class SimulationService {
                 throw new SimulationConflictException("진행 중인 시뮬레이션은 삭제할 수 없습니다.");
             }
 
-            if (simulationMapper.countImprovementReferences(id) > 0) {
-                throw new SimulationConflictException("개선안에 연결된 시뮬레이션은 삭제할 수 없습니다.");
+            if (simulationMapper.countBlockingImprovementReferences(id) > 0) {
+                throw new SimulationConflictException("개선안의 원본으로 사용 중인 시뮬레이션은 삭제할 수 없습니다.");
             }
 
             if (simulationMapper.countChildSimulations(id) > 0) {
@@ -482,7 +482,7 @@ public class SimulationService {
                 || request.selectedExitIds() == null
                 || request.walkingSpeed() == null
                 || request.initialResponseTimeStdDev() == null) {
-            throw new IllegalArgumentException("에이전트, 위험구역, 출입구와 시뮬레이션 옵션이 모두 필요합니다.");
+            throw new IllegalArgumentException("에이전트, 위험 구역, 출입구와 시뮬레이션 옵션이 모두 필요합니다.");
         }
         validateOptions(request.walkingSpeed(), request.initialResponseTimeStdDev());
 
