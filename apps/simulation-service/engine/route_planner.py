@@ -1868,3 +1868,33 @@ def _simplify_collinear(
             result.append(current)
     result.append(path[-1])
     return result
+
+
+def orthogonalize_display_path(
+    path: Sequence[Point], can_connect: Callable[[Point, Point], bool]
+) -> list[Point]:
+    if len(path) < 2:
+        return list(path)
+
+    orthogonal = [path[0]]
+    for end in path[1:]:
+        start = orthogonal[-1]
+        if abs(start[0] - end[0]) <= _EPSILON or abs(start[1] - end[1]) <= _EPSILON:
+            orthogonal.append(end)
+            continue
+
+        horizontal_then_vertical = (end[0], start[1])
+        vertical_then_horizontal = (start[0], end[1])
+        bend = next(
+            (
+                candidate
+                for candidate in (horizontal_then_vertical, vertical_then_horizontal)
+                if can_connect(start, candidate) and can_connect(candidate, end)
+            ),
+            None,
+        )
+        if bend is not None:
+            orthogonal.append(bend)
+        orthogonal.append(end)
+
+    return _simplify_collinear(orthogonal, can_connect)

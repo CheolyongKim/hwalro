@@ -16,6 +16,7 @@ from route_planner import (
     build_walkable_geometry,
     edge_cost,
     hazard_multiplier,
+    orthogonalize_display_path,
     relocate_agent_within_bounds,
     select_accessible_component,
     select_agent_component,
@@ -351,6 +352,23 @@ class GeometryTest(unittest.TestCase):
 
 
 class GridRoutingTest(unittest.TestCase):
+    def test_display_path_uses_a_walkable_right_angle_when_available(self):
+        path = [(0.0, 0.0), (1.0, 1.0), (2.0, 1.0)]
+
+        result = orthogonalize_display_path(path, lambda _start, _end: True)
+
+        self.assertEqual(result, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (2.0, 1.0)])
+        self.assertTrue(
+            all(start[0] == end[0] or start[1] == end[1] for start, end in zip(result, result[1:]))
+        )
+
+    def test_display_path_keeps_diagonal_when_both_right_angles_are_blocked(self):
+        path = [(0.0, 0.0), (1.0, 1.0)]
+
+        result = orthogonalize_display_path(path, lambda _start, _end: False)
+
+        self.assertEqual(result, path)
+
     def test_path_simplification_keeps_bends_and_blocked_shortcuts(self):
         bent = [(0.0, 0.0), (1.0, 0.6), (2.0, 1.0)]
         self.assertEqual(_simplify_collinear(bent, lambda _start, _end: True), bent)

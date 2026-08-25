@@ -433,6 +433,7 @@ def run(
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            orthogonalize_display_path,
             relocate_agent_within_bounds,
             relocate_agents,
             split_agent_components,
@@ -449,6 +450,7 @@ def run(
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            orthogonalize_display_path,
             relocate_agent_within_bounds,
             relocate_agents,
             split_agent_components,
@@ -680,6 +682,7 @@ def run(
                 waypoints.insert(0, agents[index])
             if not waypoints or math.dist(waypoints[-1], route.terminal_point) > 1e-9:
                 waypoints.append(route.terminal_point)
+            waypoints = orthogonalize_display_path(waypoints, router.can_connect)
             distance_meters = sum(
                 math.dist(start, end) for start, end in zip(waypoints, waypoints[1:])
             )
