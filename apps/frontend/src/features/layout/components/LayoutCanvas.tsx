@@ -522,7 +522,9 @@ export function LayoutCanvas({
       const width = Math.abs(riskDraft.end.x - riskDraft.start.x);
       const height = Math.abs(riskDraft.end.y - riskDraft.start.y);
       setRiskDraft(null);
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
       if (width > 0.5 && height > 0.5) {
         onRiskZoneDrawn?.({
           x: Math.min(riskDraft.start.x, riskDraft.end.x),
@@ -536,7 +538,9 @@ export function LayoutCanvas({
     if (panRef.current) {
       suppressClickRef.current = true;
       stopPan();
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
     }
     dispatch({ type: 'dragEnd' });
   };
