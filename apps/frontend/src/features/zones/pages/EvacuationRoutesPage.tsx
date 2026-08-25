@@ -5,6 +5,7 @@ import { Card, EmptyState, ErrorState, PageHeader, buttonClassName } from '../..
 import { drawingApi } from '../../drawings/api/drawingApi';
 import type { Drawing } from '../../drawings/types/drawing';
 import { getDrawingErrorMessage } from '../../drawings/utils/getDrawingErrorMessage';
+import { layoutMetadataApi, type LayoutZone } from '../../layout/api/layoutMetadataApi';
 import { CANVAS_COLORS } from '../../layout/utils/colors';
 import { fitCamera, PX_PER_METER } from '../../layout/utils/geometry';
 import { zoneApi, type EvacuationRoute } from '../api/zoneApi';
@@ -21,6 +22,7 @@ const VIEW_HEIGHT = 560;
 function EvacuationRoutesPage() {
   const { drawingId = '' } = useParams();
   const [drawing, setDrawing] = useState<Drawing | null>(null);
+  const [zones, setZones] = useState<LayoutZone[]>([]);
   const [routes, setRoutes] = useState<EvacuationRoute[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,11 +43,21 @@ function EvacuationRoutesPage() {
   useEffect(() => {
     let active = true;
     setIsLoading(true);
-    Promise.all([drawingApi.get(Number(drawingId)), zoneApi.evacuationRoutes(Number(drawingId))])
-      .then(([loadedDrawing, loadedRoutes]) => {
+    Promise.all([
+      drawingApi.get(Number(drawingId)),
+      zoneApi.evacuationRoutes(Number(drawingId)),
+      layoutMetadataApi.get(Number(drawingId)),
+    ])
+      .then(([loadedDrawing, loadedRoutes, metadata]) => {
         if (!active) return;
         setDrawing(loadedDrawing);
         setRoutes(loadedRoutes);
+        setZones(metadata.zones);
+        setSelectedZoneId(
+          loadedRoutes.find((route) => route.status === 'AVAILABLE')?.zoneId ??
+            loadedRoutes[0]?.zoneId ??
+            null,
+        );
         setErrorMessage(null);
       })
       .catch((error: unknown) => {
@@ -149,6 +161,7 @@ function EvacuationRoutesPage() {
                   <AllRoutesCanvas
                     drawing={drawing}
                     routes={routes}
+                    zones={zones}
                     width={width}
                     selectedZoneId={selectedZoneId}
                   />
@@ -176,12 +189,18 @@ function EvacuationRoutesPage() {
                       return (
                         <tr
                           key={route.zoneId}
-                          onMouseEnter={() => setSelectedZoneId(route.zoneId)}
-                          onMouseLeave={() => setSelectedZoneId(null)}
-                          className={`transition-colors ${selectedZoneId === route.zoneId ? 'bg-primary-soft/40' : ''}`}
+                          onClick={() => setSelectedZoneId(route.zoneId)}
+                          className={`cursor-pointer transition-colors ${selectedZoneId === route.zoneId ? 'bg-primary-soft/40' : ''}`}
                         >
-                          <td className="px-6 py-2.5 font-bold text-text-strong">
-                            {route.zoneName}
+                          <td className="px-6 py-1.5 font-bold text-text-strong">
+                            <button
+                              type="button"
+                              aria-pressed={selectedZoneId === route.zoneId}
+                              onClick={() => setSelectedZoneId(route.zoneId)}
+                              className="w-full rounded-md py-1 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            >
+                              {route.zoneName}
+                            </button>
                           </td>
                           <td className="px-4 py-2.5 text-text-strong">
                             {route.recommendedExitName ?? '-'}
@@ -197,7 +216,9 @@ function EvacuationRoutesPage() {
                             {unavailable ? '-' : `${Math.round(route.distanceMeters)}m`}
                           </td>
                           <td className="px-4 py-2.5 tabular-nums text-text-strong">
-                            {unavailable ? '-' : `${(route.narrowestMeters * 2).toFixed(1)}m`}
+                            {unavailable || route.narrowestMeters === null
+                              ? '-'
+                              : `${(route.narrowestMeters * 2).toFixed(1)}m`}
                           </td>
                           <td className="px-4 py-2.5 text-xs">
                             {unavailable ? (
@@ -225,11 +246,13 @@ function EvacuationRoutesPage() {
 function AllRoutesCanvas({
   drawing,
   routes,
+  zones,
   width,
   selectedZoneId,
 }: {
   drawing: Drawing;
   routes: EvacuationRoute[];
+  zones: LayoutZone[];
   width: number;
   selectedZoneId: number | null;
 }) {
@@ -238,7 +261,11 @@ function AllRoutesCanvas({
     [drawing.width, drawing.height, width],
   );
   const k = camera.zoom * PX_PER_METER;
-  const s = (value: number) => value / camera.zoom;
+  // 화면에서 value 픽셀로 보이게 하는 도면 좌표 길이. 레이어 배율이 k이므로 zoom이 아니라 k로 나눈다.
+  // zoom으로 나누면 PX_PER_METER배 두꺼워져 벽이 도면을 덮어 버린다.
+  const s = (value: number) => value / k;
+  const selectedRoute = routes.find((route) => route.zoneId === selectedZoneId) ?? null;
+  const selectedZone = zones.find((zone) => zone.zoneId === selectedZoneId) ?? null;
 
   return (
     <Stage width={width} height={VIEW_HEIGHT}>
@@ -252,6 +279,18 @@ function AllRoutesCanvas({
           stroke={CANVAS_COLORS.gridBoundary}
           strokeWidth={s(1)}
         />
+        {selectedZone !== null ? (
+          <Rect
+            x={selectedZone.rect.x}
+            y={selectedZone.rect.y}
+            width={selectedZone.rect.width}
+            height={selectedZone.rect.height}
+            fill={CANVAS_COLORS.zoneSelectedFill}
+            stroke={CANVAS_COLORS.zoneStroke}
+            strokeWidth={s(2)}
+            dash={[s(6), s(4)]}
+          />
+        ) : null}
         {drawing.outsideWalls.map((wall, index) => (
           <Line
             key={`outside-${index}`}
@@ -268,24 +307,57 @@ function AllRoutesCanvas({
             strokeWidth={s(2)}
           />
         ))}
-        {drawing.fabrics.map((fabric, index) => (
-          <Rect
-            key={`fabric-${index}`}
-            x={fabric.startX}
-            y={fabric.startY}
-            width={fabric.endX - fabric.startX}
-            height={fabric.endY - fabric.startY}
-            fill={CANVAS_COLORS.fabricFill}
-          />
-        ))}
-        {drawing.exits.map((exit, index) => (
-          <Line
-            key={`exit-${index}`}
-            points={[exit.startX, exit.startY, exit.endX, exit.endY]}
-            stroke={CANVAS_COLORS.exit}
-            strokeWidth={s(4)}
-          />
-        ))}
+        {drawing.pillars.map((pillar, index) => {
+          const pillarWidth = Math.abs(pillar.endX - pillar.startX);
+          const pillarHeight = Math.abs(pillar.endY - pillar.startY);
+          return (
+            <Rect
+              key={`pillar-${index}`}
+              x={(pillar.startX + pillar.endX) / 2}
+              y={(pillar.startY + pillar.endY) / 2}
+              width={pillarWidth}
+              height={pillarHeight}
+              offsetX={pillarWidth / 2}
+              offsetY={pillarHeight / 2}
+              rotation={pillar.rotation}
+              fill={CANVAS_COLORS.pillarFill}
+            />
+          );
+        })}
+        {drawing.fabrics.map((fabric, index) => {
+          const fabricWidth = Math.abs(fabric.endX - fabric.startX);
+          const fabricHeight = Math.abs(fabric.endY - fabric.startY);
+          return (
+            <Rect
+              key={`fabric-${index}`}
+              x={(fabric.startX + fabric.endX) / 2}
+              y={(fabric.startY + fabric.endY) / 2}
+              width={fabricWidth}
+              height={fabricHeight}
+              offsetX={fabricWidth / 2}
+              offsetY={fabricHeight / 2}
+              rotation={fabric.rotation}
+              fill={CANVAS_COLORS.fabricFill}
+              stroke={CANVAS_COLORS.fabricStroke}
+              strokeWidth={s(1)}
+            />
+          );
+        })}
+        {drawing.exits.map((exit, index) => {
+          const highlighted =
+            exit.id !== null &&
+            (exit.id === selectedRoute?.recommendedExitId ||
+              exit.id === selectedRoute?.defaultExit?.id);
+          return (
+            <Line
+              key={`exit-${index}`}
+              points={[exit.startX, exit.startY, exit.endX, exit.endY]}
+              stroke={highlighted ? CANVAS_COLORS.exitStrong : CANVAS_COLORS.exit}
+              strokeWidth={s(highlighted ? 6 : 4)}
+              opacity={highlighted ? 1 : 0.45}
+            />
+          );
+        })}
         {routes.map((route) =>
           route.waypoints.length < 2 ? null : (
             <Line
@@ -293,21 +365,23 @@ function AllRoutesCanvas({
               points={route.waypoints.flatMap((point) => [point.x, point.y])}
               stroke={CANVAS_COLORS.accent}
               strokeWidth={s(selectedZoneId === route.zoneId ? 4 : 1.5)}
-              opacity={selectedZoneId === null || selectedZoneId === route.zoneId ? 0.9 : 0.25}
+              opacity={selectedZoneId === route.zoneId ? 0.95 : 0.12}
+              dash={selectedZoneId === route.zoneId ? [s(6), s(4)] : undefined}
               lineCap="round"
               lineJoin="round"
             />
           ),
         )}
-        {routes.map((route) => (
+        {selectedRoute !== null ? (
           <Circle
-            key={`origin-${route.zoneId}`}
-            x={route.origin.x}
-            y={route.origin.y}
-            radius={s(selectedZoneId === route.zoneId ? 6 : 3)}
-            fill={route.status === 'AVAILABLE' ? CANVAS_COLORS.accent : CANVAS_COLORS.exit}
+            x={selectedRoute.routeOrigin.x}
+            y={selectedRoute.routeOrigin.y}
+            radius={s(5)}
+            fill={selectedRoute.status === 'AVAILABLE' ? CANVAS_COLORS.accent : CANVAS_COLORS.exit}
+            stroke={CANVAS_COLORS.canvas}
+            strokeWidth={s(2)}
           />
-        ))}
+        ) : null}
       </Layer>
     </Stage>
   );
