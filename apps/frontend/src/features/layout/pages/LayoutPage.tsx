@@ -111,6 +111,7 @@ function LayoutPage() {
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [movementPreviewRadius, setMovementPreviewRadius] = useState<number | null>(null);
   const stateRef = useRef(state);
   const sessionRef = useRef<DrawingSession | null>(null);
   const loadedRef = useRef(false);
@@ -223,6 +224,7 @@ function LayoutPage() {
       dispatch({
         type: 'adoptSavedIds',
         walls: drawing.walls.map((wall) => wall.id ?? null),
+        exits: drawing.exits.map((exit) => exit.id ?? null),
         pillars: drawing.pillars.map((pillar) => pillar.id ?? null),
         fabrics: drawing.fabrics.map((fabric) => fabric.id ?? null),
       });
@@ -437,6 +439,14 @@ function LayoutPage() {
     selectedFabricZone,
   );
 
+  useEffect(() => {
+    setMovementPreviewRadius(
+      selectedFabricConstraint?.movable === true
+        ? selectedFabricConstraint.maxMovementDistance
+        : null,
+    );
+  }, [selectedFabric?.id, selectedFabricConstraint]);
+
   const handleZoneDrawn = (rect: ZoneRect) => {
     if (rect.width <= 0 || rect.height <= 0) {
       return;
@@ -478,38 +488,41 @@ function LayoutPage() {
   };
 
   const handleChangeMembership = (element: LayerElement, targetZoneId: number | null) => {
-    if (element.backendId === null) {
+    const { doc, selection } = stateRef.current;
+    const selectedElements: LayerElement[] = [
+      ...doc.walls
+        .filter((wall) => selection.wallIds.includes(wall.id))
+        .map((wall) => ({ ...wall, kind: 'WALL' as const })),
+      ...doc.pillars
+        .filter((pillar) => selection.pillarIds.includes(pillar.id))
+        .map((pillar) => ({ ...pillar, kind: 'PILLAR' as const })),
+      ...doc.fabrics
+        .filter((fabric) => selection.fabricIds.includes(fabric.id))
+        .map((fabric) => ({ ...fabric, kind: 'FABRIC' as const })),
+    ];
+    const movingElements = selectedElements.some(
+      (selected) => selected.kind === element.kind && selected.id === element.id,
+    )
+      ? selectedElements
+      : [element];
+    if (movingElements.some((moving) => moving.backendId === null)) {
+      dispatch({ type: 'setError', message: '도면을 저장한 뒤 구역으로 이동해 주세요.' });
       return;
     }
     const zones = metadata.metadata.zones;
-    const isSameMember = (member: { kind: string; id: number }) =>
-      member.kind === element.kind && member.id === element.backendId;
-    const source = zones.find((zone) => zone.members.some(isSameMember));
-
-    if (targetZoneId === null) {
-      if (!source) {
-        return;
-      }
-      const nextMembers = source.members.filter((member) => !isSameMember(member));
-      void metadata.updateZone(source.zoneId, { members: nextMembers }, (zone) => ({
-        ...zone,
-        members: nextMembers,
-      }));
-      return;
-    }
-
+    const isMovingMember = (member: { kind: string; id: number }) =>
+      movingElements.some(
+        (moving) => moving.kind === member.kind && moving.backendId === member.id,
+      );
     const target = zones.find((zone) => zone.zoneId === targetZoneId);
-    if (!target || (source && source.zoneId === targetZoneId)) {
-      return;
-    }
-    const targetMembers = [
-      ...target.members.filter((member) => !isSameMember(member)),
-      { kind: element.kind, id: element.backendId },
-    ];
-    // 한 요소는 한 구역에만 속한다(DB UNIQUE). 원래 구역에서 먼저 빼야 대상 구역 저장이 통과한다.
+    if (targetZoneId !== null && !target) return;
+
+    // 한 요소는 한 구역에만 속한다(DB UNIQUE). 원래 구역들에서 먼저 빼고 대상 구역에는 한 번만 추가한다.
     void (async () => {
-      if (source) {
-        const sourceMembers = source.members.filter((member) => !isSameMember(member));
+      for (const source of zones.filter(
+        (zone) => zone.zoneId !== targetZoneId && zone.members.some(isMovingMember),
+      )) {
+        const sourceMembers = source.members.filter((member) => !isMovingMember(member));
         const removed = await metadata.updateZone(
           source.zoneId,
           { members: sourceMembers },
@@ -517,10 +530,19 @@ function LayoutPage() {
         );
         if (!removed) return;
       }
-      await metadata.updateZone(targetZoneId, { members: targetMembers }, (zone) => ({
-        ...zone,
-        members: targetMembers,
-      }));
+      if (target) {
+        const targetMembers = [
+          ...target.members.filter((member) => !isMovingMember(member)),
+          ...movingElements.map((moving) => ({
+            kind: moving.kind,
+            id: moving.backendId as number,
+          })),
+        ];
+        await metadata.updateZone(target.zoneId, { members: targetMembers }, (zone) => ({
+          ...zone,
+          members: targetMembers,
+        }));
+      }
     })();
   };
 
@@ -696,13 +718,15 @@ function LayoutPage() {
         size={size}
         onSizeChange={onSizeChange}
         readOnly={readOnly}
+        geometryEditable={!readOnly && canManageGeometry}
+        movementPreviewRadius={movementPreviewRadius}
         zones={metadata.metadata.zones}
         selectedZoneId={selectedZoneId}
         onZoneDrawn={handleZoneDrawn}
         onSelectZone={setSelectedZoneId}
         onZoneRectCommit={handleZoneRectCommit}
         canEditZones={canManageZones}
-        onElementContextMenu={handleCanvasContextMenu}
+        onElementContextMenu={canManageZones ? handleCanvasContextMenu : undefined}
       />
       {canvasMenu !== null ? (
         <LayerContextMenu
@@ -765,6 +789,7 @@ function LayoutPage() {
             onSelectZone={handleSelectZone}
             employeeNameById={employeeNameById}
             orderLocked={readOnly}
+            membershipEditable={canManageZones}
             onChangeMembership={handleChangeMembership}
             onGroupSelectionIntoZone={handleGroupSelectionIntoZone}
             onMoveZoneOrder={handleMoveZoneOrder}
@@ -876,6 +901,7 @@ function LayoutPage() {
                       constraint={selectedFabricConstraint}
                       editable={canEditSelectedConstraints}
                       saved={selectedFabric.backendId !== null}
+                      onMovementPreview={setMovementPreviewRadius}
                       onChange={(patch) => {
                         if (selectedFabric.backendId === null) {
                           return;

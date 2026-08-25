@@ -24,6 +24,8 @@ interface LayersPanelProps {
   employeeNameById: Record<number, string>;
   /** 잠긴 도면 버전에서는 순서가 도면 저장으로만 바뀌므로 드래그를 막고 이유를 표시한다. */
   orderLocked: boolean;
+  /** false면 선택만 허용하고 순서와 구역 소속을 바꾸지 않는다. */
+  membershipEditable?: boolean;
   onChangeMembership: (element: LayerElement, targetZoneId: number | null) => void;
   onGroupSelectionIntoZone: () => void;
   onMoveZoneOrder: (draggedZoneId: number, targetZoneId: number, position: DropPosition) => void;
@@ -100,6 +102,7 @@ export function LayersPanel({
   onSelectZone,
   employeeNameById,
   orderLocked,
+  membershipEditable = true,
   onChangeMembership,
   onGroupSelectionIntoZone,
   onMoveZoneOrder,
@@ -180,6 +183,7 @@ export function LayersPanel({
         (member.kind === 'FABRIC' && selection.fabricIds.includes(member.id)),
     );
   const canGroupSelected =
+    membershipEditable &&
     selectedMembers.length > 0 &&
     selectedMembers.every((member) =>
       doc.walls
@@ -263,7 +267,7 @@ export function LayersPanel({
       ref={scrollRef}
       aria-label="도면 계층"
       className="layout-layers-panel min-h-0 flex-1 overflow-y-auto px-3 py-3"
-      onDragOver={(event) => driveAutoScroll(event.clientY)}
+      onDragOver={membershipEditable ? (event) => driveAutoScroll(event.clientY) : undefined}
       onDragLeave={stopAutoScroll}
       onDrop={stopAutoScroll}
       onDragEnd={stopAutoScroll}
@@ -316,7 +320,7 @@ export function LayersPanel({
                             y: zone.rect.y + zone.rect.height / 2,
                           })
                         }
-                        draggable={!orderLocked}
+                        draggable={membershipEditable && !orderLocked}
                         onDragStart={(event) => {
                           event.dataTransfer.setData(DND_ZONE_MIME, String(zone.zoneId));
                           event.dataTransfer.effectAllowed = 'move';
@@ -370,7 +374,7 @@ export function LayersPanel({
                               ariaLabel={`${member.name} 선택`}
                               onSelect={(additive) => selectElement(member, additive)}
                               onDoubleClick={() => centerMember(member)}
-                              draggable={!orderLocked}
+                              draggable={membershipEditable && !orderLocked}
                               onDragStart={(event) => {
                                 event.dataTransfer.setData(DND_MIME, dragPayload(member));
                                 event.dataTransfer.effectAllowed = 'move';
@@ -412,7 +416,7 @@ export function LayersPanel({
                                 );
                                 draggedLayerRef.current = null;
                               }}
-                              menuItems={memberMenu(member)}
+                              menuItems={membershipEditable ? memberMenu(member) : undefined}
                             />
                           ))
                         : null}
@@ -439,12 +443,12 @@ export function LayersPanel({
           <ul
             id="layout-layer-common"
             className="mt-1 rounded-md"
-            onDragOver={(event) => {
+            onDragOver={membershipEditable ? (event) => {
               if (event.dataTransfer.types.includes(DND_MIME)) {
                 event.preventDefault();
               }
-            }}
-            onDrop={commonGroupDrop}
+            } : undefined}
+            onDrop={membershipEditable ? commonGroupDrop : undefined}
           >
             {grouped.common.length === 0 ? (
               <li
@@ -501,7 +505,7 @@ export function LayersPanel({
                 ariaLabel={`${member.name} 선택`}
                 onSelect={(additive) => selectElement(member, additive)}
                 onDoubleClick={() => centerMember(member)}
-                draggable={!orderLocked}
+                draggable={membershipEditable && !orderLocked}
                 onDragStart={(event) => {
                   event.dataTransfer.setData(DND_MIME, dragPayload(member));
                   event.dataTransfer.effectAllowed = 'move';
@@ -535,7 +539,7 @@ export function LayersPanel({
                   onChangeMembership(dragged.element, null);
                   draggedLayerRef.current = null;
                 }}
-                menuItems={memberMenu(member)}
+                menuItems={membershipEditable ? memberMenu(member) : undefined}
               />
             ))}
           </ul>

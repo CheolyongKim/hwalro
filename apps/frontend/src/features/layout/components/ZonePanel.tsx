@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { LayoutZone, StructureConstraint, ZoneType } from '../api/layoutMetadataApi';
 import type { Exit } from '../types';
 import { round1 } from '../utils/geometry';
@@ -15,6 +15,19 @@ const fieldLabelClassName = 'block text-xs text-panel-muted';
 const controlClassName =
   'mt-1 h-9 w-full rounded-md border border-panel-divider bg-panel-soft px-2 text-sm text-panel-text outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50';
 const checkboxRowClassName = 'flex items-center gap-2 py-1.5 text-sm text-panel-text';
+const FREE_MOVEMENT_SLIDER_VALUE = 5.5;
+
+function movementSliderValue(constraint: StructureConstraint | null): number {
+  if (constraint?.movable === false) return 0;
+  if (constraint?.maxMovementDistance == null) return FREE_MOVEMENT_SLIDER_VALUE;
+  return Math.min(5, Math.max(0.5, Math.round(constraint.maxMovementDistance * 2) / 2));
+}
+
+function movementSliderLabel(value: number): string {
+  if (value === 0) return '고정';
+  if (value === FREE_MOVEMENT_SLIDER_VALUE) return '자유';
+  return `${value.toFixed(1)}m`;
+}
 
 function NumberInput({
   label,
@@ -219,6 +232,7 @@ interface StructureConstraintPanelProps {
   constraint: StructureConstraint | null;
   editable: boolean;
   saved: boolean;
+  onMovementPreview?: (radius: number | null) => void;
   onChange: (patch: {
     movable?: boolean;
     maxMovementDistance?: number | null;
@@ -235,10 +249,30 @@ export function StructureConstraintPanel({
   constraint,
   editable,
   saved,
+  onMovementPreview,
   onChange,
 }: StructureConstraintPanelProps) {
-  const movable = constraint?.movable ?? true;
   const disabled = !editable;
+  const externalMovementValue = movementSliderValue(constraint);
+  const [movementDraft, setMovementDraft] = useState(externalMovementValue);
+  const committedMovementRef = useRef(externalMovementValue);
+
+  useEffect(() => {
+    setMovementDraft(externalMovementValue);
+    committedMovementRef.current = externalMovementValue;
+  }, [externalMovementValue]);
+
+  const commitMovement = () => {
+    if (movementDraft === committedMovementRef.current) return;
+    committedMovementRef.current = movementDraft;
+    if (movementDraft === 0) {
+      onChange({ movable: false, clearMaxMovementDistance: true, maxMovementDistance: null });
+    } else if (movementDraft === FREE_MOVEMENT_SLIDER_VALUE) {
+      onChange({ movable: true, clearMaxMovementDistance: true, maxMovementDistance: null });
+    } else {
+      onChange({ movable: true, maxMovementDistance: movementDraft });
+    }
+  };
 
   return (
     <section aria-label="배치 제약" className="mt-4 border-t border-panel-divider pt-4">
@@ -261,28 +295,38 @@ export function StructureConstraintPanel({
             </p>
           ) : null}
 
-          <label className={`${checkboxRowClassName} mt-2`}>
+          <label className="mt-3 block">
+            <span className="flex items-center justify-between text-xs text-panel-muted">
+              <span>이동 반경</span>
+              <strong className="font-mono text-panel-text">
+                {movementSliderLabel(movementDraft)}
+              </strong>
+            </span>
             <input
-              type="checkbox"
-              checked={movable}
+              type="range"
+              min={0}
+              max={FREE_MOVEMENT_SLIDER_VALUE}
+              step={0.5}
+              value={movementDraft}
               disabled={disabled}
-              onChange={(event) => onChange({ movable: event.target.checked })}
+              aria-label="이동 반경"
+              aria-valuetext={movementSliderLabel(movementDraft)}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setMovementDraft(next);
+                onMovementPreview?.(next > 0 && next < FREE_MOVEMENT_SLIDER_VALUE ? next : null);
+              }}
+              onPointerUp={commitMovement}
+              onKeyUp={commitMovement}
+              onBlur={commitMovement}
+              className="mt-2 w-full accent-primary disabled:opacity-50"
             />
-            이동 가능
+            <span className="mt-1 flex justify-between text-[11px] text-panel-muted">
+              <span>고정</span>
+              <span>5m</span>
+              <span>자유</span>
+            </span>
           </label>
-
-          <NumberInput
-            label="최대 이동 거리 (m, 비우면 제한 없음)"
-            value={constraint?.maxMovementDistance ?? 0}
-            disabled={disabled || !movable}
-            onCommit={(value) =>
-              onChange(
-                value > 0
-                  ? { maxMovementDistance: value }
-                  : { clearMaxMovementDistance: true, maxMovementDistance: null },
-              )
-            }
-          />
 
           <label className={checkboxRowClassName}>
             <input
@@ -297,12 +341,17 @@ export function StructureConstraintPanel({
           <label className={checkboxRowClassName}>
             <input
               type="checkbox"
-              checked={constraint?.keepAgainstWall ?? false}
-              disabled={disabled}
+              checked={(constraint?.wallContact ?? false) && (constraint?.keepAgainstWall ?? false)}
+              disabled={disabled || !constraint?.wallContact}
               onChange={(event) => onChange({ keepAgainstWall: event.target.checked })}
             />
             벽에 붙여 유지
           </label>
+          {constraint?.wallContact === false ? (
+            <p className="-mt-1 text-xs text-panel-muted">
+              벽에 닿아 있는 구조물만 설정할 수 있습니다.
+            </p>
+          ) : null}
         </>
       )}
     </section>

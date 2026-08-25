@@ -35,6 +35,7 @@ export interface StructureConstraint {
   maxMovementDistance: number | null;
   rotationLocked: boolean;
   keepAgainstWall: boolean;
+  wallContact: boolean;
 }
 
 export interface LayoutMetadata {

@@ -55,6 +55,10 @@ interface LayoutCanvasProps {
   size: { w: number; h: number };
   onSizeChange: (size: { w: number; h: number }) => void;
   readOnly?: boolean;
+  /** false면 요소 선택만 허용하고 도면 기하는 변경하지 않는다. */
+  geometryEditable?: boolean;
+  /** 선택된 구조물에 유한 이동 반경이 있을 때만 표시한다. */
+  movementPreviewRadius?: number | null;
   /** 서버가 소유하는 구역. 문서(doc)가 아니라 별도 훅이 들고 있다. */
   zones?: LayoutZone[];
   selectedZoneId?: number | null;
@@ -143,6 +147,8 @@ export function LayoutCanvas({
   size,
   onSizeChange,
   readOnly = false,
+  geometryEditable = !readOnly,
+  movementPreviewRadius = null,
   zones = [],
   selectedZoneId = null,
   onZoneDrawn,
@@ -251,7 +257,7 @@ export function LayoutCanvas({
   };
 
   const onDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (readOnly || tool !== 'select') {
+    if (readOnly || !geometryEditable || tool !== 'select') {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
@@ -267,7 +273,7 @@ export function LayoutCanvas({
       suppressClickRef.current = false;
       return;
     }
-    if (readOnly || tool !== 'text') {
+    if (readOnly || !geometryEditable || tool !== 'text') {
       return;
     }
     if (event.target instanceof HTMLTextAreaElement) {
@@ -317,13 +323,49 @@ export function LayoutCanvas({
     if (event.button !== 0) {
       return;
     }
-    if (readOnly) {
-      return;
-    }
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     dispatch({ type: 'cursorMove', world });
     event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (!geometryEditable) {
+      const hit = hitAt(world);
+      const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+      if (
+        hit.wallId !== null ||
+        hit.outsideWallId !== null ||
+        hit.exitId !== null ||
+        hit.textId !== null ||
+        hit.pillarId !== null ||
+        hit.fabricId !== null
+      ) {
+        dispatch({
+          type: 'selectAt',
+          wallId: hit.wallId,
+          outsideWallId: hit.outsideWallId,
+          exitId: hit.exitId,
+          textId: hit.textId,
+          pillarId: hit.pillarId,
+          fabricId: hit.fabricId,
+          additive,
+        });
+        onSelectZone?.(null);
+        return;
+      }
+      dispatch({
+        type: 'selectAt',
+        wallId: null,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: null,
+        fabricId: null,
+        additive: false,
+      });
+      onSelectZone?.(hit.zoneId);
+      if (hit.zoneId === null) startPan({ x: event.clientX, y: event.clientY }, camera);
+      return;
+    }
 
     if (tool === 'wall') {
       if (state.draft) {
@@ -861,6 +903,22 @@ export function LayoutCanvas({
                     </Group>
                   );
                 })}
+            {movementPreviewRadius !== null && movementPreviewRadius > 0
+              ? doc.fabrics
+                  .filter((fabric) => fabric.id === selection.fabricIds[0])
+                  .map((fabric) => (
+                    <Circle
+                      key={`movement-radius-${fabric.id}`}
+                      x={(fabric.startX + fabric.endX) / 2}
+                      y={(fabric.startY + fabric.endY) / 2}
+                      radius={movementPreviewRadius}
+                      fill={ACCENT_ALPHA_8}
+                      stroke={CANVAS_COLORS.accent}
+                      strokeWidth={s(1.5)}
+                      dash={[s(6), s(4)]}
+                    />
+                  ))
+              : null}
             {doc.outsideWalls.map((wall) => (
               <OutsideWallView
                 key={wall.id}

@@ -408,4 +408,54 @@ describe('LayersPanel common reorder', () => {
     act(() => emptyDrop?.dispatchEvent(dragEvent('drop', dataTransfer, 120, 100)));
     expect(changeMembership).toHaveBeenCalledWith(expect.objectContaining({ id: 'w1' }), null);
   });
+
+  it('keeps employee rows selectable without drag or zone membership menus', () => {
+    const initial = createInitialState();
+    const state = {
+      ...initial,
+      doc: {
+        ...initial.doc,
+        fabrics: [
+          {
+            id: 'f1',
+            backendId: 20,
+            name: '진열대',
+            startX: 1,
+            startY: 1,
+            endX: 3,
+            endY: 2,
+            rotation: 0,
+          },
+        ],
+      },
+    };
+    const dispatch = vi.fn();
+    act(() => {
+      root.render(
+        <LayersPanel
+          state={state}
+          dispatch={dispatch}
+          zones={[]}
+          selectedZoneId={null}
+          onSelectZone={vi.fn()}
+          employeeNameById={{}}
+          orderLocked={false}
+          membershipEditable={false}
+          onChangeMembership={vi.fn()}
+          onGroupSelectionIntoZone={vi.fn()}
+          onMoveZoneOrder={vi.fn()}
+          onCenterPoint={vi.fn()}
+        />,
+      );
+    });
+
+    const row = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.getAttribute('aria-label') === '진열대 선택',
+    );
+    expect(row).toBeDefined();
+    expect(row?.getAttribute('draggable')).toBe('false');
+    expect(row?.getAttribute('aria-haspopup')).toBeNull();
+    act(() => row?.click());
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'selectAt' }));
+  });
 });
