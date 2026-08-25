@@ -497,16 +497,19 @@ export function LayoutCanvas({
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (riskDraft) {
-      const width = Math.abs(riskDraft.end.x - riskDraft.start.x);
-      const height = Math.abs(riskDraft.end.y - riskDraft.start.y);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const end = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
+      const width = Math.abs(end.x - riskDraft.start.x);
+      const height = Math.abs(end.y - riskDraft.start.y);
+      const minSize = 2 / (camera.zoom * PX_PER_METER);
       setRiskDraft(null);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
-      if (width > 0.5 && height > 0.5) {
+      if (width >= minSize && height >= minSize) {
         onRiskZoneDrawn?.({
-          x: Math.min(riskDraft.start.x, riskDraft.end.x),
-          y: Math.min(riskDraft.start.y, riskDraft.end.y),
+          x: Math.min(riskDraft.start.x, end.x),
+          y: Math.min(riskDraft.start.y, end.y),
           width,
           height,
         });

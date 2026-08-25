@@ -7,6 +7,7 @@ import type { AttachedLawRef, Risk, RiskCreateRequest } from '../types/risks';
 import { getRiskErrorMessage } from '../utils/getRiskErrorMessage';
 import type { Bounds } from '../utils/riskZoneTypes';
 import { generateRiskZoneName } from '../utils/riskZoneName';
+import './RiskZoneEditorDialog.css';
 
 interface DialogDrawing {
   width: number;
@@ -17,9 +18,8 @@ interface DialogDrawing {
 interface Props {
   bounds: Bounds;
   drawing: DialogDrawing;
-  layoutId?: number;
+  layoutId: number;
   layoutVersionId?: number;
-  simulationResultId?: number;
   onCancel: () => void;
   onConfirm: (risk: Risk) => void;
 }
@@ -29,7 +29,6 @@ export function RiskZoneEditorDialog({
   drawing,
   layoutId,
   layoutVersionId,
-  simulationResultId,
   onCancel,
   onConfirm,
 }: Props) {
@@ -54,8 +53,7 @@ export function RiskZoneEditorDialog({
 
   const handleConfirm = () => {
     const body: RiskCreateRequest = {
-      simulationResultId: simulationResultId ?? null,
-      layoutId: layoutId ?? null,
+      layoutId,
       layoutVersionId: layoutVersionId ?? null,
       startX: bounds.x,
       startY: bounds.y,

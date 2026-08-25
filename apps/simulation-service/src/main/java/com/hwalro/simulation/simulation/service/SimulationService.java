@@ -174,9 +174,6 @@ public class SimulationService {
         if (result != null) {
             RegulationUsageClient.RegulationUsageResponse usage =
                     regulationUsageClient.checkUsage(result.getId(), authorization);
-            if (usage.usedInRisks()) {
-                throw new SimulationConflictException("주의 항목에 연결된 시뮬레이션은 삭제할 수 없습니다.");
-            }
             if (usage.usedInReports()) {
                 throw new SimulationConflictException("보고서에 연결된 시뮬레이션은 삭제할 수 없습니다.");
             }

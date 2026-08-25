@@ -6,6 +6,21 @@
   -webkit-user-select: none;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .layout-workspace--entering {
+    animation: layout-workspace-fade-in 420ms ease-out both;
+  }
+}
+
+@keyframes layout-workspace-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .layout-cursor-default {
   cursor: default;
 }
@@ -83,7 +98,6 @@
 }
 
 .layout-workspace-title button:focus-visible,
-.layout-workspace-title-input:focus-visible,
 .layout-panel-actions button:focus-visible,
 .layout-tool-button:focus-visible,
 .layout-zoom-control button:focus-visible {
@@ -94,18 +108,6 @@
 .layout-workspace-title button svg {
   width: 14px;
   height: 14px;
-}
-
-.layout-workspace-title-input {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  padding: 4px 8px;
-  color: var(--color-ink);
-  font: inherit;
-  outline: 0;
 }
 
 .layout-panel-actions {

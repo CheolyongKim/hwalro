@@ -109,7 +109,7 @@ public class ReportPromptFactory {
     private void appendRisks(StringBuilder prompt, List<Risk> risks) {
         List<PromptRisk> promptRisks = safe(risks).stream()
                 .map(risk -> new PromptRisk(
-                        risk.simulationResultId(), risk.title(), risk.description(), localizeSeverity(risk.severity())))
+                        risk.layoutId(), risk.title(), risk.description(), localizeSeverity(risk.severity())))
                 .toList();
         prompt.append("[사용자 지정 주의 구역]\n<risk-data>\n");
         try {
@@ -183,7 +183,7 @@ public class ReportPromptFactory {
         return values == null ? List.of() : values;
     }
 
-    private record PromptRisk(Long simulationResultId, String title, String description, String severity) {}
+    private record PromptRisk(Long layoutId, String title, String description, String severity) {}
 
     public record Prompt(String system, String user) {}
 }

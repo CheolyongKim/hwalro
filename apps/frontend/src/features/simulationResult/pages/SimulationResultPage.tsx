@@ -220,7 +220,7 @@ function ResultView({
     let active = true;
     setRiskLoadError(null);
     riskApi
-      .listBySimulationResult(summary.simulationResultId)
+      .listByLayout(summary.layoutId)
       .then((risks) => {
         if (active) setRiskZones(risks.filter((risk) => risk.startX !== null).map(toRiskZone));
       })
@@ -230,7 +230,7 @@ function ResultView({
     return () => {
       active = false;
     };
-  }, [summary.simulationResultId]);
+  }, [summary.layoutId]);
 
   const handleRevealResults = () => {
     playback.pause();

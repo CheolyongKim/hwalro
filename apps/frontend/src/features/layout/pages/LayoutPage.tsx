@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutPrimaryActions, LayoutToolbar } from '../components/LayoutToolbar';
@@ -68,6 +68,7 @@ function parseLayoutId(value: string | undefined): number | null {
 
 function LayoutPage() {
   const { drawingId = '' } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const recordLastActivity = useRecordLastActivity();
   const layoutId = parseLayoutId(drawingId);
@@ -80,6 +81,7 @@ function LayoutPage() {
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const fadeInLayout = (location.state as { fadeInLayout?: boolean } | null)?.fadeInLayout === true;
   const [riskMode, setRiskMode] = useState(false);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [pendingRiskBounds, setPendingRiskBounds] = useState<{
@@ -341,6 +343,18 @@ function LayoutPage() {
     setHistoryDialogOpen(false);
   }, []);
 
+  const handleUpdateDrawingInfo = useCallback(
+    (info: { title: string; description: string | null }) => {
+      const nextDescription = info.description === '' ? null : info.description;
+      if (sessionRef.current !== null && sessionRef.current.description !== nextDescription) {
+        sessionRef.current = { ...sessionRef.current, description: nextDescription };
+      }
+      if (stateRef.current.doc.name !== info.title) {
+        dispatch({ type: 'renameDoc', name: info.title });
+      }
+    },
+    [],
+  );
   useEffect(() => {
     if (loadStatus !== 'ready' || layoutId === null) {
       return;
@@ -407,12 +421,15 @@ function LayoutPage() {
   }
 
   return (
-    <CanvasWorkspace className="layout-workspace">
+    <CanvasWorkspace
+      className={`layout-workspace ${fadeInLayout ? 'layout-workspace--entering' : ''}`}
+    >
       <CanvasWorkspaceBackButton onClick={() => navigate('/drawings')} />
       <LayoutWorkspaceHeader
         name={state.doc.name}
+        description={sessionRef.current?.description ?? null}
         readOnly={readOnly}
-        onRename={(name) => dispatch({ type: 'renameDoc', name })}
+        onUpdateInfo={handleUpdateDrawingInfo}
       />
       <LayoutCanvas
         state={state}
