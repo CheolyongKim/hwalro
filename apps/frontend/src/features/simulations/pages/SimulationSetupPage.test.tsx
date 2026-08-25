@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { simulationApi } from '../api/simulationApi';
 import type { SimulationExecution, SimulationSetup } from '../types';
 import SimulationSetupPage from './SimulationSetupPage';
+import { SIMULATION_SETUP_LOADING_MESSAGE } from '../../../components/workspace/workspaceLoadingMessages';
 
 vi.mock('../components/SimulationCanvas', () => ({
   HAZARD_MAX_RADIUS: 50,
@@ -129,7 +130,7 @@ describe('출입구 기본 선택', () => {
       .mockResolvedValue(setup());
 
     await renderPage();
-    expect(container.textContent).toContain('시뮬레이션 설정을 불러오는 중...');
+    expect(container.textContent).toContain(SIMULATION_SETUP_LOADING_MESSAGE);
     expect(container.textContent).not.toContain('다시 시도');
 
     await act(async () => {

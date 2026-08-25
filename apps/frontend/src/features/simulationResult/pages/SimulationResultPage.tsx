@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../../components/ui';
 import { isCancelledRequest, loadWithRetry } from '../../../api/loadWithRetry';
 import { useDelayedLoadingMessage } from '../../../hooks/useDelayedLoadingMessage';
+import { SIMULATION_RESULT_LOADING_MESSAGE } from '../../../components/workspace/workspaceLoadingMessages';
 import {
   CanvasWorkspace,
   CanvasWorkspaceBackButton,
@@ -284,14 +285,16 @@ function ResultView({
     }
   };
 
+  if (chunks.loading && (!result || !currentFrame)) {
+    return <CanvasWorkspaceState message={SIMULATION_RESULT_LOADING_MESSAGE} role="status" />;
+  }
+
   if (chunks.error || !result || !currentFrame) {
     return (
       <CanvasWorkspaceState
         message={
           chunks.error ??
-          (chunks.loading
-            ? '시뮬레이션 재생 데이터를 불러오는 중입니다.'
-            : '시뮬레이션 재생 데이터가 없습니다.')
+          '시뮬레이션 재생 데이터가 없습니다.'
         }
         actions={
           <>
@@ -465,34 +468,22 @@ export default function SimulationResultPage() {
   const [summary, setSummary] = useState<SimulationResultSummaryViewModel | null>(null);
   const [executionResult, setExecutionResult] = useState<SimulationResultSummary | null>(null);
   const [originState, setOriginState] = useState<OriginResultState>({ status: 'loading' });
-  const [loadingTotalPeople, setLoadingTotalPeople] = useState<number | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [retry, setRetry] = useState(0);
-  const loadingParticipantLabel = loadingTotalPeople?.toLocaleString('ko-KR');
   const loadingMessage = useDelayedLoadingMessage(
     status === 'loading',
-    loadingParticipantLabel
-      ? `${loadingParticipantLabel}명 시뮬레이션 결과를 준비하고 있습니다.`
-      : '시뮬레이션 결과를 준비하고 있습니다.',
+    SIMULATION_RESULT_LOADING_MESSAGE,
   );
 
   useEffect(() => {
     const controller = new AbortController();
     setStatus('loading');
-    setLoadingTotalPeople(null);
     if (!Number.isSafeInteger(numericSimulationId) || numericSimulationId < 1) {
       setStatus('missing');
       return () => {
         controller.abort();
       };
     }
-    void loadWithRetry(() => simulationApi.getSetup(numericSimulationId, controller.signal), {
-      signal: controller.signal,
-    })
-      .then((setup) => {
-        if (!controller.signal.aborted) setLoadingTotalPeople(setup.totalPeople);
-      })
-      .catch(() => undefined);
     loadWithRetry(() => simulationApi.getExecution(numericSimulationId, controller.signal), {
       signal: controller.signal,
     })

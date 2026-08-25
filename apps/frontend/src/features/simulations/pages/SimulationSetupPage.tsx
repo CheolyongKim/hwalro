@@ -26,6 +26,7 @@ import { getSimulationErrorMessage } from '../utils/getSimulationErrorMessage';
 import { useRecordLastActivity } from '../../home/hooks/useRecordLastActivity';
 import { isCancelledRequest, loadWithRetry } from '../../../api/loadWithRetry';
 import { useDelayedLoadingMessage } from '../../../hooks/useDelayedLoadingMessage';
+import { SIMULATION_SETUP_LOADING_MESSAGE } from '../../../components/workspace/workspaceLoadingMessages';
 import { Button } from '../../../components/ui';
 import {
   CanvasWorkspace,
@@ -123,7 +124,7 @@ function SimulationSetupPage() {
   const [loadRetryCount, setLoadRetryCount] = useState(0);
   const loadingMessage = useDelayedLoadingMessage(
     loadState === 'loading',
-    '시뮬레이션 설정을 불러오는 중...',
+    SIMULATION_SETUP_LOADING_MESSAGE,
   );
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [executionPhase, setExecutionPhase] = useState<ExecutionPhase>('idle');

@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { isCancelledRequest, loadWithRetry } from '../../../api/loadWithRetry';
 import { useDelayedLoadingMessage } from '../../../hooks/useDelayedLoadingMessage';
+import { DRAWING_WORKSPACE_LOADING_MESSAGE } from '../../../components/workspace/workspaceLoadingMessages';
 import { LayoutCanvas } from '../components/LayoutCanvas';
 import { LayoutPrimaryActions, LayoutToolbar } from '../components/LayoutToolbar';
 import { LayoutWorkspaceHeader } from '../components/LayoutWorkspaceHeader';
@@ -76,7 +77,10 @@ function LayoutPage() {
   const layoutId = parseLayoutId(drawingId);
   const [state, dispatch] = useReducer(editorReducer, undefined, createInitialState);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
-  const loadingMessage = useDelayedLoadingMessage(loadStatus === 'loading', '도면 불러오는 중...');
+  const loadingMessage = useDelayedLoadingMessage(
+    loadStatus === 'loading',
+    DRAWING_WORKSPACE_LOADING_MESSAGE,
+  );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [retryCount, setRetryCount] = useState(0);
