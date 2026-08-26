@@ -45,11 +45,7 @@ class ZoneBoundaryTrimmerTest {
                 new SegmentDto("벽1", m(10), m(0), m(10), m(6)), new SegmentDto("벽2", m(10), m(8), m(10), m(10)));
 
         List<PointDto> trimmed = ZoneBoundaryTrimmer.trim(
-                route,
-                new ZoneBoundaryTrimmer.ZoneBounds(m(0), m(0), m(10), m(10)),
-                exit(20, 8),
-                walls,
-                List.of());
+                route, new ZoneBoundaryTrimmer.ZoneBounds(m(0), m(0), m(10), m(10)), exit(20, 8), walls, List.of());
 
         // crossing은 (10, 7.666..)이었지만 개구부(6~8)의 중앙인 (10, 7.0)을 경유
         assertThat(trimmed).containsExactly(point(5, 5), point(8, 7), point(10, 7), point(12, 8), point(20, 8));
@@ -59,8 +55,7 @@ class ZoneBoundaryTrimmerTest {
     void 치환_지점이_기둥을_뚫으면_원래_경로를_유지한다() {
         List<PointDto> route = List.of(point(8, 6), point(13, 9));
 
-        List<ZoneBoundaryTrimmer.Obstacle> pillars =
-                List.of(new ZoneBoundaryTrimmer.Obstacle(9.7, 6.8, 10.3, 7.6, 0));
+        List<ZoneBoundaryTrimmer.Obstacle> pillars = List.of(new ZoneBoundaryTrimmer.Obstacle(9.7, 6.8, 10.3, 7.6, 0));
 
         List<PointDto> trimmed = ZoneBoundaryTrimmer.trim(
                 route,

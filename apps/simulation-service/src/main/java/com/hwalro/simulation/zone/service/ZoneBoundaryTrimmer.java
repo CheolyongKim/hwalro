@@ -81,7 +81,8 @@ public final class ZoneBoundaryTrimmer {
                 double maxX = Math.max(wall.startX().doubleValue(), wall.endX().doubleValue());
                 double minY = Math.min(wall.startY().doubleValue(), wall.endY().doubleValue());
                 double maxY = Math.max(wall.startY().doubleValue(), wall.endY().doubleValue());
-                blockers.add(new Obstacle(minX - WALL_THICKNESS, minY - WALL_THICKNESS, maxX + WALL_THICKNESS, maxY + WALL_THICKNESS, 0));
+                blockers.add(new Obstacle(
+                        minX - WALL_THICKNESS, minY - WALL_THICKNESS, maxX + WALL_THICKNESS, maxY + WALL_THICKNESS, 0));
             }
         }
         List<PointDto> result = new ArrayList<>(points);
@@ -365,15 +366,7 @@ public final class ZoneBoundaryTrimmer {
             }
             double[] localStart = toLocalFrame(start);
             double[] localEnd = toLocalFrame(end);
-            return segmentIntersectsBox(
-                    localStart[0],
-                    localStart[1],
-                    localEnd[0],
-                    localEnd[1],
-                    minX,
-                    minY,
-                    maxX,
-                    maxY);
+            return segmentIntersectsBox(localStart[0], localStart[1], localEnd[0], localEnd[1], minX, minY, maxX, maxY);
         }
 
         private double[] toLocalFrame(PointDto point) {

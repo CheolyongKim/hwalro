@@ -8,7 +8,6 @@ import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.FabricRectDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.RectDto;
-import com.hwalro.simulation.simulation.dto.SimulationDtos.SegmentDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
@@ -24,15 +23,15 @@ import com.hwalro.simulation.zone.dto.ZoneExitPartitionDto;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -72,12 +71,11 @@ public class EvacuationPreviewService {
     private final EvacuationRouteStore routeStore;
     private final Map<Long, CompletableFuture<List<EvacuationRouteResponse>>> inFlightComputes =
             new ConcurrentHashMap<>();
-    private final ExecutorService computeExecutor =
-            Executors.newFixedThreadPool(2, runnable -> {
-                Thread thread = new Thread(runnable, "evacuation-route-compute");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ExecutorService computeExecutor = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "evacuation-route-compute");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public EvacuationPreviewService(
             LayoutZoneService layoutZoneService,
@@ -173,12 +171,10 @@ public class EvacuationPreviewService {
     private CompletableFuture<List<EvacuationRouteResponse>> startCompute(
             Long layoutId, Long versionId, List<LayoutZone> zones, String cacheKey) {
         boolean[] createdByMe = new boolean[1];
-        CompletableFuture<List<EvacuationRouteResponse>> future = inFlightComputes.computeIfAbsent(
-                layoutId,
-                key -> {
-                    createdByMe[0] = true;
-                    return new CompletableFuture<>();
-                });
+        CompletableFuture<List<EvacuationRouteResponse>> future = inFlightComputes.computeIfAbsent(layoutId, key -> {
+            createdByMe[0] = true;
+            return new CompletableFuture<>();
+        });
         if (createdByMe[0]) {
             CompletableFuture.supplyAsync(
                             () -> {
@@ -372,7 +368,8 @@ public class EvacuationPreviewService {
                 .collect(Collectors.toMap(PreviewedRoute::exitId, Function.identity(), (first, ignored) -> first));
         PreviewedRoute primaryRoute = zoneRoutes.stream()
                 .filter(candidate -> candidate.routeOrigin() != null)
-                .min(Comparator.comparingDouble(candidate -> squaredDistanceToZoneCenter(origin, candidate.routeOrigin())))
+                .min(Comparator.comparingDouble(
+                        candidate -> squaredDistanceToZoneCenter(origin, candidate.routeOrigin())))
                 .orElse(null);
         if (primaryRoute == null) {
             return unreachable(zone, origin, null, REASON_NO_REACHABLE_EXIT);

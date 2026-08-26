@@ -21,8 +21,7 @@ public class EvacuationRouteStore {
     private static final Logger log = LoggerFactory.getLogger(EvacuationRouteStore.class);
 
     private static final int MAX_ROWS = 32;
-    private static final TypeReference<List<EvacuationRouteResponse>> PAYLOAD_TYPE =
-            new TypeReference<>() {};
+    private static final TypeReference<List<EvacuationRouteResponse>> PAYLOAD_TYPE = new TypeReference<>() {};
 
     private final EvacuationRouteStoreMapper mapper;
     private final ObjectMapper objectMapper;

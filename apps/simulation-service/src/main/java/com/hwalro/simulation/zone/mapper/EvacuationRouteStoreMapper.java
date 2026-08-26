@@ -16,8 +16,7 @@ public interface EvacuationRouteStoreMapper {
             @Param("layoutVersionId") Long layoutVersionId,
             @Param("resultPayload") String resultPayload);
 
-    int deleteByVersionId(
-            @Param("layoutVersionId") Long layoutVersionId, @Param("cacheKey") String cacheKey);
+    int deleteByVersionId(@Param("layoutVersionId") Long layoutVersionId, @Param("cacheKey") String cacheKey);
 
     void trimToLimit(@Param("limit") int limit);
 }

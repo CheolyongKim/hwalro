@@ -111,10 +111,7 @@ class LayoutZoneAuthorizationTest {
         when(layoutZoneService.zoneOrThrow(OTHER_ZONE_ID)).thenReturn(zone(OTHER_ZONE_ID, 99L));
 
         service = new LayoutMetadataService(
-                layoutZoneService,
-                drawingService,
-                employeeDirectoryClient,
-                mock(EvacuationRouteWarmer.class));
+                layoutZoneService, drawingService, employeeDirectoryClient, mock(EvacuationRouteWarmer.class));
     }
 
     @Test

@@ -13,12 +13,11 @@ public class EvacuationRouteWarmer {
     private static final Logger log = LoggerFactory.getLogger(EvacuationRouteWarmer.class);
 
     private final EvacuationPreviewService previewService;
-    private final ExecutorService executor =
-            Executors.newSingleThreadExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "evacuation-route-warmer");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "evacuation-route-warmer");
+        thread.setDaemon(true);
+        return thread;
+    });
     private final Set<Long> queuedLayoutIds = ConcurrentHashMap.newKeySet();
 
     public EvacuationRouteWarmer(EvacuationPreviewService previewService) {
