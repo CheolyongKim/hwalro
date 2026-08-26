@@ -12,6 +12,7 @@ public final class CandidateSelector {
     public static final String EVACUATED_PEOPLE = "EVACUATED_PEOPLE";
     public static final String REMAINING_PEOPLE = "REMAINING_PEOPLE";
     public static final String MAX_DENSITY = "MAX_DENSITY";
+    public static final String EXIT_IMBALANCE = "EXIT_IMBALANCE";
 
     private CandidateSelector() {}
 
@@ -41,6 +42,20 @@ public final class CandidateSelector {
             List<Metric> baselineMetrics,
             double improvementMargin,
             double densitySafetyThreshold) {
+        return judge(trialMetrics, baselineMetrics, improvementMargin, densitySafetyThreshold, false);
+    }
+
+    /**
+     * requireExitBalanceImprovement가 true면 출구 편중 진단(비상구 편중)을 근거로 만들어진 후보다.
+     * 그런 후보는 편중도 자체가 여유치만큼 좋아졌을 때만 개선이다 - 대피 시간이 줄어도 편중이 그대면
+     * 이 후보가 노린 문제는 해결되지 않았다. false면 기존 판정과 같다.
+     */
+    public static Judgement judge(
+            List<Metric> trialMetrics,
+            List<Metric> baselineMetrics,
+            double improvementMargin,
+            double densitySafetyThreshold,
+            boolean requireExitBalanceImprovement) {
         Double baselineTotal = metricValue(baselineMetrics, TOTAL_EVACUATION_TIME_SECONDS);
         if (baselineTotal == null) {
             return judgeByRemainingPeople(trialMetrics, baselineMetrics, densitySafetyThreshold);
@@ -49,9 +64,12 @@ public final class CandidateSelector {
         MetricDelta primaryDelta =
                 measuredTotal == null ? null : delta(TOTAL_EVACUATION_TIME_SECONDS, baselineTotal, measuredTotal);
 
-        boolean improved = clearsMargin(trialMetrics, baselineMetrics, TOTAL_EVACUATION_TIME_SECONDS, improvementMargin)
-                || clearsMargin(trialMetrics, baselineMetrics, AVERAGE_EVACUATION_TIME_SECONDS, improvementMargin)
-                || clearsMargin(trialMetrics, baselineMetrics, MAX_DENSITY, improvementMargin);
+        boolean improved = requireExitBalanceImprovement
+                ? clearsMargin(trialMetrics, baselineMetrics, EXIT_IMBALANCE, improvementMargin)
+                : clearsMargin(trialMetrics, baselineMetrics, TOTAL_EVACUATION_TIME_SECONDS, improvementMargin)
+                        || clearsMargin(
+                                trialMetrics, baselineMetrics, AVERAGE_EVACUATION_TIME_SECONDS, improvementMargin)
+                        || clearsMargin(trialMetrics, baselineMetrics, MAX_DENSITY, improvementMargin);
         if (improved && worsenedBeyondMargin(trialMetrics, baselineMetrics, improvementMargin)) {
             improved = false;
         }

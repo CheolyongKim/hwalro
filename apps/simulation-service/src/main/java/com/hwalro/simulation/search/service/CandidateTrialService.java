@@ -3,6 +3,8 @@ package com.hwalro.simulation.search.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.analysis.service.DensityThresholdProvider;
+import com.hwalro.simulation.drawing.domain.LayoutExit;
+import com.hwalro.simulation.search.diagnosis.ExitBalanceFindingExtractor;
 import com.hwalro.simulation.search.domain.CandidateStatus;
 import com.hwalro.simulation.search.domain.ChangeOp;
 import com.hwalro.simulation.search.domain.ChangeSet;
@@ -38,6 +40,7 @@ public class CandidateTrialService {
     private final TransactionTemplate transactionTemplate;
     private final VerifiedCandidateMaterializer verifiedCandidateMaterializer;
     private final DensityThresholdProvider densityThresholdProvider;
+    private final ExitBalanceFindingExtractor exitBalanceExtractor;
 
     public CandidateTrialService(
             LayoutSearchMapper layoutStudyMapper,
@@ -56,6 +59,7 @@ public class CandidateTrialService {
         this.transactionTemplate = transactionTemplate;
         this.verifiedCandidateMaterializer = verifiedCandidateMaterializer;
         this.densityThresholdProvider = densityThresholdProvider;
+        this.exitBalanceExtractor = new ExitBalanceFindingExtractor(objectMapper);
     }
 
     public TrialOutcome run(
@@ -63,7 +67,8 @@ public class CandidateTrialService {
             SimulationSetupResponse baselineSetup,
             List<Metric> baselineMetrics,
             double trialCapSeconds,
-            double improvementMargin) {
+            double improvementMargin,
+            List<LayoutExit> exits) {
         if (!startTrial(candidate.getId())) {
             return new TrialOutcome(false, null);
         }
@@ -72,12 +77,14 @@ public class CandidateTrialService {
             ChangeSet changeSet = readChangeSet(candidate.getChangeSet());
             SimulationSetupResponse mutatedSetup = changeSetApplier.apply(baselineSetup, changeSet);
             EngineRun run = engineRunner.run(candidate.getId(), mutatedSetup, trialCapSeconds);
-            List<Metric> trialMetrics = buildMetrics(run.result());
+            List<Metric> trialMetrics = new ArrayList<>(buildMetrics(run.result()));
+            appendExitImbalance(trialMetrics, run.timelineChunks(), exits);
             CandidateSelector.Judgement judgement = CandidateSelector.judge(
                     trialMetrics,
                     baselineMetrics,
                     improvementMargin,
-                    densityThresholdProvider.getCurrent().value().doubleValue());
+                    densityThresholdProvider.getCurrent().value().doubleValue(),
+                    "EXIT_IMBALANCE".equals(candidate.getOriginFindingType()));
             recordTrialResult(candidate, run, trialMetrics, baselineMetrics, judgement);
             if (judgement.improved()) {
                 verifiedCandidateMaterializer.materialize(candidate, mutatedSetup, run);
@@ -208,6 +215,21 @@ public class CandidateTrialService {
             return objectMapper.readValue(json, ChangeSet.class);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("저장된 변경 집합을 읽지 못했습니다.", exception);
+        }
+    }
+
+    private void appendExitImbalance(
+            List<Metric> metrics, List<SimulationEngineRunner.TimelineChunk> timelineChunks, List<LayoutExit> exits) {
+        if (exits.isEmpty()) {
+            return;
+        }
+        List<String> frameDataList = new ArrayList<>(timelineChunks.size());
+        for (SimulationEngineRunner.TimelineChunk chunk : timelineChunks) {
+            frameDataList.add(chunk.frameData());
+        }
+        Double severity = exitBalanceExtractor.worstExitSeverity(frameDataList, exits);
+        if (severity != null) {
+            metrics.add(new Metric(CandidateSelector.EXIT_IMBALANCE, "RATIO", severity));
         }
     }
 
