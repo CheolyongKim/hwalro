@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState, type Dispatch, type DragEvent } from 'react';
+import { memo, useEffect, useRef, useState, type Dispatch, type DragEvent } from 'react';
 import type { LayoutZone } from '../api/layoutMetadataApi';
 import type { EditorAction } from '../state/editorReducer';
 import type { EditorState, Vec2 } from '../types';
@@ -94,7 +94,7 @@ function parseDragPayload(event: DragEvent): DraggedLayer | null {
 }
 
 /** 도면의 모든 요소를 Figma식 계층으로 보여준다. 소속은 드래그 앤 드롭과 컨텍스트 메뉴로 정한다. */
-export function LayersPanel({
+export const LayersPanel = memo(function LayersPanel({
   state,
   dispatch,
   zones,
@@ -627,4 +627,19 @@ export function LayersPanel({
       </div>
     </section>
   );
-}
+},
+(prev, next) =>
+  prev.state.doc === next.state.doc &&
+  prev.state.selection === next.state.selection &&
+  prev.zones === next.zones &&
+  prev.selectedZoneId === next.selectedZoneId &&
+  prev.employeeNameById === next.employeeNameById &&
+  prev.orderLocked === next.orderLocked &&
+  prev.membershipEditable === next.membershipEditable &&
+  prev.dispatch === next.dispatch &&
+  prev.onSelectZone === next.onSelectZone &&
+  prev.onChangeMembership === next.onChangeMembership &&
+  prev.onGroupSelectionIntoZone === next.onGroupSelectionIntoZone &&
+  prev.onMoveZoneOrder === next.onMoveZoneOrder &&
+  prev.onCenterPoint === next.onCenterPoint,
+);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import type { Dispatch } from 'react';
 import type { EditorState, Exit, Fabric, LayoutText, OutsideWall, Pillar, Wall } from '../types';
 import type { EditorAction } from '../state/editorReducer';
@@ -246,52 +246,59 @@ function InfoRow({ label, value }: InfoRowProps) {
   );
 }
 
-export function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
-  const wall = selectedWall(state);
-  const outsideWall = wall === null ? selectedOutsideWall(state) : null;
-  const exit = outsideWall === null ? selectedExit(state) : null;
-  const pillar = exit === null ? selectedPillar(state) : null;
-  const fabric = pillar === null ? selectedFabric(state) : null;
-  const text = fabric === null ? selectedText(state) : null;
-  const { doc } = state;
-  const hasSelection =
-    wall !== null ||
-    outsideWall !== null ||
-    exit !== null ||
-    pillar !== null ||
-    fabric !== null ||
-    text !== null;
+export const SettingsPanel = memo(
+  function SettingsPanel({ state, dispatch }: SettingsPanelProps) {
+    const wall = selectedWall(state);
+    const outsideWall = wall === null ? selectedOutsideWall(state) : null;
+    const exit = outsideWall === null ? selectedExit(state) : null;
+    const pillar = exit === null ? selectedPillar(state) : null;
+    const fabric = pillar === null ? selectedFabric(state) : null;
+    const text = fabric === null ? selectedText(state) : null;
+    const { doc } = state;
+    const hasSelection =
+      wall !== null ||
+      outsideWall !== null ||
+      exit !== null ||
+      pillar !== null ||
+      fabric !== null ||
+      text !== null;
 
-  return (
-    <section aria-label="도면 상세 설정" className="layout-settings-content">
-      {wall !== null ? (
-        <WallFields wall={wall} dispatch={dispatch} />
-      ) : outsideWall !== null ? (
-        <OutsideWallFields wall={outsideWall} dispatch={dispatch} />
-      ) : exit !== null ? (
-        <ExitFields exit={exit} dispatch={dispatch} />
-      ) : pillar !== null ? (
-        <RectFields element={pillar} dispatch={dispatch} kind="pillar" />
-      ) : fabric !== null ? (
-        <RectFields element={fabric} dispatch={dispatch} kind="fabric" />
-      ) : text !== null ? (
-        <TextFields text={text} dispatch={dispatch} />
-      ) : null}
-      <section className={hasSelection ? 'mt-4 border-t border-panel-divider pt-4' : ''}>
-        <h3 className="text-sm font-bold text-panel-text">레이어</h3>
-        <div className="mt-1">
-          <InfoRow
-            label="크기"
-            value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
-          />
-          <InfoRow label="벽" value={`${doc.walls.length}개`} />
-          <InfoRow label="외곽벽" value={`${doc.outsideWalls.length}개`} />
-          <InfoRow label="비상구" value={`${doc.exits.length}개`} />
-          <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
-          <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
-          <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
-        </div>
+    return (
+      <section aria-label="도면 상세 설정" className="layout-settings-content">
+        {wall !== null ? (
+          <WallFields wall={wall} dispatch={dispatch} />
+        ) : outsideWall !== null ? (
+          <OutsideWallFields wall={outsideWall} dispatch={dispatch} />
+        ) : exit !== null ? (
+          <ExitFields exit={exit} dispatch={dispatch} />
+        ) : pillar !== null ? (
+          <RectFields element={pillar} dispatch={dispatch} kind="pillar" />
+        ) : fabric !== null ? (
+          <RectFields element={fabric} dispatch={dispatch} kind="fabric" />
+        ) : text !== null ? (
+          <TextFields text={text} dispatch={dispatch} />
+        ) : null}
+        <section className={hasSelection ? 'mt-4 border-t border-panel-divider pt-4' : ''}>
+          <h3 className="text-sm font-bold text-panel-text">레이어</h3>
+          <div className="mt-1">
+            <InfoRow
+              label="크기"
+              value={`${doc.width.toLocaleString('ko-KR')}m × ${doc.height.toLocaleString('ko-KR')}m`}
+            />
+            <InfoRow label="벽" value={`${doc.walls.length}개`} />
+            <InfoRow label="외곽벽" value={`${doc.outsideWalls.length}개`} />
+            <InfoRow label="비상구" value={`${doc.exits.length}개`} />
+            <InfoRow label="기둥" value={`${doc.pillars.length}개`} />
+            <InfoRow label="구조물" value={`${doc.fabrics.length}개`} />
+            <InfoRow label="텍스트" value={`${doc.layoutTexts.length}개`} />
+          </div>
+        </section>
       </section>
-    </section>
-  );
-}
+    );
+  },
+  (prev, next) =>
+    prev.state.doc === next.state.doc &&
+    prev.state.selection === next.state.selection &&
+    prev.state.validationProblems === next.state.validationProblems &&
+    prev.dispatch === next.dispatch,
+);
