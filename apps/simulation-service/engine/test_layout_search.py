@@ -59,7 +59,7 @@ def base_input(drawing, findings=None, parents=None, max_candidates=6, constrain
 def test_empty_findings_produce_no_candidates():
     drawing = room_drawing(fabrics=[{"id": 1, "name": "f", "startX": 4, "startY": 5, "endX": 6, "endY": 6, "rotation": 0}])
     result = layout_search.generate(base_input(drawing, findings=[]))
-    assert result["plannerVersion"] == "DIAGNOSTIC_BEAM_V1"
+    assert result["plannerVersion"] == "DIAGNOSTIC_BEAM_V2"
     assert result["candidates"] == []
     assert result["rejected"] == []
 
@@ -70,7 +70,7 @@ def test_generates_clear_corridor_candidates_for_bottleneck():
     assert len(result["candidates"]) > 0
     for candidate in result["candidates"]:
         assert candidate["originFindingType"] == "BOTTLENECK"
-        assert candidate["operatorType"] in ("CLEAR_CORRIDOR", "ROTATE_TO_OPEN", "OPEN_DUAL_GAP")
+        assert candidate["operatorType"] in ("CLEAR_CORRIDOR", "ROTATE_TO_OPEN", "SHIFT_AND_TURN", "OPEN_DUAL_GAP")
         assert candidate["parentCandidateId"] is None
         assert candidate["proxyScore"] >= 0
         assert candidate["ops"]
@@ -552,7 +552,8 @@ def test_rejection_examples_are_capped_but_counts_are_complete():
     assert counts["OUTSIDE_BOUNDARY"] > layout_search.REJECTED_EXAMPLES_PER_REASON
     for reason, total in counts.items():
         examples = [entry for entry in result["rejected"] if entry["reason"] == reason]
-        assert len(examples) == min(total, layout_search.REJECTED_EXAMPLES_PER_REASON)
+        expected = 0 if reason == "OVERLAP" else min(total, layout_search.REJECTED_EXAMPLES_PER_REASON)
+        assert len(examples) == expected
     assert set(counts) <= set(layout_search.REJECT_REASONS)
 
 
@@ -706,7 +707,7 @@ def test_agents_overlapping_obstacles_are_relocated_before_routing():
     result = layout_search.generate(
         {**base_input(drawing, findings=[bottleneck_finding()], max_candidates=6), "agents": overlapping}
     )
-    assert result["plannerVersion"] == "DIAGNOSTIC_BEAM_V1"
+    assert result["plannerVersion"] == "DIAGNOSTIC_BEAM_V2"
     assert len(result["candidates"]) > 0
 
 

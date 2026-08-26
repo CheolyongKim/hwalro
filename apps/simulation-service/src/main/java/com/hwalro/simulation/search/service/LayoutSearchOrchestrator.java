@@ -58,7 +58,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class LayoutSearchOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(LayoutSearchOrchestrator.class);
-    private static final String PLANNER_VERSION = "DIAGNOSTIC_BEAM_V1";
+    private static final String PLANNER_VERSION = "DIAGNOSTIC_BEAM_V2";
     private static final int MAX_FINDINGS = 4;
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 1000;
     private static final String COMPLETED_STATUS = "COMPLETED";
