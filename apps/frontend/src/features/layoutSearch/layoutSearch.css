@@ -978,61 +978,6 @@
   }
 }
 
-.search-start-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 22px;
-}
-
-.search-start-panel__title {
-  font-size: 17px;
-  font-weight: 900;
-  color: var(--color-panel-text);
-}
-
-.search-start-panel__description {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--color-panel-muted);
-}
-
-.search-start-panel__link {
-  align-self: flex-start;
-  border-bottom: 1px solid currentColor;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-primary);
-}
-
-.search-start-panel__verify {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--color-panel-text);
-}
-
-.search-start-panel__verify-hint {
-  margin: -4px 0 0 26px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--color-panel-muted);
-}
-
-.search-start-panel__start {
-  height: 40px;
-  border-radius: 10px;
-  background: var(--color-primary);
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--color-white);
-}
-
-.search-start-panel__start:disabled {
-  opacity: 0.6;
-}
-
 /* 프로젝터 발표용 light-first 패널 대비 보강 */
 .constraint-inspector__panel-scroll {
   scrollbar-color: var(--color-line-strong) transparent;
