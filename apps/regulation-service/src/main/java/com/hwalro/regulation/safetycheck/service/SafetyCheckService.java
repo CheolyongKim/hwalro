@@ -53,13 +53,12 @@ public class SafetyCheckService {
     }
 
     public List<InspectionAreaResponse> getAreas(JwtUser user, String authorization) {
-        return enrichLayoutTitles(safetyCheckMapper.findAreas(resolveInspectorFilter(user)), user, authorization);
+        return enrichLayoutTitles(safetyCheckMapper.findAreas(resolveInspectorFilter(user)), authorization);
     }
 
     public InspectionAreaResponse getArea(Long areaId, JwtUser user, String authorization) {
         InspectionAreaResponse area = findArea(areaId, resolveInspectorFilter(user));
-        requireCurrentAssignment(areaId, user, authorization);
-        return enrichLayoutTitles(List.of(area), user, authorization).get(0);
+        return enrichLayoutTitles(List.of(area), authorization).get(0);
     }
 
     @Transactional
@@ -92,7 +91,6 @@ public class SafetyCheckService {
 
     public List<InspectionHistoryResponse> getInspectionHistory(Long areaId, JwtUser user, String authorization) {
         requireExistingArea(areaId);
-        requireCurrentAssignment(areaId, user, authorization);
         return safetyCheckMapper.findInspectionHistory(areaId, resolveInspectorFilter(user));
     }
 
@@ -103,7 +101,6 @@ public class SafetyCheckService {
     public InspectionDetailResponse getInspection(Long inspectionId, JwtUser user, String authorization) {
         InspectionDetailHeader header = findHeader(inspectionId);
         requireReadable(user, header);
-        requireCurrentAssignment(header.inspectionAreaId(), user, authorization);
         return toDetail(header, safetyCheckMapper.findInspectionItems(inspectionId));
     }
 
@@ -112,7 +109,6 @@ public class SafetyCheckService {
     }
 
     public ChecklistTemplateResponse getChecklistTemplate(Long areaId, JwtUser user, String authorization) {
-        requireCurrentAssignment(areaId, user, authorization);
         return loadChecklistTemplate(areaId);
     }
 
@@ -161,7 +157,6 @@ public class SafetyCheckService {
     public InspectionDetailResponse createInspection(
             Long areaId, InspectionCreateRequest request, JwtUser user, String authorization) {
         Long simulationResultId = validateSimulationResultReference(request);
-        requireCurrentAssignment(areaId, user, authorization);
         requireArea(areaId);
         Long templateId = safetyCheckMapper.findActiveTemplateId(areaId);
         if (templateId == null) {
@@ -186,7 +181,6 @@ public class SafetyCheckService {
 
     @Transactional
     public InspectionDetailResponse getOrCreateOpenInspection(Long areaId, JwtUser user, String authorization) {
-        requireCurrentAssignment(areaId, user, authorization);
         if (safetyCheckMapper.lockInspectionArea(areaId) == null) {
             throw new InspectionAreaNotFoundException(areaId);
         }
@@ -206,7 +200,6 @@ public class SafetyCheckService {
     public InspectionDetailResponse updateInspection(
             Long inspectionId, InspectionUpdateRequest request, JwtUser user, String authorization) {
         InspectionDetailHeader header = findHeader(inspectionId);
-        requireCurrentAssignment(header.inspectionAreaId(), user, authorization);
         requireArea(header.inspectionAreaId());
         if ("COMPLETED".equals(header.status())) {
             throw new IllegalArgumentException("Completed inspections cannot be modified.");
@@ -258,7 +251,6 @@ public class SafetyCheckService {
     @Transactional
     public void deleteInspection(Long inspectionId, JwtUser user, String authorization) {
         InspectionDetailHeader header = findHeader(inspectionId);
-        requireCurrentAssignment(header.inspectionAreaId(), user, authorization);
         if ("COMPLETED".equals(header.status())) {
             throw new IllegalArgumentException("Completed inspections cannot be deleted.");
         }
@@ -291,7 +283,6 @@ public class SafetyCheckService {
             throw new IllegalArgumentException("도면 ID는 양수여야 합니다.");
         }
         InspectionDetailHeader header = findHeader(inspectionId);
-        requireCurrentAssignment(header.inspectionAreaId(), user, authorization);
         if ("COMPLETED".equals(header.status())) {
             throw new IllegalArgumentException("완료된 점검에는 스냅샷을 저장할 수 없습니다.");
         }
@@ -312,7 +303,6 @@ public class SafetyCheckService {
     public byte[] getSnapshotImage(Long inspectionId, JwtUser user, String authorization) {
         InspectionDetailHeader header = findHeader(inspectionId);
         requireReadable(user, header);
-        requireCurrentAssignment(header.inspectionAreaId(), user, authorization);
         return safetyCheckMapper.findSnapshotImage(inspectionId);
     }
 
@@ -330,8 +320,7 @@ public class SafetyCheckService {
         }
     }
 
-    private List<InspectionAreaResponse> enrichLayoutTitles(
-            List<InspectionAreaResponse> areas, JwtUser user, String authorization) {
+    private List<InspectionAreaResponse> enrichLayoutTitles(List<InspectionAreaResponse> areas, String authorization) {
         List<Long> layoutIds = areas.stream()
                 .map(InspectionAreaResponse::layoutId)
                 .filter(Objects::nonNull)
@@ -347,14 +336,9 @@ public class SafetyCheckService {
                 titles.put(context.layoutId(), context.layoutTitle());
             }
         } catch (RuntimeException exception) {
-            if (isStoreEmployeeOnly(user)) {
-                throw exception;
-            }
             log.warn("Failed to resolve inspection area drawing titles. layoutIds={}", layoutIds, exception);
         }
         return areas.stream()
-                .filter(area ->
-                        !isStoreEmployeeOnly(user) || (area.layoutId() != null && titles.containsKey(area.layoutId())))
                 .map(area -> area.layoutId() == null
                         ? area
                         : new InspectionAreaResponse(
@@ -439,7 +423,7 @@ public class SafetyCheckService {
         if (canReadAll(user)) {
             return null;
         }
-        if (user.roles().contains("OPERATOR") || user.roles().contains("GENERAL_EMPLOYEE")) {
+        if (user.roles().contains("OPERATOR")) {
             return user.userId();
         }
         throw new ForbiddenException("안전 점검 조회 권한이 없습니다.");
@@ -447,34 +431,16 @@ public class SafetyCheckService {
 
     private void requireReadable(JwtUser user, InspectionDetailHeader inspection) {
         if (canReadAll(user)
-                || ((user.roles().contains("OPERATOR") || user.roles().contains("GENERAL_EMPLOYEE"))
-                        && inspection.inspectorId().equals(user.userId()))) {
+                || (user.roles().contains("OPERATOR") && inspection.inspectorId().equals(user.userId()))) {
             return;
         }
         throw new ForbiddenException("이 안전 점검을 조회할 권한이 없습니다.");
     }
 
     private boolean canReadAll(JwtUser user) {
-        return user.roles().contains("SAFETY_REVIEWER") || user.roles().contains("ADMIN");
-    }
-
-    private void requireCurrentAssignment(Long areaId, JwtUser user, String authorization) {
-        if (!isStoreEmployeeOnly(user)) {
-            return;
-        }
-        Long layoutId = safetyCheckMapper.findAreaLayoutId(areaId);
-        if (layoutId == null
-                || drawingContextClient.findLayoutContexts(List.of(layoutId), authorization).stream()
-                        .noneMatch(context -> layoutId.equals(context.layoutId()))) {
-            throw new ForbiddenException("현재 담당 구역의 체크리스트만 점검할 수 있습니다.");
-        }
-    }
-
-    private boolean isStoreEmployeeOnly(JwtUser user) {
-        return user.roles().contains("GENERAL_EMPLOYEE")
-                && !user.roles().contains("OPERATOR")
-                && !user.roles().contains("SAFETY_REVIEWER")
-                && !user.roles().contains("ADMIN");
+        return user.roles().contains("SAFETY_REVIEWER")
+                || user.roles().contains("ADMIN")
+                || user.roles().contains("GENERAL_EMPLOYEE");
     }
 
     private void validateUpdate(InspectionUpdateRequest request) {
