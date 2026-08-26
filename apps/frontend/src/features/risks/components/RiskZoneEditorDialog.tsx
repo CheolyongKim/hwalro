@@ -147,6 +147,7 @@ export function RiskZoneEditorDialog({
       {pickerOpen && (
         <LawArticlePickerModal
           open
+          layer="nested"
           onClose={() => setPickerOpen(false)}
           selected={attachedLaws}
           onConfirm={(refs) => {

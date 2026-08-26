@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 export type ModalSize = 'sm' | 'md' | 'lg';
+export type ModalLayer = 'default' | 'nested';
 
 export interface ModalProps {
   open: boolean;
@@ -10,6 +11,7 @@ export interface ModalProps {
   title?: string;
   description?: string;
   size?: ModalSize;
+  layer?: ModalLayer;
   children: ReactNode;
   footer?: ReactNode;
 }
@@ -20,12 +22,26 @@ const sizeClasses: Record<ModalSize, string> = {
   lg: 'max-w-3xl',
 };
 
+const layerClasses: Record<ModalLayer, string> = {
+  default: 'z-50',
+  nested: 'z-[110]',
+};
+
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
 let modalDepth = 0;
 
-function Modal({ open, onClose, title, description, size = 'md', children, footer }: ModalProps) {
+function Modal({
+  open,
+  onClose,
+  title,
+  description,
+  size = 'md',
+  layer = 'default',
+  children,
+  footer,
+}: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -77,7 +93,7 @@ function Modal({ open, onClose, title, description, size = 'md', children, foote
   return (
     <div
       role="presentation"
-      className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={`app-modal-backdrop fixed inset-0 flex items-center justify-center p-4 ${layerClasses[layer]}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

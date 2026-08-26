@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import Button, { buttonClassName } from './Button';
 import Card from './Card';
+import Modal from './Modal';
 import PageHeader from './PageHeader';
 
 describe('shared UI visual contract', () => {
@@ -72,5 +73,20 @@ describe('shared UI visual contract', () => {
       expect(source).toContain('app-modal-backdrop');
     }
     expect(agentDeletionSource).toContain('app-modal-dialog');
+  });
+
+  it('renders nested modals above workspace dialogs', () => {
+    const html = renderToStaticMarkup(
+      <Modal open onClose={() => undefined} layer="nested">
+        법령 첨부
+      </Modal>,
+    );
+    const riskZoneSource = readFileSync(
+      new URL('../../features/risks/components/RiskZoneEditorDialog.tsx', import.meta.url),
+      'utf8',
+    );
+
+    expect(html).toContain('z-[110]');
+    expect(riskZoneSource).toContain('layer="nested"');
   });
 });
