@@ -15,8 +15,6 @@ import { EvacuationRouteOverlay } from '../components/EvacuationRouteOverlay';
 import { fitEvacuationCamera } from '../utils/evacuationCamera';
 import { evacuationStatusPresentation } from '../utils/evacuationStatus';
 
-const VIEW_HEIGHT = 460;
-
 interface LoadedEvacuation {
   zone: MyZone;
   drawing: Drawing;
@@ -27,9 +25,11 @@ interface LoadedEvacuation {
 function EvacuationCanvas({
   data,
   width,
+  height,
 }: {
   data: LoadedEvacuation;
   width: number;
+  height: number;
 }) {
   const { drawing, zoneRect, route } = data;
   const initialCamera = useMemo(() => {
@@ -48,9 +48,9 @@ function EvacuationCanvas({
       );
     }
     return points.length > 1
-      ? fitEvacuationCamera(points, width, VIEW_HEIGHT)
-      : fitCamera(drawing.width, drawing.height, width, VIEW_HEIGHT);
-  }, [drawing, route, width, zoneRect]);
+      ? fitEvacuationCamera(points, width, height)
+      : fitCamera(drawing.width, drawing.height, width, height);
+  }, [drawing, height, route, width, zoneRect]);
   const [camera, setCamera] = useState<Camera>(initialCamera);
   const panRef = useRef<{ screen: Vec2; camera: Camera } | null>(null);
 
@@ -62,12 +62,12 @@ function EvacuationCanvas({
       drawing.width,
       drawing.height,
       width / (next.zoom * PX_PER_METER),
-      VIEW_HEIGHT / (next.zoom * PX_PER_METER),
+      height / (next.zoom * PX_PER_METER),
     );
   const zoomAtCenter = (factor: number) => {
     setCamera((current) =>
       clampCamera(
-        zoomAtPoint(current, { x: width / 2, y: VIEW_HEIGHT / 2 }, { left: 0, top: 0 }, factor),
+        zoomAtPoint(current, { x: width / 2, y: height / 2 }, { left: 0, top: 0 }, factor),
       ),
     );
   };
@@ -122,7 +122,7 @@ function EvacuationCanvas({
       onPointerCancel={finishPan}
       onPointerLeave={finishPan}
     >
-      <Stage width={width} height={VIEW_HEIGHT}>
+      <Stage width={width} height={height}>
         <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
           <Rect
             x={0}
@@ -253,7 +253,7 @@ function EvacuationPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     const element = containerRef.current;
@@ -261,7 +261,8 @@ function EvacuationPage() {
       return;
     }
     const observer = new ResizeObserver((entries) => {
-      setWidth(entries[0].contentRect.width);
+      const { width, height } = entries[0].contentRect;
+      setViewport({ width, height });
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -325,9 +326,9 @@ function EvacuationPage() {
   const recommendedName = data?.route.recommendedExitName ?? null;
 
   return (
-    <main className="bg-background">
-      <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
-        <div className="border-b border-line pb-6">
+    <main className="h-full overflow-hidden bg-background">
+      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col px-1 pt-2 sm:px-4 lg:pt-4">
+        <div className="shrink-0 border-b border-line pb-6">
           <PageHeader
             eyebrow="대피 안내"
             title={data?.zone.zoneName ?? '대피 경로'}
@@ -356,7 +357,7 @@ function EvacuationPage() {
             />
           </Card>
         ) : (
-          <Card padded={false} className="mt-4 overflow-hidden">
+          <Card padded={false} className="mt-4 min-h-0 flex-1 overflow-hidden">
             <div
               ref={containerRef}
               role="application"
@@ -365,10 +366,15 @@ function EvacuationPage() {
                   ? `${data.zone.zoneName}에서 ${recommendedName}까지의 대피 경로`
                   : `${data.zone.zoneName}의 도면. 표시할 대피 경로가 없습니다.`
               }
-              className="w-full"
-              style={{ height: VIEW_HEIGHT }}
+              className="h-full w-full"
             >
-              {width > 0 ? <EvacuationCanvas data={data} width={width} /> : null}
+              {viewport.width > 0 && viewport.height > 0 ? (
+                <EvacuationCanvas
+                  data={data}
+                  width={viewport.width}
+                  height={viewport.height}
+                />
+              ) : null}
             </div>
           </Card>
         )}
