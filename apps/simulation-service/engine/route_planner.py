@@ -424,7 +424,7 @@ def parse_exit_segments(drawing: dict[str, Any]) -> tuple[tuple[Point, Point], .
 
 
 _GRID_GRAPH_CACHE_MAX_ENTRIES = 8
-_GRID_GRAPH_CACHE: OrderedDict[tuple[str, int, float], dict[str, Any]] = OrderedDict()
+_GRID_GRAPH_CACHE: OrderedDict[tuple[str, bytes, float], dict[str, Any]] = OrderedDict()
 
 class GridRouter:
     """One global reverse-Dijkstra field; each planned route is immutable."""
@@ -475,16 +475,19 @@ class GridRouter:
 
         cache_key = None
         if not self.hazards:
-            cache_key = ("grid-graph", id(walkable), self.step)
+            cache_key = ("grid-graph", walkable.wkb, self.step)
         cached = _GRID_GRAPH_CACHE.get(cache_key) if cache_key is not None else None
         if cached is not None and cached["width"] == self.width and cached["height"] == self.height:
             _GRID_GRAPH_CACHE.move_to_end(cache_key)
             self._x = cached["x"]
             self._y = cached["y"]
-            self.valid = cached["valid"]
-            self._edge_costs = cached["edge_costs"]
-            self._grid_edges = cached["grid_edges"]
-            self._neighbor_nodes = cached["neighbor_nodes"]
+            self.valid = cached["valid"].copy()
+            self._edge_costs = cached["edge_costs"].copy()
+            self._grid_edges = {
+                direction: values.copy()
+                for direction, values in cached["grid_edges"].items()
+            }
+            self._neighbor_nodes = cached["neighbor_nodes"].copy()
         else:
             x_values = self.origin_x + np.arange(self.width, dtype=float) * step
             y_values = self.origin_y + np.arange(self.height, dtype=float) * step
@@ -503,10 +506,13 @@ class GridRouter:
                 _GRID_GRAPH_CACHE[cache_key] = {
                     "x": self._x,
                     "y": self._y,
-                    "valid": self.valid,
-                    "edge_costs": self._edge_costs,
-                    "grid_edges": self._grid_edges,
-                    "neighbor_nodes": self._neighbor_nodes,
+                    "valid": self.valid.copy(),
+                    "edge_costs": self._edge_costs.copy(),
+                    "grid_edges": {
+                        direction: values.copy()
+                        for direction, values in self._grid_edges.items()
+                    },
+                    "neighbor_nodes": self._neighbor_nodes.copy(),
                     "width": self.width,
                     "height": self.height,
                 }

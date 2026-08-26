@@ -1270,9 +1270,18 @@ class DeriveEquivalenceTest(unittest.TestCase):
             route_planner._GRID_GRAPH_CACHE_MAX_ENTRIES,
         )
         self.assertNotIn(
-            ("grid-graph", id(walkables[0]), route_planner.GRID_STEP_METERS),
+            ("grid-graph", walkables[0].wkb, route_planner.GRID_STEP_METERS),
             route_planner._GRID_GRAPH_CACHE,
         )
+
+    def test_grid_graph_cache_does_not_share_mutable_router_state(self):
+        route_planner._GRID_GRAPH_CACHE.clear()
+        first = GridRouter(box(0, 0, 8, 6), (), [self.EXIT])
+        first.valid.fill(False)
+
+        second = GridRouter(box(0, 0, 8, 6), (), [self.EXIT])
+
+        self.assertTrue(second.valid.any())
 
     def test_adding_an_obstacle_matches_a_fresh_router(self):
         for hazards in ((), self.HAZARDS):
