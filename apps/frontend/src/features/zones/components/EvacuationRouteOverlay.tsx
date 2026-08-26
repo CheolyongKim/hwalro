@@ -38,8 +38,7 @@ function interpolatePoint(
       wrapped >= segment.accumulatedStart &&
       wrapped <= segment.accumulatedStart + segment.length
     ) {
-      const ratio =
-        segment.length > 0 ? (wrapped - segment.accumulatedStart) / segment.length : 0;
+      const ratio = segment.length > 0 ? (wrapped - segment.accumulatedStart) / segment.length : 0;
       return {
         x: segment.start.x + (segment.end.x - segment.start.x) * ratio,
         y: segment.start.y + (segment.end.y - segment.start.y) * ratio,
