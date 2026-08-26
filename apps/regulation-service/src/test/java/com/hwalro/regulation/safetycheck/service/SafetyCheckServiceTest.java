@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hwalro.regulation.common.jwt.JwtUser;
+import com.hwalro.regulation.risk.dto.LayoutDrawingContextResponse;
 import com.hwalro.regulation.safetycheck.client.SafetyCheckDrawingContextClient;
 import com.hwalro.regulation.safetycheck.domain.ChecklistTemplate;
 import com.hwalro.regulation.safetycheck.domain.InspectionArea;
@@ -40,6 +41,35 @@ class SafetyCheckServiceTest {
 
     @Mock
     private SafetyCheckDrawingContextClient drawingContextClient;
+
+    @Test
+    void storeEmployeeSeesOnlyChecklistAreasOnAssignedLayouts() {
+        SafetyCheckService service = new SafetyCheckService(safetyCheckMapper, drawingContextClient);
+        JwtUser employee = new JwtUser(9L, Set.of("GENERAL_EMPLOYEE"));
+        InspectionAreaResponse assigned = new InspectionAreaResponse(41L, "매장", null, 802L, null, true, 0, null, true);
+        InspectionAreaResponse unassigned =
+                new InspectionAreaResponse(42L, "다른 매장", null, 803L, null, true, 0, null, true);
+        when(safetyCheckMapper.findAreas(9L)).thenReturn(List.of(assigned, unassigned));
+        when(drawingContextClient.findLayoutContexts(List.of(802L, 803L), "Bearer token"))
+                .thenReturn(List.of(new LayoutDrawingContextResponse(802L, 1L, 1, "배정 도면", null)));
+
+        List<InspectionAreaResponse> response = service.getAreas(employee, "Bearer token");
+
+        assertThat(response).extracting(InspectionAreaResponse::id).containsExactly(41L);
+    }
+
+    @Test
+    void storeEmployeeCannotStartChecklistAfterZoneAssignmentIsRemoved() {
+        SafetyCheckService service = new SafetyCheckService(safetyCheckMapper, drawingContextClient);
+        JwtUser employee = new JwtUser(9L, Set.of("GENERAL_EMPLOYEE"));
+        when(safetyCheckMapper.findAreaLayoutId(41L)).thenReturn(802L);
+        when(drawingContextClient.findLayoutContexts(List.of(802L), "Bearer token"))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.createInspection(41L, null, employee, "Bearer token"))
+                .isInstanceOf(com.hwalro.regulation.common.jwt.ForbiddenException.class);
+        verify(safetyCheckMapper, never()).insertInspection(any());
+    }
 
     @Test
     void createsAreaWithNormalizedFields() {
