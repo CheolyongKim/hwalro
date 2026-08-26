@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +24,7 @@ import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -154,6 +156,35 @@ class DrawingServiceDisplayOrderTest {
 
         assertThat(insertedPillars()).singleElement().satisfies(pillar -> assertThat(pillar.getDisplayOrder())
                 .isEqualTo(3));
+    }
+
+    @Test
+    void metadataIdentityMappingFollowsDisplayOrderInsteadOfRequestOrder() {
+        when(drawingMapper.findWallIdsByVersionId(NEXT_VERSION_ID)).thenReturn(List.of(1001L, 1000L));
+
+        service()
+                .update(
+                        LAYOUT_ID,
+                        new DrawingUpdateRequest(
+                                "도면",
+                                null,
+                                List.of(wallDto(30L, 1), wallDto(31L, 0)),
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                3),
+                        OWNER);
+
+        verify(layoutMetadataCopier)
+                .copy(
+                        eq(VERSION_ID),
+                        eq(NEXT_VERSION_ID),
+                        eq(Map.of()),
+                        org.mockito.ArgumentMatchers.argThat(
+                                maps -> maps.get(com.hwalro.simulation.zone.domain.ZoneElementKind.WALL)
+                                        .equals(Map.of(31L, 1001L, 30L, 1000L))));
     }
 
     private List<Wall> insertedWalls() {

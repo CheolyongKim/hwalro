@@ -50,7 +50,7 @@ public class LayoutZoneController {
     }
 
     @GetMapping("/drawings/{id}/layout-metadata")
-    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN"})
+    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN", "GENERAL_EMPLOYEE"})
     @Operation(
             summary = "도면 구역 메타데이터 조회",
             description = "구역, 구조물 배치 제약, 배치 제외 영역을 반환합니다. 일반 직원은 배정된 구역과 그 구역 구조물만 볼 수 있습니다.")

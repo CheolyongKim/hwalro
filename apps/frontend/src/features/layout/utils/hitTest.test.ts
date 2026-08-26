@@ -31,17 +31,9 @@ function zone(zoneId: number): LayoutZone {
 
 describe('hitTestElements zones', () => {
   it('구역은 겹치는 구조물보다 우선순위가 낮다', () => {
-    const hit = hitTestElements(
-      { x: 5, y: 5 },
-      [],
-      [],
-      [],
-      [],
-      [fabric('f1', 1)],
-      [],
-      1,
-      [zone(30)],
-    );
+    const hit = hitTestElements({ x: 5, y: 5 }, [], [], [], [], [fabric('f1', 1)], [], 1, [
+      zone(30),
+    ]);
 
     expect(hit.fabricId).toBe('f1');
     expect(hit.zoneId).toBeNull();

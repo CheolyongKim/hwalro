@@ -15,13 +15,7 @@ function wall(startX: number, startY: number, endX: number, endY: number): Wall 
   };
 }
 
-function pillar(
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-  rotation = 0,
-): Pillar {
+function pillar(startX: number, startY: number, endX: number, endY: number, rotation = 0): Pillar {
   return {
     id: 'p',
     backendId: 2,
@@ -34,13 +28,7 @@ function pillar(
   };
 }
 
-function fabric(
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-  rotation = 0,
-): Fabric {
+function fabric(startX: number, startY: number, endX: number, endY: number, rotation = 0): Fabric {
   return {
     id: 'f',
     backendId: 3,
@@ -76,7 +64,13 @@ describe('zoneAsRect', () => {
 
 describe('boundingBoxOf', () => {
   it('회전된 기둥·구조물의 실제 코너를 포함한다', () => {
-    const box = boundingBoxOf([], [pillar(0, 0, 2, 2)], [fabric(4, 4, 6, 8, Math.PI / 2)], 100, 100);
+    const box = boundingBoxOf(
+      [],
+      [pillar(0, 0, 2, 2)],
+      [fabric(4, 4, 6, 8, Math.PI / 2)],
+      100,
+      100,
+    );
 
     expect(box).not.toBeNull();
     expect(box!.x).toBe(0);

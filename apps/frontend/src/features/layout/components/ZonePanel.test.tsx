@@ -35,11 +35,7 @@ function constraint(patch: Partial<StructureConstraint> = {}): StructureConstrai
   };
 }
 
-function renderPanel(
-  value: StructureConstraint,
-  onChange = vi.fn(),
-  onMovementPreview = vi.fn(),
-) {
+function renderPanel(value: StructureConstraint, onChange = vi.fn(), onMovementPreview = vi.fn()) {
   act(() => {
     root.render(
       <StructureConstraintPanel
