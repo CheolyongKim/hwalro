@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.service.DrawingService;
@@ -29,6 +31,7 @@ import com.hwalro.simulation.simulation.exception.SimulationEngineUnavailableExc
 import com.hwalro.simulation.simulation.service.SimulationService;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.dto.EvacuationRouteResponse;
+import com.hwalro.simulation.zone.mapper.EvacuationRouteStoreMapper;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
@@ -157,7 +160,12 @@ class EvacuationPreviewServiceTest {
                     return new RoutePreviewResult(List.of(), coverage, zoneRoutes);
                 });
         service = new EvacuationPreviewService(
-                layoutZoneService, drawingService, simulationService, engineRunner, new EvacuationRouteCache());
+                layoutZoneService,
+                drawingService,
+                simulationService,
+                engineRunner,
+                new EvacuationRouteCache(),
+                new EvacuationRouteStore(mock(EvacuationRouteStoreMapper.class), new ObjectMapper()));
     }
 
     @Test
