@@ -369,11 +369,7 @@ function EvacuationPage() {
               className="h-full w-full"
             >
               {viewport.width > 0 && viewport.height > 0 ? (
-                <EvacuationCanvas
-                  data={data}
-                  width={viewport.width}
-                  height={viewport.height}
-                />
+                <EvacuationCanvas data={data} width={viewport.width} height={viewport.height} />
               ) : null}
             </div>
           </Card>
