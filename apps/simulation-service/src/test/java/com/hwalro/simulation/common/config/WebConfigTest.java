@@ -3,6 +3,7 @@ package com.hwalro.simulation.common.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hwalro.simulation.common.jwt.RequireRole;
+import com.hwalro.simulation.drawing.controller.DrawingController;
 import com.hwalro.simulation.zone.controller.LayoutZoneController;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -59,6 +60,18 @@ class WebConfigTest {
                 "metadata", Long.class, com.hwalro.simulation.common.jwt.JwtUser.class);
 
         assertThat(metadata.getAnnotation(RequireRole.class).value()).contains("GENERAL_EMPLOYEE");
+    }
+
+    @Test
+    void everyRoleUsesTheSingleDrawingEvacuationRoutesEndpoint() throws NoSuchMethodException {
+        List<String> evacuationPaths = mappedApiPaths().stream()
+                .filter(path -> path.contains("evacuation-route"))
+                .toList();
+        Method drawing = DrawingController.class.getDeclaredMethod(
+                "get", Long.class, com.hwalro.simulation.common.jwt.JwtUser.class);
+
+        assertThat(evacuationPaths).containsExactly("/api/drawings/1/evacuation-routes");
+        assertThat(drawing.getAnnotation(RequireRole.class).value()).contains("GENERAL_EMPLOYEE");
     }
 
     /** 컨트롤러의 클래스 매핑과 메서드 매핑을 합쳐 실제로 열리는 /api 경로를 모은다. 경로 변수는 아무 값으로 채운다. */

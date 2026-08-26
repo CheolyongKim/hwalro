@@ -61,6 +61,7 @@ public class DrawingController {
     }
 
     @GetMapping("/{id}")
+    @RequireRole({"OPERATOR", "SAFETY_REVIEWER", "ADMIN", "GENERAL_EMPLOYEE"})
     @Operation(summary = "도면 상세 조회", description = "도면 정보와 벽·텍스트 배치 데이터를 반환합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "도면 상세 조회 성공"),
