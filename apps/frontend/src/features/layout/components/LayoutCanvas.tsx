@@ -35,7 +35,7 @@ import {
 } from '../utils/hitTest';
 import type { ElementHit, HandleHit } from '../utils/hitTest';
 import { zoneAsRect } from '../utils/zoneGeometry';
-import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO, FONT_UI } from '../utils/colors';
+import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO } from '../utils/colors';
 import type { LayoutZone, ZoneRect } from '../api/layoutMetadataApi';
 import {
   ExitView,
@@ -82,13 +82,11 @@ interface LayoutCanvasProps {
 }
 
 function ZoneView({
-  zone,
   rect,
   selected,
   dragging,
   s,
 }: {
-  zone: LayoutZone;
   rect: ZoneRect;
   selected: boolean;
   dragging: boolean;
@@ -105,14 +103,6 @@ function ZoneView({
         stroke={CANVAS_COLORS.zoneStroke}
         strokeWidth={s(selected ? 2 : 1)}
         dash={dragging ? undefined : [s(6), s(4)]}
-      />
-      <KonvaText
-        x={rect.x + s(4)}
-        y={rect.y + s(4)}
-        text={zone.name}
-        fontSize={s(12)}
-        fontFamily={FONT_UI}
-        fill={CANVAS_COLORS.zoneLabel}
       />
     </Group>
   );
@@ -896,7 +886,6 @@ export function LayoutCanvas({
               return (
                 <ZoneView
                   key={zone.zoneId}
-                  zone={zone}
                   rect={isDragging ? zoneDraftRect : zone.rect}
                   selected={zone.zoneId === selectedZoneId}
                   dragging={isDragging}
