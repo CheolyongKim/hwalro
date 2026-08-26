@@ -26,6 +26,7 @@
         SELECT COALESCE(MAX(version), 0) + 1
         FROM layout_versions
         WHERE layout_id = #{layoutId}
+        FOR UPDATE
     </select>
 
     <select id="findLayoutPage" resultType="com.hwalro.simulation.drawing.domain.Layout">
