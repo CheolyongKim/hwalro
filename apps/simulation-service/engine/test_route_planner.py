@@ -1258,6 +1258,22 @@ class DeriveEquivalenceTest(unittest.TestCase):
             with self.subTest(hazards=bool(hazards)):
                 self._check([self.LEFT], [], hazards, self._bounds(self.LEFT))
 
+    def test_grid_graph_cache_evicts_the_least_recently_used_entry(self):
+        route_planner._GRID_GRAPH_CACHE.clear()
+        walkables = [box(0, 0, 8 + index, 6) for index in range(10)]
+
+        for walkable in walkables:
+            GridRouter(walkable, (), [self.EXIT])
+
+        self.assertEqual(
+            len(route_planner._GRID_GRAPH_CACHE),
+            route_planner._GRID_GRAPH_CACHE_MAX_ENTRIES,
+        )
+        self.assertNotIn(
+            ("grid-graph", id(walkables[0]), route_planner.GRID_STEP_METERS),
+            route_planner._GRID_GRAPH_CACHE,
+        )
+
     def test_adding_an_obstacle_matches_a_fresh_router(self):
         for hazards in ((), self.HAZARDS):
             with self.subTest(hazards=bool(hazards)):

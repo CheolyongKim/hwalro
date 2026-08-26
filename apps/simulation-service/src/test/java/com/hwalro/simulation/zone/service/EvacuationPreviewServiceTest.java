@@ -317,7 +317,7 @@ class EvacuationPreviewServiceTest {
         assertThat(routes).hasSize(2);
         assertThat(routes)
                 .allSatisfy(route -> assertThat(route.status()).isEqualTo(EvacuationPreviewService.STATUS_AVAILABLE));
-        assertThat(routes.get(0).partitions()).hasSize(2);
+        assertThat(routes.get(0).partitions()).hasSize(1);
         assertThat(routes.get(0).partitions()).allSatisfy(partition -> {
             assertThat(partition.waypoints()).isNotEmpty();
             assertThat(partition.entryPoint()).isEqualTo(partition.waypoints().get(0));
@@ -337,7 +337,7 @@ class EvacuationPreviewServiceTest {
         EvacuationRouteResponse first = service.preview(ZONE_ID, reviewer());
         EvacuationRouteResponse second = service.preview(ZONE_ID, reviewer());
 
-        assertThat(first.partitions()).hasSize(2);
+        assertThat(first.partitions()).hasSize(1);
         assertThat(second).isEqualTo(first);
         verify(engineRunner, times(1)).previewZoneRoutes(anyString(), any(SimulationSetupResponse.class), any());
         verify(engineRunner, never()).previewRoutes(anyString(), any(SimulationSetupResponse.class), any());

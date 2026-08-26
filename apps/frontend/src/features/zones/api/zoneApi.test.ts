@@ -13,11 +13,11 @@ describe('zoneApi', () => {
     vi.mocked(apiClient.get).mockReset();
   });
 
-  it('uses the shared drawing evacuation-routes endpoint without a request timeout', async () => {
+  it('uses the shared drawing evacuation-routes endpoint with the shared timeout', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: [] });
 
     await zoneApi.evacuationRoutes(91);
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/drawings/91/evacuation-routes', { timeout: 0 });
+    expect(apiClient.get).toHaveBeenCalledWith('/api/drawings/91/evacuation-routes');
   });
 });

@@ -68,6 +68,6 @@ export const zoneApi = {
 
   evacuationRoutes: (drawingId: number) =>
     apiClient
-      .get<EvacuationRoute[]>(`/api/drawings/${drawingId}/evacuation-routes`, { timeout: 0 })
+      .get<EvacuationRoute[]>(`/api/drawings/${drawingId}/evacuation-routes`)
       .then((response) => response.data),
 };

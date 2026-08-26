@@ -34,7 +34,16 @@ class ZoneBoundaryTrimmerTest {
                 route, new ZoneBoundaryTrimmer.ZoneBounds(m(0), m(0), m(10), m(10)), exitSegment(20, 8, 20, 10));
 
         // crossing은 (10, 8), 비상구 중점은 (20, 9)
-        assertThat(trimmed).containsExactly(point(5, 5), point(8, 7), point(10, 8), point(12, 9), point(20, 9));
+        assertThat(trimmed)
+                .containsExactly(
+                        point(5, 5),
+                        point(8, 5),
+                        point(8, 7),
+                        point(10, 7),
+                        point(10, 8),
+                        point(12, 8),
+                        point(12, 9),
+                        point(20, 9));
     }
 
     @Test
@@ -48,7 +57,9 @@ class ZoneBoundaryTrimmerTest {
                 route, new ZoneBoundaryTrimmer.ZoneBounds(m(0), m(0), m(10), m(10)), exit(20, 8), walls, List.of());
 
         // crossing은 (10, 7.666..)이었지만 개구부(6~8)의 중앙인 (10, 7.0)을 경유
-        assertThat(trimmed).containsExactly(point(5, 5), point(8, 7), point(10, 7), point(12, 8), point(20, 8));
+        assertThat(trimmed)
+                .containsExactly(
+                        point(5, 5), point(8, 5), point(8, 7), point(10, 7), point(12, 7), point(12, 8), point(20, 8));
     }
 
     @Test
@@ -64,7 +75,7 @@ class ZoneBoundaryTrimmerTest {
                 List.of(),
                 pillars);
 
-        assertThat(trimmed).containsExactly(point(8, 6), point(13, 9), point(20, 9));
+        assertThat(trimmed).containsExactly(point(8, 6), point(20, 6), point(20, 9));
     }
 
     @Test

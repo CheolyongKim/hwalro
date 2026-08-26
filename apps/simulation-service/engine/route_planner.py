@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 import heapq
 import math
@@ -422,7 +423,8 @@ def parse_exit_segments(drawing: dict[str, Any]) -> tuple[tuple[Point, Point], .
     return tuple(segments)
 
 
-_GRID_GRAPH_CACHE: dict = {}
+_GRID_GRAPH_CACHE_MAX_ENTRIES = 8
+_GRID_GRAPH_CACHE: OrderedDict[tuple[str, int, float], dict[str, Any]] = OrderedDict()
 
 class GridRouter:
     """One global reverse-Dijkstra field; each planned route is immutable."""
@@ -476,6 +478,7 @@ class GridRouter:
             cache_key = ("grid-graph", id(walkable), self.step)
         cached = _GRID_GRAPH_CACHE.get(cache_key) if cache_key is not None else None
         if cached is not None and cached["width"] == self.width and cached["height"] == self.height:
+            _GRID_GRAPH_CACHE.move_to_end(cache_key)
             self._x = cached["x"]
             self._y = cached["y"]
             self.valid = cached["valid"]
@@ -507,6 +510,8 @@ class GridRouter:
                     "width": self.width,
                     "height": self.height,
                 }
+                if len(_GRID_GRAPH_CACHE) > _GRID_GRAPH_CACHE_MAX_ENTRIES:
+                    _GRID_GRAPH_CACHE.popitem(last=False)
         self.distance = np.full(self.width * self.height, np.inf, dtype=float)
         self.next_node = np.full(self.width * self.height, -1, dtype=np.int64)
         self.exit_label = np.full(self.width * self.height, -1, dtype=np.int32)
@@ -675,6 +680,8 @@ class GridRouter:
         if not derived.valid.any():
             return cold()
         if expands and (lost_nodes.size or closed_edges):
+            return cold()
+        if expands and (gained_nodes.size or opened_edges):
             return cold()
         if contracts and (gained_nodes.size or opened_edges):
             return cold()
