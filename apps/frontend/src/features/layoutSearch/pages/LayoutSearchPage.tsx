@@ -13,8 +13,8 @@ import type { SimulationDrawing, SimulationSetup } from '../../simulations/types
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 
 import { CandidateDetailPanel } from '../components/CandidateDetailPanel';
+import { SearchStartPanel } from '../components/SearchStartPanel';
 import { CandidateTabs } from '../components/NoImprovementPanel';
-import { ConstraintInspector } from '../components/ConstraintInspector';
 import { HoldToCompare } from '../components/HoldToCompare';
 import { SearchProgressHeader } from '../components/SearchProgressHeader';
 import { useLayoutSearch } from '../hooks/useLayoutSearch';
@@ -59,14 +59,11 @@ export default function LayoutSearchPage() {
     preparingCandidateIds,
     errorMessage,
     active,
-    constraints,
     initialize,
     start,
     cancel,
     prepareSimulation,
-    updateConstraints,
     resetToSetup,
-    rejectCandidate,
   } = useLayoutSearch(id);
 
   const loadSourceSetup = useCallback(async () => {
@@ -128,7 +125,7 @@ export default function LayoutSearchPage() {
 
   const runSearch = useCallback(
     async (verify: boolean) => {
-      if (await start(undefined, verify)) {
+      if (await start(verify)) {
         setSelectedTabKey(null);
         navigate('/simulations', { state: { layoutSearchSimulationId: id } });
       }
@@ -175,19 +172,15 @@ export default function LayoutSearchPage() {
         />
         <CanvasWorkspaceHeader
           title={sourceSetup?.drawing.title || '도면'}
-          subtitle="구조물 제약 설정"
-          status="제약 설정"
+          subtitle="배치 개선안 탐색 시작"
+          status="시작 대기"
           statusTone="editing"
         />
-        {sourceSetup && (
-          <ConstraintInspector
-            drawing={sourceSetup.drawing}
-            constraints={constraints}
-            onChange={updateConstraints}
-            onStart={(verify) => void runSearch(verify)}
-            starting={starting}
-          />
-        )}
+        <SearchStartPanel
+          drawingId={sourceSetup?.drawing.layoutId ?? null}
+          onStart={(verify) => void runSearch(verify)}
+          starting={starting}
+        />
       </CanvasWorkspace>
     );
   }
@@ -268,8 +261,6 @@ export default function LayoutSearchPage() {
               onPrepareSimulation={() => void prepareSimulation(selectedCandidate.candidateId)}
               preparing={preparingCandidateIds.has(selectedCandidate.candidateId)}
               previewAvailable={preview.drawing !== null}
-              onReject={() => void rejectCandidate(selectedCandidate.candidateId)}
-              rejecting={starting}
               onMinimize={detailPanel.minimize}
             />
           ) : (
@@ -282,8 +273,8 @@ export default function LayoutSearchPage() {
                 </h2>
                 <p>
                   {search.status === 'NO_IMPROVEMENT'
-                    ? '구조물 제약을 조정한 뒤 다시 탐색하면 다른 배치안을 찾을 수 있습니다.'
-                    : '제약 설정을 다시 열어 새로운 개선안을 탐색할 수 있습니다.'}
+                    ? '도면 편집기에서 구조물 제약을 조정한 뒤 다시 탐색하면 다른 배치안을 찾을 수 있습니다.'
+                    : '개선안이 검증되면 상세 비교를 볼 수 있습니다.'}
                 </p>
               </div>
             </div>

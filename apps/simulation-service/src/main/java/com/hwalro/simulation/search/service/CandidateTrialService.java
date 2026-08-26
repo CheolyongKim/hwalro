@@ -2,6 +2,7 @@ package com.hwalro.simulation.search.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hwalro.simulation.analysis.service.DensityThresholdProvider;
 import com.hwalro.simulation.search.domain.CandidateStatus;
 import com.hwalro.simulation.search.domain.ChangeOp;
 import com.hwalro.simulation.search.domain.ChangeSet;
@@ -36,6 +37,7 @@ public class CandidateTrialService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final VerifiedCandidateMaterializer verifiedCandidateMaterializer;
+    private final DensityThresholdProvider densityThresholdProvider;
 
     public CandidateTrialService(
             LayoutSearchMapper layoutStudyMapper,
@@ -44,7 +46,8 @@ public class CandidateTrialService {
             EngineCapacity engineCapacity,
             ObjectMapper objectMapper,
             TransactionTemplate transactionTemplate,
-            VerifiedCandidateMaterializer verifiedCandidateMaterializer) {
+            VerifiedCandidateMaterializer verifiedCandidateMaterializer,
+            DensityThresholdProvider densityThresholdProvider) {
         this.layoutStudyMapper = layoutStudyMapper;
         this.engineRunner = engineRunner;
         this.changeSetApplier = changeSetApplier;
@@ -52,6 +55,7 @@ public class CandidateTrialService {
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
         this.verifiedCandidateMaterializer = verifiedCandidateMaterializer;
+        this.densityThresholdProvider = densityThresholdProvider;
     }
 
     public TrialOutcome run(
@@ -69,8 +73,11 @@ public class CandidateTrialService {
             SimulationSetupResponse mutatedSetup = changeSetApplier.apply(baselineSetup, changeSet);
             EngineRun run = engineRunner.run(candidate.getId(), mutatedSetup, trialCapSeconds);
             List<Metric> trialMetrics = buildMetrics(run.result());
-            CandidateSelector.Judgement judgement =
-                    CandidateSelector.judge(trialMetrics, baselineMetrics, improvementMargin);
+            CandidateSelector.Judgement judgement = CandidateSelector.judge(
+                    trialMetrics,
+                    baselineMetrics,
+                    improvementMargin,
+                    densityThresholdProvider.getCurrent().value().doubleValue());
             recordTrialResult(candidate, run, trialMetrics, baselineMetrics, judgement);
             if (judgement.improved()) {
                 verifiedCandidateMaterializer.materialize(candidate, mutatedSetup, run);

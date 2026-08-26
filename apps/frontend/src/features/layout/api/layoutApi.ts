@@ -53,6 +53,12 @@ export async function fetchDrawing(
   }
 }
 
+/**
+ * 도면을 저장하고 서버가 확정한 도면 전체를 돌려준다.
+ *
+ * 응답의 요소 ID는 새로 그린 요소가 저장 즉시 구역·제약 대상이 되기 위해 필요하다.
+ * 호출자가 adoptSavedIds로 편집기 상태에 반영한다.
+ */
 export async function saveDrawing(id: string, session: DrawingSession): Promise<Drawing> {
   const serialized = toSerialized(session.doc);
   return drawingApi.update(Number(id), {

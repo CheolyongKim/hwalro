@@ -25,6 +25,7 @@ import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper.SegmentR
 import com.hwalro.simulation.result.mapper.SimulationResultDetailMapper.SummaryRow;
 import com.hwalro.simulation.simulation.exception.SimulationNotFoundException;
 import com.hwalro.simulation.simulation.service.SimulationGeometry;
+import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,16 +42,19 @@ public class SimulationResultDetailService {
 
     private final SimulationResultDetailMapper mapper;
     private final DrawingMapper drawingMapper;
+    private final LayoutZoneMapper layoutZoneMapper;
     private final ObjectMapper objectMapper;
     private final DensityThresholdProvider densityThresholdProvider;
 
     public SimulationResultDetailService(
             SimulationResultDetailMapper mapper,
             DrawingMapper drawingMapper,
+            LayoutZoneMapper layoutZoneMapper,
             ObjectMapper objectMapper,
             DensityThresholdProvider densityThresholdProvider) {
         this.mapper = mapper;
         this.drawingMapper = drawingMapper;
+        this.layoutZoneMapper = layoutZoneMapper;
         this.objectMapper = objectMapper;
         this.densityThresholdProvider = densityThresholdProvider;
     }
@@ -170,6 +174,14 @@ public class SimulationResultDetailService {
                                 text.getText(),
                                 text.getX().doubleValue(),
                                 text.getY().doubleValue()))
+                        .toList(),
+                layoutZoneMapper.findZonesByVersionId(summary.layoutVersionId()).stream()
+                        .map(zone -> new SimulationResultDetailResponse.Zone(
+                                zone.getName(),
+                                zone.getX().doubleValue(),
+                                zone.getY().doubleValue(),
+                                zone.getWidth().doubleValue(),
+                                zone.getHeight().doubleValue()))
                         .toList());
     }
 

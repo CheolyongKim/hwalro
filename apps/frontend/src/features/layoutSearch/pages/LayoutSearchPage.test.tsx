@@ -321,7 +321,7 @@ describe('배치 개선안 페이지 interaction', () => {
     });
   });
 
-  it('terminal 상태에서 제약 설정 화면으로 돌아가 다시 탐색한다', async () => {
+  it('terminal 상태에서 시작 화면으로 돌아가 다시 탐색한다', async () => {
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     vi.spyOn(layoutSearchApi, 'latest').mockResolvedValue(search('COMPLETED'));
     const start = vi
@@ -329,13 +329,13 @@ describe('배치 개선안 페이지 interaction', () => {
       .mockResolvedValue({ searchId: 2, status: 'PENDING' });
 
     await renderPage();
-    await act(async () => button('제약 설정 다시 열기').click());
+    await act(async () => button('탐색 다시 시작').click());
     await act(async () => button('배치 개선안 탐색 시작').click());
 
-    expect(start).toHaveBeenCalledWith(42, expect.anything(), false);
+    expect(start).toHaveBeenCalledWith(42, false);
   });
 
-  it('제약 설정 화면에서 배치 개선안 탐색을 시작한다', async () => {
+  it('시작 화면에서 배치 개선안 탐색을 시작한다', async () => {
     vi.spyOn(simulationApi, 'getSetup').mockResolvedValue(setup());
     vi.spyOn(layoutSearchApi, 'latest').mockRejectedValue(
       new AxiosError('not found', undefined, undefined, undefined, { status: 404 } as never),
@@ -345,13 +345,12 @@ describe('배치 개선안 페이지 interaction', () => {
       .mockResolvedValue({ searchId: 2, status: 'PENDING' });
 
     await renderPage();
-    expect(container.textContent).toContain('구조물 제약 설정');
+    expect(container.textContent).toContain('배치 개선안 탐색 시작');
     await act(async () => {
       button('배치 개선안 탐색 시작').click();
       await Promise.resolve();
     });
-    expect(start).toHaveBeenCalledWith(42, expect.anything(), false);
-    expect(container.textContent).toContain('시뮬레이션 목록 화면');
+    expect(start).toHaveBeenCalledWith(42, false);
   });
 
   it('확인 옵션을 켜고 시작하면 실측 검증을 요청한다', async () => {
@@ -375,7 +374,7 @@ describe('배치 개선안 페이지 interaction', () => {
       await Promise.resolve();
     });
 
-    expect(start).toHaveBeenCalledWith(42, expect.anything(), true);
+    expect(start).toHaveBeenCalledWith(42, true);
     expect(container.textContent).toContain('시뮬레이션 목록 화면');
   });
 
@@ -395,7 +394,7 @@ describe('배치 개선안 페이지 interaction', () => {
     });
 
     expect(simulationApi.getSetup).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('구조물 제약 설정');
+    expect(container.textContent).toContain('배치 개선안 탐색 시작');
   });
 
   it('진행 중인 탐색 페이지에 접근하면 대기 화면 없이 시뮬레이션 목록으로 이동한다', async () => {
@@ -433,6 +432,6 @@ describe('종료 상태 렌더', () => {
         />,
       ),
     );
-    expect(container.textContent).toContain('제약 설정 다시 열기');
+    expect(container.textContent).toContain('탐색 다시 시작');
   });
 });

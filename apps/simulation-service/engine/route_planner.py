@@ -322,6 +322,20 @@ def relocate_agents(
     return tuple(positions), tuple(relocations)
 
 
+def relocate_agent_within_bounds(
+    routing_area,
+    agent: Point,
+    bounds: tuple[float, float, float, float],
+) -> Point | None:
+    """Return the nearest walkable point inside the requested zone bounds."""
+    x, y, width, height = bounds
+    bounded = routing_area.intersection(box(x, y, x + width, y + height))
+    if bounded.is_empty or bounded.area <= _EPSILON:
+        return None
+    relocated, _changes = relocate_agents(bounded, (agent,))
+    return relocated[0]
+
+
 def containing_component(area, contained):
     """Return the physical component containing a routing component."""
     components = list(area.geoms) if area.geom_type == "MultiPolygon" else [area]
@@ -1854,3 +1868,33 @@ def _simplify_collinear(
             result.append(current)
     result.append(path[-1])
     return result
+
+
+def orthogonalize_display_path(
+    path: Sequence[Point], can_connect: Callable[[Point, Point], bool]
+) -> list[Point]:
+    if len(path) < 2:
+        return list(path)
+
+    orthogonal = [path[0]]
+    for end in path[1:]:
+        start = orthogonal[-1]
+        if abs(start[0] - end[0]) <= _EPSILON or abs(start[1] - end[1]) <= _EPSILON:
+            orthogonal.append(end)
+            continue
+
+        horizontal_then_vertical = (end[0], start[1])
+        vertical_then_horizontal = (start[0], end[1])
+        bend = next(
+            (
+                candidate
+                for candidate in (horizontal_then_vertical, vertical_then_horizontal)
+                if can_connect(start, candidate) and can_connect(candidate, end)
+            ),
+            None,
+        )
+        if bend is not None:
+            orthogonal.append(bend)
+        orthogonal.append(end)
+
+    return _simplify_collinear(orthogonal, can_connect)

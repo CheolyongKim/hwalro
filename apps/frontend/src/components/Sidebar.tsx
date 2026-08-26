@@ -5,6 +5,7 @@ import {
   House,
   LayoutTemplate,
   LogOut,
+  MapPinned,
   Scale,
   Settings,
   ShieldAlert,
@@ -13,9 +14,10 @@ import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/context/AuthContext';
+import { can, type Capability } from '../features/auth/capabilities';
 
 type SidebarIconName =
-  'home' | 'review' | 'risk' | 'checklist' | 'report' | 'regulation' | 'settings';
+  'home' | 'review' | 'risk' | 'checklist' | 'report' | 'regulation' | 'settings' | 'zone';
 
 interface NavigationChild {
   label: string;
@@ -27,24 +29,56 @@ interface NavigationItem {
   icon: SidebarIconName;
   to?: string;
   children?: NavigationChild[];
-  requiredRole?: string;
+  /** 이 권한이 없으면 메뉴를 감춘다. 차단 자체는 라우트 가드와 서버가 한다. */
+  requiredCapability?: Capability;
+  /** 이 권한을 가진 사용자에게는 감춘다. 같은 화면을 가리키는 메뉴가 둘 생기는 것을 막는다. */
+  hiddenWithCapability?: Capability;
 }
 
 const navigationItems: NavigationItem[] = [
-  { label: '홈', icon: 'home', to: '/' },
+  { label: '홈', icon: 'home', to: '/', requiredCapability: 'simulations' },
+  {
+    label: '내 구역',
+    icon: 'zone',
+    to: '/my-zones',
+    requiredCapability: 'zones.assigned',
+  },
+  {
+    label: '배정 도면',
+    icon: 'review',
+    to: '/drawings',
+    requiredCapability: 'zones.assigned',
+    hiddenWithCapability: 'drawings.manage',
+  },
   {
     label: '시뮬레이션 검토',
     icon: 'review',
+    requiredCapability: 'simulations',
     children: [
       { label: '도면 목록', to: '/drawings' },
       { label: '시뮬레이션 목록', to: '/simulations' },
     ],
   },
-  { label: '보고서 관리', icon: 'report', to: '/reports' },
-  { label: '주의 항목 관리', icon: 'risk', to: '/risk-management' },
-  { label: '안전 체크리스트', icon: 'checklist', to: '/safety-checklists' },
-  { label: '안전 법령', icon: 'regulation', to: '/regulations' },
-  { label: '시스템 관리', icon: 'settings', to: '/system-management', requiredRole: 'ADMIN' },
+  { label: '보고서 관리', icon: 'report', to: '/reports', requiredCapability: 'reports' },
+  {
+    label: '주의 항목 관리',
+    icon: 'risk',
+    to: '/risk-management',
+    requiredCapability: 'risks',
+  },
+  {
+    label: '안전 체크리스트',
+    icon: 'checklist',
+    to: '/safety-checklists',
+    requiredCapability: 'checklists',
+  },
+  { label: '안전 법령', icon: 'regulation', to: '/regulations', requiredCapability: 'regulations' },
+  {
+    label: '시스템 관리',
+    icon: 'settings',
+    to: '/system-management',
+    requiredCapability: 'systemManagement',
+  },
 ];
 
 const iconComponents: Record<SidebarIconName, LucideIcon> = {
@@ -54,6 +88,7 @@ const iconComponents: Record<SidebarIconName, LucideIcon> = {
   checklist: ClipboardCheck,
   report: FileChartColumn,
   regulation: Scale,
+  zone: MapPinned,
   settings: Settings,
 };
 
@@ -80,7 +115,9 @@ function Sidebar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const visibleNavigationItems = navigationItems.filter(
-    (item) => !item.requiredRole || user?.roles.includes(item.requiredRole),
+    (item) =>
+      (!item.requiredCapability || can(user?.roles, item.requiredCapability)) &&
+      (!item.hiddenWithCapability || !can(user?.roles, item.hiddenWithCapability)),
   );
 
   useEffect(() => {

@@ -43,6 +43,16 @@ export interface SimulationDrawing {
   pillars: DrawingRect[];
   fabrics: DrawingRect[];
   layoutTexts: DrawingText[];
+  /** 시뮬레이션 시점의 도면 구역. 위험 구역 이름을 이 이름으로 짓는다. */
+  zones: DrawingZone[];
+}
+
+export interface DrawingZone {
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface AgentFrameBuffer {

@@ -13,6 +13,7 @@ interface DialogDrawing {
   width: number;
   height: number;
   layoutTexts: Array<{ text: string; x: number; y: number }>;
+  zones?: Array<{ name: string; rect: Bounds }>;
 }
 
 interface Props {
@@ -32,7 +33,9 @@ export function RiskZoneEditorDialog({
   onCancel,
   onConfirm,
 }: Props) {
-  const [zoneName, setZoneName] = useState(() => generateRiskZoneName(bounds, drawing));
+  const [zoneName, setZoneName] = useState(() =>
+    generateRiskZoneName(bounds, drawing, drawing.zones),
+  );
   const [severity, setSeverity] = useState('보통');
   const [status, setStatus] = useState('임시저장');
   const [attachedLaws, setAttachedLaws] = useState<AttachedLawRef[]>([]);

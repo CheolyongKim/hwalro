@@ -3,6 +3,8 @@ package com.hwalro.simulation.drawing.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,12 +52,19 @@ class DrawingServiceTest {
     @Mock
     private LayoutGeometryValidator geometryValidator;
 
+    @Mock
+    private com.hwalro.simulation.drawing.service.LayoutMetadataCopier layoutMetadataCopier;
+
+    @Mock
+    private com.hwalro.simulation.zone.mapper.LayoutZoneMapper layoutZoneMapper;
+
     private DrawingService service;
     private JwtUser operator;
 
     @BeforeEach
     void setUp() {
-        service = new DrawingService(drawingMapper, defaultDrawingData, geometryValidator);
+        service = new DrawingService(
+                drawingMapper, defaultDrawingData, geometryValidator, layoutMetadataCopier, layoutZoneMapper);
         operator = new JwtUser(7L, Set.of("OPERATOR"));
     }
 
@@ -101,13 +110,16 @@ class DrawingServiceTest {
         DrawingUpdateRequest request = new DrawingUpdateRequest(
                 "수정 제목",
                 null,
-                List.of(new WallDto("새 벽", BigDecimal.ONE, BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN)),
+                List.of(new WallDto(null, "새 벽", BigDecimal.ONE, BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, null)),
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
                 0);
+
+        // 새 버전에 넣은 만큼 그대로 다시 읽힌다. 구역 이월이 원본→대상 ID를 위치로 짝짓는 전제다.
+        when(drawingMapper.findWallIdsByVersionId(NEW_VERSION_ID)).thenReturn(List.of(901L));
 
         DrawingResponse response = service.update(LAYOUT_ID, request, operator);
 
@@ -190,12 +202,11 @@ class DrawingServiceTest {
         assertThat(created.getStatus()).isEqualTo("초안");
         assertThat(created.getOptimisticLock()).isEqualTo(1);
 
-        verify(drawingMapper).copyWalls(OTHER_VERSION_ID, NEW_VERSION_ID);
+        // 외각벽·텍스트는 아무도 ID로 참조하지 않아 대량 복사로 충분하다.
         verify(drawingMapper).copyOutsideWalls(OTHER_VERSION_ID, NEW_VERSION_ID);
-        verify(drawingMapper).copyPillars(OTHER_VERSION_ID, NEW_VERSION_ID);
         verify(drawingMapper).copyLayoutTexts(OTHER_VERSION_ID, NEW_VERSION_ID);
-        verify(drawingMapper, never()).findWallsByVersionId(OTHER_VERSION_ID);
-        verify(drawingMapper, never()).insertWalls(any());
+        // 벽·기둥·구조물·비상구는 구역과 멤버십이 ID로 참조하므로 원본→대상 ID 맵을 만들어 함께 옮긴다.
+        verify(layoutMetadataCopier).copy(eq(OTHER_VERSION_ID), eq(NEW_VERSION_ID), anyMap(), anyMap());
 
         verify(drawingMapper).updateLayoutCurrentVersion(any());
         assertThat(layout.getCurrentVersionId()).isEqualTo(NEW_VERSION_ID);

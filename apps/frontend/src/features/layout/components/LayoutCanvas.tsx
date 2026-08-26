@@ -8,17 +8,22 @@ import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'reac
 import type {
   Camera,
   EditorState,
+  Fabric,
+  Pillar,
   RectHandle,
   ValidationProblem,
   ValidationProblemKind,
   Vec2,
+  Wall,
 } from '../types';
+import { orderedElements } from '../utils/elementOrder';
 import type { EditorAction } from '../state/editorReducer';
 import {
   clampPan,
   estimateTextWidthPx,
   formatMeters,
   PX_PER_METER,
+  round1,
   screenToWorld,
 } from '../utils/geometry';
 import {
@@ -29,7 +34,9 @@ import {
   hitTestRotateHandle,
 } from '../utils/hitTest';
 import type { ElementHit, HandleHit } from '../utils/hitTest';
-import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO } from '../utils/colors';
+import { zoneAsRect } from '../utils/zoneGeometry';
+import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO, FONT_UI } from '../utils/colors';
+import type { LayoutZone, ZoneRect } from '../api/layoutMetadataApi';
 import {
   ExitView,
   FabricView,
@@ -40,6 +47,8 @@ import {
   WallView,
 } from './layers';
 import { useCanvasListeners } from './useCanvasListeners';
+import type { EvacuationRoute } from '../../zones/api/zoneApi';
+import { EvacuationRouteOverlay } from '../../zones/components/EvacuationRouteOverlay';
 
 interface LayoutCanvasProps {
   state: EditorState;
@@ -47,9 +56,66 @@ interface LayoutCanvasProps {
   size: { w: number; h: number };
   onSizeChange: (size: { w: number; h: number }) => void;
   readOnly?: boolean;
+  /** false면 요소 선택만 허용하고 도면 기하는 변경하지 않는다. */
+  geometryEditable?: boolean;
+  /** 선택된 구조물에 유한 이동 반경이 있을 때만 표시한다. */
+  movementPreviewRadius?: number | null;
+  /** 서버가 소유하는 구역. 문서(doc)가 아니라 별도 훅이 들고 있다. */
+  zones?: LayoutZone[];
+  selectedZoneId?: number | null;
+  onZoneDrawn?: (rect: ZoneRect) => void;
+  /**
+   * Zone 히트 시 요소 선택을 비우고 이 콜백으로 구역 선택을 알린다. 구역 선택과 요소 선택은 상호배타다.
+   */
+  onSelectZone?: (zoneId: number | null) => void;
+  /**
+   * Zone 드래그·리사이즈 확정. 잠긴 버전에서도 구역 메타데이터는 수정 가능하다는 기존 결정에 따라 readOnly와 무관하다.
+   */
+  onZoneRectCommit?: (zoneId: number, previousRect: ZoneRect, nextRect: ZoneRect) => void;
+  canEditZones?: boolean;
+  /** 캔버스에서 요소를 우클릭했을 때. 계층 패널과 같은 메뉴를 화면 좌표에 연다. */
+  onElementContextMenu?: (anchor: Vec2, hit: ElementHit) => void;
   riskZones?: LayoutRiskZone[];
   riskMode?: boolean;
   onRiskZoneDrawn?: (bounds: { x: number; y: number; width: number; height: number }) => void;
+  evacuationRoutes?: readonly EvacuationRoute[];
+}
+
+function ZoneView({
+  zone,
+  rect,
+  selected,
+  dragging,
+  s,
+}: {
+  zone: LayoutZone;
+  rect: ZoneRect;
+  selected: boolean;
+  dragging: boolean;
+  s: (value: number) => number;
+}) {
+  return (
+    <Group listening={false}>
+      <Rect
+        x={rect.x}
+        y={rect.y}
+        width={rect.width}
+        height={rect.height}
+        fill={selected ? CANVAS_COLORS.zoneSelectedFill : CANVAS_COLORS.zoneFill}
+        stroke={CANVAS_COLORS.zoneStroke}
+        strokeWidth={s(selected ? 2 : 1)}
+        dash={dragging ? undefined : [s(6), s(4)]}
+      />
+      <KonvaText
+        x={rect.x + s(4)}
+        y={rect.y + s(4)}
+        text={zone.name}
+        fontSize={s(12)}
+        fontFamily={FONT_UI}
+        fill={CANVAS_COLORS.zoneLabel}
+      />
+    </Group>
+  );
 }
 
 export interface LayoutRiskZone {
@@ -69,6 +135,14 @@ interface RiskRectDraft {
 interface PanSession {
   startScreen: Vec2;
   startCamera: Camera;
+}
+
+interface ZoneDragSession {
+  zoneId: number;
+  kind: 'move' | 'resize';
+  handle: RectHandle;
+  origin: Vec2;
+  originRect: ZoneRect;
 }
 
 interface RectHandleHit {
@@ -92,13 +166,25 @@ export function LayoutCanvas({
   size,
   onSizeChange,
   readOnly = false,
+  geometryEditable = !readOnly,
+  movementPreviewRadius = null,
+  zones = [],
+  selectedZoneId = null,
+  onZoneDrawn,
+  onSelectZone,
+  onZoneRectCommit,
+  canEditZones = false,
+  onElementContextMenu,
   riskZones = [],
   riskMode = false,
   onRiskZoneDrawn,
+  evacuationRoutes = [],
 }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const suppressClickRef = useRef(false);
   const [panning, setPanning] = useState(false);
+  const [zoneDraftRect, setZoneDraftRect] = useState<ZoneRect | null>(null);
+  const zoneDragRef = useRef<ZoneDragSession | null>(null);
   const [riskDraft, setRiskDraft] = useState<RiskRectDraft | null>(null);
 
   const { containerRef, spaceDown } = useCanvasListeners({
@@ -139,8 +225,9 @@ export function LayoutCanvas({
         doc.fabrics,
         doc.exits,
         camera.zoom,
+        zones,
       ),
-    [doc, camera.zoom],
+    [doc, camera.zoom, zones],
   );
 
   const hasHit = (hit: ElementHit) =>
@@ -149,7 +236,8 @@ export function LayoutCanvas({
     hit.exitId !== null ||
     hit.textId !== null ||
     hit.pillarId !== null ||
-    hit.fabricId !== null;
+    hit.fabricId !== null ||
+    hit.zoneId !== null;
 
   const startPan = useCallback((screen: Vec2, cameraStart: Camera) => {
     panRef.current = { startScreen: screen, startCamera: cameraStart };
@@ -161,8 +249,39 @@ export function LayoutCanvas({
     setPanning(false);
   }, []);
 
+  const zoneDraggedRect = (session: ZoneDragSession, world: Vec2): ZoneRect => {
+    if (session.kind === 'resize') {
+      const end = {
+        x: session.originRect.x + session.originRect.width,
+        y: session.originRect.y + session.originRect.height,
+      };
+      const next =
+        session.handle === 'start'
+          ? { x: world.x, y: world.y, width: end.x - world.x, height: end.y - world.y }
+          : {
+              ...session.originRect,
+              width: world.x - session.originRect.x,
+              height: world.y - session.originRect.y,
+            };
+      return {
+        x: Math.min(next.x, next.x + next.width),
+        y: Math.min(next.y, next.y + next.height),
+        width: Math.abs(next.width),
+        height: Math.abs(next.height),
+      };
+    }
+    const dx = world.x - session.origin.x;
+    const dy = world.y - session.origin.y;
+    return {
+      x: session.originRect.x + dx,
+      y: session.originRect.y + dy,
+      width: session.originRect.width,
+      height: session.originRect.height,
+    };
+  };
+
   const onDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (readOnly || tool !== 'select') {
+    if (readOnly || !geometryEditable || tool !== 'select') {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
@@ -178,7 +297,7 @@ export function LayoutCanvas({
       suppressClickRef.current = false;
       return;
     }
-    if (readOnly || tool !== 'text') {
+    if (readOnly || !geometryEditable || tool !== 'text') {
       return;
     }
     if (event.target instanceof HTMLTextAreaElement) {
@@ -187,6 +306,35 @@ export function LayoutCanvas({
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     dispatch({ type: 'textPlace', point: world });
+  };
+
+  const onContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onElementContextMenu) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const hit = hitAt(screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera));
+    if (hit.wallId === null && hit.pillarId === null && hit.fabricId === null) {
+      return;
+    }
+    event.preventDefault();
+    // 이미 선택된 요소를 우클릭하면 다중 선택을 유지한다. 아니면 그 요소만 선택한다.
+    const inSelection =
+      (hit.wallId !== null && selection.wallIds.includes(hit.wallId)) ||
+      (hit.pillarId !== null && selection.pillarIds.includes(hit.pillarId)) ||
+      (hit.fabricId !== null && selection.fabricIds.includes(hit.fabricId));
+    if (!inSelection) {
+      dispatch({
+        type: 'selectAt',
+        wallId: hit.wallId,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: hit.pillarId,
+        fabricId: hit.fabricId,
+        additive: false,
+      });
+      onSelectZone?.(null);
+    }
+    onElementContextMenu({ x: event.clientX, y: event.clientY }, hit);
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -206,13 +354,49 @@ export function LayoutCanvas({
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
-    if (readOnly) {
-      return;
-    }
     const rect = event.currentTarget.getBoundingClientRect();
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     dispatch({ type: 'cursorMove', world });
     event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (!geometryEditable) {
+      const hit = hitAt(world);
+      const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+      if (
+        hit.wallId !== null ||
+        hit.outsideWallId !== null ||
+        hit.exitId !== null ||
+        hit.textId !== null ||
+        hit.pillarId !== null ||
+        hit.fabricId !== null
+      ) {
+        dispatch({
+          type: 'selectAt',
+          wallId: hit.wallId,
+          outsideWallId: hit.outsideWallId,
+          exitId: hit.exitId,
+          textId: hit.textId,
+          pillarId: hit.pillarId,
+          fabricId: hit.fabricId,
+          additive,
+        });
+        onSelectZone?.(null);
+        return;
+      }
+      dispatch({
+        type: 'selectAt',
+        wallId: null,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: null,
+        fabricId: null,
+        additive: false,
+      });
+      onSelectZone?.(hit.zoneId);
+      if (hit.zoneId === null) startPan({ x: event.clientX, y: event.clientY }, camera);
+      return;
+    }
 
     if (tool === 'wall') {
       if (state.draft) {
@@ -256,6 +440,21 @@ export function LayoutCanvas({
         dispatch({ type: 'fabricCommit' });
       } else {
         dispatch({ type: 'fabricStart', point: world });
+      }
+      return;
+    }
+    if (tool === 'zone') {
+      if (state.draft && 'start' in state.draft) {
+        const start = state.draft.start;
+        dispatch({ type: 'escape' });
+        onZoneDrawn?.({
+          x: Math.min(start.x, world.x),
+          y: Math.min(start.y, world.y),
+          width: Math.abs(world.x - start.x),
+          height: Math.abs(world.y - start.y),
+        });
+      } else {
+        dispatch({ type: 'zoneStart', point: world });
       }
       return;
     }
@@ -375,16 +574,31 @@ export function LayoutCanvas({
       }
     }
 
-    const hit = hitTestElements(
-      world,
-      doc.walls,
-      doc.outsideWalls,
-      doc.layoutTexts,
-      doc.pillars,
-      doc.fabrics,
-      doc.exits,
-      camera.zoom,
-    );
+    const hit = hitAt(world);
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+
+    if (canEditZones && selectedZoneId !== null) {
+      const selectedZone = zones.find((zone) => zone.zoneId === selectedZoneId);
+      if (selectedZone) {
+        const handle = hitTestRectHandle(
+          { ...zoneAsRect(selectedZone), id: String(selectedZone.zoneId) },
+          world,
+          camera.zoom,
+        );
+        if (handle) {
+          zoneDragRef.current = {
+            zoneId: selectedZone.zoneId,
+            kind: 'resize',
+            handle: handle.handle,
+            origin: world,
+            originRect: selectedZone.rect,
+          };
+          onSelectZone?.(selectedZone.zoneId);
+          return;
+        }
+      }
+    }
+
     if (
       hit.wallId !== null ||
       hit.outsideWallId !== null ||
@@ -415,11 +629,39 @@ export function LayoutCanvas({
         textId: hit.textId,
         pillarId: hit.pillarId,
         fabricId: hit.fabricId,
-        additive: event.shiftKey,
+        additive,
       });
-      const willBeSelected = event.shiftKey ? !wasSelected : true;
+      onSelectZone?.(null);
+      const willBeSelected = additive ? !wasSelected : true;
       if (willBeSelected) {
         dispatch({ type: 'dragStartMove', point: world });
+      }
+      return;
+    }
+
+    if (hit.zoneId !== null) {
+      dispatch({
+        type: 'selectAt',
+        wallId: null,
+        outsideWallId: null,
+        exitId: null,
+        textId: null,
+        pillarId: null,
+        fabricId: null,
+        additive: false,
+      });
+      onSelectZone?.(hit.zoneId);
+      if (canEditZones) {
+        const zone = zones.find((candidate) => candidate.zoneId === hit.zoneId);
+        if (zone) {
+          zoneDragRef.current = {
+            zoneId: zone.zoneId,
+            kind: 'move',
+            handle: 'start',
+            origin: world,
+            originRect: zone.rect,
+          };
+        }
       }
       return;
     }
@@ -432,8 +674,9 @@ export function LayoutCanvas({
       textId: null,
       pillarId: null,
       fabricId: null,
-      additive: event.shiftKey,
+      additive,
     });
+    onSelectZone?.(null);
     startPan({ x: event.clientX, y: event.clientY }, camera);
   };
 
@@ -450,6 +693,19 @@ export function LayoutCanvas({
     const world = screenToWorld({ x: event.clientX, y: event.clientY }, rect, camera);
     if (state.draft) {
       dispatch({ type: 'cursorMove', world });
+    }
+
+    if (zoneDragRef.current) {
+      const session = zoneDragRef.current;
+      const dragged = zoneDraggedRect(session, world);
+      const next: ZoneRect = {
+        x: Math.max(0, Math.min(dragged.x, doc.width - dragged.width)),
+        y: Math.max(0, Math.min(dragged.y, doc.height - dragged.height)),
+        width: Math.min(dragged.width, doc.width),
+        height: Math.min(dragged.height, doc.height),
+      };
+      setZoneDraftRect(next);
+      return;
     }
 
     if (panRef.current) {
@@ -491,6 +747,8 @@ export function LayoutCanvas({
         dispatch({ type: 'pillarUpdate', point: world });
       } else if (tool === 'fabric') {
         dispatch({ type: 'fabricUpdate', point: world });
+      } else if (tool === 'zone') {
+        dispatch({ type: 'zoneUpdate', point: world });
       }
     }
   };
@@ -521,6 +779,29 @@ export function LayoutCanvas({
       stopPan();
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    }
+    if (zoneDragRef.current) {
+      const session = zoneDragRef.current;
+      const finalRect = zoneDraftRect ?? session.originRect;
+      zoneDragRef.current = null;
+      setZoneDraftRect(null);
+      const rounded = {
+        x: round1(finalRect.x),
+        y: round1(finalRect.y),
+        width: round1(finalRect.width),
+        height: round1(finalRect.height),
+      };
+      const origin = session.originRect;
+      if (
+        rounded.width > 0 &&
+        rounded.height > 0 &&
+        (rounded.x !== origin.x ||
+          rounded.y !== origin.y ||
+          rounded.width !== origin.width ||
+          rounded.height !== origin.height)
+      ) {
+        onZoneRectCommit?.(session.zoneId, origin, rounded);
       }
     }
     dispatch({ type: 'dragEnd' });
@@ -583,6 +864,7 @@ export function LayoutCanvas({
       role="application"
       aria-label="도면 캔버스"
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
       onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -608,15 +890,65 @@ export function LayoutCanvas({
               stroke={CANVAS_COLORS.gridBoundary}
               strokeWidth={s(1)}
             />
-            {doc.walls.map((wall) => (
-              <WallView
-                key={wall.id}
-                wall={wall}
-                selected={selection.wallIds.includes(wall.id)}
-                problem={problemNames.wall.has(wall.name)}
-                s={s}
-              />
-            ))}
+            {zones.map((zone) => {
+              const isDragging =
+                zoneDragRef.current?.zoneId === zone.zoneId && zoneDraftRect !== null;
+              return (
+                <ZoneView
+                  key={zone.zoneId}
+                  zone={zone}
+                  rect={isDragging ? zoneDraftRect : zone.rect}
+                  selected={zone.zoneId === selectedZoneId}
+                  dragging={isDragging}
+                  s={s}
+                />
+              );
+            })}
+            {canEditZones &&
+              zones
+                .filter((zone) => zone.zoneId === selectedZoneId)
+                .map((zone) => {
+                  const bounds = zoneAsRect(zone);
+                  const handleSize = s(6);
+                  return (
+                    <Group key={`zone-handle-${zone.zoneId}`} listening={false}>
+                      <Rect
+                        x={bounds.startX - handleSize / 2}
+                        y={bounds.startY - handleSize / 2}
+                        width={handleSize}
+                        height={handleSize}
+                        fill={CANVAS_COLORS.canvas}
+                        stroke={CANVAS_COLORS.accent}
+                        strokeWidth={s(1.5)}
+                      />
+                      <Rect
+                        x={bounds.endX - handleSize / 2}
+                        y={bounds.endY - handleSize / 2}
+                        width={handleSize}
+                        height={handleSize}
+                        fill={CANVAS_COLORS.canvas}
+                        stroke={CANVAS_COLORS.accent}
+                        strokeWidth={s(1.5)}
+                      />
+                    </Group>
+                  );
+                })}
+            {movementPreviewRadius !== null && movementPreviewRadius > 0
+              ? doc.fabrics
+                  .filter((fabric) => fabric.id === selection.fabricIds[0])
+                  .map((fabric) => (
+                    <Circle
+                      key={`movement-radius-${fabric.id}`}
+                      x={(fabric.startX + fabric.endX) / 2}
+                      y={(fabric.startY + fabric.endY) / 2}
+                      radius={movementPreviewRadius}
+                      fill={ACCENT_ALPHA_8}
+                      stroke={CANVAS_COLORS.accent}
+                      strokeWidth={s(1.5)}
+                      dash={[s(6), s(4)]}
+                    />
+                  ))
+              : null}
             {doc.outsideWalls.map((wall) => (
               <OutsideWallView
                 key={wall.id}
@@ -626,30 +958,50 @@ export function LayoutCanvas({
                 s={s}
               />
             ))}
+            {/* 벽·기둥·구조물은 종류가 아니라 사용자가 정한 단일 순서대로 겹쳐 그린다. */}
+            {orderedElements(doc.walls, doc.pillars, doc.fabrics).map(({ kind, element }) => {
+              if (kind === 'wall') {
+                const wall = element as Wall;
+                return (
+                  <WallView
+                    key={wall.id}
+                    wall={wall}
+                    selected={selection.wallIds.includes(wall.id)}
+                    problem={problemNames.wall.has(wall.name)}
+                    s={s}
+                  />
+                );
+              }
+              if (kind === 'pillar') {
+                const pillar = element as Pillar;
+                return (
+                  <PillarView
+                    key={pillar.id}
+                    pillar={pillar}
+                    selected={selection.pillarIds.includes(pillar.id)}
+                    problem={problemNames.pillar.has(pillar.name)}
+                    s={s}
+                  />
+                );
+              }
+              const fabric = element as Fabric;
+              return (
+                <FabricView
+                  key={fabric.id}
+                  fabric={fabric}
+                  selected={selection.fabricIds.includes(fabric.id)}
+                  problem={problemNames.fabric.has(fabric.name)}
+                  s={s}
+                />
+              );
+            })}
+            {/* 비상구는 안전 표시라 항상 위에 보이도록 고정한다. */}
             {doc.exits.map((exit) => (
               <ExitView
                 key={exit.id}
                 exit={exit}
                 selected={selection.exitIds.includes(exit.id)}
                 problem={problemNames.exit.has(exit.name)}
-                s={s}
-              />
-            ))}
-            {doc.pillars.map((pillar) => (
-              <PillarView
-                key={pillar.id}
-                pillar={pillar}
-                selected={selection.pillarIds.includes(pillar.id)}
-                problem={problemNames.pillar.has(pillar.name)}
-                s={s}
-              />
-            ))}
-            {doc.fabrics.map((fabric) => (
-              <FabricView
-                key={fabric.id}
-                fabric={fabric}
-                selected={selection.fabricIds.includes(fabric.id)}
-                problem={problemNames.fabric.has(fabric.name)}
                 s={s}
               />
             ))}
@@ -757,6 +1109,23 @@ export function LayoutCanvas({
               />
             )}
           </Layer>
+          {evacuationRoutes.length > 0 ? (
+            <Layer
+              listening={false}
+              x={-camera.panX * k}
+              y={-camera.panY * k}
+              scaleX={k}
+              scaleY={k}
+            >
+              <EvacuationRouteOverlay
+                routes={evacuationRoutes}
+                exitIds={doc.exits.flatMap((exit) =>
+                  exit.backendId === null ? [] : [exit.backendId],
+                )}
+                scale={s}
+              />
+            </Layer>
+          ) : null}
         </Stage>
       )}
     </div>

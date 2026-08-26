@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Info, Lock } from 'lucide-react';
+import { Info } from 'lucide-react';
 import type { SearchCandidate } from '../api/layoutSearchApi';
 import {
   formatDelta,
@@ -14,8 +14,6 @@ interface Props {
   onPrepareSimulation: () => void;
   preparing: boolean;
   previewAvailable: boolean;
-  onReject: () => void;
-  rejecting: boolean;
   onMinimize?: () => void;
 }
 
@@ -24,8 +22,6 @@ export function CandidateDetailPanel({
   onPrepareSimulation,
   preparing,
   previewAvailable,
-  onReject,
-  rejecting,
   onMinimize,
 }: Props) {
   // 검증 없이 돌린 탐색은 실측 지표가 없다. 그때 개선 폭을 알 수 있는 유일한 방법이 이 후보로
@@ -149,19 +145,6 @@ export function CandidateDetailPanel({
               {preparing ? '시뮬레이션 준비 중...' : '이 개선안으로 시뮬레이션 진행'}
             </button>
           </>
-        )}
-
-        {candidate.changeSet.ops.length > 0 && (
-          <button
-            type="button"
-            className="reject-candidate-button"
-            disabled={rejecting}
-            onClick={onReject}
-            title="이 개선안에서 이동된 구조물을 고정 제약으로 추가하고 다시 탐색합니다."
-          >
-            <Lock className="reject-candidate-button__icon" aria-hidden="true" />
-            <span>{rejecting ? '제약 반영 중...' : '해당 구조물 고정 후 재탐색'}</span>
-          </button>
         )}
       </div>
     </div>

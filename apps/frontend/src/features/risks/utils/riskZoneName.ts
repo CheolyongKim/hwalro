@@ -69,8 +69,47 @@ function fallbackName(center: { x: number; y: number }, drawing: RiskZoneNameDra
   return normalizedY >= 0 ? '남측 통로' : '북측 통로';
 }
 
-export function generateRiskZoneName(bounds: Bounds, drawing: RiskZoneNameDrawing): string {
+/** 도면에 저장된 구역. 이름이 이미 정해져 있으므로 추측보다 우선한다. */
+export interface NamedZone {
+  name: string;
+  rect: { x: number; y: number; width: number; height: number };
+}
+
+function containingZone(center: { x: number; y: number }, zones: NamedZone[]): NamedZone | null {
+  const matches = zones.filter(
+    (zone) =>
+      center.x >= zone.rect.x &&
+      center.x <= zone.rect.x + zone.rect.width &&
+      center.y >= zone.rect.y &&
+      center.y <= zone.rect.y + zone.rect.height,
+  );
+  if (matches.length === 0) {
+    return null;
+  }
+  // 구역이 겹치면 더 좁은 쪽이 더 구체적인 장소다.
+  return matches.reduce((narrowest, zone) =>
+    zone.rect.width * zone.rect.height < narrowest.rect.width * narrowest.rect.height
+      ? zone
+      : narrowest,
+  );
+}
+
+/**
+ * 위험 구역의 이름을 짓는다.
+ *
+ * 도면에 구역이 있으면 그 이름을 쓴다 - 사람이 붙인 이름이 좌표 추측보다 정확하다.
+ * 구역이 없는 도면에서는 가장 가까운 매장 텍스트로 추측하고, 그마저 없으면 방위로 부른다.
+ */
+export function generateRiskZoneName(
+  bounds: Bounds,
+  drawing: RiskZoneNameDrawing,
+  zones: NamedZone[] = [],
+): string {
   const center = zoneCenter(bounds);
+  const zone = containingZone(center, zones);
+  if (zone) {
+    return zone.name;
+  }
   const store = nearestText(center, drawing.layoutTexts);
   if (store && store.distance > 0 && store.distance <= storeDistanceLimit(drawing)) {
     const storeName = store.normalizedText.endsWith('매장')

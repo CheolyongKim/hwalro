@@ -1,3 +1,4 @@
+import { orderedElements, withAssignedOrder } from './elementOrder';
 import type {
   DrawingDocument,
   Exit,
@@ -21,6 +22,18 @@ function toFiniteNumber(value: unknown, key: string): number {
   return num;
 }
 
+/**
+ * 서버가 준 식별자만 신뢰한다. 저장 시 이 값으로 기존 행을 갱신하므로, 숫자가 아니거나
+ * 양수가 아니면 "새 요소"로 취급해 서버가 새 ID를 발급하게 한다.
+ */
+function toDisplayOrder(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function toBackendId(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
+}
+
 function wallNameIndex(name: string): number | null {
   const match = /^벽 (\d+)$/.exec(name);
   return match ? Number(match[1]) : null;
@@ -42,12 +55,14 @@ function exitNameIndex(name: string): number | null {
 
 interface SerializedRect {
   id: string;
+  backendId: number | null;
   name: string;
   startX: number;
   startY: number;
   endX: number;
   endY: number;
   rotation: number;
+  displayOrder?: number;
 }
 
 function elementNameIndex(pattern: RegExp, name: string): number | null {
@@ -83,12 +98,14 @@ function parseRects(
     }
     const rect: SerializedRect = {
       id: `${idPrefix}-${i}`,
+      backendId: toBackendId(entry.id),
       name: parsedName ?? '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `${key}[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `${key}[${i}].startY`),
       endX: toFiniteNumber(entry.endX ?? entry.end_x, `${key}[${i}].endX`),
       endY: toFiniteNumber(entry.endY ?? entry.end_y, `${key}[${i}].endY`),
       rotation: toFiniteNumber(entry.rotation ?? 0, `${key}[${i}].rotation`),
+      displayOrder: toDisplayOrder(entry.displayOrder ?? entry.display_order),
     };
     if (parsedName) {
       result.push(rect);
@@ -109,16 +126,27 @@ export function parseElementName(name: unknown): string | null {
 }
 
 export function toSerialized(doc: DrawingDocument): SerializedDocument {
+  // 아직 순서 값이 없는 새 요소까지 확정해 보낸다. 일부만 비워 보내면 서버가 종류별 인덱스로
+  // 폴백해 다른 종류의 순서 값과 충돌한다.
+  const ordered = withAssignedOrder(orderedElements(doc.walls, doc.pillars, doc.fabrics));
+  const orderById = new Map<string, number>(
+    [...ordered.walls, ...ordered.pillars, ...ordered.fabrics].map((element) => [
+      element.id,
+      element.displayOrder ?? 0,
+    ]),
+  );
   return {
     name: doc.name,
     width: doc.width,
     height: doc.height,
     walls: doc.walls.map((wall) => ({
+      id: wall.backendId,
       name: wall.name,
       startX: wall.startX,
       startY: wall.startY,
       endX: wall.endX,
       endY: wall.endY,
+      displayOrder: orderById.get(wall.id),
     })),
     outsideWalls: doc.outsideWalls.map((wall) => ({
       name: wall.name,
@@ -128,6 +156,7 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       endY: wall.endY,
     })),
     exits: doc.exits.map((exit) => ({
+      id: exit.backendId,
       name: exit.name,
       startX: exit.startX,
       startY: exit.startY,
@@ -135,20 +164,24 @@ export function toSerialized(doc: DrawingDocument): SerializedDocument {
       endY: exit.endY,
     })),
     pillars: doc.pillars.map((pillar) => ({
+      id: pillar.backendId,
       name: pillar.name,
       startX: pillar.startX,
       startY: pillar.startY,
       endX: pillar.endX,
       endY: pillar.endY,
       rotation: pillar.rotation,
+      displayOrder: orderById.get(pillar.id),
     })),
     fabrics: doc.fabrics.map((fabric) => ({
+      id: fabric.backendId,
       name: fabric.name,
       startX: fabric.startX,
       startY: fabric.startY,
       endX: fabric.endX,
       endY: fabric.endY,
       rotation: fabric.rotation,
+      displayOrder: orderById.get(fabric.id),
     })),
     layoutTexts: doc.layoutTexts.map((text) => ({ text: text.text, x: text.x, y: text.y })),
   };
@@ -204,11 +237,13 @@ export function fromSerialized(data: unknown): DrawingDocument {
     }
     const wall: Wall = {
       id: `loaded-wall-${i}`,
+      backendId: toBackendId(entry.id),
       name: parsedName ?? '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `walls[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `walls[${i}].startY`),
       endX: toFiniteNumber(entry.endX ?? entry.end_x, `walls[${i}].endX`),
       endY: toFiniteNumber(entry.endY ?? entry.end_y, `walls[${i}].endY`),
+      displayOrder: toDisplayOrder(entry.displayOrder ?? entry.display_order),
     };
     if (parsedName) {
       walls.push(wall);
@@ -276,6 +311,7 @@ export function fromSerialized(data: unknown): DrawingDocument {
     }
     const exit: Exit = {
       id: `loaded-exit-${i}`,
+      backendId: toBackendId(entry.id),
       name: parsedName ?? '',
       startX: toFiniteNumber(entry.startX ?? entry.start_x, `exits[${i}].startX`),
       startY: toFiniteNumber(entry.startY ?? entry.start_y, `exits[${i}].startY`),

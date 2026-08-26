@@ -536,6 +536,27 @@ public class SimulationService {
         return buildSetup(id, simulation);
     }
 
+    /**
+     * 시뮬레이션 없이 도면 버전의 기하만 조립한다. 대피 경로 미리보기가 합성 엔진 입력을 만들 때 쓴다.
+     *
+     * <p>{@code buildSetup}과 같은 조립 경로를 공유하므로 엔진이 보는 도면이 시뮬레이션과 어긋나지 않는다.
+     */
+    public DrawingGeometryDto layoutGeometry(Long layoutVersionId) {
+        LayoutSimulationContext context = findLayoutContext(layoutVersionId);
+        DrawingSnapshot snapshot = loadDrawing(context);
+        return new DrawingGeometryDto(
+                context.getLayoutId(),
+                context.getTitle(),
+                context.getWidth(),
+                context.getHeight(),
+                SimulationGeometry.assembleBoundary(snapshot.outsideWalls(), context.getWidth(), context.getHeight()),
+                snapshot.walls().stream().map(SimulationService::toSegment).toList(),
+                snapshot.pillars().stream().map(SimulationService::toRect).toList(),
+                snapshot.fabrics().stream().map(SimulationService::toFabricRect).toList(),
+                snapshot.layoutTexts().stream().map(SimulationService::toText).toList(),
+                snapshot.exits().stream().map(SimulationService::toExit).toList());
+    }
+
     private SimulationSetupResponse buildSetup(Long id, Simulation simulation) {
         LayoutSimulationContext context = findLayoutContext(simulation.getLayoutVersionId());
         DrawingSnapshot snapshot = loadDrawing(context);

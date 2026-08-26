@@ -42,6 +42,7 @@ interface SimulationResultSummaryResponse {
     pillars: SegmentResponse[];
     fabrics: SegmentResponse[];
     layoutTexts: Array<{ text: string; x: number; y: number }>;
+    zones: Array<{ name: string; x: number; y: number; width: number; height: number }>;
   };
   hazardZones: Array<{
     id: number;

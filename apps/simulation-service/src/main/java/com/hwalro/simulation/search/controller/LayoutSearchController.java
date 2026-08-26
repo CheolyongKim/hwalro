@@ -45,17 +45,13 @@ public class LayoutSearchController {
     }
 
     @PostMapping("/simulations/{simulationId}/layout-searches")
-    @Operation(summary = "배치 개선안 탐색 시작", description = "완료된 기준 시뮬레이션에서 배치 개선안 탐색을 시작합니다.")
+    @Operation(summary = "배치 개선안 탐색 시작", description = "완료된 기준 시뮬레이션에서 배치 개선안 탐색을 시작합니다. 제약은 도면에 저장된 값을 사용합니다.")
     public StartStudyResponse start(
             @PathVariable long simulationId,
             @RequestBody(required = false) StartStudyRequest request,
             @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        LayoutSearchEntity search = layoutSearchOrchestrator.start(
-                simulationId,
-                user,
-                DEFAULT_BUDGET,
-                request == null ? null : request.constraints(),
-                request != null && request.verify());
+        LayoutSearchEntity search =
+                layoutSearchOrchestrator.start(simulationId, user, DEFAULT_BUDGET, request != null && request.verify());
         return new StartStudyResponse(search.getId(), search.getStatus());
     }
 

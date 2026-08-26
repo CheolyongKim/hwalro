@@ -35,7 +35,42 @@ public interface DrawingMapper {
 
     int insertLayoutExits(List<LayoutExit> layoutExits);
 
+    int insertWall(Wall wall);
+
+    int insertPillar(Pillar pillar);
+
     int insertLayoutExit(LayoutExit layoutExit);
+
+    int insertFabric(Fabric fabric);
+
+    List<Long> findFabricIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    List<Long> findLayoutExitIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    List<Long> findWallIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    List<Long> findPillarIdsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
+
+    int updateFabricGeometry(Fabric fabric);
+
+    int updateLayoutExitGeometry(LayoutExit layoutExit);
+
+    int updateWallGeometry(Wall wall);
+
+    int updatePillarGeometry(Pillar pillar);
+
+    int deleteFabricsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int deleteWallsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int deletePillarsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int deleteLayoutExitsByIds(@Param("layoutVersionId") Long layoutVersionId, @Param("ids") List<Long> ids);
+
+    int nullifyZoneExitReferences(@Param("layoutVersionId") Long layoutVersionId, @Param("exitIds") List<Long> exitIds);
+
+    /** 배치 제약만 갱신한다. 기하 컬럼은 건드리지 않는다(도면 저장과 소유권이 다르다). */
+    int updateFabricConstraints(Fabric fabric);
 
     Long lockLayout(@Param("layoutId") Long layoutId);
 
@@ -62,6 +97,14 @@ public interface DrawingMapper {
 
     long countLayouts(@Param("createdBy") Long createdBy, @Param("query") String query);
 
+    List<Layout> findLayoutPageAssignedToUser(
+            @Param("offset") int offset,
+            @Param("size") int size,
+            @Param("userId") Long userId,
+            @Param("query") String query);
+
+    long countLayoutsAssignedToUser(@Param("userId") Long userId, @Param("query") String query);
+
     LayoutVersion findLayoutVersionById(@Param("id") Long id);
 
     List<LayoutVersion> findLayoutVersionsByLayoutId(@Param("layoutId") Long layoutId);
@@ -81,6 +124,9 @@ public interface DrawingMapper {
     int updateLayout(Layout layout);
 
     int updateLayoutCurrentVersion(Layout layout);
+
+    int updateLayoutVersionLock(
+            @Param("id") Long id, @Param("expectedLock") Integer expectedLock, @Param("nextLock") Integer nextLock);
 
     int deleteWallsByVersionId(@Param("layoutVersionId") Long layoutVersionId);
 

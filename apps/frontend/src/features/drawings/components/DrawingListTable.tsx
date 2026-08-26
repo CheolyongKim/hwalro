@@ -6,6 +6,7 @@ interface DrawingListTableProps {
   items: DrawingSummary[];
   onDelete: (drawing: DrawingSummary) => void;
   onDuplicate: (drawing: DrawingSummary) => void;
+  canManage: boolean;
   /** 등록자 ID → 표시 이름. 조회 실패(403 등) 시 undefined로 이름 없이 표시한다. */
   nameById?: Map<number, string>;
 }
@@ -31,7 +32,13 @@ function creatorLabel(
   return `#${createdBy}`;
 }
 
-function DrawingListTable({ items, onDelete, onDuplicate, nameById }: DrawingListTableProps) {
+function DrawingListTable({
+  items,
+  onDelete,
+  onDuplicate,
+  nameById,
+  canManage,
+}: DrawingListTableProps) {
   const { user } = useAuth();
 
   return (
@@ -84,20 +91,24 @@ function DrawingListTable({ items, onDelete, onDuplicate, nameById }: DrawingLis
                 </td>
                 <td className="px-6 py-4 text-center">
                   <div className="flex items-center justify-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                    <button
-                      type="button"
-                      onClick={() => onDuplicate(drawing)}
-                      className="h-8 min-w-[52px] whitespace-nowrap rounded-lg border border-line bg-white px-2.5 text-xs font-bold text-text-strong transition hover:border-primary hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                    >
-                      복제
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(drawing)}
-                      className="h-8 min-w-[52px] whitespace-nowrap rounded-lg border border-line bg-white px-2.5 text-xs font-bold text-text-muted transition hover:border-danger/40 hover:bg-danger-soft hover:text-danger-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                    >
-                      삭제
-                    </button>
+                    {canManage ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onDuplicate(drawing)}
+                          className="h-8 min-w-[52px] whitespace-nowrap rounded-lg border border-line bg-white px-2.5 text-xs font-bold text-text-strong transition hover:border-primary hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        >
+                          복제
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(drawing)}
+                          className="h-8 min-w-[52px] whitespace-nowrap rounded-lg border border-line bg-white px-2.5 text-xs font-bold text-text-muted transition hover:border-danger/40 hover:bg-danger-soft hover:text-danger-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        >
+                          삭제
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </td>
               </tr>

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Circle, Group, Line, Rect, Text as KonvaText } from 'react-konva';
-import type { Exit, Fabric, LayoutText, Pillar, Wall } from '../types';
+import type { Exit, Fabric, LayoutText, OutsideWall, Pillar, Wall } from '../types';
 import { PX_PER_METER, rectCenter } from '../utils/geometry';
 import {
   MIN_TEXT_SCREEN_PX,
@@ -69,7 +69,7 @@ export const GridLayer = memo(function GridLayer({ minX, minY, maxX, maxY, zoom 
 });
 
 interface WallViewProps {
-  wall: Wall;
+  wall: Wall | OutsideWall;
   selected: boolean;
   s: (px: number) => number;
   color?: string;
