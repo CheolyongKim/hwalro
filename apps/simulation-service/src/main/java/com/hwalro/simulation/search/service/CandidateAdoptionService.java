@@ -360,6 +360,10 @@ public class CandidateAdoptionService {
         target.setEndX(source.getEndX());
         target.setEndY(source.getEndY());
         target.setRotation(source.getRotation());
+        target.setMovable(source.getMovable());
+        target.setMaxMovementDistance(source.getMaxMovementDistance());
+        target.setRotationLocked(source.getRotationLocked());
+        target.setKeepAgainstWall(source.getKeepAgainstWall());
         target.setDisplayOrder(source.getDisplayOrder());
         return target;
     }
