@@ -9,6 +9,7 @@ import { LayoutCanvas } from './LayoutCanvas';
 
 vi.mock('react-konva', () => {
   const Shape = ({ children }: PropsWithChildren) => children ?? null;
+  const Text = ({ text }: { text?: string }) => <span data-konva-text>{text}</span>;
   return {
     Circle: Shape,
     Group: Shape,
@@ -16,7 +17,7 @@ vi.mock('react-konva', () => {
     Line: Shape,
     Rect: Shape,
     Stage: Shape,
-    Text: Shape,
+    Text,
   };
 });
 
@@ -161,5 +162,34 @@ describe('LayoutCanvas risk mode', () => {
 
     expect(onRiskZoneDrawn).toHaveBeenCalledOnce();
     expect(onRiskZoneDrawn.mock.calls[0][0].width).toBeLessThan(0.5);
+  });
+});
+
+describe('LayoutCanvas zone rendering', () => {
+  it('does not render the zone name on the canvas', () => {
+    act(() => {
+      root.render(
+        <LayoutCanvas
+          state={createInitialState()}
+          dispatch={vi.fn()}
+          size={{ w: 800, h: 600 }}
+          onSizeChange={vi.fn()}
+          zones={[
+            {
+              zoneId: 1,
+              name: '좌상단 구역 이름',
+              zoneType: 'WORK',
+              rect: { x: 10, y: 10, width: 100, height: 80 },
+              assignedUserId: null,
+              defaultExitId: null,
+              displayOrder: 0,
+              members: [],
+            },
+          ]}
+        />,
+      );
+    });
+
+    expect(container.textContent).not.toContain('좌상단 구역 이름');
   });
 });
