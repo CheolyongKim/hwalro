@@ -18,6 +18,8 @@ describe('zoneApi', () => {
 
     await zoneApi.evacuationRoutes(91);
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/drawings/91/evacuation-routes', { timeout: 0 });
+    expect(apiClient.get).toHaveBeenCalledWith('/api/drawings/91/evacuation-routes', {
+      timeout: 0,
+    });
   });
 });
