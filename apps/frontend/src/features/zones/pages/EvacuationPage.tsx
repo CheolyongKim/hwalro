@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Circle, Layer, Line, Rect, Stage } from 'react-konva';
+import { Layer, Line, Rect, Stage } from 'react-konva';
 import { Card, ErrorState, PageHeader, buttonClassName } from '../../../components/ui';
 import { drawingApi } from '../../drawings/api/drawingApi';
 import type { Drawing } from '../../drawings/types/drawing';
@@ -11,16 +11,9 @@ import { CANVAS_COLORS } from '../../layout/utils/colors';
 import { clampPan, fitCamera, PX_PER_METER, zoomAtPoint } from '../../layout/utils/geometry';
 import type { Camera, Vec2 } from '../../layout/types';
 import { zoneApi, type EvacuationRoute, type MyZone } from '../api/zoneApi';
+import { EvacuationRouteOverlay } from '../components/EvacuationRouteOverlay';
 import { fitEvacuationCamera } from '../utils/evacuationCamera';
 import { evacuationStatusPresentation } from '../utils/evacuationStatus';
-
-const VIEW_HEIGHT = 460;
-
-const TONE_CLASSNAME: Record<'ok' | 'warning' | 'muted', string> = {
-  ok: 'border-primary/40 bg-primary-soft text-primary',
-  warning: 'border-danger/40 bg-danger-soft text-danger-strong',
-  muted: 'border-line bg-panel-soft text-text-muted',
-};
 
 interface LoadedEvacuation {
   zone: MyZone;
@@ -29,7 +22,15 @@ interface LoadedEvacuation {
   route: EvacuationRoute;
 }
 
-function EvacuationCanvas({ data, width }: { data: LoadedEvacuation; width: number }) {
+function EvacuationCanvas({
+  data,
+  width,
+  height,
+}: {
+  data: LoadedEvacuation;
+  width: number;
+  height: number;
+}) {
   const { drawing, zoneRect, route } = data;
   const initialCamera = useMemo(() => {
     const points: Vec2[] = [...route.waypoints, route.routeOrigin];
@@ -47,9 +48,9 @@ function EvacuationCanvas({ data, width }: { data: LoadedEvacuation; width: numb
       );
     }
     return points.length > 1
-      ? fitEvacuationCamera(points, width, VIEW_HEIGHT)
-      : fitCamera(drawing.width, drawing.height, width, VIEW_HEIGHT);
-  }, [drawing, route, width, zoneRect]);
+      ? fitEvacuationCamera(points, width, height)
+      : fitCamera(drawing.width, drawing.height, width, height);
+  }, [drawing, height, route, width, zoneRect]);
   const [camera, setCamera] = useState<Camera>(initialCamera);
   const panRef = useRef<{ screen: Vec2; camera: Camera } | null>(null);
 
@@ -61,12 +62,12 @@ function EvacuationCanvas({ data, width }: { data: LoadedEvacuation; width: numb
       drawing.width,
       drawing.height,
       width / (next.zoom * PX_PER_METER),
-      VIEW_HEIGHT / (next.zoom * PX_PER_METER),
+      height / (next.zoom * PX_PER_METER),
     );
   const zoomAtCenter = (factor: number) => {
     setCamera((current) =>
       clampCamera(
-        zoomAtPoint(current, { x: width / 2, y: VIEW_HEIGHT / 2 }, { left: 0, top: 0 }, factor),
+        zoomAtPoint(current, { x: width / 2, y: height / 2 }, { left: 0, top: 0 }, factor),
       ),
     );
   };
@@ -121,7 +122,7 @@ function EvacuationCanvas({ data, width }: { data: LoadedEvacuation; width: numb
       onPointerCancel={finishPan}
       onPointerLeave={finishPan}
     >
-      <Stage width={width} height={VIEW_HEIGHT}>
+      <Stage width={width} height={height}>
         <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
           <Rect
             x={0}
@@ -210,24 +211,7 @@ function EvacuationCanvas({ data, width }: { data: LoadedEvacuation; width: numb
               />
             );
           })}
-          {route.waypoints.length > 1 ? (
-            <Line
-              points={route.waypoints.flatMap((point) => [point.x, point.y])}
-              stroke={CANVAS_COLORS.accent}
-              strokeWidth={s(2.5)}
-              dash={[s(6), s(4)]}
-              lineCap="round"
-              lineJoin="round"
-            />
-          ) : null}
-          <Circle
-            x={route.routeOrigin.x}
-            y={route.routeOrigin.y}
-            radius={s(5)}
-            fill={CANVAS_COLORS.accent}
-            stroke={CANVAS_COLORS.canvas}
-            strokeWidth={s(2)}
-          />
+          <EvacuationRouteOverlay routes={[route]} scale={s} />
         </Layer>
       </Stage>
       <div className="absolute right-3 bottom-3 flex items-center overflow-hidden rounded-lg border border-line bg-surface-elevated/95 shadow-sm">
@@ -269,7 +253,7 @@ function EvacuationPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     const element = containerRef.current;
@@ -277,7 +261,8 @@ function EvacuationPage() {
       return;
     }
     const observer = new ResizeObserver((entries) => {
-      setWidth(entries[0].contentRect.width);
+      const { width, height } = entries[0].contentRect;
+      setViewport({ width, height });
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -341,9 +326,9 @@ function EvacuationPage() {
   const recommendedName = data?.route.recommendedExitName ?? null;
 
   return (
-    <main className="bg-background">
-      <div className="mx-auto w-full max-w-[1360px] px-1 pt-2 pb-10 sm:px-4 lg:pt-4">
-        <div className="border-b border-line pb-6">
+    <main className="h-full overflow-hidden bg-background">
+      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col px-1 pt-2 sm:px-4 lg:pt-4">
+        <div className="shrink-0 border-b border-line pb-6">
           <PageHeader
             eyebrow="대피 안내"
             title={data?.zone.zoneName ?? '대피 경로'}
@@ -359,11 +344,6 @@ function EvacuationPage() {
           />
         </div>
 
-        {/* 승인된 known behavior: 이 화면은 실시간 상황을 반영하지 않는다. 항상 표시한다. */}
-        <p className="mt-5 rounded-lg border border-line bg-panel-soft px-4 py-3 text-sm text-text-muted">
-          이 안내는 평상시 기준 정적 경로입니다. 실제 화재·통로 차단 상황은 반영되지 않습니다.
-        </p>
-
         {isLoading ? (
           <Card className="mt-4">
             <p className="py-10 text-center text-sm text-text-muted">대피 경로를 불러오는 중...</p>
@@ -377,60 +357,22 @@ function EvacuationPage() {
             />
           </Card>
         ) : (
-          <>
-            <p
-              className={`mt-4 rounded-lg border px-4 py-3 text-sm font-medium ${TONE_CLASSNAME[presentation.tone]}`}
-              role={presentation.tone === 'warning' ? 'alert' : undefined}
+          <Card padded={false} className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <div
+              ref={containerRef}
+              role="application"
+              aria-label={
+                presentation.hasRoute && recommendedName !== null
+                  ? `${data.zone.zoneName}에서 ${recommendedName}까지의 대피 경로`
+                  : `${data.zone.zoneName}의 도면. 표시할 대피 경로가 없습니다.`
+              }
+              className="h-full w-full"
             >
-              {presentation.message}
-            </p>
-
-            {data.route.originAdjusted ? (
-              <p className="mt-3 rounded-lg border border-line bg-panel-soft px-4 py-3 text-sm text-text-muted">
-                구역 중심에 구조물이 있어 구역 내 가장 가까운 통행 가능 지점에서 경로를
-                계산했습니다.
-              </p>
-            ) : null}
-
-            <Card className="mt-4">
-              <dl className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <dt className="text-xs text-text-muted">안내 비상구</dt>
-                  <dd className="mt-1 text-sm font-bold text-text-strong">
-                    {recommendedName ?? '없음'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-muted">담당 비상구</dt>
-                  <dd className="mt-1 text-sm font-medium text-text-strong">
-                    {data.route.defaultExit?.name ?? '지정 안 함'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-muted">이동 거리</dt>
-                  <dd className="mt-1 text-sm font-medium tabular-nums text-text-strong">
-                    {presentation.hasRoute ? `약 ${Math.round(data.route.distanceMeters)}m` : '-'}
-                  </dd>
-                </div>
-              </dl>
-            </Card>
-
-            <Card padded={false} className="mt-4 overflow-hidden">
-              <div
-                ref={containerRef}
-                role="application"
-                aria-label={
-                  presentation.hasRoute && recommendedName !== null
-                    ? `${data.zone.zoneName}에서 ${recommendedName}까지의 대피 경로`
-                    : `${data.zone.zoneName}의 도면. 표시할 대피 경로가 없습니다.`
-                }
-                className="w-full"
-                style={{ height: VIEW_HEIGHT }}
-              >
-                {width > 0 ? <EvacuationCanvas data={data} width={width} /> : null}
-              </div>
-            </Card>
-          </>
+              {viewport.width > 0 && viewport.height > 0 ? (
+                <EvacuationCanvas data={data} width={viewport.width} height={viewport.height} />
+              ) : null}
+            </div>
+          </Card>
         )}
       </div>
     </main>

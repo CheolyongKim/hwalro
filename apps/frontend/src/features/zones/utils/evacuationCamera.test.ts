@@ -20,4 +20,17 @@ describe('fitEvacuationCamera', () => {
     expect(camera.panX + visibleWidth).toBeGreaterThan(90);
     expect(camera.panY + visibleHeight).toBeGreaterThan(70);
   });
+
+  it('fills the viewport for a short evacuation route', () => {
+    const camera = fitEvacuationCamera(
+      [
+        { x: 10, y: 10 },
+        { x: 20, y: 20 },
+      ],
+      1200,
+      700,
+    );
+
+    expect(camera.zoom).toBe(4);
+  });
 });
