@@ -77,7 +77,7 @@ function Modal({ open, onClose, title, description, size = 'md', children, foote
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-workspace/55 p-4 backdrop-blur-[2px]"
+      className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

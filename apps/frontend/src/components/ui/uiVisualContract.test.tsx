@@ -43,4 +43,34 @@ describe('shared UI visual contract', () => {
     expect(globalStyles).toContain('--color-workspace-text: #17201e;');
     expect(globalStyles).toContain('--color-workspace-muted: #4f5f5a;');
   });
+
+  it('uses one backdrop treatment for every modal implementation', () => {
+    const globalStyles = readFileSync(new URL('../../index.css', import.meta.url), 'utf8');
+    const modalSource = readFileSync(new URL('./Modal.tsx', import.meta.url), 'utf8');
+    const riskZoneSource = readFileSync(
+      new URL('../../features/risks/components/RiskZoneEditorDialog.tsx', import.meta.url),
+      'utf8',
+    );
+    const reportDraftSource = readFileSync(
+      new URL('../../features/simulationResult/components/ReportDraftDialog.tsx', import.meta.url),
+      'utf8',
+    );
+    const systemManagementSource = readFileSync(
+      new URL('../../pages/SystemManagementPage.tsx', import.meta.url),
+      'utf8',
+    );
+    const agentDeletionSource = readFileSync(
+      new URL('../../features/simulations/components/AgentDeletionFeedback.tsx', import.meta.url),
+      'utf8',
+    );
+
+    expect(globalStyles).toContain('--modal-backdrop-color: rgb(16 23 21 / 0.38);');
+    expect(globalStyles).toContain('--modal-backdrop-filter: blur(6px);');
+    expect(globalStyles).toContain('.app-modal-backdrop');
+    expect(globalStyles).toContain('dialog.app-modal-dialog::backdrop');
+    for (const source of [modalSource, riskZoneSource, reportDraftSource, systemManagementSource]) {
+      expect(source).toContain('app-modal-backdrop');
+    }
+    expect(agentDeletionSource).toContain('app-modal-dialog');
+  });
 });

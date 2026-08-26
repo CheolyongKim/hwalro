@@ -347,7 +347,6 @@
   display: grid;
   padding: 24px;
   place-items: center;
-  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
 }
 
 .system-management-page .invite-modal {

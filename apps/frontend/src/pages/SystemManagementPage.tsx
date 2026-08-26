@@ -373,7 +373,7 @@ function SystemManagementPage() {
       </div>
 
       {isInviteOpen && (
-        <div className="modal-backdrop" onMouseDown={closeInviteModal}>
+        <div className="app-modal-backdrop modal-backdrop" onMouseDown={closeInviteModal}>
           <section
             ref={inviteModalRef}
             className="invite-modal"

@@ -90,6 +90,11 @@
 }
 
 @layer base {
+  :root {
+    --modal-backdrop-color: rgb(16 23 21 / 0.38);
+    --modal-backdrop-filter: blur(6px);
+  }
+
   html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
@@ -124,6 +129,27 @@
   ::selection {
     background-color: var(--color-primary-soft);
     color: var(--color-ink);
+  }
+}
+
+.app-modal-backdrop {
+  background: var(--modal-backdrop-color);
+  -webkit-backdrop-filter: var(--modal-backdrop-filter);
+  backdrop-filter: var(--modal-backdrop-filter);
+}
+
+dialog.app-modal-dialog::backdrop {
+  background: var(--modal-backdrop-color);
+  -webkit-backdrop-filter: var(--modal-backdrop-filter);
+  backdrop-filter: var(--modal-backdrop-filter);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-modal-backdrop,
+  dialog.app-modal-dialog::backdrop {
+    background: rgb(16 23 21 / 0.5);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 
