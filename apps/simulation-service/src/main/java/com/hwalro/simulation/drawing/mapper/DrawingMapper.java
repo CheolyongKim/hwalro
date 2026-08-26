@@ -69,6 +69,8 @@ public interface DrawingMapper {
 
     int nullifyZoneExitReferences(@Param("layoutVersionId") Long layoutVersionId, @Param("exitIds") List<Long> exitIds);
 
+    int nullifyZoneExitReferencesByLayoutId(@Param("layoutId") Long layoutId);
+
     /** 배치 제약만 갱신한다. 기하 컬럼은 건드리지 않는다(도면 저장과 소유권이 다르다). */
     int updateFabricConstraints(Fabric fabric);
 

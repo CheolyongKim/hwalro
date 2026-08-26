@@ -452,6 +452,14 @@
         WHERE layout_version_id = #{layoutVersionId}
     </update>
 
+    <update id="nullifyZoneExitReferencesByLayoutId">
+        UPDATE layout_zones z
+        INNER JOIN layout_versions v ON v.id = z.layout_version_id
+        SET z.default_exit_id = NULL
+        WHERE v.layout_id = #{layoutId}
+          AND z.default_exit_id IS NOT NULL
+    </update>
+
     <insert id="copyWalls">
         INSERT INTO walls (layout_version_id, name, start_x, start_y, end_x, end_y, display_order)
         SELECT #{targetVersionId}, name, start_x, start_y, end_x, end_y, display_order
