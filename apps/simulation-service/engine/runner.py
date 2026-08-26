@@ -433,6 +433,7 @@ def run(
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            naturalize_exit_approach,
             orthogonalize_display_path,
             relocate_agent_within_bounds,
             relocate_agents,
@@ -451,6 +452,7 @@ def run(
             parse_exits,
             parse_exit_segments,
             parse_hazards,
+            naturalize_exit_approach,
             orthogonalize_display_path,
             relocate_agent_within_bounds,
             relocate_agents,
@@ -705,6 +707,7 @@ def run(
             GridRouter,
             zone_branch_origins,
             orthogonalize_display_path,
+            naturalize_exit_approach,
             AgentRouteUnreachableError,
             _id_key,
         )
@@ -2020,14 +2023,27 @@ def _route_preview_zones(value: Any) -> tuple[dict[str, Any], ...]:
 
 
 def _serialize_preview_route(
-    route, origin, original_origin, router, display_path
+    route,
+    origin,
+    original_origin,
+    router,
+    display_path,
+    final_approach_path=None,
 ) -> dict[str, Any]:
     waypoints = list(route.waypoints)
     if not waypoints or math.dist(origin, waypoints[0]) > 1e-9:
         waypoints.insert(0, origin)
     if not waypoints or math.dist(waypoints[-1], route.terminal_point) > 1e-9:
         waypoints.append(route.terminal_point)
-    waypoints = display_path(waypoints, router.can_connect)
+    waypoints = (
+        final_approach_path(
+            waypoints,
+            router.can_connect,
+            segment_cost=router.display_connection_cost,
+        )
+        if final_approach_path is not None
+        else display_path(waypoints, router.can_connect)
+    )
     distance_meters = sum(
         math.dist(start, end) for start, end in zip(waypoints, waypoints[1:])
     )
@@ -2057,6 +2073,7 @@ def _zone_preview_routes(
     router_type,
     branch_origin_builder,
     display_path,
+    final_approach_path,
     route_unreachable_error,
     id_key,
 ) -> list[dict[str, Any]]:
@@ -2124,6 +2141,7 @@ def _zone_preview_routes(
                 requested_origin,
                 planned_router,
                 display_path,
+                final_approach_path,
             )
             serialized["zoneId"] = zone["zoneId"]
             serialized_routes.append(serialized)

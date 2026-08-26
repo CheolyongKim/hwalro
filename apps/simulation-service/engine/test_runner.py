@@ -11,6 +11,7 @@ from unittest.mock import patch
 import numpy as np
 from shapely.geometry import LineString, box
 
+import route_planner
 from runner import (
     AGENT_RADIUS_METERS,
     DT_SECONDS,
@@ -616,7 +617,13 @@ class RoutePreviewModeTest(unittest.TestCase):
             ]
             input_path.write_text(json.dumps(payload), encoding="utf-8")
 
-            with patch("runner._load_dependencies", return_value=(None, None, None, "test")):
+            with (
+                patch("runner._load_dependencies", return_value=(None, None, None, "test")),
+                patch(
+                    "route_planner.naturalize_exit_approach",
+                    wraps=route_planner.naturalize_exit_approach,
+                ) as naturalize_exit_approach,
+            ):
                 exit_code = main(["--route-preview", str(input_path), str(output_dir)])
 
             self.assertEqual(exit_code, 0)
@@ -626,6 +633,7 @@ class RoutePreviewModeTest(unittest.TestCase):
             self.assertEqual({route["zoneId"] for route in zone_routes}, {30})
             self.assertEqual({route["exitId"] for route in zone_routes}, {1, 2})
             self.assertTrue(all(route["waypoints"] for route in zone_routes))
+            self.assertEqual(naturalize_exit_approach.call_count, len(zone_routes))
 
     def test_zone_preview_keeps_reachable_zones_when_another_component_is_isolated(self):
         with tempfile.TemporaryDirectory() as directory:
