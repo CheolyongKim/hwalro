@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../../components/ui';
 import { isCancelledRequest, loadWithRetry } from '../../../api/loadWithRetry';
 import { useDelayedLoadingMessage } from '../../../hooks/useDelayedLoadingMessage';
@@ -13,11 +13,14 @@ import {
   useCollapsibleWorkspacePanel,
 } from '../../../components/workspace';
 import { reportApi } from '../../reports/api/reportApi';
+import { layoutSearchApi } from '../../layoutSearch/api/layoutSearchApi';
+import { LayoutSearchStartDialog } from '../../layoutSearch/components/LayoutSearchStartDialog';
 import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
 import { simulationApi } from '../../simulations/api/simulationApi';
 import type { SimulationResultSummary } from '../../simulations/types';
 import { getSimulationListNavigationState } from '../../simulations/utils/simulationListAction';
+import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 import { simulationResultProvider } from '../api/simulationResultProvider';
 import { EvacuationProgressChart } from '../components/EvacuationProgressChart';
 import { ImprovementComparisonPanel } from '../components/ImprovementComparisonPanel';
@@ -96,6 +99,7 @@ function ResultView({
   originState,
 }: ResultViewProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [viewingOrigin, setViewingOrigin] = useState(false);
   const originReady = originState.status === 'ready';
   // 재생바와 시간은 그대로 두고 화면에 보이는 시뮬레이션 결과만 바꾼다.
@@ -166,6 +170,9 @@ function ResultView({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [layoutSearchOpen, setLayoutSearchOpen] = useState(false);
+  const [layoutSearchStarting, setLayoutSearchStarting] = useState(false);
+  const [layoutSearchError, setLayoutSearchError] = useState<string | null>(null);
   const [resultsRevealed, setResultsRevealed] = useState(false);
 
   const bottlenecksVisible = playback.hasCompletedPlayback || resultsRevealed;
@@ -235,6 +242,15 @@ function ResultView({
     };
   }, [summary.layoutId]);
 
+  useEffect(() => {
+    const navigationState = location.state as { openLayoutSearchStart?: unknown } | null;
+    if (navigationState?.openLayoutSearchStart !== true) return;
+
+    setLayoutSearchError(null);
+    setLayoutSearchOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   const handleRevealResults = () => {
     playback.pause();
     playback.seek(summary.durationSeconds);
@@ -282,6 +298,22 @@ function ResultView({
       setReportError(getReportDraftErrorMessage(error));
     } finally {
       setReportGenerating(false);
+    }
+  };
+
+  const handleStartLayoutSearch = async (verify: boolean) => {
+    setLayoutSearchStarting(true);
+    setLayoutSearchError(null);
+    try {
+      await layoutSearchApi.start(Number(summary.simulationId), verify);
+      setLayoutSearchOpen(false);
+      navigate('/simulations', {
+        state: { layoutSearchSimulationId: Number(summary.simulationId) },
+      });
+    } catch (error) {
+      setLayoutSearchError(getSimulationErrorMessage(error));
+    } finally {
+      setLayoutSearchStarting(false);
     }
   };
 
@@ -440,7 +472,29 @@ function ResultView({
 
       <ImprovementComparisonPanel
         panel={improvementPanel}
-        onCompare={() => navigate(`/simulations/${result.simulationId}/layout-search`)}
+        onCompare={() => {
+          setLayoutSearchError(null);
+          setLayoutSearchOpen(true);
+        }}
+      />
+
+      <LayoutSearchStartDialog
+        open={layoutSearchOpen}
+        drawingTitle={result.drawing.name}
+        starting={layoutSearchStarting}
+        errorMessage={layoutSearchError}
+        onClose={() => {
+          if (!layoutSearchStarting) setLayoutSearchOpen(false);
+        }}
+        onEditConstraints={() =>
+          navigate(`/layout/${result.layoutId}`, {
+            state: {
+              returnTo: `/simulations/${result.simulationId}/results`,
+              returnLabel: '시뮬레이션 결과',
+            },
+          })
+        }
+        onStart={(verify) => void handleStartLayoutSearch(verify)}
       />
 
       <ReportDraftDialog

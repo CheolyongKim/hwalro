@@ -3,7 +3,6 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   CanvasWorkspace,
   CanvasWorkspaceBackButton,
-  CanvasWorkspaceHeader,
   CanvasWorkspacePanel,
   CanvasWorkspaceState,
   useCollapsibleWorkspacePanel,
@@ -13,7 +12,6 @@ import type { SimulationDrawing, SimulationSetup } from '../../simulations/types
 import { getSimulationErrorMessage } from '../../simulations/utils/getSimulationErrorMessage';
 
 import { CandidateDetailPanel } from '../components/CandidateDetailPanel';
-import { SearchStartPanel } from '../components/SearchStartPanel';
 import { CandidateTabs } from '../components/NoImprovementPanel';
 import { HoldToCompare } from '../components/HoldToCompare';
 import { SearchProgressHeader } from '../components/SearchProgressHeader';
@@ -54,16 +52,13 @@ export default function LayoutSearchPage() {
     search,
     hasSearch,
     loading,
-    starting,
     cancelling,
     preparingCandidateIds,
     errorMessage,
     active,
     initialize,
-    start,
     cancel,
     prepareSimulation,
-    resetToSetup,
   } = useLayoutSearch(id);
 
   const loadSourceSetup = useCallback(async () => {
@@ -123,22 +118,18 @@ export default function LayoutSearchPage() {
     return changedFabricIds(sourceSetup.drawing, preview.drawing);
   }, [sourceSetup, preview.drawing]);
 
-  const runSearch = useCallback(
-    async (verify: boolean) => {
-      if (await start(verify)) {
-        setSelectedTabKey(null);
-        navigate('/simulations', { state: { layoutSearchSimulationId: id } });
-      }
-    },
-    [start, id, navigate],
-  );
-
   const retry = useCallback(() => {
     void Promise.all([loadSourceSetup(), initialize()]);
   }, [initialize, loadSourceSetup]);
 
   if (loading || sourceLoading) {
     return <CanvasWorkspaceState message="배치 개선안 탐색을 준비하고 있습니다." role="status" />;
+  }
+
+  if (!hasSearch && !errorMessage) {
+    return (
+      <Navigate to={`/simulations/${id}/results`} replace state={{ openLayoutSearchStart: true }} />
+    );
   }
 
   if (sourceError || (!hasSearch && errorMessage)) {
@@ -163,27 +154,7 @@ export default function LayoutSearchPage() {
     );
   }
 
-  if (!hasSearch || !search) {
-    return (
-      <CanvasWorkspace className="layout-search-workspace">
-        <CanvasWorkspaceBackButton
-          label="시뮬레이션 결과"
-          onClick={() => navigate(`/simulations/${id}/results`)}
-        />
-        <CanvasWorkspaceHeader
-          title={sourceSetup?.drawing.title || '도면'}
-          subtitle="배치 개선안 탐색 시작"
-          status="시작 대기"
-          statusTone="editing"
-        />
-        <SearchStartPanel
-          drawingId={sourceSetup?.drawing.layoutId ?? null}
-          onStart={(verify) => void runSearch(verify)}
-          starting={starting}
-        />
-      </CanvasWorkspace>
-    );
-  }
+  if (!search) return null;
 
   if (active) {
     return <Navigate to="/simulations" replace state={{ layoutSearchSimulationId: id }} />;
@@ -287,7 +258,11 @@ export default function LayoutSearchPage() {
         search={search}
         onCancel={() => void cancel()}
         cancelling={cancelling}
-        onRerun={resetToSetup}
+        onRerun={() =>
+          navigate(`/simulations/${id}/results`, {
+            state: { openLayoutSearchStart: true },
+          })
+        }
         rerunning={false}
       />
     </CanvasWorkspace>
