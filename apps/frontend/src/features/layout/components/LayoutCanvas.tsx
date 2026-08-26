@@ -36,7 +36,7 @@ import {
 } from '../utils/hitTest';
 import type { ElementHit, HandleHit } from '../utils/hitTest';
 import { zoneAsRect } from '../utils/zoneGeometry';
-import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO, FONT_UI } from '../utils/colors';
+import { ACCENT_ALPHA_8, CANVAS_COLORS, FONT_MONO } from '../utils/colors';
 import type { LayoutZone, ZoneRect } from '../api/layoutMetadataApi';
 import {
   ExitView,
@@ -48,8 +48,6 @@ import {
   WallView,
 } from './layers';
 import { useCanvasListeners } from './useCanvasListeners';
-import type { EvacuationRoute } from '../../zones/api/zoneApi';
-import { EvacuationRouteOverlay } from '../../zones/components/EvacuationRouteOverlay';
 
 interface LayoutCanvasProps {
   state: EditorState;
@@ -79,17 +77,14 @@ interface LayoutCanvasProps {
   riskZones?: LayoutRiskZone[];
   riskMode?: boolean;
   onRiskZoneDrawn?: (bounds: { x: number; y: number; width: number; height: number }) => void;
-  evacuationRoutes?: readonly EvacuationRoute[];
 }
 
 function ZoneView({
-  zone,
   rect,
   selected,
   dragging,
   s,
 }: {
-  zone: LayoutZone;
   rect: ZoneRect;
   selected: boolean;
   dragging: boolean;
@@ -106,14 +101,6 @@ function ZoneView({
         stroke={CANVAS_COLORS.zoneStroke}
         strokeWidth={s(selected ? 2 : 1)}
         dash={dragging ? undefined : [s(6), s(4)]}
-      />
-      <KonvaText
-        x={rect.x + s(4)}
-        y={rect.y + s(4)}
-        text={zone.name}
-        fontSize={s(12)}
-        fontFamily={FONT_UI}
-        fill={CANVAS_COLORS.zoneLabel}
       />
     </Group>
   );
@@ -179,7 +166,6 @@ export function LayoutCanvas({
   riskZones = [],
   riskMode = false,
   onRiskZoneDrawn,
-  evacuationRoutes = [],
 }: LayoutCanvasProps) {
   const panRef = useRef<PanSession | null>(null);
   const suppressClickRef = useRef(false);
@@ -189,7 +175,6 @@ export function LayoutCanvas({
   const [riskDraft, setRiskDraft] = useState<RiskRectDraft | null>(null);
   const cameraRef = useRef<Camera>(state.camera);
   const mainLayerRef = useRef<Konva.Layer>(null);
-  const overlayLayerRef = useRef<Konva.Layer>(null);
 
   const { containerRef, spaceDown } = useCanvasListeners({
     dispatch,
@@ -745,11 +730,6 @@ export function LayoutCanvas({
         mainLayerRef.current.y(-clamped.panY * k);
         mainLayerRef.current.batchDraw();
       }
-      if (overlayLayerRef.current) {
-        overlayLayerRef.current.x(-clamped.panX * k);
-        overlayLayerRef.current.y(-clamped.panY * k);
-        overlayLayerRef.current.batchDraw();
-      }
       return;
     }
     if (state.drag?.kind === 'erase') {
@@ -926,7 +906,6 @@ export function LayoutCanvas({
               return (
                 <ZoneView
                   key={zone.zoneId}
-                  zone={zone}
                   rect={isDragging ? zoneDraftRect : zone.rect}
                   selected={zone.zoneId === selectedZoneId}
                   dragging={isDragging}
@@ -1139,24 +1118,6 @@ export function LayoutCanvas({
               />
             )}
           </Layer>
-          {evacuationRoutes.length > 0 ? (
-            <Layer
-              ref={overlayLayerRef}
-              listening={false}
-              x={-camera.panX * k}
-              y={-camera.panY * k}
-              scaleX={k}
-              scaleY={k}
-            >
-              <EvacuationRouteOverlay
-                routes={evacuationRoutes}
-                exitIds={doc.exits.flatMap((exit) =>
-                  exit.backendId === null ? [] : [exit.backendId],
-                )}
-                scale={s}
-              />
-            </Layer>
-          ) : null}
         </Stage>
       )}
     </div>
