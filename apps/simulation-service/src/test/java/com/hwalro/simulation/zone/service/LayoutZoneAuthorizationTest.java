@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -109,7 +110,11 @@ class LayoutZoneAuthorizationTest {
         when(layoutZoneService.zoneOrThrow(MINE_ZONE_ID)).thenReturn(zone(MINE_ZONE_ID, EMPLOYEE_ID));
         when(layoutZoneService.zoneOrThrow(OTHER_ZONE_ID)).thenReturn(zone(OTHER_ZONE_ID, 99L));
 
-        service = new LayoutMetadataService(layoutZoneService, drawingService, employeeDirectoryClient);
+        service = new LayoutMetadataService(
+                layoutZoneService,
+                drawingService,
+                employeeDirectoryClient,
+                mock(EvacuationRouteWarmer.class));
     }
 
     @Test
