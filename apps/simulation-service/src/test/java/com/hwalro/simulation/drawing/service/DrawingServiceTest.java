@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -91,6 +93,19 @@ class DrawingServiceTest {
         when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
 
         assertThatThrownBy(() -> service.listVersions(LAYOUT_ID, operator)).isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void deleteClearsZoneExitReferencesBeforeDeletingLayout() {
+        Layout layout = layout(LAYOUT_ID, CURRENT_VERSION_ID);
+        when(drawingMapper.findLayoutById(LAYOUT_ID)).thenReturn(layout);
+
+        service.delete(LAYOUT_ID, operator);
+
+        InOrder order = inOrder(drawingMapper);
+        order.verify(drawingMapper).nullifyZoneExitReferencesByLayoutId(LAYOUT_ID);
+        order.verify(drawingMapper).deleteLayoutById(LAYOUT_ID);
+        order.verify(drawingMapper).deleteFloorPlanById(FLOOR_PLAN_ID);
     }
 
     @Test

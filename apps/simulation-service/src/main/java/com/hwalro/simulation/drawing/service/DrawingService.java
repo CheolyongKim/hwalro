@@ -533,6 +533,7 @@ public class DrawingService {
         if (drawingMapper.countSimulationsByLayoutId(id) > 0) {
             throw new DrawingDeletionNotAllowedException(id);
         }
+        drawingMapper.nullifyZoneExitReferencesByLayoutId(id);
         drawingMapper.deleteLayoutById(id);
         drawingMapper.deleteFloorPlanById(layout.getFloorPlanId());
     }
