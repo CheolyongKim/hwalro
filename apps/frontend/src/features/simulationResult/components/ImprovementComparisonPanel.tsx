@@ -35,7 +35,9 @@ export function ImprovementComparisonPanel({ panel, onCompare }: Props) {
           −
         </button>
       </div>
-      <p>병목·혼잡·출구 편중을 진단하고, <br/>그 원인을 겨냥한 배치 변경 후보를 제시합니다.</p>
+      <p>
+        병목·혼잡·출구 편중을 진단하고, <br />그 원인을 겨냥한 배치 변경 후보를 제시합니다.
+      </p>
       <button type="button" onClick={onCompare}>
         배치 개선안 탐색
       </button>

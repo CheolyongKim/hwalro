@@ -101,7 +101,11 @@ export function ResultSummaryPanel({
         {!bottlenecksVisible ? (
           <div className="bottleneck-analysis-locked" role="status">
             <strong>병목 상세 분석 대기</strong>
-            <span>시뮬레이션을 끝까지 재생하거나<br/>하단의 결과 보기를 눌러 확인하세요.</span>
+            <span>
+              시뮬레이션을 끝까지 재생하거나
+              <br />
+              하단의 결과 보기를 눌러 확인하세요.
+            </span>
           </div>
         ) : totalBottleneckCount === 0 ? (
           <div className="bottleneck-analysis-empty" role="status">
