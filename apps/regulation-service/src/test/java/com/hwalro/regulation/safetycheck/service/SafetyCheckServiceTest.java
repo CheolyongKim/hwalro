@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hwalro.regulation.common.jwt.ForbiddenException;
 import com.hwalro.regulation.common.jwt.JwtUser;
 import com.hwalro.regulation.risk.dto.LayoutDrawingContextResponse;
 import com.hwalro.regulation.safetycheck.client.SafetyCheckDrawingContextClient;
@@ -43,19 +44,31 @@ class SafetyCheckServiceTest {
     private SafetyCheckDrawingContextClient drawingContextClient;
 
     @Test
-    void storeEmployeeSeesEveryChecklistArea() {
+    void storeEmployeeSeesOnlyChecklistAreasTheyInspected() {
         SafetyCheckService service = new SafetyCheckService(safetyCheckMapper, drawingContextClient);
         JwtUser employee = new JwtUser(9L, Set.of("GENERAL_EMPLOYEE"));
         InspectionAreaResponse assigned = new InspectionAreaResponse(41L, "매장", null, 802L, null, true, 0, null, true);
-        InspectionAreaResponse unassigned =
-                new InspectionAreaResponse(42L, "다른 매장", null, 803L, null, true, 0, null, true);
-        when(safetyCheckMapper.findAreas(null)).thenReturn(List.of(assigned, unassigned));
-        when(drawingContextClient.findLayoutContexts(List.of(802L, 803L), "Bearer token"))
+        when(safetyCheckMapper.findAreas(9L)).thenReturn(List.of(assigned));
+        when(drawingContextClient.findLayoutContexts(List.of(802L), "Bearer token"))
                 .thenReturn(List.of(new LayoutDrawingContextResponse(802L, 1L, 1, "배정 도면", null)));
 
         List<InspectionAreaResponse> response = service.getAreas(employee, "Bearer token");
 
-        assertThat(response).extracting(InspectionAreaResponse::id).containsExactly(41L, 42L);
+        assertThat(response).extracting(InspectionAreaResponse::id).containsExactly(41L);
+    }
+
+    @Test
+    void storeEmployeeCannotReadAnotherEmployeesInspection() {
+        SafetyCheckService service = new SafetyCheckService(safetyCheckMapper, drawingContextClient);
+        JwtUser employee = new JwtUser(9L, Set.of("GENERAL_EMPLOYEE"));
+        when(safetyCheckMapper.findInspectionHeader(12L))
+                .thenReturn(new InspectionDetailHeader(
+                        12L, 2L, "B2", null, null, null, null, false, 3L, "DRAFT", null, LocalDateTime.now(), null));
+
+        assertThatThrownBy(() -> service.getInspection(12L, employee))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("이 안전 점검을 조회할 권한이 없습니다.");
+        verify(safetyCheckMapper, never()).findInspectionItems(12L);
     }
 
     @Test

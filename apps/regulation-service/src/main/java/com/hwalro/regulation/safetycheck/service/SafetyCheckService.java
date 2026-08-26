@@ -423,7 +423,7 @@ public class SafetyCheckService {
         if (canReadAll(user)) {
             return null;
         }
-        if (user.roles().contains("OPERATOR")) {
+        if (user.roles().contains("OPERATOR") || user.roles().contains("GENERAL_EMPLOYEE")) {
             return user.userId();
         }
         throw new ForbiddenException("안전 점검 조회 권한이 없습니다.");
@@ -431,16 +431,15 @@ public class SafetyCheckService {
 
     private void requireReadable(JwtUser user, InspectionDetailHeader inspection) {
         if (canReadAll(user)
-                || (user.roles().contains("OPERATOR") && inspection.inspectorId().equals(user.userId()))) {
+                || ((user.roles().contains("OPERATOR") || user.roles().contains("GENERAL_EMPLOYEE"))
+                        && inspection.inspectorId().equals(user.userId()))) {
             return;
         }
         throw new ForbiddenException("이 안전 점검을 조회할 권한이 없습니다.");
     }
 
     private boolean canReadAll(JwtUser user) {
-        return user.roles().contains("SAFETY_REVIEWER")
-                || user.roles().contains("ADMIN")
-                || user.roles().contains("GENERAL_EMPLOYEE");
+        return user.roles().contains("SAFETY_REVIEWER") || user.roles().contains("ADMIN");
     }
 
     private void validateUpdate(InspectionUpdateRequest request) {
