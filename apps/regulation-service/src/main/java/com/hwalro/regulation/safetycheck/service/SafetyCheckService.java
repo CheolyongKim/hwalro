@@ -432,7 +432,7 @@ public class SafetyCheckService {
     private void requireReadable(JwtUser user, InspectionDetailHeader inspection) {
         if (canReadAll(user)
                 || ((user.roles().contains("OPERATOR") || user.roles().contains("GENERAL_EMPLOYEE"))
-                        && inspection.inspectorId().equals(user.userId()))) {
+                        && user.userId().equals(inspection.inspectorId()))) {
             return;
         }
         throw new ForbiddenException("이 안전 점검을 조회할 권한이 없습니다.");
