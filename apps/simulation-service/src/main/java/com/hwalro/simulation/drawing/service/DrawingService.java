@@ -36,6 +36,7 @@ import com.hwalro.simulation.zone.domain.ZoneElementKind;
 import com.hwalro.simulation.zone.mapper.LayoutZoneMapper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -281,16 +282,19 @@ public class DrawingService {
         targetVersion.setOptimisticLock(version.getOptimisticLock() + 1);
         drawingMapper.insertLayoutVersion(targetVersion);
 
-        insertWallsIfPresent(toWalls(request.walls(), targetVersion.getId()));
-        insertPillarsIfPresent(toPillars(request.pillars(), targetVersion.getId()));
-        insertFabricsIfPresent(toFabrics(request.fabrics(), targetVersion.getId()));
+        List<Wall> walls = toWalls(request.walls(), targetVersion.getId());
+        List<Pillar> pillars = toPillars(request.pillars(), targetVersion.getId());
+        List<Fabric> fabrics = toFabrics(request.fabrics(), targetVersion.getId());
+        insertWallsIfPresent(walls);
+        insertPillarsIfPresent(pillars);
+        insertFabricsIfPresent(fabrics);
         insertOutsideWallsIfPresent(toOutsideWalls(request.outsideWalls(), targetVersion.getId()));
         insertLayoutTextsIfPresent(toLayoutTexts(request.layoutTexts(), targetVersion.getId()));
         insertExitsIfPresent(toExits(request.exits(), targetVersion.getId()));
 
         // 저장은 새 버전에 요소를 새 ID로 다시 만든다. 구역 소속과 구조물 제약은 이전 버전의 ID를
         // 가리키므로 여기서 옮겨주지 않으면 저장 한 번에 전부 사라진다.
-        carryLayoutMetadataForward(version.getId(), targetVersion.getId(), request);
+        carryLayoutMetadataForward(version.getId(), targetVersion.getId(), request, walls, pillars, fabrics);
 
         layout.setCurrentVersionId(targetVersion.getId());
         drawingMapper.updateLayoutCurrentVersion(layout);
@@ -305,22 +309,37 @@ public class DrawingService {
      * 둘일 때 잘못된 짝을 고른다. 요청 배열의 순서와 새 버전을 다시 읽은 순서는 display_order 기준으로
      * 일치하므로 위치로 짝짓는다.
      */
-    private void carryLayoutMetadataForward(Long sourceVersionId, Long targetVersionId, DrawingUpdateRequest request) {
+    private void carryLayoutMetadataForward(
+            Long sourceVersionId,
+            Long targetVersionId,
+            DrawingUpdateRequest request,
+            List<Wall> walls,
+            List<Pillar> pillars,
+            List<Fabric> fabrics) {
         Map<ZoneElementKind, Map<Long, Long>> elementIdMaps = new EnumMap<>(ZoneElementKind.class);
         elementIdMaps.put(
                 ZoneElementKind.WALL,
                 pairByPosition(
-                        request.walls().stream().map(WallDto::id).toList(),
+                        walls.stream()
+                                .sorted(Comparator.comparingInt(Wall::getDisplayOrder))
+                                .map(Wall::getId)
+                                .toList(),
                         drawingMapper.findWallIdsByVersionId(targetVersionId)));
         elementIdMaps.put(
                 ZoneElementKind.PILLAR,
                 pairByPosition(
-                        request.pillars().stream().map(PillarDto::id).toList(),
+                        pillars.stream()
+                                .sorted(Comparator.comparingInt(Pillar::getDisplayOrder))
+                                .map(Pillar::getId)
+                                .toList(),
                         drawingMapper.findPillarIdsByVersionId(targetVersionId)));
         elementIdMaps.put(
                 ZoneElementKind.FABRIC,
                 pairByPosition(
-                        request.fabrics().stream().map(FabricDto::id).toList(),
+                        fabrics.stream()
+                                .sorted(Comparator.comparingInt(Fabric::getDisplayOrder))
+                                .map(Fabric::getId)
+                                .toList(),
                         drawingMapper.findFabricIdsByVersionId(targetVersionId)));
         Map<Long, Long> exitIdMap = pairByPosition(
                 request.exits().stream().map(ExitDto::id).toList(),
