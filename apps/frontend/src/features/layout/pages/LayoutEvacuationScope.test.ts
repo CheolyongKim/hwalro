@@ -12,10 +12,16 @@ describe('evacuation route feature scope', () => {
       new URL('../../zones/pages/EvacuationPage.tsx', import.meta.url),
       'utf8',
     );
+    const employeeOverlaySource = readFileSync(
+      new URL('../../zones/components/EvacuationRouteOverlay.tsx', import.meta.url),
+      'utf8',
+    );
 
     expect(layoutPageSource).not.toContain('EvacuationRoutePanel');
     expect(layoutPageSource).not.toContain('.evacuationRoutes(');
     expect(layoutCanvasSource).not.toContain('EvacuationRouteOverlay');
     expect(employeePageSource).toContain('zoneApi.evacuationRoutes');
+    expect(employeePageSource).toContain('EvacuationRouteOverlay');
+    expect(employeeOverlaySource).toContain('export function EvacuationRouteOverlay');
   });
 });

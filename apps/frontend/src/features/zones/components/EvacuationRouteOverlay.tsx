@@ -33,16 +33,20 @@ function interpolatePoint(
   if (segments.length === 0 || totalLength <= 0) return null;
   const wrapped = ((dist % totalLength) + totalLength) % totalLength;
 
-  for (const seg of segments) {
-    if (wrapped >= seg.accumulatedStart && wrapped <= seg.accumulatedStart + seg.length) {
-      const t = seg.length > 0 ? (wrapped - seg.accumulatedStart) / seg.length : 0;
+  for (const segment of segments) {
+    if (
+      wrapped >= segment.accumulatedStart &&
+      wrapped <= segment.accumulatedStart + segment.length
+    ) {
+      const ratio = segment.length > 0 ? (wrapped - segment.accumulatedStart) / segment.length : 0;
       return {
-        x: seg.start.x + (seg.end.x - seg.start.x) * t,
-        y: seg.start.y + (seg.end.y - seg.start.y) * t,
-        angle: seg.angle,
+        x: segment.start.x + (segment.end.x - segment.start.x) * ratio,
+        y: segment.start.y + (segment.end.y - segment.start.y) * ratio,
+        angle: segment.angle,
       };
     }
   }
+
   const last = segments[segments.length - 1];
   return { x: last.end.x, y: last.end.y, angle: last.angle };
 }
@@ -51,77 +55,79 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
   const markerGroupRef = useRef<Konva.Group>(null);
   const arrowRefs = useRef<Map<string, Konva.Line>>(new Map());
 
-  const paths: PathData[] = useMemo(() => {
-    return routes.flatMap((route) => {
-      const branches = [
-        ...(route.waypoints.length >= 2
-          ? [{ key: `${route.zoneId}-main`, waypoints: route.waypoints }]
-          : []),
-        ...route.partitions.map((partition) => ({
-          key: `${route.zoneId}-${partition.exitId}`,
-          waypoints: partition.waypoints,
-        })),
-      ];
+  const paths: PathData[] = useMemo(
+    () =>
+      routes.flatMap((route) => {
+        const branches = [
+          ...(route.waypoints.length >= 2
+            ? [{ key: `${route.zoneId}-main`, waypoints: route.waypoints }]
+            : []),
+          ...route.partitions.map((partition) => ({
+            key: `${route.zoneId}-${partition.exitId}`,
+            waypoints: partition.waypoints,
+          })),
+        ];
 
-      return branches
-        .filter((branch) => branch.waypoints.length >= 2)
-        .map((branch) => {
-          let accumulated = 0;
-          const segments: Segment[] = [];
-          for (let i = 0; i < branch.waypoints.length - 1; i++) {
-            const p1 = branch.waypoints[i];
-            const p2 = branch.waypoints[i + 1];
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const length = Math.hypot(dx, dy);
-            const angle = Math.atan2(dy, dx);
-            segments.push({
-              start: p1,
-              end: p2,
-              length,
-              angle,
-              accumulatedStart: accumulated,
-            });
-            accumulated += length;
-          }
-          return {
-            key: branch.key,
-            waypoints: branch.waypoints,
-            segments,
-            totalLength: accumulated,
-          };
-        });
-    });
-  }, [routes]);
+        return branches
+          .filter((branch) => branch.waypoints.length >= 2)
+          .map((branch) => {
+            let accumulated = 0;
+            const segments: Segment[] = [];
 
-  // 화살표 펄스 위치 업데이트 애니메이션
+            for (let index = 0; index < branch.waypoints.length - 1; index += 1) {
+              const start = branch.waypoints[index];
+              const end = branch.waypoints[index + 1];
+              const dx = end.x - start.x;
+              const dy = end.y - start.y;
+              const length = Math.hypot(dx, dy);
+              segments.push({
+                start,
+                end,
+                length,
+                angle: Math.atan2(dy, dx),
+                accumulatedStart: accumulated,
+              });
+              accumulated += length;
+            }
+
+            return {
+              key: branch.key,
+              waypoints: branch.waypoints,
+              segments,
+              totalLength: accumulated,
+            };
+          });
+      }),
+    [routes],
+  );
+
   useEffect(() => {
     if (paths.length === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return;
     }
+
     let frame = 0;
-    const speed = scale(32); // 초당 32px 속도로 자연스러운 흐름
+    const speed = scale(32);
     const startTime = performance.now();
 
     const animate = (now: number) => {
-      const elapsedSec = (now - startTime) / 1000;
-      const offset = elapsedSec * speed;
+      const offset = ((now - startTime) / 1000) * speed;
 
       paths.forEach((path) => {
         if (path.totalLength <= 0) return;
-        const step = scale(40); // 40px 간격으로 화살표 배치
+        const step = scale(40);
         const count = Math.max(1, Math.floor(path.totalLength / step));
 
-        for (let i = 0; i < count; i++) {
-          const arrowKey = `${path.key}-arrow-${i}`;
+        for (let index = 0; index < count; index += 1) {
+          const arrowKey = `${path.key}-arrow-${index}`;
           const node = arrowRefs.current.get(arrowKey);
           if (!node) continue;
 
-          const dist = (i * (path.totalLength / count) + offset) % path.totalLength;
-          const pos = interpolatePoint(path.segments, path.totalLength, dist);
-          if (pos) {
-            node.position({ x: pos.x, y: pos.y });
-            node.rotation((pos.angle * 180) / Math.PI);
+          const distance = (index * (path.totalLength / count) + offset) % path.totalLength;
+          const position = interpolatePoint(path.segments, path.totalLength, distance);
+          if (position) {
+            node.position({ x: position.x, y: position.y });
+            node.rotation((position.angle * 180) / Math.PI);
             node.visible(true);
           }
         }
@@ -152,35 +158,31 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
 
         return (
           <Group key={path.key}>
-            {/* 1. 은은한 배경 글로우 라인 */}
             <Line
-              points={path.waypoints.flatMap((p) => [p.x, p.y])}
+              points={path.waypoints.flatMap((point) => [point.x, point.y])}
               stroke={CANVAS_COLORS.accent}
               strokeWidth={scale(10)}
               opacity={0.2}
               lineCap="round"
               lineJoin="round"
             />
-            {/* 2. 어두운 외곽선. 도면 위 어떤 색 위에서도 선이 읽히게 한다. */}
             <Line
-              points={path.waypoints.flatMap((p) => [p.x, p.y])}
+              points={path.waypoints.flatMap((point) => [point.x, point.y])}
               stroke="#0b1220"
               strokeWidth={scale(5.5)}
               opacity={0.55}
               lineCap="round"
               lineJoin="round"
             />
-            {/* 3. 본체 솔리드 가이드 라인 (가만히 있는 깔끔한 메인 선) */}
             <Line
               name="evacuation-route-line"
-              points={path.waypoints.flatMap((p) => [p.x, p.y])}
+              points={path.waypoints.flatMap((point) => [point.x, point.y])}
               stroke={CANVAS_COLORS.accent}
               strokeWidth={scale(3.5)}
               opacity={0.95}
               lineCap="round"
               lineJoin="round"
             />
-            {/* 4. 출발점 표시 (원형 앵커) */}
             <Circle
               x={firstPoint.x}
               y={firstPoint.y}
@@ -189,7 +191,6 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
               stroke="#ffffff"
               strokeWidth={scale(1.5)}
             />
-            {/* 5. 도착점 표시 (비상구 연결 펄스 포인트) */}
             <Circle
               x={lastPoint.x}
               y={lastPoint.y}
@@ -198,10 +199,9 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
               stroke={CANVAS_COLORS.accent}
               strokeWidth={scale(2.5)}
             />
-            {/* 6. 방향 화살표 마커들 (선 위를 따라 부드럽게 전진하는 Chevron 화살표) */}
             <Group ref={markerGroupRef}>
-              {Array.from({ length: arrowCount }, (_, idx) => {
-                const arrowKey = `${path.key}-arrow-${idx}`;
+              {Array.from({ length: arrowCount }, (_, index) => {
+                const arrowKey = `${path.key}-arrow-${index}`;
                 return (
                   <Line
                     key={arrowKey}
