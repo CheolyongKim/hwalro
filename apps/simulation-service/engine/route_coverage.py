@@ -87,7 +87,24 @@ def zone_branch_origins(
                 points_by_label.setdefault(label, []).append((x, y))
 
     origins = []
+    zone_center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+
+    def distance_to_zone_center(point: tuple[float, float]) -> float:
+        return (point[0] - zone_center[0]) ** 2 + (point[1] - zone_center[1]) ** 2
+
+    primary_label = None
+    primary_point = None
     for label, points in points_by_label.items():
+        candidate = min(points, key=distance_to_zone_center)
+        if primary_point is None or distance_to_zone_center(candidate) < distance_to_zone_center(primary_point):
+            primary_label = label
+            primary_point = candidate
+    if primary_label is not None:
+        origins.append((coverage["exitIds"][primary_label], primary_point))
+
+    for label, points in points_by_label.items():
+        if label == primary_label:
+            continue
         center_x = sum(point[0] for point in points) / len(points)
         center_y = sum(point[1] for point in points) / len(points)
         representative = min(
