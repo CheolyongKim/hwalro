@@ -1,5 +1,6 @@
 package com.hwalro.simulation.drawing.service;
 
+import com.hwalro.simulation.common.jwt.ForbiddenException;
 import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.domain.OutsideWall;
 import com.hwalro.simulation.drawing.dto.DrawingResponse;
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -34,8 +36,19 @@ public class LayoutDrawingContextService {
     public List<LayoutDrawingContextResponse> findAll(List<Long> layoutIds, JwtUser user) {
         List<Long> validatedIds = validate(layoutIds);
         return validatedIds.stream()
-                .map(layoutId -> toContext(drawingService.get(layoutId, user)))
+                .flatMap(layoutId -> findContext(layoutId, user))
                 .toList();
+    }
+
+    private Stream<LayoutDrawingContextResponse> findContext(Long layoutId, JwtUser user) {
+        try {
+            return Stream.of(toContext(drawingService.get(layoutId, user)));
+        } catch (ForbiddenException exception) {
+            if (DrawingService.isPrivileged(user)) {
+                throw exception;
+            }
+            return Stream.empty();
+        }
     }
 
     private LayoutDrawingContextResponse toContext(DrawingResponse drawing) {

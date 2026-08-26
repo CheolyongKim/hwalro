@@ -49,11 +49,11 @@ import { authApi } from '../../auth/api/authApi';
 import { useAuth } from '../../auth/context/AuthContext';
 import { can } from '../../auth/capabilities';
 import type { EmployeeSummary } from '../../auth/types/auth';
-import { layoutMetadataApi, type ZoneRect, type ZoneType } from '../api/layoutMetadataApi';
+import type { ZoneRect, ZoneType } from '../api/layoutMetadataApi';
 import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
 import { RiskZoneEditorDialog } from '../../risks/components/RiskZoneEditorDialog';
-import type { EvacuationRoute } from '../../zones/api/zoneApi';
+import { zoneApi, type EvacuationRoute } from '../../zones/api/zoneApi';
 import { EvacuationRoutePanel } from '../../zones/components/EvacuationRoutePanel';
 import '../layout.css';
 
@@ -215,7 +215,7 @@ function LayoutPage() {
       setEnabledEvacuationZoneId(zoneId);
       setEvacuationRoutesLoading(true);
       setEvacuationRoutesError(null);
-      const request = layoutMetadataApi
+      const request = zoneApi
         .evacuationRoutes(layoutId)
         .then((routes) => {
           if (evacuationRequestSequenceRef.current === sequence) {

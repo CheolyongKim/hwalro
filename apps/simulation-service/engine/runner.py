@@ -2020,14 +2020,14 @@ def _route_preview_zones(value: Any) -> tuple[dict[str, Any], ...]:
 
 
 def _serialize_preview_route(
-    route, origin, original_origin, router, orthogonalize_path
+    route, origin, original_origin, router, display_path
 ) -> dict[str, Any]:
     waypoints = list(route.waypoints)
     if not waypoints or math.dist(origin, waypoints[0]) > 1e-9:
         waypoints.insert(0, origin)
     if not waypoints or math.dist(waypoints[-1], route.terminal_point) > 1e-9:
         waypoints.append(route.terminal_point)
-    waypoints = orthogonalize_path(waypoints, router.can_connect)
+    waypoints = display_path(waypoints, router.can_connect)
     distance_meters = sum(
         math.dist(start, end) for start, end in zip(waypoints, waypoints[1:])
     )
@@ -2056,7 +2056,7 @@ def _zone_preview_routes(
     relocate_within_bounds,
     router_type,
     branch_origin_builder,
-    orthogonalize_path,
+    display_path,
     route_unreachable_error,
     id_key,
 ) -> list[dict[str, Any]]:
@@ -2100,6 +2100,7 @@ def _zone_preview_routes(
                                     [target_exit],
                                     physical_walkable=router.physical_walkable,
                                     exit_clearance=AGENT_RADIUS_METERS,
+                                    fast_single_exit_field=True,
                                 )
                             except ValueError:
                                 assigned_routers[key] = None
@@ -2122,7 +2123,7 @@ def _zone_preview_routes(
                 origin,
                 requested_origin,
                 planned_router,
-                orthogonalize_path,
+                display_path,
             )
             serialized["zoneId"] = zone["zoneId"]
             serialized_routes.append(serialized)

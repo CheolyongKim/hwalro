@@ -35,7 +35,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/safety-checks")
 @Tag(name = "Safety checks", description = "Area-based safety checklist API")
-@RequireRole({"ADMIN", "OPERATOR", "SAFETY_REVIEWER"})
+@RequireRole({"ADMIN", "OPERATOR", "SAFETY_REVIEWER", "GENERAL_EMPLOYEE"})
 public class SafetyCheckController {
     private final SafetyCheckService safetyCheckService;
 
@@ -80,13 +80,18 @@ public class SafetyCheckController {
 
     @GetMapping("/areas/{areaId}/inspections")
     public List<InspectionHistoryResponse> getInspectionHistory(
-            @PathVariable Long areaId, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return safetyCheckService.getInspectionHistory(areaId, user);
+            @PathVariable Long areaId,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return safetyCheckService.getInspectionHistory(areaId, user, authorization);
     }
 
     @GetMapping("/areas/{areaId}/checklist-template")
-    public ChecklistTemplateResponse getChecklistTemplate(@PathVariable Long areaId) {
-        return safetyCheckService.getChecklistTemplate(areaId);
+    public ChecklistTemplateResponse getChecklistTemplate(
+            @PathVariable Long areaId,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return safetyCheckService.getChecklistTemplate(areaId, user, authorization);
     }
 
     @PutMapping("/areas/{areaId}/checklist-template")
@@ -100,29 +105,34 @@ public class SafetyCheckController {
     public InspectionDetailResponse createInspection(
             @PathVariable Long areaId,
             @RequestBody(required = false) InspectionCreateRequest request,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return safetyCheckService.createInspection(areaId, request, user);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return safetyCheckService.createInspection(areaId, request, user, authorization);
     }
 
     @PostMapping("/areas/{areaId}/inspections/current")
     public InspectionDetailResponse getOrCreateOpenInspection(
-            @PathVariable Long areaId, @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return safetyCheckService.getOrCreateOpenInspection(areaId, user);
+            @PathVariable Long areaId,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return safetyCheckService.getOrCreateOpenInspection(areaId, user, authorization);
     }
 
     @GetMapping("/inspections/{inspectionId}")
     public InspectionDetailResponse getInspection(
             @PathVariable Long inspectionId,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return safetyCheckService.getInspection(inspectionId, user);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return safetyCheckService.getInspection(inspectionId, user, authorization);
     }
 
     @PutMapping("/inspections/{inspectionId}")
     public InspectionDetailResponse updateInspection(
             @PathVariable Long inspectionId,
             @RequestBody InspectionUpdateRequest request,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        return safetyCheckService.updateInspection(inspectionId, request, user);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        return safetyCheckService.updateInspection(inspectionId, request, user, authorization);
     }
 
     @PutMapping("/inspections/{inspectionId}/snapshot")
@@ -132,13 +142,17 @@ public class SafetyCheckController {
             @RequestParam(required = false) Long layoutId,
             @RequestParam(required = false) Long layoutVersionId,
             @RequestBody byte[] image,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        safetyCheckService.saveSnapshot(inspectionId, image, layoutId, layoutVersionId, user);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        safetyCheckService.saveSnapshot(inspectionId, image, layoutId, layoutVersionId, user, authorization);
     }
 
     @GetMapping("/inspections/{inspectionId}/snapshot")
-    public ResponseEntity<byte[]> getSnapshot(@PathVariable Long inspectionId) {
-        byte[] image = safetyCheckService.getSnapshotImage(inspectionId);
+    public ResponseEntity<byte[]> getSnapshot(
+            @PathVariable Long inspectionId,
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        byte[] image = safetyCheckService.getSnapshotImage(inspectionId, user, authorization);
         if (image == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "스냅샷이 없습니다.");
         }
@@ -149,7 +163,8 @@ public class SafetyCheckController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteInspection(
             @PathVariable Long inspectionId,
-            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user) {
-        safetyCheckService.deleteInspection(inspectionId, user);
+            @RequestAttribute(JwtAuthInterceptor.REQUEST_ATTRIBUTE_USER) JwtUser user,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        safetyCheckService.deleteInspection(inspectionId, user, authorization);
     }
 }

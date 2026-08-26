@@ -44,13 +44,6 @@ const navigationItems: NavigationItem[] = [
     requiredCapability: 'zones.assigned',
   },
   {
-    label: '배정 도면',
-    icon: 'review',
-    to: '/drawings',
-    requiredCapability: 'zones.assigned',
-    hiddenWithCapability: 'drawings.manage',
-  },
-  {
     label: '시뮬레이션 검토',
     icon: 'review',
     requiredCapability: 'simulations',
@@ -106,7 +99,7 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: '관리자',
   OPERATOR: '운영 담당자',
   SAFETY_REVIEWER: '안전 검토자',
-  GENERAL_EMPLOYEE: '일반 직원',
+  GENERAL_EMPLOYEE: '매장 직원',
 };
 
 function Sidebar() {

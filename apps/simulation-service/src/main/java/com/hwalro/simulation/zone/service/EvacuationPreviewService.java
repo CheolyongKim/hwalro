@@ -5,7 +5,9 @@ import com.hwalro.simulation.common.jwt.JwtUser;
 import com.hwalro.simulation.drawing.service.DrawingService;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.DrawingGeometryDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.ExitDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.FabricRectDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.PointDto;
+import com.hwalro.simulation.simulation.dto.SimulationDtos.RectDto;
 import com.hwalro.simulation.simulation.dto.SimulationDtos.SimulationSetupResponse;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner;
 import com.hwalro.simulation.simulation.engine.SimulationEngineRunner.EngineRunException;
@@ -19,11 +21,17 @@ import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.dto.EvacuationRouteResponse;
 import com.hwalro.simulation.zone.dto.ZoneExitPartitionDto;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -60,18 +68,28 @@ public class EvacuationPreviewService {
     private final SimulationService simulationService;
     private final SimulationEngineRunner engineRunner;
     private final EvacuationRouteCache routeCache;
+    private final EvacuationRouteStore routeStore;
+    private final Map<Long, CompletableFuture<List<EvacuationRouteResponse>>> inFlightComputes =
+            new ConcurrentHashMap<>();
+    private final ExecutorService computeExecutor = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "evacuation-route-compute");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public EvacuationPreviewService(
             LayoutZoneService layoutZoneService,
             DrawingService drawingService,
             SimulationService simulationService,
             SimulationEngineRunner engineRunner,
-            EvacuationRouteCache routeCache) {
+            EvacuationRouteCache routeCache,
+            EvacuationRouteStore routeStore) {
         this.layoutZoneService = layoutZoneService;
         this.drawingService = drawingService;
         this.simulationService = simulationService;
         this.engineRunner = engineRunner;
         this.routeCache = routeCache;
+        this.routeStore = routeStore;
     }
 
     public EvacuationRouteResponse preview(Long zoneId, JwtUser user) {
@@ -97,25 +115,85 @@ public class EvacuationPreviewService {
         drawingService.requireAccessible(layoutId, user);
         Long versionId = layoutZoneService.currentVersionId(layoutId);
         List<LayoutZone> zones = layoutZoneService.zones(versionId);
-        if (zones.isEmpty()) {
-            return List.of();
-        }
         // 보이는 구역이 하나도 없는 직원에게는 엔진을 돌릴 이유가 없다.
         Set<Long> visibleZoneIds = LayoutZoneService.visibleZones(zones, user).stream()
                 .map(LayoutZone::getId)
                 .collect(Collectors.toSet());
-        if (visibleZoneIds.isEmpty()) {
+        if (zones.isEmpty() || visibleZoneIds.isEmpty()) {
             return List.of();
         }
-        // 캐시는 필터 이전의 전체 구역 결과만 담는다. 보는 사람에 따른 필터는 꺼낸 뒤에 적용해야 한다.
-        String cacheKey = EvacuationRouteCache.keyOf(versionId, zones);
-        List<EvacuationRouteResponse> cached = routeCache.find(cacheKey);
-        List<EvacuationRouteResponse> all = cached;
-        if (all == null) {
-            all = computeAll(layoutId, versionId, zones);
-            routeCache.put(cacheKey, all);
+        return filterVisible(routesOfLayout(layoutId, versionId, zones), visibleZoneIds);
+    }
+
+    public void warmLayout(Long layoutId) {
+        Long versionId = layoutZoneService.currentVersionId(layoutId);
+        List<LayoutZone> zones = layoutZoneService.zones(versionId);
+        if (zones.isEmpty()) {
+            return;
         }
-        return filterVisible(all, visibleZoneIds);
+        String cacheKey = EvacuationRouteCache.keyOf(versionId, zones);
+        if (routeCache.find(cacheKey) != null || routeStore.find(versionId, cacheKey) != null) {
+            return;
+        }
+        startCompute(layoutId, versionId, zones, cacheKey);
+    }
+
+    private List<EvacuationRouteResponse> routesOfLayout(Long layoutId, Long versionId, List<LayoutZone> zones) {
+        String cacheKey = EvacuationRouteCache.keyOf(versionId, zones);
+        List<EvacuationRouteResponse> all = routeCache.find(cacheKey);
+        if (all == null) {
+            all = routeStore.find(versionId, cacheKey);
+        }
+        if (all != null) {
+            routeCache.put(cacheKey, all);
+            return all;
+        }
+
+        List<EvacuationRouteResponse> stale = routeStore.findLatest(versionId);
+        CompletableFuture<List<EvacuationRouteResponse>> inFlight = inFlightComputes.get(layoutId);
+        if (inFlight == null) {
+            inFlight = startCompute(layoutId, versionId, zones, cacheKey);
+        }
+        if (stale != null) {
+            return stale;
+        }
+        try {
+            return inFlight.join();
+        } catch (CompletionException exception) {
+            Throwable cause = exception.getCause() != null ? exception.getCause() : exception;
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw exception;
+        }
+    }
+
+    private CompletableFuture<List<EvacuationRouteResponse>> startCompute(
+            Long layoutId, Long versionId, List<LayoutZone> zones, String cacheKey) {
+        boolean[] createdByMe = new boolean[1];
+        CompletableFuture<List<EvacuationRouteResponse>> future = inFlightComputes.computeIfAbsent(layoutId, key -> {
+            createdByMe[0] = true;
+            return new CompletableFuture<>();
+        });
+        if (createdByMe[0]) {
+            CompletableFuture.supplyAsync(
+                            () -> {
+                                List<EvacuationRouteResponse> fresh = computeAll(layoutId, versionId, zones);
+                                routeStore.save(layoutId, versionId, cacheKey, fresh);
+                                routeCache.put(cacheKey, fresh);
+                                return fresh;
+                            },
+                            computeExecutor)
+                    .whenComplete((fresh, error) -> {
+                        if (error != null) {
+                            future.completeExceptionally(error);
+                        } else {
+                            future.complete(fresh);
+                        }
+                        inFlightComputes.remove(layoutId, future);
+                    });
+        }
+        return future;
     }
 
     /**
@@ -219,6 +297,7 @@ public class EvacuationPreviewService {
             if (reached == null) {
                 throw new SimulationEngineUnavailableException("대피 경로 엔진이 현재 도면에 없는 비상구를 반환했습니다.");
             }
+            PreviewedRoute trimmed = trim(zone, reached, route, drawing);
             return new EvacuationRouteResponse(
                     zone.getId(),
                     zone.getName(),
@@ -233,7 +312,7 @@ public class EvacuationPreviewService {
                     assignedExit != null ? CHOICE_ASSIGNED : CHOICE_NEAREST,
                     route.distanceMeters(),
                     null,
-                    route.waypoints(),
+                    trimmed != null ? trimmed.waypoints() : route.waypoints(),
                     // 직원 안내는 구역 하나에 경로 하나다. 색으로 나눌 것이 없다.
                     List.of());
         } catch (EngineRunException exception) {
@@ -266,13 +345,14 @@ public class EvacuationPreviewService {
             if (route == null) {
                 return unreachable(zone, origin, assignedExit, REASON_NO_REACHABLE_EXIT);
             }
+            PreviewedRoute trimmed = trim(zone, assignedExit, route, drawing);
             return available(
                     zone,
                     origin,
                     assignedExit,
                     assignedExit,
                     CHOICE_ASSIGNED,
-                    trim(zone, assignedExit, route),
+                    trimmed != null ? trimmed : route,
                     List.of());
         }
 
@@ -286,25 +366,40 @@ public class EvacuationPreviewService {
 
         Map<Long, PreviewedRoute> routesByExit = zoneRoutes.stream()
                 .collect(Collectors.toMap(PreviewedRoute::exitId, Function.identity(), (first, ignored) -> first));
+        PreviewedRoute primaryRoute = zoneRoutes.stream()
+                .filter(candidate -> candidate.routeOrigin() != null)
+                .min(Comparator.comparingDouble(
+                        candidate -> squaredDistanceToZoneCenter(origin, candidate.routeOrigin())))
+                .orElse(null);
+        if (primaryRoute == null) {
+            return unreachable(zone, origin, null, REASON_NO_REACHABLE_EXIT);
+        }
         List<ZoneExitPartitionDto> partitions = extracted.branches().stream()
+                .filter(branch -> !primaryRoute.exitId().equals(branch.exitId()))
                 .sorted(Comparator.comparingInt(ZoneCoverageBranchExtractor.Branch::sampleCount)
                         .reversed())
                 .map(branch -> partition(zone, drawing, branch, routesByExit.get(branch.exitId())))
                 .filter(Objects::nonNull)
                 .toList();
-        if (partitions.isEmpty()) {
+        ExitDto primaryExit = findExit(drawing, primaryRoute.exitId());
+        if (primaryExit == null) {
             return unreachable(zone, origin, null, REASON_NO_REACHABLE_EXIT);
         }
-        ZoneExitPartitionDto primary = partitions.get(0);
-        PreviewedRoute primaryRoute = routesByExit.get(primary.exitId());
+        PreviewedRoute primaryTrimmed = trim(zone, primaryExit, primaryRoute, drawing);
         return available(
                 zone,
                 origin,
                 null,
-                findExit(drawing, primary.exitId()),
+                primaryExit,
                 CHOICE_NEAREST,
-                trim(zone, findExit(drawing, primary.exitId()), primaryRoute),
-                partitions.size() > 1 ? partitions : List.of());
+                primaryTrimmed != null ? primaryTrimmed : primaryRoute,
+                partitions);
+    }
+
+    private static double squaredDistanceToZoneCenter(PointDto zoneCenter, PointDto routeOrigin) {
+        double deltaX = routeOrigin.x().doubleValue() - zoneCenter.x().doubleValue();
+        double deltaY = routeOrigin.y().doubleValue() - zoneCenter.y().doubleValue();
+        return deltaX * deltaX + deltaY * deltaY;
     }
 
     private ZoneExitPartitionDto partition(
@@ -316,7 +411,10 @@ public class EvacuationPreviewService {
         if (exit == null || route == null) {
             return null;
         }
-        PreviewedRoute trimmed = trim(zone, exit, route);
+        PreviewedRoute trimmed = trim(zone, exit, route, drawing);
+        if (trimmed == null) {
+            trimmed = route;
+        }
         List<PointDto> waypoints = trimmed.waypoints();
         return new ZoneExitPartitionDto(
                 branch.exitId(),
@@ -353,11 +451,16 @@ public class EvacuationPreviewService {
                 partitions);
     }
 
-    private PreviewedRoute trim(LayoutZone zone, ExitDto exit, PreviewedRoute route) {
+    private PreviewedRoute trim(LayoutZone zone, ExitDto exit, PreviewedRoute route, DrawingGeometryDto drawing) {
+        if (route == null) {
+            return null;
+        }
         List<PointDto> waypoints = ZoneBoundaryTrimmer.trim(
                 route.waypoints(),
                 new ZoneBoundaryTrimmer.ZoneBounds(zone.getX(), zone.getY(), zone.getWidth(), zone.getHeight()),
-                exit);
+                exit,
+                drawing.walls(),
+                obstaclesOf(drawing));
         return new PreviewedRoute(
                 route.zoneId(),
                 route.exitId(),
@@ -365,6 +468,33 @@ public class EvacuationPreviewService {
                 route.originAdjusted(),
                 route.distanceMeters(),
                 waypoints);
+    }
+
+    private static List<ZoneBoundaryTrimmer.Obstacle> obstaclesOf(DrawingGeometryDto drawing) {
+        List<ZoneBoundaryTrimmer.Obstacle> obstacles = new ArrayList<>();
+        for (RectDto pillar : drawing.pillars()) {
+            if (pillar == null) {
+                continue;
+            }
+            obstacles.add(new ZoneBoundaryTrimmer.Obstacle(
+                    pillar.startX().doubleValue(),
+                    pillar.startY().doubleValue(),
+                    pillar.endX().doubleValue(),
+                    pillar.endY().doubleValue(),
+                    pillar.rotation() == null ? 0 : pillar.rotation().doubleValue()));
+        }
+        for (FabricRectDto fabric : drawing.fabrics()) {
+            if (fabric == null) {
+                continue;
+            }
+            obstacles.add(new ZoneBoundaryTrimmer.Obstacle(
+                    fabric.startX().doubleValue(),
+                    fabric.startY().doubleValue(),
+                    fabric.endX().doubleValue(),
+                    fabric.endY().doubleValue(),
+                    fabric.rotation() == null ? 0 : fabric.rotation().doubleValue()));
+        }
+        return List.copyOf(obstacles);
     }
 
     private SimulationSetupResponse syntheticSetup(

@@ -66,7 +66,10 @@ describe('home dashboard visual contract', () => {
   });
 
   it('하단 정보량과 모바일 진행 단계에 맞춘 레이아웃을 사용한다', () => {
-    const styles = readFileSync(new URL('../home.css', import.meta.url), 'utf8');
+    const styles = readFileSync(new URL('../home.css', import.meta.url), 'utf8').replace(
+      /\r\n/g,
+      '\n',
+    );
 
     expect(styles).toContain('grid-template-columns: minmax(18rem, 0.72fr) minmax(0, 1.28fr);');
     expect(styles).toContain('.home-review-scene__station {\n    width: 3rem;');

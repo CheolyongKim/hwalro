@@ -88,18 +88,12 @@ function MyZonesPage() {
                     </div>
                   </dl>
 
-                  <div className="mt-5 flex gap-2">
+                  <div className="mt-5">
                     <Link
                       to={`/my-zones/${zone.zoneId}/evacuation`}
                       className={buttonClassName({ variant: 'primary', size: 'sm' })}
                     >
                       대피 안내
-                    </Link>
-                    <Link
-                      to={`/layout/${zone.drawingId}`}
-                      className={buttonClassName({ variant: 'secondary', size: 'sm' })}
-                    >
-                      도면 보기
                     </Link>
                   </div>
                 </Card>

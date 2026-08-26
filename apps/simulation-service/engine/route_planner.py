@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 import heapq
 import math
+import sys
 from types import MappingProxyType
 from typing import Any, Callable, Iterable, Sequence
 
@@ -23,6 +25,14 @@ from shapely.geometry import LineString, Point as ShapelyPoint, Polygon, box
 from shapely.ops import nearest_points, unary_union
 from shapely.prepared import prep
 from shapely.strtree import STRtree
+
+try:
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import dijkstra as _csgraph_dijkstra
+
+    _SCIPY_AVAILABLE = True
+except ImportError:
+    _SCIPY_AVAILABLE = False
 
 
 GRID_STEP_METERS = 0.25
@@ -413,6 +423,9 @@ def parse_exit_segments(drawing: dict[str, Any]) -> tuple[tuple[Point, Point], .
     return tuple(segments)
 
 
+_GRID_GRAPH_CACHE_MAX_ENTRIES = 8
+_GRID_GRAPH_CACHE: OrderedDict[tuple[str, bytes, float], dict[str, Any]] = OrderedDict()
+
 class GridRouter:
     """One global reverse-Dijkstra field; each planned route is immutable."""
 
@@ -424,6 +437,7 @@ class GridRouter:
         step: float = GRID_STEP_METERS,
         physical_walkable=None,
         exit_clearance: float = 0.3,
+        fast_single_exit_field: bool = False,
     ) -> None:
         if not math.isfinite(step) or step <= 0:
             raise ValueError("grid step must be positive")
@@ -449,6 +463,7 @@ class GridRouter:
         )
         self.step = step
         self.exit_clearance = exit_clearance
+        self._fast_single_exit_field = fast_single_exit_field
 
         min_x, min_y, max_x, max_y = walkable.bounds
         self.origin_x = math.floor(min_x / step) * step
@@ -458,16 +473,51 @@ class GridRouter:
         if self.width * self.height > 10_000_000:
             raise ValueError("drawing is too large for the 0.25m routing grid")
 
-        x_values = self.origin_x + np.arange(self.width, dtype=float) * step
-        y_values = self.origin_y + np.arange(self.height, dtype=float) * step
-        grid_x, grid_y = np.meshgrid(x_values, y_values)
-        self._x = grid_x.ravel()
-        self._y = grid_y.ravel()
-        # contains_xy keeps steering targets off geometry boundaries. The covers
-        # fallback retains valid points in extremely narrow numerical slivers.
-        self.valid = np.asarray(contains_xy(walkable, self._x, self._y), dtype=bool)
-        if not self.valid.any():
-            self.valid = np.asarray(covers(walkable, points(self._x, self._y)), dtype=bool)
+        cache_key = None
+        if not self.hazards:
+            cache_key = ("grid-graph", walkable.wkb, self.step)
+        cached = _GRID_GRAPH_CACHE.get(cache_key) if cache_key is not None else None
+        if cached is not None and cached["width"] == self.width and cached["height"] == self.height:
+            _GRID_GRAPH_CACHE.move_to_end(cache_key)
+            self._x = cached["x"]
+            self._y = cached["y"]
+            self.valid = cached["valid"].copy()
+            self._edge_costs = cached["edge_costs"].copy()
+            self._grid_edges = {
+                direction: values.copy()
+                for direction, values in cached["grid_edges"].items()
+            }
+            self._neighbor_nodes = cached["neighbor_nodes"].copy()
+        else:
+            x_values = self.origin_x + np.arange(self.width, dtype=float) * step
+            y_values = self.origin_y + np.arange(self.height, dtype=float) * step
+            grid_x, grid_y = np.meshgrid(x_values, y_values)
+            self._x = grid_x.ravel()
+            self._y = grid_y.ravel()
+            # contains_xy keeps steering targets off geometry boundaries. The covers
+            # fallback retains valid points in extremely narrow numerical slivers.
+            self.valid = np.asarray(contains_xy(walkable, self._x, self._y), dtype=bool)
+            if not self.valid.any():
+                self.valid = np.asarray(covers(walkable, points(self._x, self._y)), dtype=bool)
+            self._edge_costs = self._build_edge_costs()
+            self._grid_edges = self._build_grid_edges()
+            self._neighbor_nodes = self._build_neighbor_nodes()
+            if cache_key is not None:
+                _GRID_GRAPH_CACHE[cache_key] = {
+                    "x": self._x,
+                    "y": self._y,
+                    "valid": self.valid.copy(),
+                    "edge_costs": self._edge_costs.copy(),
+                    "grid_edges": {
+                        direction: values.copy()
+                        for direction, values in self._grid_edges.items()
+                    },
+                    "neighbor_nodes": self._neighbor_nodes.copy(),
+                    "width": self.width,
+                    "height": self.height,
+                }
+                if len(_GRID_GRAPH_CACHE) > _GRID_GRAPH_CACHE_MAX_ENTRIES:
+                    _GRID_GRAPH_CACHE.popitem(last=False)
         self.distance = np.full(self.width * self.height, np.inf, dtype=float)
         self.next_node = np.full(self.width * self.height, -1, dtype=np.int64)
         self.exit_label = np.full(self.width * self.height, -1, dtype=np.int32)
@@ -476,9 +526,6 @@ class GridRouter:
         self.approach_x = np.full(self.width * self.height, np.nan, dtype=float)
         self.approach_y = np.full(self.width * self.height, np.nan, dtype=float)
         self._plan_cache: dict[Point, tuple[Any, ...]] = {}
-        self._edge_costs = self._build_edge_costs()
-        self._grid_edges = self._build_grid_edges()
-        self._neighbor_nodes = self._build_neighbor_nodes()
         self._build_cost_field()
         self._reachable = self.valid & np.isfinite(self.distance)
         self._has_reachable = bool(self._reachable.any())
@@ -639,6 +686,8 @@ class GridRouter:
         if not derived.valid.any():
             return cold()
         if expands and (lost_nodes.size or closed_edges):
+            return cold()
+        if expands and (gained_nodes.size or opened_edges):
             return cold()
         if contracts and (gained_nodes.size or opened_edges):
             return cold()
@@ -1100,8 +1149,96 @@ class GridRouter:
         if seed_count == 0:
             raise ValueError("no selected exit is reachable from this walkable component")
 
+        if len(self.exits) == 1 and self._fast_single_exit_field and _SCIPY_AVAILABLE:
+            try:
+                if self._propagate_single_exit_cost_field_scipy(0):
+                    self._build_exit_proximity_index()
+                    return
+                else:
+                    print("scipy fast path returned False", file=sys.stderr)
+            except Exception as exc:
+                print(f"scipy fast path failed: {exc!r}", file=sys.stderr)
         self._propagate_cost_field(heap)
         self._build_exit_proximity_index()
+
+    def _propagate_single_exit_cost_field_scipy(self, label: int) -> bool:
+        neighbor_nodes = np.asarray(self._neighbor_nodes)
+        edge_costs = np.asarray(self._edge_costs, dtype=float)
+        node_count = neighbor_nodes.shape[0]
+        seed_nodes = np.flatnonzero(np.isfinite(self.distance))
+        if seed_nodes.size == 0:
+            return False
+
+        super_node = node_count
+        rows = np.repeat(np.arange(node_count), neighbor_nodes.shape[1])
+        columns = neighbor_nodes.ravel()
+        data = edge_costs.ravel()
+        keep = (columns >= 0) & np.isfinite(data)
+        graph_rows = np.concatenate([rows[keep], np.full(seed_nodes.size, super_node)])
+        graph_columns = np.concatenate([columns[keep], seed_nodes])
+        graph_data = np.concatenate([data[keep], self.distance[seed_nodes]])
+        graph = csr_matrix(
+            (graph_data, (graph_rows, graph_columns)), shape=(node_count + 1, node_count + 1)
+        )
+        distances, predecessors = _csgraph_dijkstra(
+            graph, directed=True, indices=np.array([super_node]), return_predecessors=True
+        )
+        distances = distances[0][:node_count]
+        parents = predecessors[0][:node_count]
+
+        reachable = np.isfinite(distances)
+        best_cost = np.where(reachable, distances, np.inf)
+
+        is_seed = np.zeros(node_count, dtype=bool)
+        is_seed[seed_nodes] = True
+        winner_seed = np.full(node_count, -1, dtype=np.int64)
+        winner_seed[seed_nodes] = np.arange(seed_nodes.size)
+
+        terminal_x = np.full(node_count, np.nan, dtype=float)
+        terminal_y = np.full(node_count, np.nan, dtype=float)
+        approach_x = np.full(node_count, np.nan, dtype=float)
+        approach_y = np.full(node_count, np.nan, dtype=float)
+        terminal_x[seed_nodes] = self.terminal_x[seed_nodes]
+        terminal_y[seed_nodes] = self.terminal_y[seed_nodes]
+        approach_x[seed_nodes] = self.approach_x[seed_nodes]
+        approach_y[seed_nodes] = self.approach_y[seed_nodes]
+
+        next_node = np.full(node_count, -1, dtype=np.int64)
+        visit_order = np.argsort(distances, kind="stable")
+        for node in visit_order:
+            if not reachable[node]:
+                break
+            if is_seed[node]:
+                continue
+            parent = int(parents[node])
+            if parent < 0 or parent >= node_count:
+                continue
+            winner_seed[node] = winner_seed[parent]
+            next_node[node] = parent
+            terminal_x[node] = terminal_x[parent]
+            terminal_y[node] = terminal_y[parent]
+            approach_x[node] = approach_x[parent]
+            approach_y[node] = approach_y[parent]
+
+        has_winner = reachable & (winner_seed >= 0)
+        self.distance[:] = np.where(reachable, best_cost, np.inf)
+        self.exit_label[:] = np.where(reachable, label, -1).astype(np.int32)
+        self.next_node[:] = next_node
+        self.terminal_x[:] = terminal_x
+        self.terminal_y[:] = terminal_y
+        self.approach_x[:] = approach_x
+        self.approach_y[:] = approach_y
+
+        missing = reachable & ~has_winner
+        if np.any(missing):
+            self.distance[missing] = np.inf
+            self.exit_label[missing] = -1
+            self.next_node[missing] = -1
+            self.terminal_x[missing] = np.nan
+            self.terminal_y[missing] = np.nan
+            self.approach_x[missing] = np.nan
+            self.approach_y[missing] = np.nan
+        return True
 
     def _build_exit_proximity_index(self) -> None:
         labels = [

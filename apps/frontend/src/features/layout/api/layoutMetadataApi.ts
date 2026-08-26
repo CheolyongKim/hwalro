@@ -1,5 +1,4 @@
 import { apiClient } from '../../../api/client';
-import type { EvacuationRoute } from '../../zones/api/zoneApi';
 
 export interface ZoneRect {
   x: number;
@@ -107,9 +106,4 @@ export const layoutMetadataApi = {
     apiClient
       .patch<void>(`/api/drawings/${drawingId}/structures/${fabricId}/constraints`, request)
       .then(() => undefined),
-
-  evacuationRoutes: (drawingId: number) =>
-    apiClient
-      .get<EvacuationRoute[]>(`/api/drawings/${drawingId}/evacuation-routes`)
-      .then((response) => response.data),
 };

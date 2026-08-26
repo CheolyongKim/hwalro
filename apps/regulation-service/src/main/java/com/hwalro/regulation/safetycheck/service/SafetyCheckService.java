@@ -57,8 +57,8 @@ public class SafetyCheckService {
     }
 
     public InspectionAreaResponse getArea(Long areaId, JwtUser user, String authorization) {
-        return enrichLayoutTitles(List.of(findArea(areaId, resolveInspectorFilter(user))), authorization)
-                .get(0);
+        InspectionAreaResponse area = findArea(areaId, resolveInspectorFilter(user));
+        return enrichLayoutTitles(List.of(area), authorization).get(0);
     }
 
     @Transactional
@@ -86,17 +86,33 @@ public class SafetyCheckService {
     }
 
     public List<InspectionHistoryResponse> getInspectionHistory(Long areaId, JwtUser user) {
+        return getInspectionHistory(areaId, user, null);
+    }
+
+    public List<InspectionHistoryResponse> getInspectionHistory(Long areaId, JwtUser user, String authorization) {
         requireExistingArea(areaId);
         return safetyCheckMapper.findInspectionHistory(areaId, resolveInspectorFilter(user));
     }
 
     public InspectionDetailResponse getInspection(Long inspectionId, JwtUser user) {
+        return getInspection(inspectionId, user, null);
+    }
+
+    public InspectionDetailResponse getInspection(Long inspectionId, JwtUser user, String authorization) {
         InspectionDetailHeader header = findHeader(inspectionId);
         requireReadable(user, header);
         return toDetail(header, safetyCheckMapper.findInspectionItems(inspectionId));
     }
 
     public ChecklistTemplateResponse getChecklistTemplate(Long areaId) {
+        return loadChecklistTemplate(areaId);
+    }
+
+    public ChecklistTemplateResponse getChecklistTemplate(Long areaId, JwtUser user, String authorization) {
+        return loadChecklistTemplate(areaId);
+    }
+
+    private ChecklistTemplateResponse loadChecklistTemplate(Long areaId) {
         requireExistingArea(areaId);
         Long templateId = safetyCheckMapper.findActiveTemplateId(areaId);
         if (templateId == null) {
@@ -134,6 +150,12 @@ public class SafetyCheckService {
 
     @Transactional
     public InspectionDetailResponse createInspection(Long areaId, InspectionCreateRequest request, JwtUser user) {
+        return createInspection(areaId, request, user, null);
+    }
+
+    @Transactional
+    public InspectionDetailResponse createInspection(
+            Long areaId, InspectionCreateRequest request, JwtUser user, String authorization) {
         Long simulationResultId = validateSimulationResultReference(request);
         requireArea(areaId);
         Long templateId = safetyCheckMapper.findActiveTemplateId(areaId);
@@ -149,23 +171,34 @@ public class SafetyCheckService {
         inspection.setInspectorId(user.userId());
         safetyCheckMapper.insertInspection(inspection);
         safetyCheckMapper.insertInspectionItems(inspection.getId(), templateId);
-        return getInspection(inspection.getId(), user);
+        return getInspection(inspection.getId(), user, authorization);
     }
 
     @Transactional
     public InspectionDetailResponse getOrCreateOpenInspection(Long areaId, JwtUser user) {
+        return getOrCreateOpenInspection(areaId, user, null);
+    }
+
+    @Transactional
+    public InspectionDetailResponse getOrCreateOpenInspection(Long areaId, JwtUser user, String authorization) {
         if (safetyCheckMapper.lockInspectionArea(areaId) == null) {
             throw new InspectionAreaNotFoundException(areaId);
         }
         Long draftId = safetyCheckMapper.findOpenDraftId(areaId, user.userId());
         if (draftId != null) {
-            return getInspection(draftId, user);
+            return getInspection(draftId, user, authorization);
         }
-        return createInspection(areaId, null, user);
+        return createInspection(areaId, null, user, authorization);
     }
 
     @Transactional
     public InspectionDetailResponse updateInspection(Long inspectionId, InspectionUpdateRequest request, JwtUser user) {
+        return updateInspection(inspectionId, request, user, null);
+    }
+
+    @Transactional
+    public InspectionDetailResponse updateInspection(
+            Long inspectionId, InspectionUpdateRequest request, JwtUser user, String authorization) {
         InspectionDetailHeader header = findHeader(inspectionId);
         requireArea(header.inspectionAreaId());
         if ("COMPLETED".equals(header.status())) {
@@ -207,11 +240,16 @@ public class SafetyCheckService {
                 != 1) {
             throw new IllegalArgumentException("The inspection was already completed by another request.");
         }
-        return getInspection(inspectionId, user);
+        return getInspection(inspectionId, user, authorization);
     }
 
     @Transactional
     public void deleteInspection(Long inspectionId, JwtUser user) {
+        deleteInspection(inspectionId, user, null);
+    }
+
+    @Transactional
+    public void deleteInspection(Long inspectionId, JwtUser user, String authorization) {
         InspectionDetailHeader header = findHeader(inspectionId);
         if ("COMPLETED".equals(header.status())) {
             throw new IllegalArgumentException("Completed inspections cannot be deleted.");
@@ -227,6 +265,11 @@ public class SafetyCheckService {
     }
 
     public void saveSnapshot(Long inspectionId, byte[] image, Long layoutId, Long layoutVersionId, JwtUser user) {
+        saveSnapshot(inspectionId, image, layoutId, layoutVersionId, user, null);
+    }
+
+    public void saveSnapshot(
+            Long inspectionId, byte[] image, Long layoutId, Long layoutVersionId, JwtUser user, String authorization) {
         if (image == null || image.length == 0) {
             throw new IllegalArgumentException("스냅샷 이미지가 비어 있습니다.");
         }
@@ -254,6 +297,12 @@ public class SafetyCheckService {
 
     public byte[] getSnapshotImage(Long inspectionId) {
         findHeader(inspectionId);
+        return safetyCheckMapper.findSnapshotImage(inspectionId);
+    }
+
+    public byte[] getSnapshotImage(Long inspectionId, JwtUser user, String authorization) {
+        InspectionDetailHeader header = findHeader(inspectionId);
+        requireReadable(user, header);
         return safetyCheckMapper.findSnapshotImage(inspectionId);
     }
 
@@ -374,7 +423,7 @@ public class SafetyCheckService {
         if (canReadAll(user)) {
             return null;
         }
-        if (user.roles().contains("OPERATOR")) {
+        if (user.roles().contains("OPERATOR") || user.roles().contains("GENERAL_EMPLOYEE")) {
             return user.userId();
         }
         throw new ForbiddenException("안전 점검 조회 권한이 없습니다.");
@@ -382,8 +431,8 @@ public class SafetyCheckService {
 
     private void requireReadable(JwtUser user, InspectionDetailHeader inspection) {
         if (canReadAll(user)
-                || (user.roles().contains("OPERATOR")
-                        && inspection.inspectorId().equals(user.userId()))) {
+                || ((user.roles().contains("OPERATOR") || user.roles().contains("GENERAL_EMPLOYEE"))
+                        && user.userId().equals(inspection.inspectorId()))) {
             return;
         }
         throw new ForbiddenException("이 안전 점검을 조회할 권한이 없습니다.");

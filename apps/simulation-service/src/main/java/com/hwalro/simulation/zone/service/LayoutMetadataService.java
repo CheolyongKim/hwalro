@@ -42,14 +42,17 @@ public class LayoutMetadataService {
     private final LayoutZoneService layoutZoneService;
     private final DrawingService drawingService;
     private final EmployeeDirectoryClient employeeDirectoryClient;
+    private final EvacuationRouteWarmer evacuationRouteWarmer;
 
     public LayoutMetadataService(
             LayoutZoneService layoutZoneService,
             DrawingService drawingService,
-            EmployeeDirectoryClient employeeDirectoryClient) {
+            EmployeeDirectoryClient employeeDirectoryClient,
+            EvacuationRouteWarmer evacuationRouteWarmer) {
         this.layoutZoneService = layoutZoneService;
         this.drawingService = drawingService;
         this.employeeDirectoryClient = employeeDirectoryClient;
+        this.evacuationRouteWarmer = evacuationRouteWarmer;
     }
 
     public LayoutMetadataResponse readMetadata(Long layoutId, JwtUser user) {
@@ -105,6 +108,7 @@ public class LayoutMetadataService {
         drawingService.requireAccessible(layoutId, user);
         employeeDirectoryClient.requireEmployee(request.assignedUserId(), authorization);
         LayoutZone zone = layoutZoneService.createZone(layoutId, request);
+        evacuationRouteWarmer.warm(layoutId);
         return toZoneResponse(zone, request.members() == null ? List.of() : request.members());
     }
 
@@ -115,6 +119,7 @@ public class LayoutMetadataService {
             employeeDirectoryClient.requireEmployee(request.assignedUserId(), authorization);
         }
         LayoutZone zone = layoutZoneService.updateZone(layoutId, zoneId, request);
+        evacuationRouteWarmer.warm(layoutId);
         Long versionId = zone.getLayoutVersionId();
         List<ZoneMemberDto> members = layoutZoneService.memberships(versionId).stream()
                 .filter(membership -> membership.getZoneId().equals(zoneId))
@@ -126,6 +131,7 @@ public class LayoutMetadataService {
     public void deleteZone(Long layoutId, Long zoneId, JwtUser user) {
         drawingService.requireAccessible(layoutId, user);
         layoutZoneService.deleteZone(layoutId, zoneId);
+        evacuationRouteWarmer.warm(layoutId);
     }
 
     public void updateStructureConstraints(

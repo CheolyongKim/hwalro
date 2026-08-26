@@ -295,11 +295,15 @@ function EvacuationPage() {
         if (zone === undefined) {
           throw new Error('담당 구역이 아닙니다.');
         }
-        const [drawing, metadata, route] = await Promise.all([
+        const [drawing, metadata, routes] = await Promise.all([
           drawingApi.get(zone.drawingId),
           layoutMetadataApi.get(zone.drawingId),
-          zoneApi.evacuationRoute(numericZoneId),
+          zoneApi.evacuationRoutes(zone.drawingId),
         ]);
+        const route = routes.find((entry) => entry.zoneId === numericZoneId);
+        if (route === undefined) {
+          throw new Error('담당 구역의 대피 경로를 찾을 수 없습니다.');
+        }
         if (!active) return;
         setData({
           zone,
