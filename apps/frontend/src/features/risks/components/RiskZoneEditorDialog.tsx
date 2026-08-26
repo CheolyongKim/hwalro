@@ -74,7 +74,7 @@ export function RiskZoneEditorDialog({
   return (
     <>
       <div
-        className="dialog-backdrop zone-editor-backdrop"
+        className="app-modal-backdrop dialog-backdrop zone-editor-backdrop"
         role="presentation"
         onMouseDown={onCancel}
       >
@@ -147,6 +147,7 @@ export function RiskZoneEditorDialog({
       {pickerOpen && (
         <LawArticlePickerModal
           open
+          layer="nested"
           onClose={() => setPickerOpen(false)}
           selected={attachedLaws}
           onConfirm={(refs) => {

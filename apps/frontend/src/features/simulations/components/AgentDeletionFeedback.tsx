@@ -40,7 +40,7 @@ export function AgentDeletionConfirmDialog({
         event.preventDefault();
         onCancel();
       }}
-      className="m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-transparent p-4 open:flex open:items-start open:justify-end backdrop:bg-ink/15"
+      className="app-modal-dialog m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-transparent p-4 open:flex open:items-start open:justify-end"
     >
       <article className="w-80 overflow-hidden rounded-xl border border-danger/25 bg-surface shadow-floating">
         <div className="flex gap-3 p-4">

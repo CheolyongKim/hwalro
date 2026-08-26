@@ -4,8 +4,6 @@
   z-index: 100;
   display: grid;
   place-items: center;
-  background: rgba(5, 25, 22, 0.45);
-  backdrop-filter: blur(8px);
 }
 
 .zone-editor {

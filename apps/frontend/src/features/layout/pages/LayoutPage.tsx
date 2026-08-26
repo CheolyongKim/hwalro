@@ -91,6 +91,18 @@ function parseLayoutId(value: string | undefined): number | null {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
+interface LayoutNavigationState {
+  fadeInLayout?: boolean;
+  returnTo?: string;
+  returnLabel?: string;
+}
+
+function readResultReturnPath(state: LayoutNavigationState | null): string | null {
+  return typeof state?.returnTo === 'string' && /^\/simulations\/\d+\/results$/.test(state.returnTo)
+    ? state.returnTo
+    : null;
+}
+
 function LayoutPage() {
   const { drawingId = '' } = useParams();
   const location = useLocation();
@@ -136,7 +148,13 @@ function LayoutPage() {
   const [enabledEvacuationZoneId, setEnabledEvacuationZoneId] = useState<number | null>(null);
   const [evacuationRoutesLoading, setEvacuationRoutesLoading] = useState(false);
   const [evacuationRoutesError, setEvacuationRoutesError] = useState<string | null>(null);
-  const fadeInLayout = (location.state as { fadeInLayout?: boolean } | null)?.fadeInLayout === true;
+  const navigationState = location.state as LayoutNavigationState | null;
+  const fadeInLayout = navigationState?.fadeInLayout === true;
+  const resultReturnPath = readResultReturnPath(navigationState);
+  const backLabel =
+    resultReturnPath && typeof navigationState?.returnLabel === 'string'
+      ? navigationState.returnLabel
+      : undefined;
   const [riskMode, setRiskMode] = useState(false);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [pendingRiskBounds, setPendingRiskBounds] = useState<{
@@ -873,7 +891,10 @@ function LayoutPage() {
     <CanvasWorkspace
       className={`layout-workspace ${fadeInLayout ? 'layout-workspace--entering' : ''}`}
     >
-      <CanvasWorkspaceBackButton onClick={() => navigate('/drawings')} />
+      <CanvasWorkspaceBackButton
+        label={backLabel}
+        onClick={() => navigate(resultReturnPath ?? '/drawings')}
+      />
       <LayoutWorkspaceHeader
         name={state.doc.name}
         description={sessionRef.current?.description ?? null}
