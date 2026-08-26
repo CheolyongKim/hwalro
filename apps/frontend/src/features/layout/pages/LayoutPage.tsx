@@ -53,8 +53,6 @@ import type { ZoneRect, ZoneType } from '../api/layoutMetadataApi';
 import { riskApi } from '../../risks/api/riskApi';
 import type { Risk } from '../../risks/types/risks';
 import { RiskZoneEditorDialog } from '../../risks/components/RiskZoneEditorDialog';
-import { zoneApi, type EvacuationRoute } from '../../zones/api/zoneApi';
-import { EvacuationRoutePanel } from '../../zones/components/EvacuationRoutePanel';
 import '../layout.css';
 
 type LoadStatus = 'loading' | 'ready' | 'missing' | 'error';
@@ -144,10 +142,6 @@ function LayoutPage() {
   const [draftPending, setDraftPending] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [movementPreviewRadius, setMovementPreviewRadius] = useState<number | null>(null);
-  const [evacuationRoute, setEvacuationRoute] = useState<EvacuationRoute | null>(null);
-  const [enabledEvacuationZoneId, setEnabledEvacuationZoneId] = useState<number | null>(null);
-  const [evacuationRoutesLoading, setEvacuationRoutesLoading] = useState(false);
-  const [evacuationRoutesError, setEvacuationRoutesError] = useState<string | null>(null);
   const navigationState = location.state as LayoutNavigationState | null;
   const fadeInLayout = navigationState?.fadeInLayout === true;
   const resultReturnPath = readResultReturnPath(navigationState);
@@ -168,8 +162,6 @@ function LayoutPage() {
   const riskModeRef = useRef(false);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
-  const evacuationRequestRef = useRef<Promise<void> | null>(null);
-  const evacuationRequestSequenceRef = useRef(0);
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
   const restoreButtonRef = useRef<HTMLButtonElement>(null);
   const restorePanelFocusRef = useRef(false);
@@ -187,70 +179,6 @@ function LayoutPage() {
       return !current;
     });
   }, []);
-
-  useEffect(() => {
-    evacuationRequestSequenceRef.current += 1;
-    evacuationRequestRef.current = null;
-    setEvacuationRoute(null);
-    setEnabledEvacuationZoneId(null);
-    setEvacuationRoutesLoading(false);
-    setEvacuationRoutesError(null);
-  }, [layoutId, selectedZoneId]);
-
-  const toggleEvacuationRoute = useCallback(
-    (enabled: boolean) => {
-      if (!enabled) {
-        evacuationRequestSequenceRef.current += 1;
-        evacuationRequestRef.current = null;
-        setEnabledEvacuationZoneId(null);
-        setEvacuationRoute(null);
-        setEvacuationRoutesLoading(false);
-        setEvacuationRoutesError(null);
-        return;
-      }
-      if (selectedZoneId === null || layoutId === null || evacuationRequestRef.current !== null)
-        return;
-      const zoneId = selectedZoneId;
-      const sequence = ++evacuationRequestSequenceRef.current;
-      setEnabledEvacuationZoneId(zoneId);
-      setEvacuationRoutesLoading(true);
-      setEvacuationRoutesError(null);
-      const request = zoneApi
-        .evacuationRoutes(layoutId)
-        .then((routes) => {
-          if (evacuationRequestSequenceRef.current === sequence) {
-            const matched = routes.find((r) => r.zoneId === zoneId) ?? null;
-            if (matched !== null) {
-              setEvacuationRoute(matched);
-            } else {
-              setEvacuationRoute(null);
-              setEvacuationRoutesError('해당 구역의 대피 경로 정보를 찾을 수 없습니다.');
-            }
-          }
-        })
-        .catch(() => {
-          if (evacuationRequestSequenceRef.current === sequence) {
-            setEnabledEvacuationZoneId(null);
-            setEvacuationRoutesError('대피 동선을 불러오지 못했습니다. 다시 시도해 주세요.');
-          }
-        })
-        .finally(() => {
-          if (evacuationRequestSequenceRef.current === sequence) {
-            evacuationRequestRef.current = null;
-            setEvacuationRoutesLoading(false);
-          }
-        });
-      evacuationRequestRef.current = request;
-    },
-    [layoutId, selectedZoneId],
-  );
-
-  const visibleEvacuationRoutes =
-    selectedZoneId === enabledEvacuationZoneId &&
-    evacuationRoute !== null &&
-    evacuationRoute.zoneId === enabledEvacuationZoneId
-      ? [evacuationRoute]
-      : [];
 
   useLayoutEffect(() => {
     if (!restorePanelFocusRef.current) {
@@ -926,7 +854,6 @@ function LayoutPage() {
         }))}
         riskMode={canManageRisks && riskMode}
         onRiskZoneDrawn={canManageRisks ? setPendingRiskBounds : undefined}
-        evacuationRoutes={visibleEvacuationRoutes}
       />
       {canvasMenu !== null ? (
         <LayerContextMenu
@@ -1041,13 +968,6 @@ function LayoutPage() {
             ) : null}
             {selectedZone !== null ? (
               <div className="space-y-3 px-3 py-3">
-                <EvacuationRoutePanel
-                  zone={selectedZone}
-                  enabled={enabledEvacuationZoneId === selectedZone.zoneId}
-                  loading={evacuationRoutesLoading}
-                  errorMessage={evacuationRoutesError}
-                  onToggle={toggleEvacuationRoute}
-                />
                 <ZonePanel
                   zone={selectedZone}
                   exits={state.doc.exits}
