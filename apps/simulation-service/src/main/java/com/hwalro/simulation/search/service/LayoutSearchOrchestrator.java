@@ -120,7 +120,7 @@ public class LayoutSearchOrchestrator {
         if (!COMPLETED_STATUS.equals(setup.status())) {
             throw new SimulationConflictException("완료된 시뮬레이션에서만 배치 개선안을 탐색할 수 있습니다.");
         }
-        List<Metric> baselineMetrics = readBaselineMetrics(simulationId);
+        List<Metric> baselineMetrics = readBaselineMetrics(simulationId, setup.layoutVersionId());
         LayoutSearchProperties.Budget budget = properties.budget(budgetPreset);
         double trialCap = TrialBudgetCalculator.trialCapSeconds(baselineMetrics, properties.getAbortMargin());
 
@@ -193,6 +193,7 @@ public class LayoutSearchOrchestrator {
             SearchBudget budget = readBudget(search.getBudget());
             SearchConstraints constraints = SearchConstraints.fromJson(objectMapper, search.getConstraints());
             SearchSource source = layoutSearchSourceLoader.load(search.getBaselineSimulationId());
+            List<LayoutExit> exits = drawingMapper.findLayoutExitsByVersionId(search.getBaselineLayoutVersionId());
             List<LayoutSearchCandidateEntity> existing =
                     SearchStatus.PENDING.name().equals(search.getStatus())
                             ? List.of()
@@ -235,7 +236,8 @@ public class LayoutSearchOrchestrator {
                         baselineMetrics,
                         trialCap,
                         List.of(),
-                        constraints)) {
+                        constraints,
+                        exits)) {
                     return;
                 }
             } else if (verify) {
@@ -247,7 +249,8 @@ public class LayoutSearchOrchestrator {
                                 .toList(),
                         baselineSetup,
                         baselineMetrics,
-                        trialCap)) {
+                        trialCap,
+                        exits)) {
                     return;
                 }
             }
@@ -283,7 +286,8 @@ public class LayoutSearchOrchestrator {
                             baselineMetrics,
                             trialCap,
                             List.of(),
-                            constraints)) {
+                            constraints,
+                            exits)) {
                         return;
                     }
                     finish(searchId, hasUsableCandidate(searchId, verify));
@@ -306,7 +310,8 @@ public class LayoutSearchOrchestrator {
                         baselineMetrics,
                         trialCap,
                         parentInputs,
-                        constraints)) {
+                        constraints,
+                        exits)) {
                     return;
                 }
                 if (isCancelled(searchId)) {
@@ -348,7 +353,8 @@ public class LayoutSearchOrchestrator {
             List<Metric> baselineMetrics,
             double trialCap,
             List<Map<String, Object>> parents,
-            SearchConstraints constraints) {
+            SearchConstraints constraints,
+            List<LayoutExit> exits) {
         transactionTemplate.executeWithoutResult(
                 status -> layoutSearchMapper.updateSearchStatus(searchId, SearchStatus.GENERATING.name()));
         SearchInput input = new SearchInput(
@@ -378,7 +384,7 @@ public class LayoutSearchOrchestrator {
         }
         transactionTemplate.executeWithoutResult(
                 status -> layoutSearchMapper.updateSearchStatus(searchId, SearchStatus.VERIFYING.name()));
-        return verifyCandidates(searchId, queued, baselineSetup, baselineMetrics, trialCap);
+        return verifyCandidates(searchId, queued, baselineSetup, baselineMetrics, trialCap, exits);
     }
 
     private void persistCandidates(
@@ -437,7 +443,8 @@ public class LayoutSearchOrchestrator {
             List<LayoutSearchCandidateEntity> queued,
             SimulationSetupResponse baselineSetup,
             List<Metric> baselineMetrics,
-            double trialCap) {
+            double trialCap,
+            List<LayoutExit> exits) {
         for (int start = 0; start < queued.size(); start += properties.getTrialConcurrency()) {
             if (isCancelled(searchId)) {
                 return false;
@@ -447,7 +454,12 @@ public class LayoutSearchOrchestrator {
                     queued.subList(start, Math.min(queued.size(), start + properties.getTrialConcurrency()))) {
                 if (!isCancelled(searchId)) {
                     futures.add(trialExecutor.submit(() -> candidateTrialService.run(
-                            candidate, baselineSetup, baselineMetrics, trialCap, properties.getImprovementMargin())));
+                            candidate,
+                            baselineSetup,
+                            baselineMetrics,
+                            trialCap,
+                            properties.getImprovementMargin(),
+                            exits)));
                 }
             }
             for (Future<TrialOutcome> future : futures) {
@@ -541,15 +553,37 @@ public class LayoutSearchOrchestrator {
         };
     }
 
-    private List<Metric> readBaselineMetrics(long simulationId) {
+    private List<Metric> readBaselineMetrics(long simulationId, Long layoutVersionId) {
         List<BaselineMetric> rows = layoutSearchSourceMapper.findBaselineMetricsBySimulationId(simulationId);
         if (rows.isEmpty()) {
             throw new IllegalStateException("기준 시뮬레이션의 저장된 지표가 없습니다.");
         }
-        return rows.stream()
-                .map(row -> new Metric(
-                        row.getMetricType(), row.getUnit(), row.getMetricValue() == null ? 0.0 : row.getMetricValue()))
-                .toList();
+        List<Metric> metrics = new ArrayList<>();
+        for (BaselineMetric row : rows) {
+            metrics.add(new Metric(
+                    row.getMetricType(), row.getUnit(), row.getMetricValue() == null ? 0.0 : row.getMetricValue()));
+        }
+        appendExitImbalance(metrics, simulationId, layoutVersionId);
+        return List.copyOf(metrics);
+    }
+
+    private void appendExitImbalance(List<Metric> metrics, long simulationId, Long layoutVersionId) {
+        if (layoutVersionId == null
+                || metrics.stream().anyMatch(metric -> CandidateSelector.EXIT_IMBALANCE.equals(metric.metricType()))) {
+            return;
+        }
+        List<LayoutExit> exits = drawingMapper.findLayoutExitsByVersionId(layoutVersionId);
+        if (exits.isEmpty()) {
+            return;
+        }
+        Double severity = exitBalanceExtractor.worstExitSeverity(
+                layoutSearchSourceMapper.findTimelineChunksBySimulationId(simulationId).stream()
+                        .map(TimelineChunk::getFrameData)
+                        .toList(),
+                exits);
+        if (severity != null) {
+            metrics.add(new Metric(CandidateSelector.EXIT_IMBALANCE, "RATIO", severity));
+        }
     }
 
     private SearchBudget readBudget(String json) {
