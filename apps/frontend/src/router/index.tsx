@@ -94,6 +94,11 @@ export const router = createBrowserRouter([
                     path: 'safety-checklists/inspections/:inspectionId',
                     element: <SafetyCheckDetailPage />,
                   },
+                ],
+              },
+              {
+                element: <CapabilityRoute capability="checklists.manage" />,
+                children: [
                   {
                     path: 'safety-checklists/areas/:areaId/template',
                     element: <SafetyCheckTemplatePage />,

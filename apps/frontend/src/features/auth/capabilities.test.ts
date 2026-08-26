@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { can, capabilitiesOf, homeRouteFor } from './capabilities';
 
 describe('capabilities', () => {
-  it('일반 직원은 담당 구역과 도면 열람만 갖는다', () => {
+  it('매장 직원은 담당 구역과 체크리스트 권한만 갖는다', () => {
     const roles = ['GENERAL_EMPLOYEE'];
 
     expect(can(roles, 'zones.assigned')).toBe(true);
-    expect(can(roles, 'drawings.view')).toBe(true);
+    expect(can(roles, 'checklists')).toBe(true);
+    expect(can(roles, 'checklists.manage')).toBe(false);
+    expect(can(roles, 'drawings.view')).toBe(false);
     expect(can(roles, 'simulations')).toBe(false);
     expect(can(roles, 'drawings.manage')).toBe(false);
     expect(can(roles, 'reports')).toBe(false);
+    expect(can(roles, 'risks')).toBe(false);
     expect(can(roles, 'systemManagement')).toBe(false);
   });
 
@@ -26,6 +29,13 @@ describe('capabilities', () => {
     expect(can(['ADMIN'], 'systemManagement')).toBe(true);
     expect(can(['OPERATOR'], 'systemManagement')).toBe(false);
     expect(can(['SAFETY_REVIEWER'], 'systemManagement')).toBe(false);
+  });
+
+  it('체크리스트 템플릿 관리는 관리자와 안전 검토자만 갖는다', () => {
+    expect(can(['ADMIN'], 'checklists.manage')).toBe(true);
+    expect(can(['SAFETY_REVIEWER'], 'checklists.manage')).toBe(true);
+    expect(can(['OPERATOR'], 'checklists.manage')).toBe(false);
+    expect(can(['GENERAL_EMPLOYEE'], 'checklists.manage')).toBe(false);
   });
 
   it('알 수 없는 역할과 미로그인은 아무 권한도 주지 않는다', () => {

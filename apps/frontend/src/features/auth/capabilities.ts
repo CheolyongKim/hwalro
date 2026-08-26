@@ -13,6 +13,7 @@ export type Capability =
   | 'reports'
   | 'risks'
   | 'checklists'
+  | 'checklists.manage'
   | 'regulations'
   | 'systemManagement'
   | 'zones.manage'
@@ -30,10 +31,10 @@ const PRIVILEGED: readonly Capability[] = [
 ];
 
 const ROLE_CAPABILITIES: Record<string, readonly Capability[]> = {
-  ADMIN: [...PRIVILEGED, 'systemManagement'],
+  ADMIN: [...PRIVILEGED, 'checklists.manage', 'systemManagement'],
   OPERATOR: PRIVILEGED,
-  SAFETY_REVIEWER: PRIVILEGED,
-  GENERAL_EMPLOYEE: ['drawings.view', 'zones.assigned'],
+  SAFETY_REVIEWER: [...PRIVILEGED, 'checklists.manage'],
+  GENERAL_EMPLOYEE: ['checklists', 'zones.assigned'],
 };
 
 export function capabilitiesOf(roles: readonly string[] | undefined): ReadonlySet<Capability> {
