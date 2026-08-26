@@ -6,6 +6,7 @@ import { CANVAS_COLORS } from '../../layout/utils/colors';
 
 interface EvacuationRouteOverlayProps {
   routes: readonly EvacuationRoute[];
+  exitIds?: readonly number[];
   scale: (pixels: number) => number;
 }
 
