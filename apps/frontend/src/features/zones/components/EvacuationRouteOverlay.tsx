@@ -53,18 +53,15 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
 
   const paths: PathData[] = useMemo(() => {
     return routes.flatMap((route) => {
-      const branches =
-        route.partitions.length > 0
-          ? route.partitions.map((partition) => ({
-              key: `${route.zoneId}-${partition.exitId}`,
-              waypoints: partition.waypoints,
-            }))
-          : [
-              {
-                key: `${route.zoneId}-${route.recommendedExitId ?? 'none'}`,
-                waypoints: route.waypoints,
-              },
-            ];
+      const branches = [
+        ...(route.waypoints.length >= 2
+          ? [{ key: `${route.zoneId}-main`, waypoints: route.waypoints }]
+          : []),
+        ...route.partitions.map((partition) => ({
+          key: `${route.zoneId}-${partition.exitId}`,
+          waypoints: partition.waypoints,
+        })),
+      ];
 
       return branches
         .filter((branch) => branch.waypoints.length >= 2)
@@ -111,6 +108,7 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
       const offset = elapsedSec * speed;
 
       paths.forEach((path) => {
+        if (path.totalLength <= 0) return;
         const step = scale(40); // 40px 간격으로 화살표 배치
         const count = Math.max(1, Math.floor(path.totalLength / step));
 
@@ -158,22 +156,31 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
             <Line
               points={path.waypoints.flatMap((p) => [p.x, p.y])}
               stroke={CANVAS_COLORS.accent}
-              strokeWidth={scale(8)}
-              opacity={0.18}
+              strokeWidth={scale(10)}
+              opacity={0.2}
               lineCap="round"
               lineJoin="round"
             />
-            {/* 2. 본체 솔리드 가이드 라인 (가만히 있는 깔끔한 메인 선) */}
+            {/* 2. 어두운 외곽선. 도면 위 어떤 색 위에서도 선이 읽히게 한다. */}
+            <Line
+              points={path.waypoints.flatMap((p) => [p.x, p.y])}
+              stroke="#0b1220"
+              strokeWidth={scale(5.5)}
+              opacity={0.55}
+              lineCap="round"
+              lineJoin="round"
+            />
+            {/* 3. 본체 솔리드 가이드 라인 (가만히 있는 깔끔한 메인 선) */}
             <Line
               name="evacuation-route-line"
               points={path.waypoints.flatMap((p) => [p.x, p.y])}
               stroke={CANVAS_COLORS.accent}
-              strokeWidth={scale(3)}
-              opacity={0.9}
+              strokeWidth={scale(3.5)}
+              opacity={0.95}
               lineCap="round"
               lineJoin="round"
             />
-            {/* 3. 출발점 표시 (원형 앵커) */}
+            {/* 4. 출발점 표시 (원형 앵커) */}
             <Circle
               x={firstPoint.x}
               y={firstPoint.y}
@@ -182,7 +189,7 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
               stroke="#ffffff"
               strokeWidth={scale(1.5)}
             />
-            {/* 4. 도착점 표시 (비상구 연결 펄스 포인트) */}
+            {/* 5. 도착점 표시 (비상구 연결 펄스 포인트) */}
             <Circle
               x={lastPoint.x}
               y={lastPoint.y}
@@ -191,7 +198,7 @@ export function EvacuationRouteOverlay({ routes, scale }: EvacuationRouteOverlay
               stroke={CANVAS_COLORS.accent}
               strokeWidth={scale(2.5)}
             />
-            {/* 5. 방향 화살표 마커들 (선 위를 따라 부드럽게 전진하는 Chevron 화살표) */}
+            {/* 6. 방향 화살표 마커들 (선 위를 따라 부드럽게 전진하는 Chevron 화살표) */}
             <Group ref={markerGroupRef}>
               {Array.from({ length: arrowCount }, (_, idx) => {
                 const arrowKey = `${path.key}-arrow-${idx}`;
