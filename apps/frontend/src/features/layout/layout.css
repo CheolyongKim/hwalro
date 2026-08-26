@@ -22,7 +22,10 @@
 }
 
 .layout-cursor-default {
-  cursor: default;
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 32 32'%3E%3Cpath d='M3 3 L3 24 L9 17.5 L12.2 25.8 L15 24.7 L11.8 16.4 L19.5 16.4 Z' fill='%230a0a0a' stroke='%230a0a0a' stroke-width='2.2' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E")
+      3 3,
+    default;
 }
 
 .layout-cursor-wall {
