@@ -66,8 +66,8 @@ export interface ZoneExitPartition {
 export const zoneApi = {
   myZones: () => apiClient.get<MyZone[]>('/api/my-zones').then((response) => response.data),
 
-  evacuationRoute: (zoneId: number) =>
+  evacuationRoutes: (drawingId: number) =>
     apiClient
-      .get<EvacuationRoute>(`/api/my-zones/${zoneId}/evacuation-route`)
+      .get<EvacuationRoute[]>(`/api/drawings/${drawingId}/evacuation-routes`, { timeout: 0 })
       .then((response) => response.data),
 };

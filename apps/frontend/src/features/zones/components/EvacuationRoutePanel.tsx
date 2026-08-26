@@ -26,7 +26,7 @@ export function EvacuationRoutePanel({
             대피 동선
           </h3>
           <p className="mt-0.5 truncate text-xs text-panel-muted">
-            {zone.name}의 추천 대피 경로 표시
+            {zone.name}의 대피 경로 표시
           </p>
         </div>
         <button

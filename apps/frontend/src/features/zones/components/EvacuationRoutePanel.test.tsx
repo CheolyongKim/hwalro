@@ -49,6 +49,8 @@ describe('EvacuationRoutePanel', () => {
     });
 
     expect(container.textContent).toContain('전시장 A');
+    expect(container.textContent).toContain('전시장 A의 대피 경로 표시');
+    expect(container.textContent).not.toContain('추천');
     expect(container.querySelectorAll('[role="switch"]')).toHaveLength(1);
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
 
