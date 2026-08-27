@@ -150,17 +150,16 @@ public class EvacuationPreviewService {
         }
 
         List<EvacuationRouteResponse> stale = routeStore.findLatest(versionId);
-        CompletableFuture<List<EvacuationRouteResponse>> inFlight = inFlightComputes.computeIfAbsent(
-            cacheKey,
-            key -> CompletableFuture.supplyAsync(
-                    () -> {
-                        List<EvacuationRouteResponse> fresh = computeAll(layoutId, versionId, zones);
-                        routeStore.save(layoutId, versionId, key, fresh);
-                        routeCache.put(key, fresh);
-                        return fresh;
-                    },
-                    computeExecutor)
-                .whenComplete((fresh, error) -> inFlightComputes.remove(key)));
+        CompletableFuture<List<EvacuationRouteResponse>> inFlight =
+                inFlightComputes.computeIfAbsent(cacheKey, key -> CompletableFuture.supplyAsync(
+                                () -> {
+                                    List<EvacuationRouteResponse> fresh = computeAll(layoutId, versionId, zones);
+                                    routeStore.save(layoutId, versionId, key, fresh);
+                                    routeCache.put(key, fresh);
+                                    return fresh;
+                                },
+                                computeExecutor)
+                        .whenComplete((fresh, error) -> inFlightComputes.remove(key)));
 
         if (stale != null) {
             return stale;
