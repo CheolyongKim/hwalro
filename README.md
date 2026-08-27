@@ -26,6 +26,10 @@ pnpm infra
 pnpm infra:migrate:auth-roles
 ```
 
+운영 RDS에 V1.5 이후 스키마 변경을 적용할 때는
+[`deploy/RDS_MIGRATION_V1_5_TO_CURRENT.md`](deploy/RDS_MIGRATION_V1_5_TO_CURRENT.md)의
+배포 전·후 순서를 따른다. 운영 배포는 `DB_INIT_MODE=never`이므로 Jenkins가 스키마를 자동 변경하지 않는다.
+
 > 팝업·전시·행사 공간의 배치안을 대피 시뮬레이션으로 사전 검토하고, 안전한 공간 운영을 위한 의사결정을 지원하는 서비스
 
 ## 서비스 소개

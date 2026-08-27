@@ -5,6 +5,8 @@
 -- apply this file once. Run the statements in order: the composite foreign keys
 -- in layout_zone_members require uk_walls_id_version, uk_pillars_id_version
 -- and uk_fabrics_id_version to exist first.
+USE hwalro_simulation;
+
 ALTER TABLE fabrics
     ADD COLUMN movable BOOLEAN NOT NULL DEFAULT TRUE AFTER rotation,
     ADD COLUMN max_movement_distance DECIMAL(12, 4) NULL AFTER movable,
