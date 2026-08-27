@@ -40,6 +40,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class EvacuationRouteCache {
+    /** 표시 경로 알고리즘이 바뀌면 저장된 이전 계산 결과를 재사용하지 않도록 올린다. */
+    static final String ROUTE_ALGORITHM_VERSION = "natural-exit-approach-v3";
+
     /** 동시에 검토할 만한 도면 수를 넉넉히 덮는 크기. 항목 하나는 구역 수십 개 분량의 경로다. */
     static final int MAX_ENTRIES = 16;
 
@@ -66,6 +69,7 @@ public class EvacuationRouteCache {
      */
     public static String keyOf(Long layoutVersionId, List<LayoutZone> zones) {
         StringJoiner joiner = new StringJoiner("|");
+        joiner.add(ROUTE_ALGORITHM_VERSION);
         joiner.add(String.valueOf(layoutVersionId));
         zones.stream()
                 .sorted((left, right) -> Long.compare(idOf(left), idOf(right)))

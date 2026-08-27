@@ -48,6 +48,9 @@ HAZARD_BOUNDARY_MULTIPLIER = 5.0
 HAZARD_CENTER_MULTIPLIER = 500.0
 RELOCATION_MARGIN_METERS = 1e-6
 _CONNECTOR_VISIBILITY_BATCH_SIZE = 4096
+# 표시 경로의 국소적인 U자 우회만 정리한다. 끝까지 역탐색하면 경로 점 수에
+# 대해 제곱으로 연결 검사가 늘어나므로 긴 경로의 화면 응답을 지연시킨다.
+_DISPLAY_SHORTCUT_LOOKAHEAD_POINTS = 16
 _EPSILON = 1e-9
 _MOVES = (
     (-1, -1),
@@ -1503,6 +1506,10 @@ class GridRouter:
     def can_connect(self, start: Point, end: Point) -> bool:
         return self._prepared_walkable.covers(LineString((start, end)))
 
+    def display_connection_cost(self, start: Point, end: Point) -> float:
+        """Return hazard-aware cost for a display-path shortcut candidate."""
+        return self._expanded_connector_cost(start, end)
+
     def can_connect_many(self, starts: Sequence[Point], ends: Sequence[Point]) -> np.ndarray:
         if len(starts) != len(ends):
             raise ValueError("connection start and end counts must match")
@@ -2035,3 +2042,205 @@ def orthogonalize_display_path(
         orthogonal.append(end)
 
     return _simplify_collinear(orthogonal, can_connect)
+
+
+def simplify_orthogonal_display_path(
+    path: Sequence[Point],
+    can_connect: Callable[[Point, Point], bool],
+    segment_cost: Callable[[Point, Point], float] = math.dist,
+) -> list[Point]:
+    """Remove walkable rectangular detours without increasing routing cost."""
+    if len(path) < 3:
+        return list(path)
+
+    accumulated_cost = [0.0]
+    for start, end in zip(path, path[1:]):
+        accumulated_cost.append(accumulated_cost[-1] + segment_cost(start, end))
+
+    simplified = [path[0]]
+    start_index = 0
+    while start_index < len(path) - 1:
+        start = path[start_index]
+        selected_end = start_index + 1
+        selected_connector = [path[selected_end]]
+
+        furthest_end = min(
+            len(path) - 1,
+            start_index + _DISPLAY_SHORTCUT_LOOKAHEAD_POINTS,
+        )
+        for end_index in range(furthest_end, start_index + 1, -1):
+            end = path[end_index]
+            connectors: list[list[Point]] = []
+            if abs(start[0] - end[0]) <= _EPSILON or abs(start[1] - end[1]) <= _EPSILON:
+                if can_connect(start, end):
+                    connectors.append([end])
+            else:
+                for bend in ((end[0], start[1]), (start[0], end[1])):
+                    if can_connect(start, bend) and can_connect(bend, end):
+                        connectors.append([bend, end])
+            if not connectors:
+                continue
+
+            original_cost = accumulated_cost[end_index] - accumulated_cost[start_index]
+
+            def connector_cost(connector: Sequence[Point]) -> float:
+                points = [start, *connector]
+                return sum(
+                    segment_cost(connector_start, connector_end)
+                    for connector_start, connector_end in zip(points, points[1:])
+                )
+
+            affordable = [
+                connector
+                for connector in connectors
+                if connector_cost(connector) <= original_cost + _EPSILON
+            ]
+            if not affordable:
+                continue
+            selected_end = end_index
+            selected_connector = min(
+                affordable,
+                key=lambda connector: (connector_cost(connector), len(connector), connector),
+            )
+            break
+
+        for point in selected_connector:
+            if math.dist(simplified[-1], point) > _EPSILON:
+                simplified.append(point)
+        start_index = selected_end
+
+    return simplified
+
+
+def naturalize_exit_approach(
+    path: Sequence[Point],
+    can_connect: Callable[[Point, Point], bool],
+    preferred_distance: float = 1.0,
+    segment_cost: Callable[[Point, Point], float] = math.dist,
+) -> list[Point]:
+    """Move the final display-path turn away from an exit when space permits.
+
+    Planned routes already finish at an approach point normal to the exit before
+    crossing to its terminal point.  Extending that connector backwards gives the
+    preview a visually natural final run without changing the physical route used
+    by the simulation.
+    """
+    displayed = simplify_orthogonal_display_path(
+        orthogonalize_display_path(path, can_connect),
+        can_connect,
+        segment_cost,
+    )
+    if len(path) < 3 or not math.isfinite(preferred_distance) or preferred_distance <= 0:
+        return displayed
+
+    existing_approach = path[-2]
+    terminal = path[-1]
+    connector_x = existing_approach[0] - terminal[0]
+    connector_y = existing_approach[1] - terminal[1]
+    connector_length = math.hypot(connector_x, connector_y)
+    if connector_length <= _EPSILON or connector_length + _EPSILON >= preferred_distance:
+        return displayed
+
+    inward = (connector_x / connector_length, connector_y / connector_length)
+    full_prefix = simplify_orthogonal_display_path(
+        orthogonalize_display_path(path[:-2], can_connect),
+        can_connect,
+        segment_cost,
+    )
+    attempted_distances = tuple(
+        preferred_distance * ratio for ratio in (1.0, 0.8, 0.6, 0.4)
+    )
+    for distance in attempted_distances:
+        if distance <= connector_length + _EPSILON:
+            continue
+        candidate = (
+            terminal[0] + inward[0] * distance,
+            terminal[1] + inward[1] * distance,
+        )
+        if not can_connect(candidate, existing_approach):
+            continue
+
+        anchor_index = next(
+            (
+                index
+                for index in range(len(full_prefix) - 1, -1, -1)
+                if (
+                    (full_prefix[index][0] - terminal[0]) * inward[0]
+                    + (full_prefix[index][1] - terminal[1]) * inward[1]
+                )
+                + _EPSILON
+                >= distance
+            ),
+            None,
+        )
+        if anchor_index is None:
+            continue
+        prefix = full_prefix[: anchor_index + 1]
+        transition_start = prefix[-1]
+        transition = []
+        if (
+            abs(transition_start[0] - candidate[0]) > _EPSILON
+            and abs(transition_start[1] - candidate[1]) > _EPSILON
+        ):
+            bends = (
+                (candidate[0], transition_start[1]),
+                (transition_start[0], candidate[1]),
+            )
+            valid_bends = [
+                bend
+                for bend in bends
+                if can_connect(transition_start, bend) and can_connect(bend, candidate)
+            ]
+            if not valid_bends:
+                continue
+            preferred_bend = min(
+                valid_bends,
+                key=lambda bend: abs(
+                    (candidate[0] - bend[0]) * inward[0]
+                    + (candidate[1] - bend[1]) * inward[1]
+                ),
+            )
+            transition.append(preferred_bend)
+        transition.append(candidate)
+        adjusted = _simplify_collinear(
+            [*prefix, *transition, terminal], can_connect
+        )
+        if len(adjusted) < 2:
+            continue
+        if any(
+            not can_connect(start, end)
+            for start, end in zip(adjusted[:-2], adjusted[1:-1])
+        ):
+            continue
+
+        final_start = adjusted[-2]
+        final_x = final_start[0] - terminal[0]
+        final_y = final_start[1] - terminal[1]
+        final_length = math.hypot(final_x, final_y)
+        cross = final_x * inward[1] - final_y * inward[0]
+        if (
+            final_length + _EPSILON < distance
+            or abs(cross) > _EPSILON * max(final_length, 1.0)
+            or final_x * inward[0] + final_y * inward[1] <= 0
+        ):
+            continue
+
+        if len(adjusted) >= 3:
+            before_x = final_start[0] - adjusted[-3][0]
+            before_y = final_start[1] - adjusted[-3][1]
+            before_length = math.hypot(before_x, before_y)
+            turn_dot = before_x * final_x + before_y * final_y
+            turn_cross = before_x * final_y - before_y * final_x
+            is_right_angle = abs(turn_dot) <= _EPSILON * max(
+                before_length * final_length, 1.0
+            )
+            is_straight = (
+                abs(turn_cross)
+                <= _EPSILON * max(before_length * final_length, 1.0)
+                and turn_dot < 0
+            )
+            if not is_right_angle and not is_straight:
+                continue
+        return adjusted
+
+    return displayed
