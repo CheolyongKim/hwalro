@@ -120,7 +120,13 @@ public class LayoutSearchQueryService {
                         baselineMetrics,
                         recommendationTypes.get(candidate.getId())))
                 .toList();
-        List<CandidateDto> rejected = List.of();
+        List<CandidateDto> rejected = verified
+                ? candidates.stream()
+                        .filter(candidate -> isMeasuredComparison(candidate, recommendationTypes))
+                        .map(candidate ->
+                                toCandidate(candidate, trials.get(candidate.getId()), baselineMetrics, List.of()))
+                        .toList()
+                : List.of();
 
         boolean terminal = TERMINAL_STATUSES.contains(search.getStatus());
         int verifiedCount = (int) candidates.stream()
@@ -166,6 +172,16 @@ public class LayoutSearchQueryService {
                 rejected,
                 search.getFailureCode(),
                 search.getFailureMessage());
+    }
+
+    static boolean isMeasuredComparison(
+            LayoutSearchCandidateEntity candidate, Map<Long, List<String>> recommendationTypes) {
+        return List.of(
+                                CandidateStatus.EVALUATED.name(),
+                                CandidateStatus.NOT_IMPROVED.name(),
+                                CandidateStatus.FAILED.name())
+                        .contains(candidate.getStatus())
+                && !recommendationTypes.containsKey(candidate.getId());
     }
 
     static Integer plannedCount(
@@ -223,7 +239,9 @@ public class LayoutSearchQueryService {
                                 .map(LayoutSearchQueryService::toMetricDto)
                                 .toList(),
                 deltas.stream().map(LayoutSearchQueryService::toDeltaDto).toList(),
-                candidate.getRejectReason(),
+                candidate.getRejectReason() != null
+                        ? candidate.getRejectReason()
+                        : trial == null ? null : trial.getFailureMessage(),
                 candidate.getPreparedSimulationId() == null
                         ? null
                         : new PreparedSimulationDto(
