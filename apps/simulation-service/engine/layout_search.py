@@ -1305,14 +1305,12 @@ class _Generation:
             self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_FIXED", before, after)
             return True
         after_geometry = _rect_geometry({**fabric, **after})
+        if not self.constraints.allows_placement(fabric.get("id"), after_geometry):
+            self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_ZONE", before, after)
+            return True
         if self.constraints.intersects_forbidden_zone(after_geometry):
             self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_ZONE", before, after)
             return True
-        if self.constraints.is_wall_anchored(fabric.get("id")):
-            walls = drawing_walls(self.drawing)
-            if not _touches_any_wall(after_geometry, walls):
-                self.rejections.add("CONSTRAINT", _raw_fabric_id(fabric), "CONSTRAINT_WALL_ANCHOR", before, after)
-                return True
         return False
 
     def try_dual_gap(
