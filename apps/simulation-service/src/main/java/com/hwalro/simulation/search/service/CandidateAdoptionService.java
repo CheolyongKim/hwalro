@@ -215,11 +215,11 @@ public class CandidateAdoptionService {
     }
 
     private boolean sameTransform(Fabric fabric, ChangeOp.FabricTransform transform) {
-        return fabric.getStartX().compareTo(transform.startX()) == 0
-                && fabric.getStartY().compareTo(transform.startY()) == 0
-                && fabric.getEndX().compareTo(transform.endX()) == 0
-                && fabric.getEndY().compareTo(transform.endY()) == 0
-                && fabric.getRotation().compareTo(transform.rotation()) == 0;
+        return LayoutSearchPrecision.same(fabric.getStartX(), transform.startX())
+                && LayoutSearchPrecision.same(fabric.getStartY(), transform.startY())
+                && LayoutSearchPrecision.same(fabric.getEndX(), transform.endX())
+                && LayoutSearchPrecision.same(fabric.getEndY(), transform.endY())
+                && LayoutSearchPrecision.same(fabric.getRotation(), transform.rotation());
     }
 
     private void copyExits(Long sourceVersionId, Long targetVersionId) {

@@ -640,9 +640,24 @@ public class LayoutSearchOrchestrator {
         return readChangeSet(json).ops();
     }
 
-    /** 같은 변경인지 판정하는 키. 저장본과 새 후보를 같은 직렬화기로 통과시켜 비교한다. */
     private String opsKey(List<ChangeOp> ops) {
-        return writeJson(ops);
+        return ops.stream().map(this::opKey).sorted().collect(java.util.stream.Collectors.joining("|"));
+    }
+
+    private String opKey(ChangeOp op) {
+        ChangeOp.FabricTransform before = op.before();
+        ChangeOp.FabricTransform after = op.after();
+        return String.join(":", op.type(), String.valueOf(op.fabricId()), transformKey(before), transformKey(after));
+    }
+
+    private String transformKey(ChangeOp.FabricTransform transform) {
+        return String.join(
+                ",",
+                LayoutSearchPrecision.key(transform.startX()),
+                LayoutSearchPrecision.key(transform.startY()),
+                LayoutSearchPrecision.key(transform.endX()),
+                LayoutSearchPrecision.key(transform.endY()),
+                LayoutSearchPrecision.key(transform.rotation()));
     }
 
     private LayoutSearchEntity requireSearch(Long searchId) {

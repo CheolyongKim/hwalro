@@ -203,7 +203,8 @@ public class LayoutSearchRunner {
         if (!isFiniteRectangle(before) || !isFiniteRectangle(after)) {
             throw new SearchRunException("배치 탐색 엔진의 변경 작업 좌표가 유효하지 않습니다.");
         }
-        if (area(before).compareTo(area(after)) != 0) {
+        if (!LayoutSearchPrecision.sameSpan(before.startX(), before.endX(), after.startX(), after.endX())
+                || !LayoutSearchPrecision.sameSpan(before.startY(), before.endY(), after.startY(), after.endY())) {
             throw new SearchRunException("배치 탐색 엔진의 변경 작업이 fabric 크기를 변경합니다.");
         }
         if (sameRectangle(before, after)) {
@@ -233,16 +234,8 @@ public class LayoutSearchRunner {
         return rectangle.endY().subtract(rectangle.startY()).abs();
     }
 
-    private static BigDecimal area(ChangeOp.FabricTransform rectangle) {
-        return width(rectangle).multiply(height(rectangle));
-    }
-
     private static boolean sameRectangle(ChangeOp.FabricTransform before, ChangeOp.FabricTransform after) {
-        return before.startX().compareTo(after.startX()) == 0
-                && before.startY().compareTo(after.startY()) == 0
-                && before.endX().compareTo(after.endX()) == 0
-                && before.endY().compareTo(after.endY()) == 0
-                && before.rotation().compareTo(after.rotation()) == 0;
+        return LayoutSearchPrecision.sameTransform(before, after);
     }
 
     private static Path resolveScript(String configured) {
