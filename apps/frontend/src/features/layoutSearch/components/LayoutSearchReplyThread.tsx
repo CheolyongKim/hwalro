@@ -6,7 +6,7 @@ import { layoutSearchReplies, trialCandidates, type SearchReply } from '../utils
 import {
   CANDIDATE_STATUS_LABELS,
   formatDelta,
-  operatorLabel,
+  recommendationLabel,
   SEARCH_STATUS_LABELS,
 } from '../utils/searchLabels';
 
@@ -77,10 +77,6 @@ function CandidateRow({
       d.metricType === 'SIMULATION_DURATION_SECONDS',
   );
   const avgTimeDelta = deltas.find((d) => d.metricType === 'AVERAGE_EVACUATION_TIME_SECONDS');
-  const exitImbalanceDelta = deltas.find(
-    (d) => d.metricType === 'EXIT_IMBALANCE' || d.metricType === 'EXIT_IMBALANCE_RATIO',
-  );
-  const maxDensityDelta = deltas.find((d) => d.metricType === 'MAX_DENSITY');
 
   const { statusLabel, statusBadgeStyle } = (() => {
     if (isRunning) {
@@ -165,7 +161,7 @@ function CandidateRow({
                 </span>
               )}
               <span className="inline-flex shrink-0 items-center rounded bg-accent-purple-soft px-1.5 py-0.5 text-[10px] font-bold text-accent-purple">
-                {operatorLabel(candidate.operatorType)}
+                {recommendationLabel(candidate.recommendationTypes)}
               </span>
             </div>
           </div>
@@ -200,17 +196,6 @@ function CandidateRow({
         <DeltaCell delta={avgTimeDelta} inverse={true} />
       </td>
 
-      {/* 5. 비상구 편중도 — 비상구가 둘 이상일 때만 산출되므로 없으면 '-'로 둔다 */}
-      <td className="px-4 py-2.5 text-xs">
-        <DeltaCell delta={exitImbalanceDelta} inverse={true} />
-      </td>
-
-      {/* 6. 최대 밀집도 — 안전 기준을 넘긴 상승은 개선 판정에서 거부 사유가 된다 */}
-      <td className="px-4 py-2.5 text-xs">
-        <DeltaCell delta={maxDensityDelta} inverse={true} />
-      </td>
-
-      {/* 7. 관리 */}
       <td className="px-6 py-2.5 text-center">
         {simulationId && onDeleteSimulation ? (
           <div className="flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 focus-within:opacity-100">
@@ -326,8 +311,6 @@ export function LayoutSearchReplyThread({
                 <th className="px-4 py-2">상태</th>
                 <th className="px-4 py-2">총 대피시간 개선</th>
                 <th className="px-4 py-2">평균 대피시간 개선</th>
-                <th className="px-4 py-2">비상구 편중도</th>
-                <th className="px-4 py-2">최대 밀집도</th>
                 <th className="px-6 py-2 text-center">관리</th>
               </tr>
             </thead>

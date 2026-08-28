@@ -67,6 +67,7 @@ function candidate(candidateId = 11): SearchCandidate {
     originFindingType: 'BOTTLENECK',
     operatorType,
     status: 'EVALUATED',
+    recommendationTypes: [candidateId === 11 ? 'TOTAL_TIME' : 'AVERAGE_TIME'],
     rationale: {
       findingIndex: 0,
       operatorType,
@@ -283,7 +284,7 @@ describe('배치 개선안 페이지 interaction', () => {
     expect(container.querySelector('a[href="/simulations/111/setup"]')).not.toBeNull();
 
     const secondCandidate = [...container.querySelectorAll('button')].find((element) =>
-      element.textContent?.includes('혼잡 완화'),
+      element.textContent?.includes('평균시간 최적'),
     );
     await act(async () => secondCandidate?.click());
     expect((button('이 개선안으로 시뮬레이션 진행') as HTMLButtonElement).disabled).toBe(false);
@@ -307,7 +308,7 @@ describe('배치 개선안 페이지 interaction', () => {
       await Promise.resolve();
     });
     const secondCandidate = [...container.querySelectorAll('button')].find((element) =>
-      element.textContent?.includes('혼잡 완화'),
+      element.textContent?.includes('평균시간 최적'),
     );
     await act(async () => secondCandidate?.click());
 

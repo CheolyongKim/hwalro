@@ -7,6 +7,7 @@ import {
   findingLabel,
   metricLabel,
   operatorLabel,
+  recommendationLabel,
 } from '../utils/searchLabels';
 
 interface Props {
@@ -26,7 +27,11 @@ export function CandidateDetailPanel({
 }: Props) {
   // 검증 없이 돌린 탐색은 실측 지표가 없다. 그때 개선 폭을 알 수 있는 유일한 방법이 이 후보로
   // 시뮬레이션을 실제로 돌려보는 것이므로, 수치가 없다는 이유로 준비를 막으면 안 된다.
-  const measured = candidate.measuredMetrics ?? [];
+  const measured = (candidate.measuredMetrics ?? []).filter((metric) =>
+    ['TOTAL_EVACUATION_TIME_SECONDS', 'AVERAGE_EVACUATION_TIME_SECONDS'].includes(
+      metric.metricType,
+    ),
+  );
   const preparedSimulation = candidate.preparedSimulation;
 
   return (
@@ -50,8 +55,8 @@ export function CandidateDetailPanel({
         </div>
 
         <div className="strategy-tags">
+          <span>{recommendationLabel(candidate.recommendationTypes)}</span>
           <span>{findingLabel(candidate.originFindingType)}</span>
-          <span>{candidate.round === 1 ? '1차 개선안' : `${candidate.round}차 개선안`}</span>
         </div>
         <h2>{operatorLabel(candidate.operatorType)}</h2>
         <p>{candidate.rationale?.description ?? '변경 근거가 없습니다.'}</p>

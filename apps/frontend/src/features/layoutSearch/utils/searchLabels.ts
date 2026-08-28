@@ -1,4 +1,9 @@
-import type { CandidateStatus, MetricDelta, SearchStatus } from '../api/layoutSearchApi';
+import type {
+  CandidateStatus,
+  MetricDelta,
+  RecommendationType,
+  SearchStatus,
+} from '../api/layoutSearchApi';
 
 export const SEARCH_STATUS_LABELS: Record<SearchStatus, string> = {
   PENDING: '준비 중',
@@ -31,6 +36,7 @@ export const OPERATOR_LABELS: Record<string, string> = {
   EXIT_OPENING: '출구 전면 확보',
   CLEAR_EXIT_PATH: '출구 직선 경로 확보',
   CONSTRAINT: '제약 위반',
+  BOUNDARY_DOCKING: '경계 흡착 배치',
 };
 
 export const FINDING_LABELS: Record<string, string> = {
@@ -38,7 +44,19 @@ export const FINDING_LABELS: Record<string, string> = {
   CONGESTION_HOTSPOT: '혼잡 구역',
   EXIT_IMBALANCE: '출구 편중',
   EVACUATION_TAIL: '대피 지연',
+  IDEAL_ROUTE: '이상 경로',
 };
+
+export const RECOMMENDATION_LABELS: Record<RecommendationType, string> = {
+  TOTAL_TIME: '총시간 최적',
+  AVERAGE_TIME: '평균시간 최적',
+  BALANCED: '균형 최적',
+  GEOMETRY: '실측 전 예상안',
+};
+
+export function recommendationLabel(types: readonly RecommendationType[] | undefined) {
+  return types?.map((type) => RECOMMENDATION_LABELS[type]).join(' · ') ?? '개선안';
+}
 
 export const REJECT_REASON_LABELS: Record<string, string> = {
   OUTSIDE_BOUNDARY: '도면 경계를 벗어남',

@@ -1,5 +1,5 @@
 import type { SearchCandidate } from '../api/layoutSearchApi';
-import { operatorLabel } from '../utils/searchLabels';
+import { recommendationLabel } from '../utils/searchLabels';
 
 const MAX_TABS = 20;
 
@@ -52,10 +52,12 @@ export function CandidateTabs({ improved, activeKey, onSelect }: CandidateTabsPr
             aria-controls="candidate-tabpanel"
             className={`no-improvement-tab ${colorClass}${isSelected ? ' is-active' : ''}`}
             onClick={() => onSelect(key)}
-            title="개선 확인"
+            title={recommendationLabel(candidate.recommendationTypes)}
           >
-            {operatorLabel(candidate.operatorType)}
-            <span className="candidate-tab__mark">개선</span>
+            {recommendationLabel(candidate.recommendationTypes)}
+            <span className="candidate-tab__mark">
+              {candidate.recommendationTypes?.includes('GEOMETRY') ? '예상' : '실측'}
+            </span>
           </button>
         );
       })}
