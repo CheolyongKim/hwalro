@@ -8,6 +8,8 @@ import {
   metricLabel,
   operatorLabel,
   recommendationLabel,
+  candidateResultLabel,
+  rejectReasonLabel,
 } from '../utils/searchLabels';
 
 interface Props {
@@ -55,6 +57,7 @@ export function CandidateDetailPanel({
         </div>
 
         <div className="strategy-tags">
+          <span>{candidateResultLabel(candidate)}</span>
           <span>{recommendationLabel(candidate.recommendationTypes)}</span>
           <span>{findingLabel(candidate.originFindingType)}</span>
         </div>
@@ -96,7 +99,9 @@ export function CandidateDetailPanel({
                   <strong>{formatNumber(metric.metricValue)}</strong>
                 </div>
                 {metricDelta && (
-                  <em className="delta-badge is-improved">{formatDelta(metricDelta)}</em>
+                  <em className={`delta-badge ${metricDelta.difference <= 0 ? 'is-improved' : 'is-worse'}`}>
+                    {formatDelta(metricDelta)}
+                  </em>
                 )}
               </div>
             );
@@ -117,7 +122,7 @@ export function CandidateDetailPanel({
         {preparedSimulation ? (
           <>
             <p className="preparation-feedback is-success" role="status">
-              시뮬레이션 준비됨
+              실측 시뮬레이션 저장됨
             </p>
             <div className="preparation-success-actions">
               <Link
@@ -134,6 +139,13 @@ export function CandidateDetailPanel({
               </Link>
             </div>
           </>
+        ) : candidate.status === 'NOT_IMPROVED' || candidate.status === 'FAILED' ? (
+          <p className="preparation-feedback is-error" role="status">
+            {candidate.status === 'FAILED'
+              ? (rejectReasonLabel(candidate.rejectReason) ??
+                '검증 실행이 실패해 열 수 있는 시뮬레이션 결과가 없습니다.')
+              : '이전 검증 결과에는 열 수 있는 시뮬레이션 기록이 없습니다.'}
+          </p>
         ) : (
           <>
             {!previewAvailable && (

@@ -7,11 +7,14 @@ import {
   CANDIDATE_STATUS_LABELS,
   formatDelta,
   recommendationLabel,
+  rejectReasonLabel,
   SEARCH_STATUS_LABELS,
 } from '../utils/searchLabels';
 
 interface Props {
   search: LayoutSearch;
+  onCancelSearch?: (searchId: number) => void;
+  cancellingSearchId?: number | null;
   onDeleteSimulation?: (simulationId: number) => void;
   deletingSimulationId?: number | null;
 }
@@ -69,6 +72,10 @@ function CandidateRow({
   const isEvaluated = candidateStatus === 'EVALUATED';
   const isNotImproved = candidateStatus === 'NOT_IMPROVED';
   const isFailed = candidateStatus === 'FAILED' || preparedStatus === 'FAILED';
+  const isCancelled = candidate.rejectReason?.startsWith('SEARCH_CANCELLED') ?? false;
+  const failureReason = rejectReasonLabel(candidate.rejectReason);
+  const isRecommended =
+    candidateStatus === 'EVALUATED' && (candidate.recommendationTypes?.length ?? 0) > 0;
 
   const deltas = candidate.delta ?? [];
   const totalTimeDelta = deltas.find(
@@ -106,6 +113,12 @@ function CandidateRow({
     if (isNotImproved) {
       return {
         statusLabel: '개선 미달',
+        statusBadgeStyle: 'bg-soft-gray text-text-muted border border-line',
+      };
+    }
+    if (isCancelled) {
+      return {
+        statusLabel: '취소됨',
         statusBadgeStyle: 'bg-soft-gray text-text-muted border border-line',
       };
     }
@@ -153,11 +166,11 @@ function CandidateRow({
                   to={simulationLinkTo}
                   className="truncate text-sm font-bold text-text-strong transition-colors hover:text-primary group-hover/row:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
-                  개선안 #{candidate.candidateId}
+                  {isRecommended ? '추천안' : '실측 후보'} #{candidate.candidateId}
                 </Link>
               ) : (
                 <span className="truncate text-sm font-bold text-text-strong">
-                  개선안 #{candidate.candidateId}
+                  {isRecommended ? '추천안' : '실측 후보'} #{candidate.candidateId}
                 </span>
               )}
               <span className="inline-flex shrink-0 items-center rounded bg-accent-purple-soft px-1.5 py-0.5 text-[10px] font-bold text-accent-purple">
@@ -171,6 +184,7 @@ function CandidateRow({
       {/* 2. 상태 (13%) */}
       <td className="px-4 py-2.5">
         <span
+          title={failureReason ?? undefined}
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeStyle}`}
         >
           {isRunning && (
@@ -184,6 +198,9 @@ function CandidateRow({
           )}
           {statusLabel}
         </span>
+        {isFailed && failureReason && (
+          <p className="mt-1 text-[11px] leading-snug text-danger-strong">{failureReason}</p>
+        )}
       </td>
 
       {/* 3. 총 대피 시간 개선 (11%) */}
@@ -242,6 +259,8 @@ function StatusFeedItem({ reply }: { reply: SearchReply }) {
 
 export function LayoutSearchReplyThread({
   search,
+  onCancelSearch,
+  cancellingSearchId = null,
   onDeleteSimulation,
   deletingSimulationId,
 }: Props) {
@@ -281,14 +300,26 @@ export function LayoutSearchReplyThread({
           </span>
         </div>
 
-        <Link
-          to={`/simulations/${search.baselineSimulationId}/layout-search`}
-          className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2.5 py-1 text-xs font-bold text-text-strong shadow-xs transition hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-        >
-          <Play className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
-          탐색 워크스페이스
-          <ChevronRight className="h-3 w-3" aria-hidden="true" />
-        </Link>
+        <div className="flex items-center gap-2">
+          {isSearching && onCancelSearch && (
+            <button
+              type="button"
+              disabled={cancellingSearchId !== null}
+              onClick={() => onCancelSearch(search.searchId)}
+              className="inline-flex items-center rounded-md border border-danger/25 bg-white px-2.5 py-1 text-xs font-bold text-danger-strong transition hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {cancellingSearchId === search.searchId ? '취소 요청 중…' : '탐색 취소'}
+            </button>
+          )}
+          <Link
+            to={`/simulations/${search.baselineSimulationId}/layout-search`}
+            className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2.5 py-1 text-xs font-bold text-text-strong shadow-xs transition hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
+            <Play className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+            탐색 워크스페이스
+            <ChevronRight className="h-3 w-3" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
 
       {/* 후보 목록이 있을 경우 테이블 형태로 렌더링 */}

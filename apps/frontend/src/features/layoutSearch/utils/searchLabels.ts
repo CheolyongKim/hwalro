@@ -55,7 +55,26 @@ export const RECOMMENDATION_LABELS: Record<RecommendationType, string> = {
 };
 
 export function recommendationLabel(types: readonly RecommendationType[] | undefined) {
-  return types?.map((type) => RECOMMENDATION_LABELS[type]).join(' · ') ?? '개선안';
+  return types && types.length > 0
+    ? types.map((type) => RECOMMENDATION_LABELS[type]).join(' · ')
+    : '비교 후보';
+}
+
+export function candidateResultLabel(candidate: {
+  status: CandidateStatus;
+  delta: MetricDelta[];
+}) {
+  if (candidate.status === 'EVALUATED') return '개선됨';
+  if (candidate.status === 'FAILED') return '검증 실패';
+  if (candidate.status !== 'NOT_IMPROVED') return CANDIDATE_STATUS_LABELS[candidate.status];
+  const evacuationDeltas = candidate.delta.filter((item) =>
+    ['TOTAL_EVACUATION_TIME_SECONDS', 'AVERAGE_EVACUATION_TIME_SECONDS'].includes(item.metricType),
+  );
+  if (evacuationDeltas.some((item) => item.difference > 0)) return '악화됨';
+  if (evacuationDeltas.length > 0 && evacuationDeltas.every((item) => item.difference === 0)) {
+    return '변화 없음';
+  }
+  return '개선 미달';
 }
 
 export const REJECT_REASON_LABELS: Record<string, string> = {
@@ -93,6 +112,12 @@ export function findingLabel(findingType: string) {
 export function rejectReasonLabel(reason: string | null) {
   if (!reason) {
     return null;
+  }
+  if (reason.startsWith('AGENT_PLACEMENT_FAILED')) {
+    return '변경 배치에서 초기 인원을 안전하게 배치할 공간이 부족합니다.';
+  }
+  if (reason.startsWith('SEARCH_CANCELLED')) {
+    return '사용자가 배치 개선안 탐색을 취소했습니다.';
   }
   return REJECT_REASON_LABELS[reason] ?? reason;
 }

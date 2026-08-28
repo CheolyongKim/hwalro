@@ -86,12 +86,14 @@ export default function LayoutSearchPage() {
     setSelectedTabKey(null);
   }, [search?.searchId]);
 
-  const improvedCandidates = search?.improvedCandidates ?? [];
+  const candidates = useMemo(
+    () => [...(search?.improvedCandidates ?? []), ...(search?.rejectedCandidates ?? [])],
+    [search?.improvedCandidates, search?.rejectedCandidates],
+  );
 
-  // 거부된 후보는 "그 자리에 넣을 수 없다"는 사실일 뿐 제안이 아니므로 탭에 올리지 않는다.
   const defaultTabKey = useMemo(
-    () => (improvedCandidates.length > 0 ? `i-${improvedCandidates[0].candidateId}` : null),
-    [improvedCandidates],
+    () => (candidates.length > 0 ? `c-${candidates[0].candidateId}` : null),
+    [candidates],
   );
 
   const activeTabKey = selectedTabKey ?? defaultTabKey;
@@ -101,8 +103,8 @@ export default function LayoutSearchPage() {
       return null;
     }
     const candidateId = Number(activeTabKey.slice(2));
-    return improvedCandidates.find((entry) => entry.candidateId === candidateId) ?? null;
-  }, [activeTabKey, improvedCandidates]);
+    return candidates.find((entry) => entry.candidateId === candidateId) ?? null;
+  }, [activeTabKey, candidates]);
 
   const preview = useMemo(() => {
     if (!sourceSetup || !selectedCandidate) {
@@ -177,10 +179,11 @@ export default function LayoutSearchPage() {
       )}
 
       {/* 상단 플로팅 탭 바 */}
-      {improvedCandidates.length > 0 && (
+      {candidates.length > 0 && (
         <div className="layout-search-floating-tabs">
           <CandidateTabs
-            improved={search.improvedCandidates}
+            recommended={search.improvedCandidates}
+            comparisons={search.rejectedCandidates}
             activeKey={activeTabKey ?? ''}
             onSelect={setSelectedTabKey}
           />
