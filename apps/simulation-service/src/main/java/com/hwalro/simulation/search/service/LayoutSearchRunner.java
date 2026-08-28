@@ -122,6 +122,7 @@ public class LayoutSearchRunner {
         value.put("agents", input.agents());
         value.put("hazards", input.hazards());
         value.put("selectedExitIds", input.selectedExitIds());
+        value.put("plannerMode", "IDEAL_ROUTE_DOCKING");
         value.put("densityThreshold", input.densityThreshold());
         value.put("findings", input.findings());
         value.put("parents", input.parents());

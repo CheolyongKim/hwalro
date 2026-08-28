@@ -18,7 +18,6 @@ from __future__ import annotations
 import json
 import math
 import sys
-from decimal import ROUND_HALF_UP, Decimal
 from itertools import combinations
 from typing import Any, NamedTuple, Sequence
 
@@ -27,6 +26,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points
 
 import surrogate
+from ideal_route_docking import generate_docking_candidates
 from constraints import SearchConstraints, parse_constraints, touches_wall
 from layout_features import (
     FEATURE_SCHEMA_VERSION,
@@ -44,8 +44,11 @@ from route_planner import (
     parse_hazards,
     relocate_agents,
 )
+from search_precision import decimal_value as _decimal
+from search_precision import quantized as _quantized
 
 PLANNER_VERSION = "DIAGNOSTIC_BEAM_V2"
+IDEAL_ROUTE_DOCKING_VERSION = "IDEAL_ROUTE_DOCKING_V2"
 SURROGATE_PLANNER_VERSION = "DIAGNOSTIC_BEAM_S1"
 EXHAUSTIVE_PLANNER_VERSION = "DIAGNOSTIC_EXHAUSTIVE_V2"
 CLEARANCE_METERS = 0.4
@@ -80,10 +83,6 @@ POOL_CAP = 64
 # finding's pool. Final ranking stays purely best-first - this only decides what gets ranked.
 PER_OPERATOR_CAP = 16
 EPSILON = 1e-9
-# Layout coordinates are persisted as DECIMAL(12, 4); emitting more precision
-# than that cannot survive a round trip through the database anyway.
-COORDINATE_DECIMALS = 4
-COORDINATE_QUANTUM = Decimal(1).scaleb(-COORDINATE_DECIMALS)
 MOVE_FABRIC = "MOVE_FABRIC"
 REJECT_REASONS = ("OUTSIDE_BOUNDARY", "OVERLAP", "CORRIDOR_BLOCKED", "AGENT_UNREACHABLE_EXIT", "INVALID_GEOMETRY")
 REJECTED_EXAMPLES_PER_REASON = 20
@@ -106,14 +105,6 @@ _PRIMARY_OPERATOR = {
 
 def _numeric(value: Any) -> float:
     return float(value)
-
-
-def _decimal(value: Any) -> Decimal:
-    return value if isinstance(value, Decimal) else Decimal(str(value))
-
-
-def _quantized(value: Decimal) -> Decimal:
-    return value.quantize(COORDINATE_QUANTUM, rounding=ROUND_HALF_UP)
 
 
 def _rect_geometry(item: dict[str, Any]) -> Any:
@@ -1703,6 +1694,39 @@ def generate(input_data: dict[str, Any]) -> dict[str, Any]:
     drawing = input_data["drawing"]
     agents = [(_numeric(point["x"]), _numeric(point["y"])) for point in input_data.get("agents", [])]
     hazards = parse_hazards(input_data.get("hazards", []))
+    if input_data.get("plannerMode") == "IDEAL_ROUTE_DOCKING":
+        candidates = generate_docking_candidates(
+            drawing=drawing,
+            agents=agents,
+            selected_exit_ids=input_data.get("selectedExitIds", []),
+            hazards=hazards,
+            max_candidates=max(0, int(input_data.get("maxCandidates", 0))),
+            constraints=input_data.get("constraints"),
+        )
+        return {
+            "plannerVersion": IDEAL_ROUTE_DOCKING_VERSION,
+            "candidates": [
+                {
+                    "originFindingType": "IDEAL_ROUTE",
+                    "operatorType": "BOUNDARY_DOCKING",
+                    "parentCandidateId": None,
+                    "proxyScore": item["recoveredRouteCost"],
+                    "ops": item["ops"],
+                    "rationale": {
+                        "recoveredAgentCount": item["recoveredAgentCount"],
+                        "recoveredRouteCost": item["recoveredRouteCost"],
+                        "plannerMode": "IDEAL_ROUTE_DOCKING",
+                    },
+                }
+                for item in candidates
+            ],
+            "rejected": [],
+            "rejectedCounts": {},
+            "generationMode": GENERATION_BOUNDED,
+            "roundIndex": DEFAULT_ROUND_INDEX,
+            "rawCandidateCount": len(candidates),
+            "surrogateHealth": {"status": "DISABLED", "reason": "IDEAL_ROUTE_DOCKING"},
+        }
     exits = parse_exits(drawing, input_data.get("selectedExitIds", []))
     findings = input_data.get("findings", [])
     parents = input_data.get("parents", [])
