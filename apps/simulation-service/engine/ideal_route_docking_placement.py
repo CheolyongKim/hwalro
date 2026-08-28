@@ -154,3 +154,104 @@ def placements(
                 continue
             result.append(Placement(after, placed, travel))
     return sorted(result, key=lambda item: (item.travel, item.state["rotation"], item.state["startX"], item.state["startY"]))
+
+
+def push_placements(
+    drawing: Drawing,
+    fabric: Rectangle,
+    static_obstacles: Sequence[BaseGeometry],
+    constraints: SearchConstraints,
+    route_angles: Sequence[float],
+) -> list[Placement]:
+    outside = Polygon([(item["x"], item["y"]) for item in drawing["outsideBoundary"]])
+    before = state(fabric)
+    source_center = (
+        (before["startX"] + before["endX"]) / 2.0,
+        (before["startY"] + before["endY"]) / 2.0,
+    )
+    width = abs(before["endX"] - before["startX"])
+    height = abs(before["endY"] - before["startY"])
+    exit_guard = [
+        LineString(((item["startX"], item["startY"]), (item["endX"], item["endY"]))).buffer(
+            GRID_STEP_METERS
+        )
+        for item in drawing.get("exits", [])
+    ]
+    walls = [
+        LineString(((item["startX"], item["startY"]), (item["endX"], item["endY"])))
+        for item in drawing.get("walls", [])
+    ]
+    movement_area = constraints.movement_area_of(fabric["id"])
+    travel_area = movement_area if movement_area is not None else outside
+    min_x, min_y, max_x, max_y = travel_area.bounds
+    maximum_travel = math.hypot(max_x - min_x, max_y - min_y)
+
+    def valid(candidate: RectState) -> bool:
+        placed = geometry(candidate)
+        return (
+            outside.covers(placed)
+            and not any(placed.intersects(item) for item in static_obstacles)
+            and not any(placed.crosses(wall) or placed.contains(wall) for wall in walls)
+            and constraints.allows_placement(fabric["id"], placed)
+            and not any(placed.intersects(item) for item in exit_guard)
+            and not constraints.intersects_forbidden_zone(placed)
+        )
+
+    def shifted(base: RectState, direction: tuple[float, float], distance: float) -> RectState:
+        dx, dy = direction[0] * distance, direction[1] * distance
+        return {
+            "startX": float(quantized(decimal_value(base["startX"] + dx))),
+            "startY": float(quantized(decimal_value(base["startY"] + dy))),
+            "endX": float(quantized(decimal_value(base["endX"] + dx))),
+            "endY": float(quantized(decimal_value(base["endY"] + dy))),
+            "rotation": base["rotation"],
+        }
+
+    def furthest(base: RectState, direction: tuple[float, float]) -> RectState:
+        step = GRID_STEP_METERS / 2.0
+        distance = 0.0
+        last = base
+        while distance + step <= maximum_travel + 1e-9:
+            distance += step
+            candidate = shifted(base, direction, distance)
+            if not valid(candidate):
+                low, high = distance - step, distance
+                for _ in range(12):
+                    middle = (low + high) / 2.0
+                    refined = shifted(base, direction, middle)
+                    if valid(refined):
+                        low, last = middle, refined
+                    else:
+                        high = middle
+                return last
+            last = candidate
+        return last
+
+    result: list[Placement] = []
+    seen: set[tuple[float, float, float, float, float]] = set()
+    for angle in route_angles:
+        radians = math.radians(angle)
+        directions = ((-math.sin(radians), math.cos(radians)), (math.sin(radians), -math.cos(radians)))
+        for direction in directions:
+            translated = furthest(before, direction)
+            states = [translated]
+            if constraints.rotation_allowed_of(fabric["id"]):
+                aligned_rotation = angle - (90.0 if height > width else 0.0)
+                rotated_state: RectState = {
+                    **translated,
+                    "rotation": float(quantized(decimal_value(aligned_rotation % 360.0))),
+                }
+                if valid(rotated_state):
+                    states.append(furthest(rotated_state, direction))
+            for candidate in states:
+                key = (
+                    candidate["startX"], candidate["startY"], candidate["endX"],
+                    candidate["endY"], candidate["rotation"],
+                )
+                if key in seen or candidate == before:
+                    continue
+                seen.add(key)
+                placed = geometry(candidate)
+                center = placed.centroid
+                result.append(Placement(candidate, placed, math.dist(source_center, (center.x, center.y))))
+    return result

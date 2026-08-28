@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Sequence, TypedDict
 
@@ -22,7 +23,7 @@ from ideal_route_docking_placement import (
     Rectangle,
     RectState,
     geometry as _geometry,
-    placements as _placements,
+    push_placements as _push_placements,
     state as _state,
 )
 
@@ -45,6 +46,48 @@ class RouteOpportunity:
     corridor: BaseGeometry
     current_cost: float
     saving: float
+    centerline: LineString | None = None
+
+
+def _route_interference(placement: Placement, opportunities: Sequence[RouteOpportunity]) -> float:
+    return sum(
+        (1.0 + route.saving) * placement.geometry.intersection(route.corridor).area
+        for route in opportunities
+        if placement.geometry.intersects(route.corridor)
+    )
+
+
+def _route_angles(fabric: Rectangle, opportunities: Sequence[RouteOpportunity]) -> list[float]:
+    fabric_geometry = _geometry(_state(fabric))
+    center = fabric_geometry.centroid
+    ranked: list[tuple[float, float]] = []
+    for route in opportunities:
+        if not route.corridor.intersects(fabric_geometry):
+            continue
+        if route.centerline is None:
+            coordinates = list(route.corridor.minimum_rotated_rectangle.exterior.coords)
+            longest = max(
+                zip(coordinates, coordinates[1:]),
+                key=lambda pair: math.dist(pair[0], pair[1]),
+            )
+            coordinates = [longest[0], longest[1]]
+        else:
+            coordinates = list(route.centerline.coords)
+        segments = [
+            LineString((start, end))
+            for start, end in zip(coordinates, coordinates[1:])
+        ]
+        if not segments:
+            continue
+        segment = min(segments, key=center.distance)
+        start, end = segment.coords[0], segment.coords[-1]
+        angle = math.degrees(math.atan2(end[1] - start[1], end[0] - start[0])) % 180.0
+        ranked.append((-route.saving, angle))
+    angles: list[float] = []
+    for _, angle in sorted(ranked):
+        if not any(abs(angle - existing) < 1e-6 for existing in angles):
+            angles.append(angle)
+    return angles
 
 
 def _ideal_opportunities(
@@ -74,12 +117,14 @@ def _ideal_opportunities(
         current_cost, _ = current.plan_cost(current_origin)
         route = ideal_router.plan(ideal_origin)
         points = [*route.waypoints, route.terminal_point]
-        corridor = LineString(points).buffer(GRID_STEP_METERS, cap_style="round", join_style="round")
+        centerline = LineString(points)
+        corridor = centerline.buffer(GRID_STEP_METERS, cap_style="round", join_style="round")
         opportunities.append(
             RouteOpportunity(
                 corridor,
                 float(current_cost),
                 max(0.0, float(current_cost - route.total_cost)),
+                centerline,
             )
         )
     return opportunities
@@ -123,9 +168,7 @@ def generate_docking_candidates(
         groups_by_ids.values(),
         key=lambda item: (-item[1], len(item[0]), tuple(fabric["id"] for fabric in item[0])),
     )
-    minimum_group_diversity = 2 if len(ranked_groups) > 1 and max_candidates > 1 else 1
-    group_limit = min(len(ranked_groups), max(minimum_group_diversity, max_candidates // 3))
-    blocker_groups = [group for group, _ in ranked_groups[:group_limit]]
+    blocker_groups = [group for group, _ in ranked_groups]
     group_choices: list[list[tuple[Rectangle, list[Placement]]]] = []
     for group in blocker_groups:
         group_ids = {fabric["id"] for fabric in group}
@@ -139,7 +182,25 @@ def generate_docking_candidates(
         )
         group_choices.append(
             [
-                (fabric, _placements(drawing, fabric, static_obstacles, parsed_constraints))
+                (
+                    fabric,
+                    sorted(
+                        _push_placements(
+                            drawing,
+                            fabric,
+                            static_obstacles,
+                            parsed_constraints,
+                            _route_angles(fabric, opportunities),
+                        ),
+                        key=lambda placement: (
+                            _route_interference(placement, opportunities),
+                            placement.travel,
+                            placement.state["rotation"],
+                            placement.state["startX"],
+                            placement.state["startY"],
+                        ),
+                    ),
+                )
                 for fabric in group
             ]
         )

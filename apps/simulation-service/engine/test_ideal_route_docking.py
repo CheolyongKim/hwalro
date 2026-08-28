@@ -6,7 +6,14 @@ from unittest.mock import patch
 from shapely.geometry import LineString
 
 from constraints import SearchConstraints, WITHIN_ZONE
-from ideal_route_docking import Drawing, Rectangle, RouteOpportunity, generate_docking_candidates
+from ideal_route_docking import (
+    Drawing,
+    Rectangle,
+    RouteOpportunity,
+    _route_interference,
+    generate_docking_candidates,
+)
+from ideal_route_docking_placement import Placement, geometry, push_placements
 import layout_search
 from route_planner import (
     GRID_STEP_METERS,
@@ -42,6 +49,53 @@ def fabric(fabric_id: int, start_x: float, start_y: float, end_x: float, end_y: 
         "endY": end_y,
         "rotation": 0.0,
     }
+
+
+def test_prefers_storage_positions_outside_the_ideal_route_flow() -> None:
+    opportunity = RouteOpportunity(
+        LineString(((6.0, 0.0), (6.0, 10.0))).buffer(0.5),
+        100.0,
+        10.0,
+    )
+    on_route = Placement(
+        {"startX": 5.5, "startY": 0.0, "endX": 6.5, "endY": 2.0, "rotation": 0.0},
+        LineString(((5.5, 0.0), (6.5, 2.0))).envelope,
+        1.0,
+    )
+    off_route = Placement(
+        {"startX": 0.0, "startY": 0.0, "endX": 1.0, "endY": 2.0, "rotation": 0.0},
+        LineString(((0.0, 0.0), (1.0, 2.0))).envelope,
+        5.0,
+    )
+
+    ranked = sorted(
+        [on_route, off_route],
+        key=lambda placement: (_route_interference(placement, [opportunity]), placement.travel),
+    )
+
+    assert ranked == [off_route, on_route]
+
+
+def test_pushes_fabric_to_the_limit_along_both_route_normals() -> None:
+    drawing = room_drawing([fabric(10, 5.5, 4.0, 6.5, 6.0)])
+
+    result = push_placements(drawing, drawing["fabrics"][0], [], SearchConstraints(), [90.0])
+
+    centers = sorted(round(placement.geometry.centroid.x, 3) for placement in result)
+    assert centers[0] == 0.5
+    assert centers[-1] == 11.5
+    assert all(round(placement.geometry.centroid.y, 3) == 5.0 for placement in result)
+
+
+def test_rotates_long_side_parallel_to_route_when_that_pushes_farther() -> None:
+    drawing = room_drawing([fabric(10, 4.5, 4.5, 7.5, 5.5)])
+
+    result = push_placements(drawing, drawing["fabrics"][0], [], SearchConstraints(), [90.0])
+
+    left = min(result, key=lambda placement: placement.geometry.centroid.x)
+    assert left.state["rotation"] == 90.0
+    assert round(left.geometry.centroid.x, 3) == 0.5
+    assert geometry(left.state).bounds[0] == left.geometry.bounds[0]
 
 
 def test_docks_blocking_fabric_parallel_to_boundary() -> None:
@@ -116,7 +170,7 @@ def test_keeps_independent_ideal_routes_as_separate_complete_layouts() -> None:
     assert frozenset({10, 11}) not in operation_sets
 
 
-def test_balances_route_groups_with_alternative_docking_positions() -> None:
+def test_uses_the_trial_budget_for_distinct_route_groups_before_position_variants() -> None:
     drawing = room_drawing(
         [
             fabric(10, 1.5, 3.0, 2.5, 7.0),
@@ -149,8 +203,8 @@ def test_balances_route_groups_with_alternative_docking_positions() -> None:
         frozenset(operation["fabricId"] for operation in candidate["ops"])
         for candidate in result
     ]
-    assert operation_sets.count(frozenset({10})) >= 2
-    assert any(operation_set != frozenset({10}) for operation_set in operation_sets)
+    assert frozenset({10}) in operation_sets
+    assert len(set(operation_sets)) == 3
 
 
 def test_candidate_limit_bounds_complete_layouts() -> None:
