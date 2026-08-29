@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Dispatch,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react';
+import Konva from 'konva';
 import { Circle, Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 import type {
   Camera,
@@ -169,6 +170,8 @@ export function LayoutCanvas({
   const [zoneDraftRect, setZoneDraftRect] = useState<ZoneRect | null>(null);
   const zoneDragRef = useRef<ZoneDragSession | null>(null);
   const [riskDraft, setRiskDraft] = useState<RiskRectDraft | null>(null);
+  const cameraRef = useRef<Camera>(state.camera);
+  const mainLayerRef = useRef<Konva.Layer>(null);
 
   const { containerRef, spaceDown } = useCanvasListeners({
     dispatch,
@@ -179,7 +182,12 @@ export function LayoutCanvas({
     cameraFitNonce: state.cameraFitNonce,
   });
 
-  const { doc, camera, tool, selection, draft, snapHint, cursor, validationProblems } = state;
+  const { doc, tool, selection, draft, snapHint, cursor, validationProblems } = state;
+  const camera = cameraRef.current;
+
+  useEffect(() => {
+    cameraRef.current = state.camera;
+  }, [state.camera]);
 
   const problemNames = useMemo(() => {
     const byKind = (kind: ValidationProblemKind) =>
@@ -224,13 +232,18 @@ export function LayoutCanvas({
 
   const startPan = useCallback((screen: Vec2, cameraStart: Camera) => {
     panRef.current = { startScreen: screen, startCamera: cameraStart };
+    cameraRef.current = cameraStart;
     setPanning(true);
   }, []);
 
   const stopPan = useCallback(() => {
+    if (panRef.current) {
+      // 커밋: 드래그 동안 ref에만 있던 카메라를 리듀서로 한 번만 동기화한다. 사진처럼 움직이던 캔버스가 상태와 일치한다.
+      dispatch({ type: 'setCamera', camera: cameraRef.current });
+    }
     panRef.current = null;
     setPanning(false);
-  }, []);
+  }, [dispatch]);
 
   const zoneDraggedRect = (session: ZoneDragSession, world: Vec2): ZoneRect => {
     if (session.kind === 'resize') {
@@ -700,16 +713,20 @@ export function LayoutCanvas({
         panX: start.panX - dx / (start.zoom * PX_PER_METER),
         panY: start.panY - dy / (start.zoom * PX_PER_METER),
       };
-      dispatch({
-        type: 'setCamera',
-        camera: clampPan(
-          next,
-          doc.width,
-          doc.height,
-          size.w / (start.zoom * PX_PER_METER),
-          size.h / (start.zoom * PX_PER_METER),
-        ),
-      });
+      const clamped = clampPan(
+        next,
+        doc.width,
+        doc.height,
+        size.w / (start.zoom * PX_PER_METER),
+        size.h / (start.zoom * PX_PER_METER),
+      );
+      cameraRef.current = clamped;
+      const k = clamped.zoom * PX_PER_METER;
+      if (mainLayerRef.current) {
+        mainLayerRef.current.x(-clamped.panX * k);
+        mainLayerRef.current.y(-clamped.panY * k);
+        mainLayerRef.current.batchDraw();
+      }
       return;
     }
     if (state.drag?.kind === 'erase') {
@@ -856,7 +873,14 @@ export function LayoutCanvas({
     >
       {size.w > 0 && size.h > 0 && (
         <Stage width={size.w} height={size.h}>
-          <Layer listening={false} x={-camera.panX * k} y={-camera.panY * k} scaleX={k} scaleY={k}>
+          <Layer
+            ref={mainLayerRef}
+            listening={false}
+            x={-camera.panX * k}
+            y={-camera.panY * k}
+            scaleX={k}
+            scaleY={k}
+          >
             <Rect x={0} y={0} width={doc.width} height={doc.height} fill={CANVAS_COLORS.canvas} />
             <GridLayer
               minX={camera.panX}

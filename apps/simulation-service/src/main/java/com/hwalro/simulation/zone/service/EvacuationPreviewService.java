@@ -69,7 +69,7 @@ public class EvacuationPreviewService {
     private final SimulationEngineRunner engineRunner;
     private final EvacuationRouteCache routeCache;
     private final EvacuationRouteStore routeStore;
-    private final Map<Long, CompletableFuture<List<EvacuationRouteResponse>>> inFlightComputes =
+    private final Map<String, CompletableFuture<List<EvacuationRouteResponse>>> inFlightComputes =
             new ConcurrentHashMap<>();
     private final ExecutorService computeExecutor = Executors.newFixedThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable, "evacuation-route-compute");
@@ -150,10 +150,11 @@ public class EvacuationPreviewService {
         }
 
         List<EvacuationRouteResponse> stale = routeStore.findLatest(versionId);
-        CompletableFuture<List<EvacuationRouteResponse>> inFlight = inFlightComputes.get(layoutId);
+        CompletableFuture<List<EvacuationRouteResponse>> inFlight = inFlightComputes.get(cacheKey);
         if (inFlight == null) {
             inFlight = startCompute(layoutId, versionId, zones, cacheKey);
         }
+
         if (stale != null) {
             return stale;
         }
@@ -171,7 +172,7 @@ public class EvacuationPreviewService {
     private CompletableFuture<List<EvacuationRouteResponse>> startCompute(
             Long layoutId, Long versionId, List<LayoutZone> zones, String cacheKey) {
         boolean[] createdByMe = new boolean[1];
-        CompletableFuture<List<EvacuationRouteResponse>> future = inFlightComputes.computeIfAbsent(layoutId, key -> {
+        CompletableFuture<List<EvacuationRouteResponse>> future = inFlightComputes.computeIfAbsent(cacheKey, key -> {
             createdByMe[0] = true;
             return new CompletableFuture<>();
         });
@@ -185,12 +186,14 @@ public class EvacuationPreviewService {
                             },
                             computeExecutor)
                     .whenComplete((fresh, error) -> {
+                        // 완료를 호출자에게 알리기 전에 진행 중 항목을 제거해야 즉시 재시도가
+                        // 이미 끝난 실패 future를 다시 집어 들지 않는다.
+                        inFlightComputes.remove(cacheKey, future);
                         if (error != null) {
                             future.completeExceptionally(error);
                         } else {
                             future.complete(fresh);
                         }
-                        inFlightComputes.remove(layoutId, future);
                     });
         }
         return future;

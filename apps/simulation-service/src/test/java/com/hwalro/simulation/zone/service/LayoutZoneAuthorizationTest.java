@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +17,7 @@ import com.hwalro.simulation.zone.client.EmployeeDirectoryClient;
 import com.hwalro.simulation.zone.domain.LayoutZone;
 import com.hwalro.simulation.zone.domain.LayoutZoneMember;
 import com.hwalro.simulation.zone.domain.ZoneElementKind;
+import com.hwalro.simulation.zone.dto.AssignedZoneRow;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.LayoutMetadataResponse;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintDto;
 import com.hwalro.simulation.zone.dto.LayoutZoneDtos.StructureConstraintUpdateRequest;
@@ -58,6 +58,9 @@ class LayoutZoneAuthorizationTest {
 
     @Mock
     private EmployeeDirectoryClient employeeDirectoryClient;
+
+    @Mock
+    private EvacuationRouteWarmer evacuationRouteWarmer;
 
     private LayoutMetadataService service;
 
@@ -111,7 +114,21 @@ class LayoutZoneAuthorizationTest {
         when(layoutZoneService.zoneOrThrow(OTHER_ZONE_ID)).thenReturn(zone(OTHER_ZONE_ID, 99L));
 
         service = new LayoutMetadataService(
-                layoutZoneService, drawingService, employeeDirectoryClient, mock(EvacuationRouteWarmer.class));
+                layoutZoneService, drawingService, employeeDirectoryClient, evacuationRouteWarmer);
+    }
+
+    @Test
+    void myZonesStartsRouteWarmingOncePerLayout() {
+        when(layoutZoneService.assignedZones(EMPLOYEE_ID))
+                .thenReturn(List.of(
+                        new AssignedZoneRow(30L, "A", "WORK", 100L, "1층", 1001L, 1L, "출구 A"),
+                        new AssignedZoneRow(31L, "B", "WORK", 100L, "1층", 1001L, 1L, "출구 A"),
+                        new AssignedZoneRow(32L, "C", "WORK", 200L, "2층", 2001L, 2L, "출구 B")));
+
+        assertThat(service.myZones(employee())).hasSize(3);
+
+        verify(evacuationRouteWarmer).warm(100L);
+        verify(evacuationRouteWarmer).warm(200L);
     }
 
     @Test

@@ -136,9 +136,13 @@ public class LayoutMetadataService {
     }
 
     public List<MyZoneResponse> myZones(JwtUser user) {
-        return layoutZoneService.assignedZones(user.userId()).stream()
-                .map(LayoutMetadataService::toMyZone)
-                .toList();
+        List<AssignedZoneRow> assignedZones = layoutZoneService.assignedZones(user.userId());
+        assignedZones.stream()
+                .map(AssignedZoneRow::layoutId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(evacuationRouteWarmer::warm);
+        return assignedZones.stream().map(LayoutMetadataService::toMyZone).toList();
     }
 
     /** 직원은 자기 구역에 속한 구조물만 만질 수 있다. 소속 구역이 없는 공용 구조물도 막는다. */
