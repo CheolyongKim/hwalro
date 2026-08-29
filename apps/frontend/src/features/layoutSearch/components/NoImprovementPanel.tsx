@@ -38,6 +38,7 @@ function tabs(
     const key = `c-${candidate.candidateId}`;
     const colorClass = getCandidateTabColorClass(candidate.operatorType);
     const isSelected = key === activeKey;
+    const isRecommended = (candidate.recommendationTypes?.length ?? 0) > 0;
     return (
       <button
         key={key}
@@ -48,9 +49,11 @@ function tabs(
         aria-controls="candidate-tabpanel"
         className={`no-improvement-tab ${colorClass}${isSelected ? ' is-active' : ''}`}
         onClick={() => onSelect(key)}
-        title={`${candidateResultLabel(candidate)} · ${recommendationLabel(candidate.recommendationTypes)}`}
+        title={`후보 #${candidate.candidateId} · ${candidateResultLabel(candidate)} · ${recommendationLabel(candidate.recommendationTypes)}`}
       >
-        {candidateResultLabel(candidate)}
+        <span>
+          {isRecommended ? '추천' : '후보'} #{candidate.candidateId}
+        </span>
         <span className="candidate-tab__mark">
           {recommendationLabel(candidate.recommendationTypes)}
         </span>
