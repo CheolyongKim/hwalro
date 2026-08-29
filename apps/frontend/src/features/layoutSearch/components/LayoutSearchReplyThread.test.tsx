@@ -76,8 +76,8 @@ describe('LayoutSearchReplyThread', () => {
       );
     });
 
-    const button = [...container.querySelectorAll('button')].find(
-      (element) => element.textContent?.includes('탐색 취소'),
+    const button = [...container.querySelectorAll('button')].find((element) =>
+      element.textContent?.includes('탐색 취소'),
     );
     expect(button).toBeDefined();
     await act(async () => button?.click());

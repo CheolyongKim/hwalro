@@ -82,10 +82,7 @@ export function recommendationLabel(types: readonly RecommendationType[] | undef
     : '비교 후보';
 }
 
-export function candidateResultLabel(candidate: {
-  status: CandidateStatus;
-  delta: MetricDelta[];
-}) {
+export function candidateResultLabel(candidate: { status: CandidateStatus; delta: MetricDelta[] }) {
   if (candidate.status === 'EVALUATED') return '개선됨';
   if (candidate.status === 'FAILED') return '검증 실패';
   if (candidate.status !== 'NOT_IMPROVED') return CANDIDATE_STATUS_LABELS[candidate.status];

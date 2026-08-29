@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { LayoutSearch } from '../api/layoutSearchApi';
 import { layoutSearchReplies } from './searchFeed';
 
-function search(status: LayoutSearch['status'], verifiedCount: number, plannedCount: number | null) {
+function search(
+  status: LayoutSearch['status'],
+  verifiedCount: number,
+  plannedCount: number | null,
+) {
   return {
     searchId: 9,
     baselineSimulationId: 4,

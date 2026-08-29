@@ -29,11 +29,7 @@ export function getCandidateTabColorClass(operatorType: string): string {
   }
 }
 
-function tabs(
-  candidates: SearchCandidate[],
-  activeKey: string,
-  onSelect: (key: string) => void,
-) {
+function tabs(candidates: SearchCandidate[], activeKey: string, onSelect: (key: string) => void) {
   return candidates.map((candidate) => {
     const key = `c-${candidate.candidateId}`;
     const colorClass = getCandidateTabColorClass(candidate.operatorType);
@@ -62,16 +58,26 @@ function tabs(
   });
 }
 
-export function CandidateTabs({ recommended, comparisons, activeKey, onSelect }: CandidateTabsProps) {
+export function CandidateTabs({
+  recommended,
+  comparisons,
+  activeKey,
+  onSelect,
+}: CandidateTabsProps) {
   const visibleRecommended = recommended.slice(0, 3);
   const remaining = MAX_TABS - visibleRecommended.length;
   const visibleComparisons = comparisons.slice(0, remaining);
-  const hiddenCount = recommended.length + comparisons.length - visibleRecommended.length - visibleComparisons.length;
+  const hiddenCount =
+    recommended.length + comparisons.length - visibleRecommended.length - visibleComparisons.length;
   return (
     <div className="no-improvement-tabs" role="tablist" aria-label="개선 후보">
-      {visibleRecommended.length > 0 && <span className="candidate-tab-group-label">추천 개선안</span>}
+      {visibleRecommended.length > 0 && (
+        <span className="candidate-tab-group-label">추천 개선안</span>
+      )}
       {tabs(visibleRecommended, activeKey, onSelect)}
-      {visibleComparisons.length > 0 && <span className="candidate-tab-group-label">실측 비교 기록</span>}
+      {visibleComparisons.length > 0 && (
+        <span className="candidate-tab-group-label">실측 비교 기록</span>
+      )}
       {tabs(visibleComparisons, activeKey, onSelect)}
       {hiddenCount > 0 && (
         <span className="no-improvement-tab no-improvement-tab__overflow" aria-hidden="true">

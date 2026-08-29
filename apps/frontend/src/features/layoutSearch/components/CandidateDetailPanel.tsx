@@ -133,9 +133,7 @@ export function CandidateDetailPanel({
             {measured.length > 0 ? '실측 검증 지표' : '기하학적 개선 예상'}
           </span>
           {measured.length > 0 && (
-            <span className="text-[11px] font-semibold text-text-faint">
-              기준 대비 변화율
-            </span>
+            <span className="text-[11px] font-semibold text-text-faint">기준 대비 변화율</span>
           )}
         </div>
 
@@ -200,7 +198,8 @@ export function CandidateDetailPanel({
               <strong className="text-xs font-bold text-ink">실측 전 기하학적 최적화</strong>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-text-muted">
-              공간 기하 구조와 대피 경로를 분석하여 충돌 및 병목을 최소화한 배치안입니다. 아래 버튼으로 시뮬레이션을 생성하여 정확한 대피 시간 지표를 검증할 수 있습니다.
+              공간 기하 구조와 대피 경로를 분석하여 충돌 및 병목을 최소화한 배치안입니다. 아래
+              버튼으로 시뮬레이션을 생성하여 정확한 대피 시간 지표를 검증할 수 있습니다.
             </p>
           </div>
         )}
@@ -285,7 +284,8 @@ export function CandidateDetailPanel({
               </strong>
               <p className="mt-0.5 text-[11px] leading-relaxed">
                 {isFailed
-                  ? (failureReason ?? '검증 실행 중 오류가 발생하여 시뮬레이션을 생성할 수 없습니다.')
+                  ? (failureReason ??
+                    '검증 실행 중 오류가 발생하여 시뮬레이션을 생성할 수 없습니다.')
                   : '대피 시간 단축 효과가 기준에 미치지 못해 시뮬레이션이 자동 저장되지 않았습니다.'}
               </p>
             </div>

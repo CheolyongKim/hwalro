@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { LayoutZone, MovementPolicy, StructureConstraint, ZoneType } from '../api/layoutMetadataApi';
+import type {
+  LayoutZone,
+  MovementPolicy,
+  StructureConstraint,
+  ZoneType,
+} from '../api/layoutMetadataApi';
 import type { Exit } from '../types';
 import { round1 } from '../utils/geometry';
 
@@ -14,9 +19,17 @@ const ZONE_TYPE_LABELS: Record<ZoneType, string> = {
 const fieldLabelClassName = 'block text-xs text-panel-muted';
 const controlClassName =
   'mt-1 h-9 w-full rounded-md border border-panel-divider bg-panel-soft px-2 text-sm text-panel-text outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50';
-const MOVEMENT_POLICY_OPTIONS: Array<{ value: MovementPolicy; label: string; description: string }> = [
+const MOVEMENT_POLICY_OPTIONS: Array<{
+  value: MovementPolicy;
+  label: string;
+  description: string;
+}> = [
   { value: 'FREE', label: '자유 이동', description: '도면 전체에서 이동하고 회전할 수 있습니다.' },
-  { value: 'WITHIN_ZONE', label: '구역 내에서 이동', description: '소속 구역을 벗어나지 않는 범위에서 이동하고 회전합니다.' },
+  {
+    value: 'WITHIN_ZONE',
+    label: '구역 내에서 이동',
+    description: '소속 구역을 벗어나지 않는 범위에서 이동하고 회전합니다.',
+  },
   { value: 'FIXED', label: '이동 불가', description: '현재 위치와 방향을 그대로 유지합니다.' },
 ];
 
@@ -262,17 +275,31 @@ export function StructureConstraintPanel({
           <fieldset className="mt-3 space-y-2" disabled={disabled}>
             <legend className="text-xs text-panel-muted">이동 수준</legend>
             {MOVEMENT_POLICY_OPTIONS.map((option) => (
-              <label key={option.value} className="flex cursor-pointer gap-2 rounded-md border border-panel-divider bg-panel-soft px-3 py-2.5 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                <input type="radio" name={`movement-policy-${constraint?.fabricId ?? 'new'}`} value={option.value} checked={selectedPolicy === option.value} onChange={() => onChange({ movementPolicy: option.value })} className="mt-0.5 accent-primary" />
+              <label
+                key={option.value}
+                className="flex cursor-pointer gap-2 rounded-md border border-panel-divider bg-panel-soft px-3 py-2.5 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+              >
+                <input
+                  type="radio"
+                  name={`movement-policy-${constraint?.fabricId ?? 'new'}`}
+                  value={option.value}
+                  checked={selectedPolicy === option.value}
+                  onChange={() => onChange({ movementPolicy: option.value })}
+                  className="mt-0.5 accent-primary"
+                />
                 <span>
                   <strong className="block text-sm text-panel-text">{option.label}</strong>
-                  <span className="mt-0.5 block text-xs leading-4 text-panel-muted">{option.description}</span>
+                  <span className="mt-0.5 block text-xs leading-4 text-panel-muted">
+                    {option.description}
+                  </span>
                 </span>
               </label>
             ))}
           </fieldset>
           {selectedPolicy === 'WITHIN_ZONE' && zoneName === null ? (
-            <p className="mt-2 text-xs text-danger">소속 구역이 없어 현재 위치에서 이동하지 않습니다. 먼저 구역에 포함해 주세요.</p>
+            <p className="mt-2 text-xs text-danger">
+              소속 구역이 없어 현재 위치에서 이동하지 않습니다. 먼저 구역에 포함해 주세요.
+            </p>
           ) : null}
         </>
       )}

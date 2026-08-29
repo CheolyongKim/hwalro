@@ -31,7 +31,11 @@ function constraint(patch: Partial<StructureConstraint> = {}): StructureConstrai
   };
 }
 
-function renderPanel(value: StructureConstraint, onChange = vi.fn(), zoneName: string | null = '담당 구역') {
+function renderPanel(
+  value: StructureConstraint,
+  onChange = vi.fn(),
+  zoneName: string | null = '담당 구역',
+) {
   act(() => {
     root.render(
       <StructureConstraintPanel
