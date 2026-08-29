@@ -54,6 +54,28 @@ export const RECOMMENDATION_LABELS: Record<RecommendationType, string> = {
   GEOMETRY: '실측 전 예상안',
 };
 
+export const RECOMMENDATION_TYPE_META: Record<
+  RecommendationType,
+  { label: string; badgeStyle: string }
+> = {
+  TOTAL_TIME: {
+    label: '총시간 최적',
+    badgeStyle: 'bg-indigo-50 text-indigo-700 border border-indigo-200/80',
+  },
+  AVERAGE_TIME: {
+    label: '평균시간 최적',
+    badgeStyle: 'bg-teal-50 text-teal-800 border border-teal-200/80',
+  },
+  BALANCED: {
+    label: '균형 최적',
+    badgeStyle: 'bg-amber-50 text-amber-800 border border-amber-200/80',
+  },
+  GEOMETRY: {
+    label: '실측 전 예상안',
+    badgeStyle: 'bg-soft-gray text-text-muted border border-line',
+  },
+};
+
 export function recommendationLabel(types: readonly RecommendationType[] | undefined) {
   return types && types.length > 0
     ? types.map((type) => RECOMMENDATION_LABELS[type]).join(' · ')
@@ -75,6 +97,23 @@ export function candidateResultLabel(candidate: {
     return '변화 없음';
   }
   return '개선 미달';
+}
+
+export function candidateResultBadgeStyle(candidate: {
+  status: CandidateStatus;
+  delta: MetricDelta[];
+}): string {
+  const label = candidateResultLabel(candidate);
+  if (label === '개선됨' || label === '개선 확인') {
+    return 'bg-success-soft text-success-strong border border-success/25';
+  }
+  if (label === '검증 실패' || label === '제약 위반' || label === '악화됨') {
+    return 'bg-danger-soft text-danger-strong border border-danger/25';
+  }
+  if (candidate.status === 'RUNNING') {
+    return 'bg-primary-soft text-primary-active border border-primary/25';
+  }
+  return 'bg-soft-gray text-text-muted border border-line';
 }
 
 export const REJECT_REASON_LABELS: Record<string, string> = {

@@ -98,4 +98,50 @@ describe('LayoutSearchReplyThread', () => {
       '변경 배치에서 초기 인원을 안전하게 배치할 공간이 부족합니다.',
     );
   });
+
+  it('복수의 최적화 추천 타입을 각각 독립된 라벨 뱃지로 렌더링한다', async () => {
+    const multiRecommendedCandidate: SearchCandidate = {
+      candidateId: 101,
+      round: 1,
+      originFindingType: 'BOTTLENECK',
+      operatorType: 'CLEAR_CORRIDOR',
+      status: 'EVALUATED',
+      recommendationTypes: ['TOTAL_TIME', 'AVERAGE_TIME', 'BALANCED'],
+      rationale: null,
+      changeSet: { schemaVersion: 1, coordinateUnit: 'METER', ops: [] },
+      totalMoveDistance: 3.5,
+      measuredMetrics: [],
+      delta: [
+        {
+          metricType: 'TOTAL_EVACUATION_TIME_SECONDS',
+          baseline: 120,
+          measured: 100,
+          difference: -20,
+          ratio: -0.166,
+        },
+      ],
+      rejectReason: null,
+      preparedSimulation: null,
+    };
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <LayoutSearchReplyThread
+            search={{
+              ...search('COMPLETED'),
+              improvedCandidates: [multiRecommendedCandidate],
+            }}
+          />
+        </MemoryRouter>,
+      );
+    });
+
+    const labels = [...container.querySelectorAll('span')].map((el) => el.textContent?.trim());
+    expect(labels).toContain('총시간 최적');
+    expect(labels).toContain('평균시간 최적');
+    expect(labels).toContain('균형 최적');
+    // 기존처럼 ' · '로 한 덩어리로 붙어있지 않아야 함
+    expect(labels).not.toContain('총시간 최적 · 평균시간 최적 · 균형 최적');
+  });
 });

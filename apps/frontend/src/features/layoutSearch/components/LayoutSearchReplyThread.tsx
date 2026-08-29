@@ -6,7 +6,8 @@ import { layoutSearchReplies, trialCandidates, type SearchReply } from '../utils
 import {
   CANDIDATE_STATUS_LABELS,
   formatDelta,
-  recommendationLabel,
+  RECOMMENDATION_LABELS,
+  RECOMMENDATION_TYPE_META,
   rejectReasonLabel,
   SEARCH_STATUS_LABELS,
 } from '../utils/searchLabels';
@@ -173,9 +174,25 @@ function CandidateRow({
                   {isRecommended ? '추천안' : '실측 후보'} #{candidate.candidateId}
                 </span>
               )}
-              <span className="inline-flex shrink-0 items-center rounded bg-accent-purple-soft px-1.5 py-0.5 text-[10px] font-bold text-accent-purple">
-                {recommendationLabel(candidate.recommendationTypes)}
-              </span>
+              {candidate.recommendationTypes && candidate.recommendationTypes.length > 0 ? (
+                candidate.recommendationTypes.map((type) => {
+                  const meta = RECOMMENDATION_TYPE_META[type];
+                  return (
+                    <span
+                      key={type}
+                      className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        meta?.badgeStyle ?? 'bg-soft-gray text-text-muted border border-line'
+                      }`}
+                    >
+                      {meta?.label ?? RECOMMENDATION_LABELS[type] ?? type}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="inline-flex shrink-0 items-center rounded border border-line bg-soft-gray px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
+                  비교 후보
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -328,13 +345,11 @@ export function LayoutSearchReplyThread({
           <table className="w-full table-fixed border-collapse text-left">
             <caption className="sr-only">발견된 배치 개선안 후보 목록</caption>
             <colgroup>
-              <col className="w-[26%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[13%]" />
-              <col className="w-[13%]" />
-              <col className="w-[12%]" />
+              <col className="w-[42%]" />
+              <col className="w-[14%]" />
+              <col className="w-[17%]" />
+              <col className="w-[17%]" />
+              <col className="w-[10%]" />
             </colgroup>
             <thead>
               <tr className="border-b border-line/40 bg-surface-elevated/40 text-[11px] font-semibold text-text-muted">
