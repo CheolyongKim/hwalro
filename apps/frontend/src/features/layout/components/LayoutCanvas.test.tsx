@@ -16,21 +16,22 @@ vi.mock('react-konva', () => {
     scaleX?: number;
     scaleY?: number;
   }
-  const Layer = forwardRef<unknown, MockLayerProps>(
-    function MockLayer({ children, x, y, scaleX, scaleY }, _ref) {
-      return (
-        <div
-          data-konva-layer
-          data-x={String(x)}
-          data-y={String(y)}
-          data-scale-x={String(scaleX)}
-          data-scale-y={String(scaleY)}
-        >
-          {children}
-        </div>
-      );
-    },
-  );
+  const Layer = forwardRef<unknown, MockLayerProps>(function MockLayer(
+    { children, x, y, scaleX, scaleY },
+    _ref,
+  ) {
+    return (
+      <div
+        data-konva-layer
+        data-x={String(x)}
+        data-y={String(y)}
+        data-scale-x={String(scaleX)}
+        data-scale-y={String(scaleY)}
+      >
+        {children}
+      </div>
+    );
+  });
   return {
     Circle: Shape,
     Group: Shape,
@@ -226,9 +227,7 @@ describe('LayoutCanvas camera rendering', () => {
 
     act(() => root.render(<LayoutCanvas state={initial} {...props} />));
     expect(container.querySelector('[data-konva-layer]')).toBeNull();
-    expect(props.dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'setCamera' }),
-    );
+    expect(props.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'setCamera' }));
 
     act(() =>
       root.render(

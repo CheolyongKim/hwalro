@@ -170,8 +170,7 @@ export function useCanvasListeners({
     };
   }, []);
 
-  const cameraReady =
-    size.w > 0 && size.h > 0 && fittedNonceRef.current === cameraFitNonce;
+  const cameraReady = size.w > 0 && size.h > 0 && fittedNonceRef.current === cameraFitNonce;
 
   return { containerRef, spaceDown, cameraReady };
 }
